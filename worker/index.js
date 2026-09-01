@@ -1550,7 +1550,7 @@ export default {
           var now = new Date();
           var from = now.toISOString().split('T')[0];
           var to = new Date(now.getTime() + 30*86400000).toISOString().split('T')[0];
-          var calResp = await fetch('https://calendar.zoho.com/api/v1/calendars/events?range_start='+from+'&range_end='+to, {
+          var calResp = await fetch('https://calendar.zoho.eu/api/v1/calendars/events?range_start='+from+'&range_end='+to, {
             headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token}
           });
           if (calResp.ok) {
@@ -1594,7 +1594,7 @@ export default {
         if (zohoTokens && zohoTokens.access_token && body.date && body.time) {
           var startDt = body.date + 'T' + body.time + ':00';
           var endDt = body.date + 'T' + (parseInt(body.time.split(':')[0]) + 1) + ':00:00';
-          await fetch('https://calendar.zoho.com/api/v1/calendars/events', {
+          await fetch('https://calendar.zoho.eu/api/v1/calendars/events', {
             method: 'POST',
             headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token, 'Content-Type': 'application/json'},
             body: JSON.stringify({title: body.title, dateandtime: {start: startDt, end: endDt}, description: body.notes || ''})
@@ -1742,7 +1742,7 @@ export default {
         if (!zohoTokens || !zohoTokens.access_token) {
           return json({contacts:[], error:'Zoho CRM not connected — visit /oauth/zoho/crm'}, 200, origin);
         }
-        var crmResp = await fetch('https://www.zohoapis.com/crm/v3/Contacts?fields=First_Name,Last_Name,Email,Phone,Account_Name,Lead_Source&per_page=200', {
+        var crmResp = await fetch('https://www.zohoapis.eu/crm/v3/Contacts?fields=First_Name,Last_Name,Email,Phone,Account_Name,Lead_Source&per_page=200', {
           headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token}
         });
         if (!crmResp.ok) return json({contacts:[], error:'Zoho CRM API error: ' + crmResp.status}, 200, origin);
@@ -1778,7 +1778,7 @@ export default {
         var zohoTokens = null;
         if (env.PRISM_KV) { var zt = await env.PRISM_KV.get('zoho:tokens:crm'); if (zt) zohoTokens = JSON.parse(zt); }
         if (!zohoTokens || !zohoTokens.access_token) return json({leads:[], error:'not connected'}, 200, origin);
-        var leadsResp = await fetch('https://www.zohoapis.com/crm/v3/Leads?fields=First_Name,Last_Name,Email,Phone,Lead_Source,Lead_Status&per_page=200', {
+        var leadsResp = await fetch('https://www.zohoapis.eu/crm/v3/Leads?fields=First_Name,Last_Name,Email,Phone,Lead_Source,Lead_Status&per_page=200', {
           headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token}
         });
         if (!leadsResp.ok) return json({leads:[], error:'API error'}, 200, origin);
@@ -1797,7 +1797,7 @@ export default {
         var zohoTokens = null;
         if (env.PRISM_KV) { var zt = await env.PRISM_KV.get('zoho:tokens:crm'); if (zt) zohoTokens = JSON.parse(zt); }
         if (zohoTokens && zohoTokens.access_token) {
-          var pushResp = await fetch('https://www.zohoapis.com/crm/v3/Contacts', {
+          var pushResp = await fetch('https://www.zohoapis.eu/crm/v3/Contacts', {
             method: 'POST',
             headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token, 'Content-Type': 'application/json'},
             body: JSON.stringify({data:[{First_Name:body.first_name||'', Last_Name:body.last_name||body.name||'', Email:body.email||'', Phone:body.phone||'', Lead_Source:body.source||'Website'}]})
