@@ -537,43 +537,56 @@ function loadQueuePreview() {
 
 // News (RSS via allorigins proxy)
 var RSS_FEEDS = [
-  'https://feeds.theguardian.com/theguardian/uk/rss',
-  'https://feeds.bbci.co.uk/news/rss.xml',
+  {name:'The Guardian', url:'https://feeds.theguardian.com/theguardian/uk/rss'},
+  {name:'BBC News', url:'https://feeds.bbci.co.uk/news/rss.xml'},
+  {name:'Sky News', url:'https://feeds.skynews.com/feeds/rss/uk.xml'},
+  {name:'The Independent', url:'https://www.independent.co.uk/news/uk/rss'},
 ];
 var newsItems = [];
 
 function loadNews() {
-  var feed = RSS_FEEDS[0];
-  var url = 'https://api.allorigins.win/get?url=' + encodeURIComponent(feed);
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', url, true);
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      var data = JSON.parse(xhr.responseText);
-      var parser = new DOMParser();
-      var xml = parser.parseFromString(data.contents, 'text/xml');
-      var items = xml.querySelectorAll('item');
-      newsItems = [];
-      for (var i = 0; i < Math.min(items.length, 8); i++) {
-        var title = items[i].querySelector('title');
-        var link = items[i].querySelector('link');
-        var pubDate = items[i].querySelector('pubDate');
-        var source = 'The Guardian';
-        newsItems.push({
-          title: title ? title.textContent : '',
-          link: link ? link.textContent : '#',
-          date: pubDate ? pubDate.textContent : '',
-          source: source,
-        });
-      }
-      renderNews();
-    } catch(e) {
-      renderNewsFallback();
-    }
-  };
-  xhr.onerror = function() { renderNewsFallback(); };
-  xhr.send();
+  var feedIdx = 0;
+  function tryFeed(idx) {
+    if (idx >= RSS_FEEDS.length) { renderNewsFallback(); return; }
+    var feed = RSS_FEEDS[idx];
+    var proxyUrl = 'https://prism-api.identitypartners.workers.dev/api/rss?url=' + encodeURIComponent(feed.url);
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', proxyUrl, true);
+    xhr.timeout = 10000;
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4) return;
+      if (xhr.status !== 200) { tryFeed(idx + 1); return; }
+      try {
+        var parser = new DOMParser();
+        var xml = parser.parseFromString(xhr.responseText, 'text/xml');
+        var items = xml.querySelectorAll('item');
+        if (!items || items.length === 0) { tryFeed(idx + 1); return; }
+        newsItems = [];
+        for (var i = 0; i < Math.min(items.length, 10); i++) {
+          var titleEl = items[i].querySelector('title');
+          var linkEl = items[i].querySelector('link');
+          var pubDateEl = items[i].querySelector('pubDate');
+          var mediaEl = items[i].querySelector('thumbnail') || items[i].querySelector('content');
+          var encEl = items[i].querySelector('enclosure');
+          var imgUrl = '';
+          if (mediaEl && mediaEl.getAttribute('url')) imgUrl = mediaEl.getAttribute('url');
+          else if (encEl && encEl.getAttribute('url') && encEl.getAttribute('type') && encEl.getAttribute('type').indexOf('image') >= 0) imgUrl = encEl.getAttribute('url');
+          newsItems.push({
+            title: titleEl ? titleEl.textContent.replace('<![CDATA[','').replace(']]>','').trim() : '',
+            link: linkEl ? (linkEl.textContent || linkEl.getAttribute('href') || '#') : '#',
+            date: pubDateEl ? pubDateEl.textContent : '',
+            source: feed.name,
+            img: imgUrl,
+          });
+        }
+        renderNews();
+      } catch(e) { tryFeed(idx + 1); }
+    };
+    xhr.ontimeout = function() { tryFeed(idx + 1); };
+    xhr.onerror = function() { tryFeed(idx + 1); };
+    xhr.send();
+  }
+  tryFeed(0);
 }
 
 function renderNews() {

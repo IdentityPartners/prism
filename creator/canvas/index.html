@@ -1,33 +1,529 @@
 <!DOCTYPE html>
+
 <html lang="en-GB">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Canvas — Prism</title>
-<link rel="stylesheet" href="/shared/prism.css">
-<link rel="stylesheet" href="/shared/themes.css">
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+<style>
+.canvas-shell { display:flex; height:calc(100vh - var(--topbar-h)); overflow:hidden; }
+.canvas-sidebar { width:260px; flex-shrink:0; border-right:1px solid var(--border); background:var(--bg-surface); display:flex; flex-direction:column; overflow-y:auto; }
+.canvas-main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.canvas-toolbar { height:44px; background:var(--bg-elevated); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 12px; gap:6px; flex-shrink:0; overflow-x:auto; }
+.canvas-frame { flex:1; overflow:hidden; position:relative; background:#d0d0d0; }
+#main-canvas { position:absolute; box-shadow:0 4px 24px rgba(0,0,0,0.2); cursor:default; }
+.sb-section { padding:10px 12px; border-bottom:1px solid var(--border); }
+.sb-title { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.07em; color:var(--fg-muted); margin-bottom:8px; }
+.tpl-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+.tpl-card { aspect-ratio:1; background:var(--bg-elevated); border:1px solid var(--border); border-radius:6px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:10px; color:var(--fg-muted); transition:all 0.15s; padding:4px; text-align:center; }
+.tpl-card:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
+.tpl-icon { font-size:20px; }
+.sz-btn { padding:3px 7px; border:1px solid var(--border); border-radius:4px; font-size:10.5px; background:var(--bg-elevated); color:var(--fg-secondary); cursor:pointer; white-space:nowrap; transition:all 0.15s; }
+.sz-btn:hover,.sz-btn.active { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
+.cv-btn { padding:4px 9px; border:1px solid var(--border); border-radius:5px; font-size:11px; background:var(--bg-elevated); color:var(--fg-secondary); cursor:pointer; white-space:nowrap; transition:all 0.15s; }
+.cv-btn:hover { border-color:var(--accent); color:var(--accent); }
+.brand-swatches { display:flex; gap:4px; flex-wrap:wrap; }
+.b-swatch { width:22px; height:22px; border-radius:4px; cursor:pointer; border:2px solid transparent; transition:border-color 0.15s; }
+.b-swatch:hover { border-color:var(--fg-primary); }
+.ai-area { padding:10px 12px; border-top:1px solid var(--border); flex-shrink:0; }
+.ai-ta { width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:var(--font-ui); resize:none; outline:none; background:var(--bg-primary); color:var(--fg-primary); min-height:56px; }
+.ai-ta:focus { border-color:var(--accent); }
+.prop-row { display:flex; align-items:center; gap:6px; margin-bottom:6px; font-size:12px; }
+.prop-label { color:var(--fg-muted); width:60px; flex-shrink:0; }
+.prop-input { flex:1; padding:4px 7px; border:1px solid var(--border); border-radius:4px; font-size:12px; outline:none; background:var(--bg-primary); color:var(--fg-primary); }
+.prop-input:focus { border-color:var(--accent); }
+</style>
 </head>
 <body>
 <div class="prism-shell">
-  <div id="sidebar-mount"></div>
-  <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Canvas</div></div>
-    <div class="page-content">
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:48px;margin-bottom:16px;">🖼</div>
-        <div style="font-family:var(--font-heading);font-size:20px;font-weight:600;margin-bottom:10px;">Canvas</div>
-        <p style="font-size:13.5px;color:var(--fg-muted);max-width:400px;margin:0 auto 20px;">Design visual assets using Polotno — 500+ templates available.</p>
-        <a href="/chat/" class="btn btn-primary" title="Use Chat to create content">💬 Use Chat to Create</a>
-      </div></div>
-  </div>
+<div id="sidebar-mount"></div>
+<div class="main-content" id="main-content">
+<div class="topbar">
+<div class="topbar-title">Canvas</div>
+<div class="topbar-actions">
+<button class="btn btn-sm btn-secondary" onclick="downloadPNG()" title="Download as PNG">⬇ PNG</button>
+<button class="btn btn-sm btn-secondary" onclick="downloadJPG()" title="Download as JPG">⬇ JPG</button>
+<button class="btn btn-sm btn-primary" onclick="saveToAssets()" title="Save to Assets library">💾 Save to Assets</button>
 </div>
+</div>
+<div class="canvas-shell">
+<!-- Sidebar -->
+<div class="canvas-sidebar">
+<div class="sb-section">
+<div class="sb-title">Canvas Size</div>
+<div style="display:flex;flex-wrap:wrap;gap:4px;">
+<button class="sz-btn active" onclick="setSize(1080,1080,this)" title="Square — Instagram, Facebook">1:1 Square</button>
+<button class="sz-btn" onclick="setSize(1080,1920,this)" title="Story — Instagram, TikTok">9:16 Story</button>
+<button class="sz-btn" onclick="setSize(1200,628,this)" title="Landscape — LinkedIn, Facebook">1.91:1 Post</button>
+<button class="sz-btn" onclick="setSize(1584,396,this)" title="LinkedIn banner">LinkedIn Banner</button>
+<button class="sz-btn" onclick="setSize(1500,500,this)" title="Twitter/X header">Twitter Header</button>
+<button class="sz-btn" onclick="setSize(800,800,this)" title="Quote card">Quote Card</button>
+<button class="sz-btn" onclick="setSize(1920,1080,this)" title="Presentation slide">16:9 Slide</button>
+<button class="sz-btn" onclick="setSize(2480,3508,this)" title="A4 portrait">A4</button>
+</div>
+</div>
+<div class="sb-section">
+<div class="sb-title">Identity Partners Brand</div>
+<div class="brand-swatches">
+<div class="b-swatch" onclick="applyColour('#0f3b3a')" style="background:#0f3b3a;" title="Deep Teal"></div>
+<div class="b-swatch" onclick="applyColour('#5c2d3f')" style="background:#5c2d3f;" title="Deep Rose"></div>
+<div class="b-swatch" onclick="applyColour('#f7f3e9')" style="background:#f7f3e9;" title="Warm Ivory"></div>
+<div class="b-swatch" onclick="applyColour('#1a5550')" style="background:#1a5550;" title="Teal Hover"></div>
+<div class="b-swatch" onclick="applyColour('#7a4254')" style="background:#7a4254;" title="Rose Secondary"></div>
+<div class="b-swatch" onclick="applyColour('#ddd0c8')" style="background:#ddd0c8;" title="Warm Grey"></div>
+<div class="b-swatch" onclick="applyColour('#ffffff')" style="background:#ffffff;border:1px solid #ccc;" title="White"></div>
+<div class="b-swatch" onclick="applyColour('#1a1a1a')" style="background:#1a1a1a;" title="Near Black"></div>
+<div class="b-swatch" onclick="applyColour('#e8f4f4')" style="background:#e8f4f4;" title="Teal Tint"></div>
+<div class="b-swatch" onclick="applyColour('#f5e8ec')" style="background:#f5e8ec;" title="Rose Tint"></div>
+</div>
+<div style="margin-top:8px;font-size:10.5px;color:var(--fg-muted);">Fonts: Inter · Playfair Display · Merriweather</div>
+</div>
+<div class="sb-section">
+<div class="sb-title">Templates</div>
+<div class="tpl-grid">
+<div class="tpl-card" onclick="loadTemplate('quote')" title="Quote card"><span class="tpl-icon">❝</span>Quote</div>
+<div class="tpl-card" onclick="loadTemplate('carousel')" title="Carousel slide"><span class="tpl-icon">📱</span>Carousel</div>
+<div class="tpl-card" onclick="loadTemplate('announcement')" title="Announcement"><span class="tpl-icon">📢</span>Announce</div>
+<div class="tpl-card" onclick="loadTemplate('stat')" title="Statistic card"><span class="tpl-icon">📊</span>Stat Card</div>
+<div class="tpl-card" onclick="loadTemplate('tip')" title="Tip card"><span class="tpl-icon">💡</span>Tip Card</div>
+<div class="tpl-card" onclick="loadTemplate('event')" title="Event promo"><span class="tpl-icon">📅</span>Event</div>
+<div class="tpl-card" onclick="loadTemplate('profile')" title="Profile card"><span class="tpl-icon">👤</span>Profile</div>
+<div class="tpl-card" onclick="loadTemplate('blank')" title="Blank canvas"><span class="tpl-icon">⬜</span>Blank</div>
+</div>
+</div>
+<div class="sb-section">
+<div class="sb-title">Add Elements</div>
+<div style="display:flex;flex-direction:column;gap:5px;">
+<button class="cv-btn" onclick="addText()" title="Add text element">＋ Text</button>
+<button class="cv-btn" onclick="addRect()" title="Add rectangle">▭ Rectangle</button>
+<button class="cv-btn" onclick="addCircle()" title="Add circle">○ Circle</button>
+<button class="cv-btn" onclick="addImageURL()" title="Add image from URL">🖼 Image URL</button>
+<button class="cv-btn" onclick="document.getElementById('img-upload').click()" title="Upload image from device">⬆ Upload Image</button>
+<button class="cv-btn" onclick="addIPLogo()" title="Add Identity Partners logo mark">🏢 IP Logo</button>
+</div>
+</div>
+<div class="sb-section" id="props-panel" style="display:none;">
+<div class="sb-title">Selected Element</div>
+<div id="props-content"></div>
+</div>
+<div class="ai-area">
+<div class="sb-title" style="margin-bottom:6px;">AI Design Assist</div>
+<textarea class="ai-ta" id="ai-prompt" placeholder="Describe what to create… e.g. 'Quote card about addiction recovery, teal background, white text'"></textarea>
+<button class="btn btn-primary btn-sm" onclick="aiDesign()" style="width:100%;margin-top:6px;" title="Generate design with AI">✨ Generate Design</button>
+</div>
+</div>
+<!-- Canvas area -->
+<div class="canvas-main">
+<div class="canvas-toolbar">
+<button class="cv-btn" onclick="undo()" title="Undo (Ctrl+Z)">↩ Undo</button>
+<button class="cv-btn" onclick="redo()" title="Redo (Ctrl+Y)">↪ Redo</button>
+<div style="width:1px;height:20px;background:var(--border);margin:0 2px;"></div>
+<button class="cv-btn" onclick="alignEl('left')" title="Align left">⬅</button>
+<button class="cv-btn" onclick="alignEl('center')" title="Align centre">↔</button>
+<button class="cv-btn" onclick="alignEl('right')" title="Align right">➡</button>
+<button class="cv-btn" onclick="alignEl('top')" title="Align top">⬆</button>
+<button class="cv-btn" onclick="alignEl('middle')" title="Align middle">↕</button>
+<button class="cv-btn" onclick="alignEl('bottom')" title="Align bottom">⬇</button>
+<div style="width:1px;height:20px;background:var(--border);margin:0 2px;"></div>
+<button class="cv-btn" onclick="bringFwd()" title="Bring forward">▲ Fwd</button>
+<button class="cv-btn" onclick="sendBck()" title="Send backward">▼ Back</button>
+<button class="cv-btn" onclick="duplicate()" title="Duplicate selected">⧉ Dupe</button>
+<button class="cv-btn" onclick="deleteEl()" style="color:var(--danger);" title="Delete selected">🗑 Del</button>
+<div id="size-label" style="margin-left:auto;font-size:11px;color:var(--fg-muted);">1080 × 1080</div>
+</div>
+<div class="canvas-frame" id="canvas-frame">
+<canvas id="main-canvas"></canvas>
+</div>
+</div>
+</div>
+</div>
+</div>
+<input accept="image/*" id="img-upload" onchange="handleUpload(this)" style="display:none;" type="file"/>
 <script src="/shared/prism.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  var mount = document.getElementById('sidebar-mount');
-  if (mount) { var sb = buildSidebar('/creator/canvas/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var canvas = document.getElementById('main-canvas');
+var ctx = canvas.getContext('2d');
+var CW = 1080, CH = 1080, scale = 1;
+var elements = [], sel = null, hist = [], histIdx = -1;
+var dragging = false, resizing = false, dragOX = 0, dragOY = 0;
+
+var B = {teal:'#0f3b3a',rose:'#5c2d3f',ivory:'#f7f3e9',teal2:'#1a5550',rose2:'#7a4254',grey:'#ddd0c8'};
+
+// ── Resize canvas to fit frame ────────────────────────────────────────────────
+function fitCanvas() {
+  var frame = document.getElementById('canvas-frame');
+  if (!frame) return;
+  var fw = frame.offsetWidth - 48, fh = frame.offsetHeight - 48;
+  scale = Math.min(fw/CW, fh/CH, 1);
+  canvas.width = CW; canvas.height = CH;
+  canvas.style.width = (CW*scale)+'px';
+  canvas.style.height = (CH*scale)+'px';
+  canvas.style.left = Math.max(24, (fw - CW*scale)/2 + 24)+'px';
+  canvas.style.top = Math.max(24, (fh - CH*scale)/2 + 24)+'px';
+  render();
+}
+
+function setSize(w, h, btn) {
+  CW = w; CH = h;
+  var lbl = document.getElementById('size-label');
+  if (lbl) lbl.textContent = w+' × '+h;
+  var btns = document.querySelectorAll('.sz-btn');
+  for (var i=0;i<btns.length;i++) btns[i].classList.remove('active');
+  if (btn) btn.classList.add('active');
+  elements = []; sel = null;
+  fitCanvas(); saveHist();
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  ctx.clearRect(0,0,CW,CH);
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,CW,CH);
+  for (var i=0;i<elements.length;i++) drawEl(elements[i]);
+  if (sel) drawSelection(sel);
+}
+
+function drawEl(el) {
+  ctx.save();
+  ctx.globalAlpha = el.opacity !== undefined ? el.opacity : 1;
+  if (el.type==='rect') {
+    ctx.fillStyle = el.fill||B.teal;
+    if (el.r) { rrect(el.x,el.y,el.w,el.h,el.r); ctx.fill(); }
+    else ctx.fillRect(el.x,el.y,el.w,el.h);
+  } else if (el.type==='circle') {
+    ctx.fillStyle = el.fill||B.rose;
+    ctx.beginPath();
+    ctx.ellipse(el.x+el.w/2,el.y+el.h/2,el.w/2,el.h/2,0,0,Math.PI*2);
+    ctx.fill();
+  } else if (el.type==='text') {
+    ctx.fillStyle = el.color||'#fff';
+    var style = (el.bold?'bold ':'')+(el.italic?'italic ':'');
+    ctx.font = style+(el.fs||48)+'px '+(el.ff||'Inter, sans-serif');
+    ctx.textAlign = el.align||'left';
+    ctx.textBaseline = 'top';
+    wrapText(el.text||'Text', el.x, el.y, el.w, (el.fs||48)*1.35);
+  } else if (el.type==='img' && el._img) {
+    ctx.drawImage(el._img, el.x, el.y, el.w, el.h);
+  }
+  ctx.restore();
+}
+
+function wrapText(text, x, y, maxW, lh) {
+  var words = text.split(' '), line='', ly=y;
+  for (var i=0;i<words.length;i++) {
+    var test = line+words[i]+' ';
+    if (ctx.measureText(test).width > maxW && i>0) {
+      ctx.fillText(line, x, ly); line=words[i]+' '; ly+=lh;
+    } else line=test;
+  }
+  ctx.fillText(line, x, ly);
+}
+
+function rrect(x,y,w,h,r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+}
+
+function drawSelection(el) {
+  ctx.save();
+  ctx.strokeStyle='#0f3b3a'; ctx.lineWidth=3; ctx.setLineDash([6,3]);
+  ctx.strokeRect(el.x-3,el.y-3,el.w+6,el.h+6);
+  ctx.setLineDash([]);
+  ctx.fillStyle='#0f3b3a';
+  [[el.x,el.y],[el.x+el.w,el.y],[el.x,el.y+el.h],[el.x+el.w,el.y+el.h]].forEach(function(p){
+    ctx.fillRect(p[0]-5,p[1]-5,10,10);
+  });
+  ctx.restore();
+}
+
+// ── Templates ─────────────────────────────────────────────────────────────────
+function uid() { return 'e'+Date.now()+Math.random().toString(36).slice(2,5); }
+
+function loadTemplate(name) {
+  elements=[]; sel=null;
+  var T = {
+    blank: function() {
+      elements.push({id:uid(),type:'rect',x:0,y:0,w:CW,h:CH,fill:'#fff'});
+    },
+    quote: function() {
+      elements.push({id:uid(),type:'rect',x:0,y:0,w:CW,h:CH,fill:B.teal});
+      elements.push({id:uid(),type:'rect',x:60,y:60,w:CW-120,h:6,fill:B.ivory,opacity:0.35});
+      elements.push({id:uid(),type:'text',x:80,y:110,w:CW-160,h:500,text:'\u201cYour powerful quote about recovery, growth, or change goes here.\u201d',fs:54,color:B.ivory,ff:'Playfair Display, serif',align:'left'});
+      elements.push({id:uid(),type:'text',x:80,y:640,w:CW-160,h:70,text:'\u2014 Identity Partners',fs:32,color:B.grey,ff:'Inter, sans-serif',align:'left'});
+      elements.push({id:uid(),type:'rect',x:60,y:CH-130,w:CW-120,h:6,fill:B.ivory,opacity:0.35});
+      elements.push({id:uid(),type:'text',x:80,y:CH-100,w:CW-160,h:60,text:'identitypartners.uk',fs:26,color:B.grey,ff:'Inter, sans-serif',align:'left'});
+    },
+    announcement: function() {
+      elements.push({id:uid(),type:'rect',x:0,y:0,w:CW,h:CH,fill:B.ivory});
+      elements.push({id:uid(),type:'rect',x:0,y:0,w:CW,h:220,fill:B.teal});
+      elements.push({id:uid(),type:'text',x:60,y:70,w:CW-120,h:100,text:'ANNOUNCEMENT',fs:34,color:B.ivory,bold:true,ff:'Inter, sans-serif',align:'left'});
+      elements.push({id:uid(),type:'text',x:60,y:260,w:CW-120,h:200,text:'Your Headline Here',fs:72,color:B.teal,bold:true,ff:'Playfair Display, serif',align:'left'});
+      elements.push({id:uid(),type:'text',x:60,y:500,w:CW-120,h:300,text:'Supporting detail about this announcement. Keep it concise and impactful.',fs:38,color:B.rose2,ff:'Inter, sans-serif',align:'left'});
+      elements.push({id:uid(),type:'rect',x:60,y:CH-110,w:220,h:64,fill:B.teal,r:10});
+      elements.push({id:uid(),type:'text',x:60,y:CH-98,w:220,h:64,text:'Learn more',fs:28,color:'#fff',bold:true,ff:'Inter, sans-serif',align:'center'});
+    },
+    stat: function() {
+      elements.push({id:uid(),type:'rect',x:0,y:0,w:CW,h:CH,fill:B.rose});
+      elements.push({id:uid(),type:'text',x:80,y:180,w:CW-160,h:320,text:'73%',fs:240,color:'#fff',bold:true,ff:'Inter, sans-serif',align:'center'});
+      elements.push({id:uid(),type:'text',x:80,y:520,w:CW-160,h:140,text:'of people in recovery say peer support was essential to their journey',fs:38,color:B.grey,ff:'Merriweather, serif',align:'center'});
+      elements.push({id:uid(),type:'text',x:80,y:700,w:CW-160,h:60,text:'Source: Identity Partners Research 2026',fs:24,color:B.grey,ff:'Inter, sans-serif',align:'center',opacity:0.7});
+    },
+    tip: function() {
+      elements.push({id:uid(),type:'rect',x:0,y:0,w:CW,h:CH,fill:'#fff'});
+      elements.push({id:uid(),type:'rect',x:0,y:0,w:18,h:CH,fill:B.teal});
+      elements.push({id:uid(),type:'text',x:80,y:80,w:CW-120,h:80,text:'\uD83D\uDCA1 TIP',fs:38,color:B.teal,bold:true,ff:'Inter, sans-serif',align:'left'});
+      elements.push({id:uid(),type:'rect',x:80,y:168,w:CW-160,h:4,fill:B.teal,opacity:0.25});
+      elements.push({id:uid(),type:'text',x:80,y:210,w:CW-160,h:560,text:'Your practical, specific, actionable tip goes here. Make it something people can use today.',fs:50,color:'#1a1a1a',ff:'Playfair Display, serif',align:'left'});
+      elements.push({id:uid(),type:'text',x:80,y:CH-90,w:CW-160,h:60,text:'Identity Partners \u00b7 identitypartners.uk',fs:24,color:B.grey,ff:'Inter, sans-serif',align:'left'});
+    },
+    carousel: function() {
+      elements.push({id:uid(),type:'rect',x:0,y:0,w:CW,h:CH,fill:B.ivory});
+      elements.push({id:uid(),type:'rect',x:0,y:0,w:CW,h:130,fill:B.teal});
+      elements.push({id:uid(),type:'text',x:40,y:38,w:CW-200,h:80,text:'Slide 1 of 5',fs:30,color:B.ivory,ff:'Inter, sans-serif',align:'left'});
+      elements.push({id:uid(),type:'text',x:CW-140,y:28,w:100,h:80,text:'\u2192',fs:64,color:B.ivory,bold:true,ff:'Inter, sans-serif',align:'center'});
+      elements.push({id:uid(),type:'text',x:60,y:180,w:CW-120,h:200,text:'Slide Title',fs:80,color:B.teal,bold:true,ff:'Playfair Display, serif',align:'left'});
+      elements.push({id:uid(),type:'text',x:60,y:420,w:CW-120,h:400,text:'Your slide content. One key point per slide. Keep it scannable.',fs:44,color:B.rose2,ff:'Inter, sans-serif',align:'left'});
+    },
+    event: function() {
+      elements.push({id:uid(),type:'rect',x:0,y:0,w:CW,h:CH,fill:B.teal});
+      elements.push({id:uid(),type:'text',x:80,y:100,w:CW-160,h:80,text:"YOU'RE INVITED",fs:30,color:B.grey,bold:true,ff:'Inter, sans-serif',align:'center'});
+      elements.push({id:uid(),type:'text',x:80,y:220,w:CW-160,h:200,text:'Event Name Here',fs:80,color:'#fff',bold:true,ff:'Playfair Display, serif',align:'center'});
+      elements.push({id:uid(),type:'text',x:80,y:460,w:CW-160,h:80,text:'\uD83D\uDCC5 Date  \uD83D\uDD50 Time  \uD83D\uDCCD Location',fs:34,color:B.grey,ff:'Inter, sans-serif',align:'center'});
+      elements.push({id:uid(),type:'text',x:80,y:600,w:CW-160,h:200,text:'Brief description of the event and what attendees can expect.',fs:36,color:B.grey,ff:'Merriweather, serif',align:'center'});
+    },
+    profile: function() {
+      elements.push({id:uid(),type:'rect',x:0,y:0,w:CW,h:CH,fill:'#fff'});
+      elements.push({id:uid(),type:'rect',x:0,y:0,w:CW,h:380,fill:B.teal});
+      elements.push({id:uid(),type:'circle',x:CW/2-90,y:240,w:180,h:180,fill:B.ivory});
+      elements.push({id:uid(),type:'text',x:80,y:480,w:CW-160,h:100,text:'Your Name',fs:64,color:B.teal,bold:true,ff:'Playfair Display, serif',align:'center'});
+      elements.push({id:uid(),type:'text',x:80,y:590,w:CW-160,h:60,text:'Title \u00b7 Identity Partners',fs:30,color:B.rose2,ff:'Inter, sans-serif',align:'center'});
+      elements.push({id:uid(),type:'text',x:80,y:680,w:CW-160,h:200,text:'Brief bio or tagline here.',fs:34,color:'#555',ff:'Merriweather, serif',align:'center'});
+    },
+  };
+  if (T[name]) T[name]();
+  saveHist(); render();
+}
+
+// ── Add elements ──────────────────────────────────────────────────────────────
+function addText() {
+  var el={id:uid(),type:'text',x:100,y:100,w:CW-200,h:200,text:'Double-click to edit',fs:48,color:B.teal,ff:'Inter, sans-serif',align:'left'};
+  elements.push(el); sel=el; saveHist(); render(); showProps();
+}
+function addRect() {
+  var el={id:uid(),type:'rect',x:CW/2-150,y:CH/2-100,w:300,h:200,fill:B.teal,r:12};
+  elements.push(el); sel=el; saveHist(); render(); showProps();
+}
+function addCircle() {
+  var el={id:uid(),type:'circle',x:CW/2-100,y:CH/2-100,w:200,h:200,fill:B.rose};
+  elements.push(el); sel=el; saveHist(); render(); showProps();
+}
+function addImageURL() {
+  var url=prompt('Image URL:'); if(!url) return; loadImg(url);
+}
+function handleUpload(input) {
+  if(!input.files||!input.files[0]) return;
+  var reader=new FileReader();
+  reader.onload=function(e){loadImg(e.target.result);};
+  reader.readAsDataURL(input.files[0]);
+}
+function loadImg(src) {
+  var img=new Image(); img.crossOrigin='anonymous';
+  img.onload=function(){
+    var asp=img.width/img.height, w=Math.min(CW*0.6,600), h=w/asp;
+    var el={id:uid(),type:'img',x:CW/2-w/2,y:CH/2-h/2,w:w,h:h,src:src,_img:img};
+    elements.push(el); sel=el; saveHist(); render(); showProps();
+  };
+  img.onerror=function(){Toast.error('Could not load image');};
+  img.src=src;
+}
+function addIPLogo() {
+  var svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 80"><text x="0" y="56" font-family="Playfair Display,serif" font-size="40" fill="#0f3b3a" font-weight="600">Identity</text><text x="148" y="56" font-family="Playfair Display,serif" font-size="40" fill="#5c2d3f" font-weight="600">Partners</text></svg>';
+  loadImg('data:image/svg+xml;base64,'+btoa(svg));
+}
+
+// ── Properties panel ──────────────────────────────────────────────────────────
+function showProps() {
+  var panel=document.getElementById('props-panel');
+  var content=document.getElementById('props-content');
+  if(!panel||!content||!sel) { if(panel) panel.style.display='none'; return; }
+  panel.style.display='block';
+  content.innerHTML='';
+  function row(label, inputHtml) {
+    var d=document.createElement('div'); d.className='prop-row';
+    d.innerHTML='<span class="prop-label">'+label+'</span>'+inputHtml;
+    content.appendChild(d);
+  }
+  if(sel.type==='text') {
+    var ta=document.createElement('textarea');
+    ta.style.cssText='width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:4px;font-size:12px;resize:vertical;min-height:60px;outline:none;background:var(--bg-primary);color:var(--fg-primary);font-family:var(--font-ui);';
+    ta.value=sel.text||'';
+    ta.oninput=function(){sel.text=ta.value;render();};
+    content.appendChild(ta);
+    row('Size','<input class="prop-input" type="number" value="'+(sel.fs||48)+'" min="8" max="400" onchange="sel.fs=parseInt(this.value);render();">');
+    row('Colour','<input class="prop-input" type="color" value="'+(sel.color||'#ffffff')+'" oninput="sel.color=this.value;render();">');
+    row('Align','<select class="prop-input" onchange="sel.align=this.value;render();"><option value="left"'+(sel.align==='left'?' selected':'')+'>Left</option><option value="center"'+(sel.align==='center'?' selected':'')+'>Centre</option><option value="right"'+(sel.align==='right'?' selected':'')+'>Right</option></select>');
+    row('Bold','<input type="checkbox"'+(sel.bold?' checked':'')+' onchange="sel.bold=this.checked;render();">');
+  } else if(sel.type==='rect'||sel.type==='circle') {
+    row('Fill','<input class="prop-input" type="color" value="'+(sel.fill||'#0f3b3a')+'" oninput="sel.fill=this.value;render();">');
+    row('Opacity','<input class="prop-input" type="range" min="0" max="1" step="0.05" value="'+(sel.opacity!==undefined?sel.opacity:1)+'" oninput="sel.opacity=parseFloat(this.value);render();">');
+    if(sel.type==='rect') row('Radius','<input class="prop-input" type="number" value="'+(sel.r||0)+'" min="0" max="200" onchange="sel.r=parseInt(this.value);render();">');
+  } else if(sel.type==='img') {
+    row('Opacity','<input class="prop-input" type="range" min="0" max="1" step="0.05" value="'+(sel.opacity!==undefined?sel.opacity:1)+'" oninput="sel.opacity=parseFloat(this.value);render();">');
+  }
+  row('X','<input class="prop-input" type="number" value="'+Math.round(sel.x)+'" onchange="sel.x=parseInt(this.value);render();">');
+  row('Y','<input class="prop-input" type="number" value="'+Math.round(sel.y)+'" onchange="sel.y=parseInt(this.value);render();">');
+  row('W','<input class="prop-input" type="number" value="'+Math.round(sel.w)+'" onchange="sel.w=parseInt(this.value);render();">');
+  row('H','<input class="prop-input" type="number" value="'+Math.round(sel.h)+'" onchange="sel.h=parseInt(this.value);render();">');
+}
+
+function applyColour(c) {
+  if(!sel){Toast.info('Select an element first');return;}
+  if(sel.type==='text') sel.color=c; else sel.fill=c;
+  render(); showProps();
+}
+
+// ── Mouse ─────────────────────────────────────────────────────────────────────
+function getPos(e) {
+  var r=canvas.getBoundingClientRect();
+  return {x:(e.clientX-r.left)/scale, y:(e.clientY-r.top)/scale};
+}
+canvas.addEventListener('mousedown',function(e){
+  var p=getPos(e); sel=null;
+  for(var i=elements.length-1;i>=0;i--){
+    var el=elements[i];
+    if(p.x>=el.x&&p.x<=el.x+el.w&&p.y>=el.y&&p.y<=el.y+el.h){
+      sel=el; dragging=true; dragOX=p.x-el.x; dragOY=p.y-el.y; break;
+    }
+  }
+  render(); showProps();
+});
+canvas.addEventListener('mousemove',function(e){
+  if(!dragging||!sel) return;
+  var p=getPos(e);
+  sel.x=Math.max(0,p.x-dragOX); sel.y=Math.max(0,p.y-dragOY);
+  render();
+});
+canvas.addEventListener('mouseup',function(){if(dragging){dragging=false;saveHist();}});
+canvas.addEventListener('dblclick',function(e){
+  var p=getPos(e);
+  for(var i=elements.length-1;i>=0;i--){
+    var el=elements[i];
+    if(el.type==='text'&&p.x>=el.x&&p.x<=el.x+el.w&&p.y>=el.y&&p.y<=el.y+el.h){
+      var t=prompt('Edit text:',el.text);
+      if(t!==null){el.text=t;saveHist();render();}
+      break;
+    }
+  }
 });
 
+// ── Operations ────────────────────────────────────────────────────────────────
+function alignEl(dir) {
+  if(!sel) return;
+  if(dir==='left') sel.x=0;
+  else if(dir==='center') sel.x=CW/2-sel.w/2;
+  else if(dir==='right') sel.x=CW-sel.w;
+  else if(dir==='top') sel.y=0;
+  else if(dir==='middle') sel.y=CH/2-sel.h/2;
+  else if(dir==='bottom') sel.y=CH-sel.h;
+  render(); saveHist();
+}
+function bringFwd() { if(!sel) return; var i=elements.indexOf(sel); if(i<elements.length-1){elements.splice(i,1);elements.splice(i+1,0,sel);render();} }
+function sendBck() { if(!sel) return; var i=elements.indexOf(sel); if(i>0){elements.splice(i,1);elements.splice(i-1,0,sel);render();} }
+function duplicate() {
+  if(!sel) return;
+  var copy=Object.assign({},sel,{id:uid(),x:sel.x+20,y:sel.y+20});
+  if(sel._img) copy._img=sel._img;
+  elements.push(copy); sel=copy; saveHist(); render(); showProps();
+}
+function deleteEl() { if(!sel) return; elements=elements.filter(function(e){return e.id!==sel.id;}); sel=null; saveHist(); render(); showProps(); }
+
+// ── History ───────────────────────────────────────────────────────────────────
+function saveHist() {
+  hist=hist.slice(0,histIdx+1);
+  hist.push(JSON.stringify(elements.map(function(e){var c=Object.assign({},e);delete c._img;return c;})));
+  histIdx=hist.length-1;
+}
+function undo() { if(histIdx<=0) return; histIdx--; restoreHist(); }
+function redo() { if(histIdx>=hist.length-1) return; histIdx++; restoreHist(); }
+function restoreHist() {
+  elements=JSON.parse(hist[histIdx]);
+  elements.forEach(function(el){
+    if(el.type==='img'&&el.src){
+      var img=new Image(); img.crossOrigin='anonymous';
+      img.onload=function(){el._img=img;render();};
+      img.src=el.src;
+    }
+  });
+  sel=null; render(); showProps();
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function downloadPNG() { sel=null; render(); var a=document.createElement('a'); a.download='prism-canvas-'+Date.now()+'.png'; a.href=canvas.toDataURL('image/png',0.95); a.click(); Toast.success('Downloaded PNG'); }
+function downloadJPG() { sel=null; render(); var a=document.createElement('a'); a.download='prism-canvas-'+Date.now()+'.jpg'; a.href=canvas.toDataURL('image/jpeg',0.92); a.click(); Toast.success('Downloaded JPG'); }
+function saveToAssets() {
+  sel=null; render();
+  var assets=[]; try{assets=JSON.parse(localStorage.getItem('prism-canvas-assets')||'[]');}catch(e){}
+  assets.unshift({id:'asset-'+Date.now(),dataUrl:canvas.toDataURL('image/png',0.85),created:new Date().toISOString(),size:CW+'x'+CH});
+  if(assets.length>30) assets=assets.slice(0,30);
+  try{localStorage.setItem('prism-canvas-assets',JSON.stringify(assets));}catch(e){}
+  Toast.success('Saved to Assets library');
+}
+
+// ── AI Design ─────────────────────────────────────────────────────────────────
+function aiDesign() {
+  var prompt=document.getElementById('ai-prompt').value.trim();
+  if(!prompt){Toast.warning('Describe what you want to create');return;}
+  Toast.info('Generating…');
+  var xhr=new XMLHttpRequest();
+  xhr.open('POST',WORKER+'/api/chat',true);
+  xhr.setRequestHeader('Content-Type','application/json');
+  xhr.onreadystatechange=function(){
+    if(xhr.readyState!==4) return;
+    try{
+      var r=JSON.parse(xhr.responseText);
+      var content=r.content||'';
+      var qm=content.match(/["\u201c]([^"\u201d]{20,200})["\u201d]/);
+      if(qm){
+        loadTemplate('quote');
+        var te=elements.find(function(e){return e.type==='text'&&e.fs>=50;});
+        if(te) te.text='\u201c'+qm[1]+'\u201d';
+      } else {
+        loadTemplate('announcement');
+        var te=elements.find(function(e){return e.type==='text'&&e.fs>=60;});
+        if(te) te.text=content.split('\n')[0].substring(0,60);
+      }
+      render();
+      Toast.success('Design generated \u2014 click elements to edit');
+    }catch(e){Toast.error('AI design failed');}
+  };
+  xhr.onerror=function(){Toast.error('Network error');};
+  xhr.send(JSON.stringify({messages:[
+    {role:'system',content:'You are a graphic design assistant for Identity Partners (addiction, trauma, mental health). Generate compelling text for social media graphics. British English. Be concise and impactful.'},
+    {role:'user',content:'Create content for: '+prompt+'. Return a powerful quote (in \u201ccurly quotes\u201d) and a brief supporting line.'}
+  ],profile:'fast'}));
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+document.addEventListener('keydown',function(e){
+  if(e.ctrlKey&&e.key==='z'){e.preventDefault();undo();}
+  if(e.ctrlKey&&e.key==='y'){e.preventDefault();redo();}
+  if(e.ctrlKey&&e.key==='d'){e.preventDefault();duplicate();}
+  if((e.key==='Delete'||e.key==='Backspace')&&sel&&document.activeElement===document.body){deleteEl();}
+});
+
+window.addEventListener('resize',fitCanvas);
+
+document.addEventListener('DOMContentLoaded',function(){
+  var mount=document.getElementById('sidebar-mount');
+  if(mount){var sb=buildSidebar('/creator/canvas/');mount.parentNode.insertBefore(sb,mount);mount.parentNode.removeChild(mount);}
+  fitCanvas();
+  loadTemplate('quote');
+});
 </script>
 </body>
 </html>

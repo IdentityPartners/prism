@@ -5,29 +5,230 @@
 <title>Social Series — Prism</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<style>
+.series-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:12px; overflow:hidden; }
+.series-card-header { padding:12px 16px; background:var(--bg-surface); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.series-card-num { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.07em; color:var(--accent); }
+.series-card-body { padding:14px 16px; font-size:13.5px; line-height:1.65; color:var(--fg-primary); white-space:pre-wrap; }
+.series-card-actions { padding:8px 16px; border-top:1px solid var(--border); display:flex; gap:6px; }
+.platform-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:500; }
+.pb-bluesky { background:#e8f0fe; color:#1a73e8; }
+.pb-linkedin { background:#e8f4f4; color:#0f3b3a; }
+.pb-instagram { background:#f5e8ec; color:#5c2d3f; }
+</style>
 </head>
 <body>
 <div class="prism-shell">
   <div id="sidebar-mount"></div>
   <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Social Series</div></div>
+    <div class="topbar">
+      <div class="topbar-title">Social Series</div>
+      <div class="topbar-actions">
+        <button class="btn btn-sm btn-secondary" onclick="queueAll()" title="Queue all posts to Social Queue">📅 Queue All</button>
+        <button class="btn btn-sm btn-primary" onclick="generateSeries()" title="Generate a social media series">✨ Generate Series</button>
+      </div>
+    </div>
     <div class="page-content">
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:48px;margin-bottom:16px;">📱</div>
-        <div style="font-family:var(--font-heading);font-size:20px;font-weight:600;margin-bottom:10px;">Social Series</div>
-        <p style="font-size:13.5px;color:var(--fg-muted);max-width:400px;margin:0 auto 20px;">Plan and create multi-part social media series.</p>
-        <a href="/chat/" class="btn btn-primary" title="Use Chat to create content">💬 Use Chat to Create</a>
-      </div></div>
+      <div class="grid-2" style="gap:20px;align-items:start;">
+        <div>
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-header"><span class="card-title">Series Setup</span></div>
+            <div class="form-group"><label class="form-label">Series Topic *</label>
+              <input class="input" id="series-topic" type="text" placeholder="e.g. 5 myths about addiction recovery"></div>
+            <div class="form-group"><label class="form-label">Series Type</label>
+              <select class="select" id="series-type" title="Series format">
+                <option value="educational">Educational — teach something valuable</option>
+                <option value="myth-busting">Myth-busting — challenge misconceptions</option>
+                <option value="tips">Tips series — practical advice</option>
+                <option value="story">Story series — narrative arc</option>
+                <option value="awareness">Awareness — raise awareness of an issue</option>
+                <option value="countdown">Countdown — numbered list format</option>
+              </select></div>
+            <div class="form-group"><label class="form-label">Number of Posts</label>
+              <select class="select" id="series-count" title="Number of posts in series">
+                <option value="5">5 posts</option>
+                <option value="7" selected>7 posts</option>
+                <option value="10">10 posts</option>
+                <option value="14">14 posts (2 weeks)</option>
+                <option value="30">30 posts (1 month)</option>
+              </select></div>
+            <div class="form-group"><label class="form-label">Platforms</label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;"><input type="checkbox" id="plt-bluesky" checked> 🦋 Bluesky</label>
+                <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;"><input type="checkbox" id="plt-linkedin"> 💼 LinkedIn</label>
+                <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;"><input type="checkbox" id="plt-instagram"> 📸 Instagram</label>
+              </div></div>
+            <div class="form-group"><label class="form-label">Posting Schedule</label>
+              <select class="select" id="series-schedule" title="How often to post">
+                <option value="daily">Daily</option>
+                <option value="weekdays">Weekdays only</option>
+                <option value="3x">3 times per week</option>
+                <option value="weekly">Weekly</option>
+              </select></div>
+            <div class="form-group"><label class="form-label">Source Material (optional)</label>
+              <textarea class="textarea" id="series-source" placeholder="Paste any source material, research, or notes to base the series on…" rows="4"></textarea></div>
+            <button class="btn btn-primary" style="width:100%;" onclick="generateSeries()" title="Generate the full series">✨ Generate Full Series</button>
+          </div>
+        </div>
+
+        <div>
+          <div id="series-output">
+            <div style="text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);">Fill in the series details and click Generate.</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 <script src="/shared/prism.js"></script>
 <script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var generatedPosts = [];
+
+function generateSeries() {
+  var topic = document.getElementById('series-topic').value.trim();
+  if (!topic) { Toast.warning('Enter a series topic'); return; }
+  var type = document.getElementById('series-type').value;
+  var count = document.getElementById('series-count').value;
+  var schedule = document.getElementById('series-schedule').value;
+  var source = document.getElementById('series-source').value.trim();
+  var platforms = [];
+  if (document.getElementById('plt-bluesky').checked) platforms.push('Bluesky');
+  if (document.getElementById('plt-linkedin').checked) platforms.push('LinkedIn');
+  if (document.getElementById('plt-instagram').checked) platforms.push('Instagram');
+  if (platforms.length === 0) { Toast.warning('Select at least one platform'); return; }
+  var output = document.getElementById('series-output');
+  if (output) output.innerHTML = '<div style="text-align:center;padding:40px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);"><div class="spinner"></div><div style="margin-top:10px;font-size:13px;color:var(--fg-muted);">Generating ' + count + '-post series…</div></div>';
+  var systemPrompt = 'You are a social media content strategist for Identity Partners, a professional services firm focused on addiction, trauma, mental health, and community wellbeing. Write in British English. Be professional, warm, and evidence-based. No sycophancy. Each post should stand alone but also work as part of a series.';
+  var platformInstructions = platforms.map(function(p) {
+    if (p === 'Bluesky') return 'Bluesky: under 300 characters, conversational';
+    if (p === 'LinkedIn') return 'LinkedIn: 150-200 words, professional, 3-5 hashtags';
+    if (p === 'Instagram') return 'Instagram: engaging caption, 5-10 hashtags, emoji-friendly';
+    return p;
+  }).join('; ');
+  var userPrompt = 'Create a ' + count + '-post ' + type + ' social media series.
+
+Topic: ' + topic + '
+Platforms: ' + platforms.join(', ') + '
+Schedule: ' + schedule + '
+
+Platform requirements: ' + platformInstructions + (source ? '
+
+Source material:
+' + source.substring(0, 2000) : '') + '
+
+Return as a JSON array of objects with: {post_number, title, content_by_platform: {platform: text}, hashtags, best_time}. Return ONLY the JSON array, no other text.';
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      var content = r.content || '';
+      var jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        generatedPosts = JSON.parse(jsonMatch[0]);
+        renderSeries(generatedPosts, platforms);
+      } else {
+        // Fallback: render as markdown
+        if (output) { output.innerHTML = '<div class="card"><div class="card-header"><span class="card-title">Generated Series</span></div><div class="md-content" style="padding:16px;">' + Markdown.render(content) + '</div></div>'; }
+      }
+    } catch(e) {
+      if (output) output.innerHTML = '<div style="color:var(--danger);padding:20px;">Generation failed: ' + e.message + '</div>';
+    }
+  };
+  xhr.onerror = function() { if (output) output.innerHTML = '<div style="color:var(--danger);padding:20px;">Network error</div>'; };
+  xhr.send(JSON.stringify({messages:[{role:'system',content:systemPrompt},{role:'user',content:userPrompt}],profile:'balanced'}));
+}
+
+function renderSeries(posts, platforms) {
+  var output = document.getElementById('series-output');
+  if (!output) return;
+  output.innerHTML = '';
+  var header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;';
+  var title = document.createElement('div');
+  title.style.cssText = 'font-weight:600;font-size:14px;';
+  title.textContent = posts.length + '-post series generated';
+  var queueBtn = document.createElement('button');
+  queueBtn.className = 'btn btn-sm btn-primary';
+  queueBtn.textContent = '📅 Queue All';
+  queueBtn.onclick = queueAll;
+  header.appendChild(title); header.appendChild(queueBtn);
+  output.appendChild(header);
+  for (var i = 0; i < posts.length; i++) {
+    (function(post, idx) {
+      var card = document.createElement('div');
+      card.className = 'series-card';
+      var cardHeader = document.createElement('div');
+      cardHeader.className = 'series-card-header';
+      var num = document.createElement('span');
+      num.className = 'series-card-num';
+      num.textContent = 'Post ' + (post.post_number || idx+1) + ' — ' + (post.title || '');
+      var badges = document.createElement('div');
+      badges.style.cssText = 'display:flex;gap:4px;';
+      if (platforms.indexOf('Bluesky') >= 0) { var b=document.createElement('span'); b.className='platform-badge pb-bluesky'; b.textContent='🦋 Bluesky'; badges.appendChild(b); }
+      if (platforms.indexOf('LinkedIn') >= 0) { var b=document.createElement('span'); b.className='platform-badge pb-linkedin'; b.textContent='💼 LinkedIn'; badges.appendChild(b); }
+      cardHeader.appendChild(num); cardHeader.appendChild(badges);
+      var body = document.createElement('div');
+      body.className = 'series-card-body';
+      var content = post.content_by_platform ? Object.values(post.content_by_platform)[0] : (post.content || JSON.stringify(post));
+      body.textContent = content;
+      var actions = document.createElement('div');
+      actions.className = 'series-card-actions';
+      var copyBtn = document.createElement('button');
+      copyBtn.className = 'btn btn-sm btn-secondary';
+      copyBtn.textContent = '📋 Copy';
+      copyBtn.onclick = function() { if(navigator.clipboard) navigator.clipboard.writeText(content).then(function(){Toast.success('Copied');}); };
+      var qBtn = document.createElement('button');
+      qBtn.className = 'btn btn-sm btn-secondary';
+      qBtn.textContent = '📅 Queue';
+      qBtn.onclick = function() { queuePost(content, post.best_time); };
+      var editBtn = document.createElement('button');
+      editBtn.className = 'btn btn-sm btn-secondary';
+      editBtn.textContent = '✏ Edit';
+      editBtn.onclick = function() { body.contentEditable = body.contentEditable==='true'?'false':'true'; body.style.outline=body.contentEditable==='true'?'1px solid var(--accent)':'none'; editBtn.textContent=body.contentEditable==='true'?'✓ Done':'✏ Edit'; };
+      actions.appendChild(copyBtn); actions.appendChild(qBtn); actions.appendChild(editBtn);
+      card.appendChild(cardHeader); card.appendChild(body); card.appendChild(actions);
+      output.appendChild(card);
+    })(posts[i], i);
+  }
+}
+
+function queuePost(content, scheduledAt) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/social/queue', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() { if (xhr.readyState === 4) Toast.success('Queued'); };
+  xhr.send(JSON.stringify({content: content, status: 'pending', scheduledAt: scheduledAt || new Date(Date.now()+86400000).toISOString()}));
+}
+
+function queueAll() {
+  if (generatedPosts.length === 0) { Toast.warning('Generate a series first'); return; }
+  var queued = 0;
+  for (var i = 0; i < generatedPosts.length; i++) {
+    var post = generatedPosts[i];
+    var content = post.content_by_platform ? Object.values(post.content_by_platform)[0] : (post.content || '');
+    if (!content) continue;
+    (function(c, idx) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', WORKER + '/api/social/queue', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        queued++;
+        if (queued === generatedPosts.length) Toast.success(queued + ' posts queued!');
+      };
+      xhr.send(JSON.stringify({content: c, status: 'pending', scheduledAt: new Date(Date.now() + idx*86400000).toISOString()}));
+    })(content, i);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
   if (mount) { var sb = buildSidebar('/creator/social-series/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  
 });
-
 </script>
 </body>
 </html>

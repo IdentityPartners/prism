@@ -5,29 +5,169 @@
 <title>Assets — Prism</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<style>
+.assets-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px; }
+.asset-thumb { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; cursor:pointer; transition:border-color 0.15s; }
+.asset-thumb:hover { border-color:var(--accent); }
+.asset-thumb img { width:100%; aspect-ratio:1; object-fit:cover; display:block; }
+.asset-thumb-info { padding:8px 10px; }
+.asset-thumb-name { font-size:11.5px; font-weight:500; color:var(--fg-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.asset-thumb-meta { font-size:10.5px; color:var(--fg-muted); margin-top:2px; }
+.asset-thumb-actions { display:flex; gap:4px; padding:6px 10px; border-top:1px solid var(--border); }
+.gen-section { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:20px; }
+</style>
 </head>
 <body>
 <div class="prism-shell">
   <div id="sidebar-mount"></div>
   <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Assets</div></div>
+    <div class="topbar">
+      <div class="topbar-title">Assets</div>
+      <div class="topbar-actions">
+        <button class="btn btn-sm btn-secondary" onclick="clearAssets()" title="Clear all saved assets">🗑 Clear All</button>
+        <a href="/creator/canvas/" class="btn btn-sm btn-primary" title="Create new asset in Canvas">＋ New in Canvas</a>
+      </div>
+    </div>
     <div class="page-content">
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:48px;margin-bottom:16px;">📁</div>
-        <div style="font-family:var(--font-heading);font-size:20px;font-weight:600;margin-bottom:10px;">Assets</div>
-        <p style="font-size:13.5px;color:var(--fg-muted);max-width:400px;margin:0 auto 20px;">Manage your generated images, audio files, and visual assets.</p>
-        <a href="/chat/" class="btn btn-primary" title="Use Chat to create content">💬 Use Chat to Create</a>
-      </div></div>
+      <!-- Image generation -->
+      <div class="gen-section">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Generate Image</div>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+          <div style="flex:1;min-width:200px;">
+            <input class="input" id="gen-prompt" type="text" placeholder="Describe the image… e.g. 'Serene forest path at dawn, warm light, peaceful'">
+          </div>
+          <select class="select" style="width:160px;" id="gen-model" title="Image model">
+            <option value="flux">Flux (fast)</option>
+            <option value="turbo">Turbo</option>
+            <option value="gptimage">GPT Image</option>
+          </select>
+          <button class="btn btn-primary" onclick="generateImage()" title="Generate image">🖼 Generate</button>
+        </div>
+        <div id="gen-result" style="margin-top:12px;"></div>
+      </div>
+
+      <!-- Saved assets -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:600;">Saved Assets <span id="asset-count" style="color:var(--fg-muted);font-weight:400;font-size:12px;"></span></div>
+        <input class="input" style="width:200px;" type="text" placeholder="Search assets…" oninput="filterAssets(this.value)">
+      </div>
+      <div class="assets-grid" id="assets-grid">
+        <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">No saved assets yet. Generate images or save from Canvas.</div>
+      </div>
+    </div>
   </div>
 </div>
 <script src="/shared/prism.js"></script>
 <script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var allAssets = [];
+
+function loadAssets() {
+  try { allAssets = JSON.parse(localStorage.getItem('prism-canvas-assets') || '[]'); } catch(e) { allAssets = []; }
+  renderAssets(allAssets);
+}
+
+function renderAssets(assets) {
+  var grid = document.getElementById('assets-grid');
+  var count = document.getElementById('asset-count');
+  if (count) count.textContent = '(' + assets.length + ')';
+  if (!grid) return;
+  grid.innerHTML = '';
+  if (assets.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">No saved assets yet. Generate images or save from Canvas.</div>';
+    return;
+  }
+  for (var i = 0; i < assets.length; i++) {
+    (function(asset) {
+      var card = document.createElement('div');
+      card.className = 'asset-thumb';
+      var img = document.createElement('img');
+      img.src = asset.dataUrl || asset.url || '';
+      img.alt = asset.id;
+      img.loading = 'lazy';
+      var info = document.createElement('div');
+      info.className = 'asset-thumb-info';
+      var name = document.createElement('div');
+      name.className = 'asset-thumb-name';
+      name.textContent = asset.prompt || asset.id || 'Asset';
+      var meta = document.createElement('div');
+      meta.className = 'asset-thumb-meta';
+      meta.textContent = (asset.size || '') + (asset.created ? ' · ' + new Date(asset.created).toLocaleDateString('en-GB') : '');
+      info.appendChild(name); info.appendChild(meta);
+      var actions = document.createElement('div');
+      actions.className = 'asset-thumb-actions';
+      var dlBtn = document.createElement('a');
+      dlBtn.className = 'btn btn-sm btn-ghost';
+      dlBtn.textContent = '⬇';
+      dlBtn.title = 'Download';
+      dlBtn.href = asset.dataUrl || asset.url || '#';
+      dlBtn.download = (asset.id || 'asset') + '.png';
+      var delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-sm btn-ghost';
+      delBtn.textContent = '🗑';
+      delBtn.title = 'Delete';
+      delBtn.onclick = function() { allAssets = allAssets.filter(function(a){return a.id!==asset.id;}); try{localStorage.setItem('prism-canvas-assets',JSON.stringify(allAssets));}catch(e){} renderAssets(allAssets); };
+      actions.appendChild(dlBtn); actions.appendChild(delBtn);
+      card.appendChild(img); card.appendChild(info); card.appendChild(actions);
+      grid.appendChild(card);
+    })(assets[i]);
+  }
+}
+
+function filterAssets(q) {
+  if (!q) { renderAssets(allAssets); return; }
+  var filtered = allAssets.filter(function(a) { return (a.prompt||a.id||'').toLowerCase().indexOf(q.toLowerCase()) >= 0; });
+  renderAssets(filtered);
+}
+
+function generateImage() {
+  var prompt = document.getElementById('gen-prompt').value.trim();
+  if (!prompt) { Toast.warning('Enter a prompt'); return; }
+  var model = document.getElementById('gen-model').value;
+  var result = document.getElementById('gen-result');
+  if (result) result.innerHTML = '<div class="spinner"></div>';
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/image', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      if (r.url && result) {
+        result.innerHTML = '';
+        var img = document.createElement('img');
+        img.src = r.url; img.style.cssText = 'max-width:400px;border-radius:8px;border:1px solid var(--border);display:block;';
+        img.alt = prompt;
+        var saveBtn = document.createElement('button');
+        saveBtn.className = 'btn btn-sm btn-primary';
+        saveBtn.style.marginTop = '8px';
+        saveBtn.textContent = '💾 Save to Assets';
+        saveBtn.onclick = function() {
+          allAssets.unshift({id:'asset-'+Date.now(), url:r.url, prompt:prompt, created:new Date().toISOString()});
+          try{localStorage.setItem('prism-canvas-assets',JSON.stringify(allAssets));}catch(e){}
+          renderAssets(allAssets);
+          Toast.success('Saved to Assets');
+        };
+        result.appendChild(img); result.appendChild(saveBtn);
+      }
+    } catch(e) { if (result) result.innerHTML = '<div style="color:var(--danger);">Generation failed</div>'; }
+  };
+  xhr.onerror = function() { if (result) result.innerHTML = '<div style="color:var(--danger);">Network error</div>'; };
+  xhr.send(JSON.stringify({prompt: prompt, model: model}));
+}
+
+function clearAssets() {
+  if (!confirm('Clear all saved assets? This cannot be undone.')) return;
+  allAssets = [];
+  try { localStorage.removeItem('prism-canvas-assets'); } catch(e) {}
+  renderAssets([]);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
   if (mount) { var sb = buildSidebar('/creator/assets/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  
+  loadAssets();
 });
-
 </script>
 </body>
 </html>

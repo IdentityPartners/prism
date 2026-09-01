@@ -5,29 +5,175 @@
 <title>Worksheets — Prism</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<style>
+.ws-preview { background:#fff; border:1px solid var(--border); border-radius:var(--radius); padding:40px; font-family:'Inter',sans-serif; max-width:700px; }
+.ws-preview h1 { font-family:'Playfair Display',serif; color:#0f3b3a; font-size:24px; margin-bottom:8px; }
+.ws-preview h2 { font-family:'Playfair Display',serif; color:#5c2d3f; font-size:18px; margin:20px 0 8px; }
+.ws-preview p { color:#555; font-size:14px; line-height:1.7; margin-bottom:12px; }
+.ws-preview .field { border-bottom:1px solid #ddd; min-height:36px; margin-bottom:8px; }
+.ws-preview .field-label { font-size:12px; color:#888; margin-bottom:4px; }
+.ws-preview .checkbox-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; font-size:14px; color:#333; }
+.ws-preview .checkbox-box { width:18px; height:18px; border:1.5px solid #aaa; border-radius:3px; flex-shrink:0; }
+.ws-preview .scale { display:flex; gap:8px; margin:8px 0; }
+.ws-preview .scale-item { width:40px; height:40px; border:1.5px solid #ddd; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:14px; color:#888; }
+.ws-preview .ip-footer { margin-top:40px; padding-top:16px; border-top:2px solid #0f3b3a; display:flex; justify-content:space-between; font-size:11px; color:#888; }
+</style>
 </head>
 <body>
 <div class="prism-shell">
   <div id="sidebar-mount"></div>
   <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Worksheets</div></div>
+    <div class="topbar">
+      <div class="topbar-title">Worksheets</div>
+      <div class="topbar-actions">
+        <button class="btn btn-sm btn-secondary" onclick="printWorksheet()" title="Print worksheet">🖨 Print</button>
+        <button class="btn btn-sm btn-secondary" onclick="exportWorksheet()" title="Export as Markdown">⬇ Export</button>
+        <button class="btn btn-sm btn-primary" onclick="generateWorksheet()" title="Generate worksheet">✨ Generate</button>
+      </div>
+    </div>
     <div class="page-content">
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:48px;margin-bottom:16px;">📝</div>
-        <div style="font-family:var(--font-heading);font-size:20px;font-weight:600;margin-bottom:10px;">Worksheets</div>
-        <p style="font-size:13.5px;color:var(--fg-muted);max-width:400px;margin:0 auto 20px;">Create professional worksheets and workbooks for clients.</p>
-        <a href="/chat/" class="btn btn-primary" title="Use Chat to create content">💬 Use Chat to Create</a>
-      </div></div>
+      <div class="grid-2" style="gap:20px;align-items:start;">
+        <div>
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-header"><span class="card-title">Worksheet Setup</span></div>
+            <div class="form-group"><label class="form-label">Topic / Purpose *</label>
+              <input class="input" id="ws-topic" type="text" placeholder="e.g. Identifying personal triggers in addiction recovery"></div>
+            <div class="form-group"><label class="form-label">Worksheet Type</label>
+              <select class="select" id="ws-type" title="Worksheet format">
+                <option value="reflection">Reflection — open-ended questions</option>
+                <option value="assessment">Self-assessment — scales and ratings</option>
+                <option value="planning">Action planning — goals and steps</option>
+                <option value="journal">Journal prompts — daily practice</option>
+                <option value="psychoeducation">Psychoeducation — information + exercises</option>
+                <option value="cbt">CBT-style — thought records and reframing</option>
+              </select></div>
+            <div class="form-group"><label class="form-label">Number of Sections</label>
+              <select class="select" id="ws-sections" title="Number of sections">
+                <option value="3">3 sections</option>
+                <option value="4" selected>4 sections</option>
+                <option value="5">5 sections</option>
+                <option value="6">6 sections</option>
+              </select></div>
+            <div class="form-group"><label class="form-label">Target Audience</label>
+              <input class="input" id="ws-audience" type="text" value="Adults in recovery" placeholder="Who is this worksheet for?"></div>
+            <div class="form-group"><label class="form-label">Additional Instructions</label>
+              <textarea class="textarea" id="ws-instructions" placeholder="Any specific elements to include, avoid, or emphasise…" rows="3"></textarea></div>
+            <button class="btn btn-primary" style="width:100%;" onclick="generateWorksheet()" title="Generate worksheet">✨ Generate Worksheet</button>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><span class="card-title">Quick Templates</span></div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <button class="btn btn-secondary btn-sm" onclick="quickTemplate('triggers')" title="Trigger identification worksheet">🎯 Trigger Identification</button>
+              <button class="btn btn-secondary btn-sm" onclick="quickTemplate('values')" title="Values clarification worksheet">💎 Values Clarification</button>
+              <button class="btn btn-secondary btn-sm" onclick="quickTemplate('coping')" title="Coping strategies worksheet">🛡 Coping Strategies</button>
+              <button class="btn btn-secondary btn-sm" onclick="quickTemplate('goals')" title="Recovery goals worksheet">🎯 Recovery Goals</button>
+              <button class="btn btn-secondary btn-sm" onclick="quickTemplate('gratitude')" title="Gratitude practice worksheet">🙏 Gratitude Practice</button>
+              <button class="btn btn-secondary btn-sm" onclick="quickTemplate('relapse')" title="Relapse prevention plan">🛡 Relapse Prevention Plan</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">Preview</span></div>
+            <div id="ws-preview-container">
+              <div style="text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">Generate a worksheet to see the preview here.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 <script src="/shared/prism.js"></script>
 <script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var currentWorksheet = '';
+
+function generateWorksheet() {
+  var topic = document.getElementById('ws-topic').value.trim();
+  if (!topic) { Toast.warning('Enter a topic'); return; }
+  var type = document.getElementById('ws-type').value;
+  var sections = document.getElementById('ws-sections').value;
+  var audience = document.getElementById('ws-audience').value.trim();
+  var instructions = document.getElementById('ws-instructions').value.trim();
+  var container = document.getElementById('ws-preview-container');
+  if (container) container.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div><div style="margin-top:10px;font-size:13px;color:var(--fg-muted);">Generating worksheet…</div></div>';
+  var systemPrompt = 'You are a clinical worksheet designer for Identity Partners, specialising in addiction, trauma, and mental health. Create professional, evidence-based worksheets in British English. Format using Markdown with clear sections, reflection questions, and practical exercises. Include space indicators like [Write here...] for fill-in areas. The tone is warm, non-judgmental, and empowering.';
+  var userPrompt = 'Create a ' + type + ' worksheet with ' + sections + ' sections.
+
+Topic: ' + topic + '
+Audience: ' + audience + (instructions ? '
+
+Additional instructions: ' + instructions : '') + '
+
+Include: title, brief introduction, ' + sections + ' clearly labelled sections with questions/exercises, and a closing reflection. Add an Identity Partners footer.';
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      currentWorksheet = r.content || '';
+      renderWorksheet(currentWorksheet);
+    } catch(e) { if (container) container.innerHTML = '<div style="color:var(--danger);padding:20px;">Generation failed</div>'; }
+  };
+  xhr.onerror = function() { if (container) container.innerHTML = '<div style="color:var(--danger);padding:20px;">Network error</div>'; };
+  xhr.send(JSON.stringify({messages:[{role:'system',content:systemPrompt},{role:'user',content:userPrompt}],profile:'balanced'}));
+}
+
+function renderWorksheet(content) {
+  var container = document.getElementById('ws-preview-container');
+  if (!container) return;
+  var div = document.createElement('div');
+  div.className = 'ws-preview md-content';
+  div.innerHTML = Markdown.render(content);
+  container.innerHTML = '';
+  container.appendChild(div);
+}
+
+function quickTemplate(type) {
+  var topics = {
+    triggers: 'Identifying and understanding personal triggers in addiction recovery',
+    values: 'Clarifying personal values to guide recovery and life decisions',
+    coping: 'Building a personalised toolkit of healthy coping strategies',
+    goals: 'Setting meaningful, achievable recovery goals using SMART framework',
+    gratitude: 'Daily gratitude practice to support wellbeing and recovery',
+    relapse: 'Creating a personalised relapse prevention plan'
+  };
+  var types = {
+    triggers: 'reflection', values: 'reflection', coping: 'planning',
+    goals: 'planning', gratitude: 'journal', relapse: 'planning'
+  };
+  document.getElementById('ws-topic').value = topics[type] || '';
+  document.getElementById('ws-type').value = types[type] || 'reflection';
+  generateWorksheet();
+}
+
+function printWorksheet() {
+  if (!currentWorksheet) { Toast.warning('Generate a worksheet first'); return; }
+  var win = window.open('', '_blank');
+  win.document.write('<html><head><title>Worksheet</title><style>body{font-family:Inter,sans-serif;max-width:700px;margin:40px auto;padding:20px;}h1,h2{font-family:"Playfair Display",serif;}h1{color:#0f3b3a;}h2{color:#5c2d3f;}p{line-height:1.7;color:#333;}hr{border-color:#0f3b3a;}</style></head><body>');
+  win.document.write('<div class="md-content">' + Markdown.render(currentWorksheet) + '</div>');
+  win.document.write('</body></html>');
+  win.document.close();
+  win.print();
+}
+
+function exportWorksheet() {
+  if (!currentWorksheet) { Toast.warning('Generate a worksheet first'); return; }
+  var topic = document.getElementById('ws-topic').value || 'worksheet';
+  var blob = new Blob([currentWorksheet], {type:'text/markdown'});
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = topic.replace(/[^a-z0-9]/gi,'-').toLowerCase() + '.md'; a.click();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
   if (mount) { var sb = buildSidebar('/creator/worksheets/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  
 });
-
 </script>
 </body>
 </html>

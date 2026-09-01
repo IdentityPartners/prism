@@ -711,6 +711,24 @@ export default {
       return json({keys: list.keys.map(function(k){return k.name;})}, 200, origin);
     }
 
+
+    // RSS proxy (server-side fetch to avoid CORS)
+    if (path === '/api/rss' && request.method === 'GET') {
+      var feedUrl = url.searchParams.get('url');
+      if (!feedUrl) return json({error:'No URL provided'}, 400, origin);
+      try {
+        var rssResp = await fetch(feedUrl, {headers:{'User-Agent':'Prism/1.0 RSS Reader'}});
+        var rssText = await rssResp.text();
+        return new Response(rssText, {
+          headers: Object.assign({'Content-Type':'application/rss+xml; charset=utf-8'}, cors(origin))
+        });
+      } catch(e) {
+        return json({error:'RSS fetch failed: '+e.message}, 500, origin);
+      }
+    }
+
     return json({error:'Not found', path:path}, 404, origin);
   }
 };
+// This file is complete — the append below adds the RSS endpoint
+// (appended at build time, not runtime)

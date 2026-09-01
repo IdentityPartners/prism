@@ -5,19 +5,64 @@
 <title>Creator Studio — Prism</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<style>
+.creator-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:20px; }
+.creator-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); padding:24px; cursor:pointer; transition:all 0.18s; text-decoration:none; display:block; color:inherit; }
+.creator-card:hover { border-color:var(--accent); box-shadow:var(--shadow-lg); transform:translateY(-2px); text-decoration:none; color:inherit; }
+.creator-card-icon { font-size:40px; margin-bottom:14px; }
+.creator-card-title { font-family:var(--font-heading); font-size:18px; font-weight:600; color:var(--fg-primary); margin-bottom:6px; }
+.creator-card-desc { font-size:13px; color:var(--fg-muted); line-height:1.6; }
+.creator-card-badge { display:inline-block; margin-top:10px; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:500; background:var(--accent-light); color:var(--accent); }
+</style>
 </head>
 <body>
 <div class="prism-shell">
   <div id="sidebar-mount"></div>
   <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Creator Studio</div></div>
+    <div class="topbar">
+      <div class="topbar-title">Creator Studio</div>
+    </div>
     <div class="page-content">
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:48px;margin-bottom:16px;">🎨</div>
-        <div style="font-family:var(--font-heading);font-size:20px;font-weight:600;margin-bottom:10px;">Creator Studio</div>
-        <p style="font-size:13.5px;color:var(--fg-muted);max-width:400px;margin:0 auto 20px;">Create visual assets, podcasts, worksheets, and social series.</p>
-        <a href="/chat/" class="btn btn-primary" title="Use Chat to create content">💬 Use Chat to Create</a>
-      </div></div>
+      <p style="font-size:13.5px;color:var(--fg-muted);margin-bottom:24px;">Create visual assets, podcast scripts, client worksheets, and social media series — all powered by AI and grounded in the Identity Partners brand.</p>
+      <div class="creator-grid">
+        <a href="/creator/canvas/" class="creator-card" title="Visual design canvas">
+          <div class="creator-card-icon">🎨</div>
+          <div class="creator-card-title">Canvas</div>
+          <div class="creator-card-desc">Design quote cards, carousels, announcements, and social media graphics using the Identity Partners brand kit. 8 canvas sizes, 8 templates, AI design assist.</div>
+          <span class="creator-card-badge">✓ Fully functional</span>
+        </a>
+        <a href="/creator/assets/" class="creator-card" title="Asset library">
+          <div class="creator-card-icon">📁</div>
+          <div class="creator-card-title">Assets</div>
+          <div class="creator-card-desc">Your library of generated images and saved canvas designs. Generate new images from text prompts using FAL or Pollinations.</div>
+          <span class="creator-card-badge">✓ Fully functional</span>
+        </a>
+        <a href="/creator/podcasts/" class="creator-card" title="Podcast script generator">
+          <div class="creator-card-icon">🎙</div>
+          <div class="creator-card-title">Podcasts</div>
+          <div class="creator-card-desc">Generate full podcast episode scripts — solo, interview, educational, or story formats. Includes show notes and social media copy generator.</div>
+          <span class="creator-card-badge">✓ Fully functional</span>
+        </a>
+        <a href="/creator/worksheets/" class="creator-card" title="Client worksheet generator">
+          <div class="creator-card-icon">📝</div>
+          <div class="creator-card-title">Worksheets</div>
+          <div class="creator-card-desc">Create professional client worksheets — reflection, self-assessment, CBT-style, action planning, and journal prompts. Print-ready output.</div>
+          <span class="creator-card-badge">✓ Fully functional</span>
+        </a>
+        <a href="/creator/social-series/" class="creator-card" title="Social media series planner">
+          <div class="creator-card-icon">📱</div>
+          <div class="creator-card-title">Social Series</div>
+          <div class="creator-card-desc">Plan and generate multi-post social media series for Bluesky, LinkedIn, and Instagram. Queue directly to Social Queue.</div>
+          <span class="creator-card-badge">✓ Fully functional</span>
+        </a>
+        <a href="/creator/brand-kit/" class="creator-card" title="Identity Partners brand kit">
+          <div class="creator-card-icon">🏢</div>
+          <div class="creator-card-title">Brand Kit</div>
+          <div class="creator-card-desc">The complete Identity Partners brand — logo, colour palette, typography, usage guidelines, and voice & tone guide.</div>
+          <span class="creator-card-badge">✓ Fully functional</span>
+        </a>
+      </div>
+    </div>
   </div>
 </div>
 <script src="/shared/prism.js"></script>
@@ -25,9 +70,7 @@
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
   if (mount) { var sb = buildSidebar('/creator/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  
 });
-
 </script>
 </body>
 </html>

@@ -5,29 +5,193 @@
 <title>Brand Kit — Prism</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<style>
+.colour-swatch { width:80px; height:80px; border-radius:10px; display:flex; align-items:flex-end; padding:6px; cursor:pointer; transition:transform 0.15s; }
+.colour-swatch:hover { transform:scale(1.05); }
+.colour-label { font-size:10px; font-weight:600; color:rgba(255,255,255,0.9); text-shadow:0 1px 2px rgba(0,0,0,0.3); }
+.font-sample { padding:16px; border:1px solid var(--border); border-radius:8px; margin-bottom:10px; }
+.font-name { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.07em; color:var(--fg-muted); margin-bottom:6px; }
+.logo-box { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); padding:40px; display:flex; align-items:center; justify-content:center; }
+.ip-logo-teal { font-family:'Playfair Display',serif; font-size:36px; font-weight:600; color:#0f3b3a; }
+.ip-logo-rose { font-family:'Playfair Display',serif; font-size:36px; font-weight:600; color:#5c2d3f; }
+.ip-tagline { font-size:13px; color:#a88792; margin-top:6px; text-align:center; }
+.usage-rule { padding:10px 14px; border-left:3px solid var(--accent); background:var(--accent-light); border-radius:0 6px 6px 0; margin-bottom:8px; font-size:13px; color:var(--fg-secondary); }
+.usage-rule.dont { border-left-color:var(--danger); background:#fbeaea; }
+</style>
 </head>
 <body>
 <div class="prism-shell">
   <div id="sidebar-mount"></div>
   <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Brand Kit</div></div>
+    <div class="topbar">
+      <div class="topbar-title">Brand Kit</div>
+      <div class="topbar-actions">
+        <button class="btn btn-sm btn-secondary" onclick="exportBrandKit()" title="Export brand kit as PDF">⬇ Export PDF</button>
+      </div>
+    </div>
     <div class="page-content">
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:48px;margin-bottom:16px;">🎨</div>
-        <div style="font-family:var(--font-heading);font-size:20px;font-weight:600;margin-bottom:10px;">Brand Kit</div>
-        <p style="font-size:13.5px;color:var(--fg-muted);max-width:400px;margin:0 auto 20px;">Manage Identity Partners brand assets, colours, and fonts.</p>
-        <a href="/chat/" class="btn btn-primary" title="Use Chat to create content">💬 Use Chat to Create</a>
-      </div></div>
+
+      <!-- Logo -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-header"><span class="card-title">Logo</span></div>
+        <div class="grid-2" style="gap:16px;">
+          <div>
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:10px;">Primary — Light Background</div>
+            <div class="logo-box">
+              <div style="text-align:center;">
+                <div><span class="ip-logo-teal">Identity</span><span class="ip-logo-rose">Partners</span></div>
+                <div class="ip-tagline">Understand your past ✦ Appreciate the present ✦ Define your future</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:10px;">Reversed — Dark Background</div>
+            <div class="logo-box" style="background:#0f3b3a;">
+              <div style="text-align:center;">
+                <div><span style="font-family:'Playfair Display',serif;font-size:36px;font-weight:600;color:#f7f3e9;">Identity</span><span style="font-family:'Playfair Display',serif;font-size:36px;font-weight:600;color:#ddd0c8;">Partners</span></div>
+                <div style="font-size:13px;color:rgba(255,255,255,0.6);margin-top:6px;">Understand your past ✦ Appreciate the present ✦ Define your future</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Colours -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-header"><span class="card-title">Colour Palette</span></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+          <div style="text-align:center;">
+            <div class="colour-swatch" style="background:#0f3b3a;" onclick="copyColour('#0f3b3a')" title="Click to copy hex"><span class="colour-label">#0f3b3a</span></div>
+            <div style="font-size:11px;margin-top:6px;color:var(--fg-secondary);">Deep Teal<br><span style="color:var(--fg-muted);">Primary Accent</span></div>
+          </div>
+          <div style="text-align:center;">
+            <div class="colour-swatch" style="background:#5c2d3f;" onclick="copyColour('#5c2d3f')" title="Click to copy hex"><span class="colour-label">#5c2d3f</span></div>
+            <div style="font-size:11px;margin-top:6px;color:var(--fg-secondary);">Deep Rose<br><span style="color:var(--fg-muted);">Secondary Accent</span></div>
+          </div>
+          <div style="text-align:center;">
+            <div class="colour-swatch" style="background:#f7f3e9;border:1px solid #ddd;" onclick="copyColour('#f7f3e9')" title="Click to copy hex"><span class="colour-label" style="color:#5c2d3f;">#f7f3e9</span></div>
+            <div style="font-size:11px;margin-top:6px;color:var(--fg-secondary);">Warm Ivory<br><span style="color:var(--fg-muted);">Background</span></div>
+          </div>
+          <div style="text-align:center;">
+            <div class="colour-swatch" style="background:#1a5550;" onclick="copyColour('#1a5550')" title="Click to copy hex"><span class="colour-label">#1a5550</span></div>
+            <div style="font-size:11px;margin-top:6px;color:var(--fg-secondary);">Teal Hover<br><span style="color:var(--fg-muted);">Interactive</span></div>
+          </div>
+          <div style="text-align:center;">
+            <div class="colour-swatch" style="background:#7a4254;" onclick="copyColour('#7a4254')" title="Click to copy hex"><span class="colour-label">#7a4254</span></div>
+            <div style="font-size:11px;margin-top:6px;color:var(--fg-secondary);">Rose Secondary<br><span style="color:var(--fg-muted);">Supporting</span></div>
+          </div>
+          <div style="text-align:center;">
+            <div class="colour-swatch" style="background:#ddd0c8;border:1px solid #ccc;" onclick="copyColour('#ddd0c8')" title="Click to copy hex"><span class="colour-label" style="color:#5c2d3f;">#ddd0c8</span></div>
+            <div style="font-size:11px;margin-top:6px;color:var(--fg-secondary);">Warm Grey<br><span style="color:var(--fg-muted);">Borders</span></div>
+          </div>
+          <div style="text-align:center;">
+            <div class="colour-swatch" style="background:#e8f4f4;border:1px solid #ccc;" onclick="copyColour('#e8f4f4')" title="Click to copy hex"><span class="colour-label" style="color:#0f3b3a;">#e8f4f4</span></div>
+            <div style="font-size:11px;margin-top:6px;color:var(--fg-secondary);">Teal Tint<br><span style="color:var(--fg-muted);">Backgrounds</span></div>
+          </div>
+          <div style="text-align:center;">
+            <div class="colour-swatch" style="background:#f5e8ec;border:1px solid #ccc;" onclick="copyColour('#f5e8ec')" title="Click to copy hex"><span class="colour-label" style="color:#5c2d3f;">#f5e8ec</span></div>
+            <div style="font-size:11px;margin-top:6px;color:var(--fg-secondary);">Rose Tint<br><span style="color:var(--fg-muted);">Backgrounds</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Typography -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-header"><span class="card-title">Typography</span></div>
+        <div class="grid-2" style="gap:16px;">
+          <div>
+            <div class="font-sample">
+              <div class="font-name">Playfair Display — Headings & Editorial</div>
+              <div style="font-family:'Playfair Display',serif;font-size:28px;color:var(--fg-primary);">Identity Partners</div>
+              <div style="font-family:'Playfair Display',serif;font-size:18px;color:var(--fg-secondary);margin-top:4px;">Understand your past</div>
+              <div style="font-size:11px;color:var(--fg-muted);margin-top:8px;">Weights: 400 Regular · 600 SemiBold · 700 Bold</div>
+            </div>
+            <div class="font-sample">
+              <div class="font-name">Inter — UI & Body Text</div>
+              <div style="font-family:'Inter',sans-serif;font-size:16px;color:var(--fg-primary);">Professional services for addiction, trauma, and mental health.</div>
+              <div style="font-size:11px;color:var(--fg-muted);margin-top:8px;">Weights: 300 Light · 400 Regular · 500 Medium · 600 SemiBold</div>
+            </div>
+          </div>
+          <div>
+            <div class="font-sample">
+              <div class="font-name">Merriweather — Quotes & Pull-quotes</div>
+              <div style="font-family:'Merriweather',serif;font-size:16px;font-style:italic;color:var(--fg-secondary);">"Recovery is not a destination — it is a way of living."</div>
+              <div style="font-size:11px;color:var(--fg-muted);margin-top:8px;">Weights: 400 Regular · 700 Bold</div>
+            </div>
+            <div class="font-sample">
+              <div class="font-name">JetBrains Mono — Code & Data</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--fg-primary);">API · Data · Technical content</div>
+              <div style="font-size:11px;color:var(--fg-muted);margin-top:8px;">Weights: 400 Regular · 500 Medium</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Usage rules -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-header"><span class="card-title">Usage Guidelines</span></div>
+        <div class="grid-2" style="gap:16px;">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--success);margin-bottom:8px;">✓ DO</div>
+            <div class="usage-rule">Use Deep Teal as the primary accent on light backgrounds</div>
+            <div class="usage-rule">Use Playfair Display for all headings and editorial content</div>
+            <div class="usage-rule">Maintain generous whitespace — the brand breathes</div>
+            <div class="usage-rule">Use warm ivory (#f7f3e9) as the primary background</div>
+            <div class="usage-rule">Write in British English throughout</div>
+            <div class="usage-rule">Use the full tagline on formal materials</div>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--danger);margin-bottom:8px;">✗ DO NOT</div>
+            <div class="usage-rule dont">Use the logo on busy photographic backgrounds</div>
+            <div class="usage-rule dont">Stretch or distort the logo</div>
+            <div class="usage-rule dont">Use colours outside the approved palette</div>
+            <div class="usage-rule dont">Use sycophantic or AI-trope language in copy</div>
+            <div class="usage-rule dont">Use American English spellings</div>
+            <div class="usage-rule dont">Use more than two typefaces in a single design</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Voice & Tone -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Voice & Tone</span></div>
+        <div class="grid-2" style="gap:16px;">
+          <div>
+            <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Brand Voice</div>
+            <div style="font-size:13px;color:var(--fg-secondary);line-height:1.8;">
+              <div><strong>Warm but professional.</strong> We care deeply about the people we work with, and it shows — without being saccharine.</div>
+              <div style="margin-top:8px;"><strong>Evidence-based.</strong> We cite sources. We label inferences. We do not invent statistics.</div>
+              <div style="margin-top:8px;"><strong>Direct.</strong> We say what we mean. We do not hedge unnecessarily or apologise for having a point of view.</div>
+              <div style="margin-top:8px;"><strong>Human.</strong> We write like people, not institutions. Short sentences. Active voice. Real words.</div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Words We Use / Avoid</div>
+            <div style="font-size:13px;color:var(--fg-secondary);line-height:1.8;">
+              <div><strong>Use:</strong> recovery, wellbeing, community, support, evidence, practice, journey, growth</div>
+              <div style="margin-top:8px;"><strong>Avoid:</strong> delve, tapestry, landscape (metaphorical), synergy, holistic (overused), journey (overused), empower (overused)</div>
+              <div style="margin-top:8px;"><strong>Never:</strong> "Great question!", "Absolutely!", sycophantic openers, closing motivational platitudes</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
   </div>
 </div>
 <script src="/shared/prism.js"></script>
 <script>
+function copyColour(hex) {
+  if (navigator.clipboard) navigator.clipboard.writeText(hex).then(function() { Toast.success('Copied: ' + hex); });
+}
+function exportBrandKit() {
+  Toast.info('Print this page (Ctrl+P) to save as PDF');
+  window.print();
+}
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
   if (mount) { var sb = buildSidebar('/creator/brand-kit/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  
 });
-
 </script>
 </body>
 </html>

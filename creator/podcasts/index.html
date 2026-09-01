@@ -10,24 +10,250 @@
 <div class="prism-shell">
   <div id="sidebar-mount"></div>
   <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Podcasts</div></div>
+    <div class="topbar">
+      <div class="topbar-title">Podcasts</div>
+      <div class="topbar-actions">
+        <button class="btn btn-sm btn-primary" onclick="generateEpisode()" title="Generate a full podcast episode script">✨ Generate Episode</button>
+      </div>
+    </div>
     <div class="page-content">
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:48px;margin-bottom:16px;">🎙</div>
-        <div style="font-family:var(--font-heading);font-size:20px;font-weight:600;margin-bottom:10px;">Podcasts</div>
-        <p style="font-size:13.5px;color:var(--fg-muted);max-width:400px;margin:0 auto 20px;">Generate podcast scripts, intros, and audio content.</p>
-        <a href="/chat/" class="btn btn-primary" title="Use Chat to create content">💬 Use Chat to Create</a>
-      </div></div>
+      <div class="grid-2" style="gap:20px;align-items:start;">
+        <div>
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-header"><span class="card-title">Episode Setup</span></div>
+            <div class="form-group"><label class="form-label">Episode Topic *</label>
+              <input class="input" id="ep-topic" type="text" placeholder="e.g. Understanding trauma responses in addiction recovery"></div>
+            <div class="form-group"><label class="form-label">Episode Type</label>
+              <select class="select" id="ep-type" title="Episode format">
+                <option value="solo">Solo — Simon speaks directly to audience</option>
+                <option value="interview">Interview — Simon interviews a guest</option>
+                <option value="educational">Educational — deep dive into a topic</option>
+                <option value="story">Story — case study or narrative</option>
+                <option value="roundtable">Round Table — multiple perspectives</option>
+              </select></div>
+            <div class="form-group"><label class="form-label">Duration</label>
+              <select class="select" id="ep-duration" title="Target episode length">
+                <option value="10">~10 minutes (short)</option>
+                <option value="20" selected>~20 minutes (standard)</option>
+                <option value="40">~40 minutes (long)</option>
+                <option value="60">~60 minutes (deep dive)</option>
+              </select></div>
+            <div class="form-group"><label class="form-label">Key Points to Cover</label>
+              <textarea class="textarea" id="ep-points" placeholder="List the main points you want to cover, one per line…" rows="4"></textarea></div>
+            <div class="form-group"><label class="form-label">Target Audience</label>
+              <input class="input" id="ep-audience" type="text" placeholder="e.g. People in recovery, family members, practitioners" value="People in recovery and those who support them"></div>
+            <div class="form-group"><label class="form-label">Tone</label>
+              <select class="select" id="ep-tone" title="Episode tone">
+                <option value="warm">Warm and supportive</option>
+                <option value="educational">Educational and informative</option>
+                <option value="conversational">Conversational and accessible</option>
+                <option value="authoritative">Authoritative and evidence-based</option>
+              </select></div>
+            <button class="btn btn-primary" style="width:100%;" onclick="generateEpisode()" title="Generate full episode script">✨ Generate Full Episode Script</button>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><span class="card-title">Saved Episodes</span></div>
+            <div id="saved-episodes">
+              <div style="font-size:12.5px;color:var(--fg-muted);">No saved episodes yet.</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card" style="margin-bottom:16px;" id="script-card">
+            <div class="card-header">
+              <span class="card-title" id="script-title">Episode Script</span>
+              <div style="display:flex;gap:6px;">
+                <button class="btn btn-sm btn-secondary" onclick="copyScript()" title="Copy script to clipboard">📋 Copy</button>
+                <button class="btn btn-sm btn-secondary" onclick="exportScript()" title="Export as Markdown">⬇ Export</button>
+                <button class="btn btn-sm btn-secondary" onclick="saveEpisode()" title="Save this episode">💾 Save</button>
+                <button class="btn btn-sm btn-secondary" onclick="sendToDrafting()" title="Send to Drafting Desk">✍ Drafting</button>
+              </div>
+            </div>
+            <div id="script-output" style="font-size:13.5px;line-height:1.8;color:var(--fg-secondary);min-height:200px;padding:4px 0;">
+              <div style="text-align:center;padding:40px;color:var(--fg-muted);">Fill in the episode details and click Generate.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><span class="card-title">Show Notes Generator</span></div>
+            <p style="font-size:12.5px;color:var(--fg-muted);margin-bottom:12px;">Generate show notes, timestamps, and social media copy from your script.</p>
+            <button class="btn btn-secondary" style="width:100%;margin-bottom:8px;" onclick="generateShowNotes()" title="Generate show notes from script">📝 Generate Show Notes</button>
+            <button class="btn btn-secondary" style="width:100%;" onclick="generateSocialCopy()" title="Generate social media copy for this episode">📱 Generate Social Copy</button>
+            <div id="show-notes-output" style="margin-top:12px;font-size:13px;line-height:1.7;color:var(--fg-secondary);"></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 <script src="/shared/prism.js"></script>
 <script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var currentScript = '';
+var savedEpisodes = [];
+
+function loadSaved() {
+  try { savedEpisodes = JSON.parse(localStorage.getItem('prism-podcast-episodes') || '[]'); } catch(e) { savedEpisodes = []; }
+  renderSaved();
+}
+
+function renderSaved() {
+  var list = document.getElementById('saved-episodes');
+  if (!list) return;
+  if (savedEpisodes.length === 0) { list.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">No saved episodes yet.</div>'; return; }
+  list.innerHTML = '';
+  for (var i = savedEpisodes.length - 1; i >= 0; i--) {
+    (function(ep) {
+      var el = document.createElement('div');
+      el.style.cssText = 'padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s;';
+      el.onmouseover = function() { el.style.borderColor = 'var(--accent)'; };
+      el.onmouseout = function() { el.style.borderColor = 'var(--border)'; };
+      var title = document.createElement('div');
+      title.style.cssText = 'font-weight:600;font-size:13px;margin-bottom:3px;';
+      title.textContent = ep.topic;
+      var meta = document.createElement('div');
+      meta.style.cssText = 'font-size:11px;color:var(--fg-muted);';
+      meta.textContent = ep.type + ' · ' + ep.duration + ' min · ' + new Date(ep.created).toLocaleDateString('en-GB');
+      el.appendChild(title); el.appendChild(meta);
+      el.onclick = function() { currentScript = ep.script; renderScript(ep.script, ep.topic); };
+      list.appendChild(el);
+    })(savedEpisodes[i]);
+  }
+}
+
+function generateEpisode() {
+  var topic = document.getElementById('ep-topic').value.trim();
+  if (!topic) { Toast.warning('Enter an episode topic'); return; }
+  var type = document.getElementById('ep-type').value;
+  var duration = document.getElementById('ep-duration').value;
+  var points = document.getElementById('ep-points').value.trim();
+  var audience = document.getElementById('ep-audience').value.trim();
+  var tone = document.getElementById('ep-tone').value;
+  var output = document.getElementById('script-output');
+  if (output) output.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div><div style="margin-top:10px;font-size:13px;color:var(--fg-muted);">Generating ' + duration + '-minute episode script…</div></div>';
+  var systemPrompt = 'You are a podcast script writer for Identity Partners, a professional services firm focused on addiction, trauma, mental health, and community wellbeing. The host is Simon Johnson. Write in British English. The tone is ' + tone + '. No sycophancy. No AI tropes. Format the script with clear sections: INTRO, MAIN CONTENT (with subsections), and OUTRO. Include natural speech patterns, pauses [PAUSE], and emphasis *like this*. Include approximate timestamps.';
+  var userPrompt = 'Write a complete ' + duration + '-minute podcast script for a ' + type + ' episode.
+
+Topic: ' + topic + '
+Audience: ' + audience + (points ? '
+
+Key points to cover:
+' + points : '') + '
+
+Include: engaging intro hook, main content with clear structure, practical takeaways, call to action, and outro. Make it feel natural and conversational, not like a lecture.';
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      currentScript = r.content || '';
+      renderScript(currentScript, topic);
+    } catch(e) { if (output) output.innerHTML = '<div style="color:var(--danger);">Generation failed: ' + e.message + '</div>'; }
+  };
+  xhr.onerror = function() { if (output) output.innerHTML = '<div style="color:var(--danger);">Network error</div>'; };
+  xhr.send(JSON.stringify({messages:[{role:'system',content:systemPrompt},{role:'user',content:userPrompt}],profile:'balanced'}));
+}
+
+function renderScript(script, topic) {
+  var output = document.getElementById('script-output');
+  var titleEl = document.getElementById('script-title');
+  if (titleEl) titleEl.textContent = topic || 'Episode Script';
+  if (output) {
+    output.className = 'md-content';
+    output.innerHTML = Markdown.render(script);
+  }
+}
+
+function copyScript() {
+  if (!currentScript) { Toast.warning('Generate a script first'); return; }
+  if (navigator.clipboard) navigator.clipboard.writeText(currentScript).then(function() { Toast.success('Copied to clipboard'); });
+}
+
+function exportScript() {
+  if (!currentScript) { Toast.warning('Generate a script first'); return; }
+  var topic = document.getElementById('ep-topic').value || 'episode';
+  var blob = new Blob([currentScript], {type:'text/markdown'});
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'podcast-' + topic.replace(/[^a-z0-9]/gi,'-').toLowerCase() + '.md'; a.click();
+}
+
+function saveEpisode() {
+  if (!currentScript) { Toast.warning('Generate a script first'); return; }
+  var ep = {
+    id: 'ep-' + Date.now(),
+    topic: document.getElementById('ep-topic').value,
+    type: document.getElementById('ep-type').value,
+    duration: document.getElementById('ep-duration').value,
+    script: currentScript,
+    created: new Date().toISOString()
+  };
+  savedEpisodes.push(ep);
+  try { localStorage.setItem('prism-podcast-episodes', JSON.stringify(savedEpisodes)); } catch(e) {}
+  renderSaved();
+  Toast.success('Episode saved');
+}
+
+function sendToDrafting() {
+  if (!currentScript) { Toast.warning('Generate a script first'); return; }
+  try { sessionStorage.setItem('prism-draft', currentScript); } catch(e) {}
+  window.location.href = '/drafting/';
+}
+
+function generateShowNotes() {
+  if (!currentScript) { Toast.warning('Generate a script first'); return; }
+  var output = document.getElementById('show-notes-output');
+  if (output) output.innerHTML = '<div class="spinner"></div>';
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      if (output) { output.className = 'md-content'; output.innerHTML = Markdown.render(r.content || ''); }
+    } catch(e) { if (output) output.textContent = 'Failed'; }
+  };
+  xhr.onerror = function() { if (output) output.textContent = 'Network error'; };
+  xhr.send(JSON.stringify({messages:[
+    {role:'system',content:'Generate podcast show notes in British English. Include: episode summary (2-3 sentences), key takeaways (bullet points), timestamps, and resources mentioned.'},
+    {role:'user',content:'Generate show notes for this podcast script:
+
+' + currentScript.substring(0, 3000)}
+  ],profile:'balanced'}));
+}
+
+function generateSocialCopy() {
+  if (!currentScript) { Toast.warning('Generate a script first'); return; }
+  var output = document.getElementById('show-notes-output');
+  if (output) output.innerHTML = '<div class="spinner"></div>';
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      if (output) { output.className = 'md-content'; output.innerHTML = Markdown.render(r.content || ''); }
+    } catch(e) { if (output) output.textContent = 'Failed'; }
+  };
+  xhr.onerror = function() { if (output) output.textContent = 'Network error'; };
+  xhr.send(JSON.stringify({messages:[
+    {role:'system',content:'Generate social media copy for a podcast episode. British English. Include: LinkedIn post (150 words), Bluesky thread (5 posts under 300 chars each), and 3 quote cards. Format clearly with headers.'},
+    {role:'user',content:'Generate social media copy for this podcast episode:
+
+' + currentScript.substring(0, 2000)}
+  ],profile:'balanced'}));
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
   if (mount) { var sb = buildSidebar('/creator/podcasts/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  
+  loadSaved();
 });
-
 </script>
 </body>
 </html>
