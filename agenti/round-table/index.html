@@ -5,113 +5,483 @@
 <title>Round Table — Prism</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<style>
+.rt-layout { display:grid; grid-template-columns:280px 1fr; height:calc(100vh - var(--topbar-h)); overflow:hidden; }
+@media(max-width:900px){ .rt-layout{ grid-template-columns:1fr; } .rt-sidebar{ display:none; } }
+.rt-sidebar { border-right:1px solid var(--border); background:var(--bg-surface); overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:12px; }
+.rt-main { display:flex; flex-direction:column; overflow:hidden; }
+.rt-input-area { padding:16px; border-bottom:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; }
+.rt-results { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; }
+.model-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.model-card-header { padding:10px 14px; background:var(--bg-surface); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; }
+.model-badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; }
+.badge-cerebras { background:#fff3e0; color:#e65100; }
+.badge-nvidia { background:#e8f5e9; color:#1b5e20; }
+.badge-deepseek { background:#e3f2fd; color:#0d47a1; }
+.badge-groq { background:#f3e5f5; color:#4a148c; }
+.badge-gemini { background:#fce4ec; color:#880e4f; }
+.badge-mistral { background:#e8eaf6; color:#1a237e; }
+.model-card-body { padding:14px; font-size:13.5px; line-height:1.7; color:var(--fg-primary); }
+.model-card-body.md-content { padding:14px; }
+.model-card-footer { padding:8px 14px; border-top:1px solid var(--border); display:flex; gap:6px; align-items:center; }
+.model-timing { font-size:11px; color:var(--fg-muted); margin-left:auto; }
+.synthesis-card { background:linear-gradient(135deg,var(--accent-light),var(--rose-light)); border:2px solid var(--accent); border-radius:var(--radius); overflow:hidden; }
+.synthesis-header { padding:12px 16px; background:var(--accent); color:#fff; display:flex; align-items:center; gap:8px; }
+.synthesis-title { font-weight:600; font-size:14px; }
+.synthesis-body { padding:16px; font-size:13.5px; line-height:1.7; }
+.model-selector-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px; }
+.model-toggle { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--border); cursor:pointer; font-size:13px; }
+.model-toggle:last-child { border-bottom:none; }
+.model-toggle input { cursor:pointer; }
+.model-info { flex:1; }
+.model-name { font-weight:500; color:var(--fg-primary); }
+.model-desc { font-size:11px; color:var(--fg-muted); }
+.model-speed { font-size:10px; padding:1px 6px; border-radius:8px; background:var(--bg-surface); color:var(--fg-muted); }
+.thinking-trace { background:var(--bg-surface); border:1px solid var(--border); border-radius:6px; padding:8px 12px; margin-top:8px; font-size:11.5px; color:var(--fg-muted); font-family:var(--font-mono); cursor:pointer; }
+.thinking-trace summary { font-weight:600; color:var(--fg-secondary); }
+</style>
 </head>
 <body>
 <div class="prism-shell">
   <div id="sidebar-mount"></div>
   <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Round Table</div><div class="topbar-actions"><button class="btn btn-sm btn-primary" onclick="runRoundTable()" title="Send to all selected models">▶ Run</button></div></div>
-    <div class="page-content">
-      <div class="card" style="margin-bottom:16px;">
-        <div class="card-header"><span class="card-title">Select Models (up to 5)</span></div>
-        <div id="model-selector" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;"></div>
-        <div class="form-group"><label class="form-label">Prompt</label>
-          <textarea class="textarea" id="rt-input" rows="3" placeholder="Enter your prompt — it will be sent to all selected models simultaneously…"></textarea>
-        </div>
-        <button class="btn btn-primary" onclick="runRoundTable()" title="Send to all selected models">▶ Run Round Table</button>
+    <div class="topbar">
+      <div class="topbar-title">Round Table</div>
+      <div class="topbar-actions">
+        <button class="btn btn-sm btn-secondary" onclick="clearResults()" title="Clear all results">✕ Clear</button>
+        <button class="btn btn-sm btn-primary" onclick="runRoundTable()" title="Send to all selected models">▶ Run Round Table</button>
       </div>
-      <div id="rt-results"></div>
-</div>
+    </div>
+    <div class="rt-layout">
+      <!-- Sidebar: model selection -->
+      <div class="rt-sidebar">
+        <div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:10px;">Select Models</div>
+          <div class="model-selector-card">
+            <div class="model-toggle">
+              <input type="checkbox" id="m-cerebras-gemma4" checked>
+              <div class="model-info">
+                <div class="model-name">Gemma4-9B <span class="model-speed">⚡ Fastest</span></div>
+                <div class="model-desc">Cerebras · Multimodal · Free</div>
+              </div>
+            </div>
+            <div class="model-toggle">
+              <input type="checkbox" id="m-cerebras-gemma4-27" checked>
+              <div class="model-info">
+                <div class="model-name">Gemma4-27B <span class="model-speed">⚡ Fast</span></div>
+                <div class="model-desc">Cerebras · Larger · Free</div>
+              </div>
+            </div>
+            <div class="model-toggle">
+              <input type="checkbox" id="m-nvidia-nemotron" checked>
+              <div class="model-info">
+                <div class="model-name">Nemotron Ultra 253B <span class="model-speed">🧠 Synthesis</span></div>
+                <div class="model-desc">NVIDIA · 128K context · Free</div>
+              </div>
+            </div>
+            <div class="model-toggle">
+              <input type="checkbox" id="m-deepseek-r1">
+              <div class="model-info">
+                <div class="model-name">DeepSeek R1 <span class="model-speed">🔍 Reasoning</span></div>
+                <div class="model-desc">DeepSeek · Chain-of-thought</div>
+              </div>
+            </div>
+            <div class="model-toggle">
+              <input type="checkbox" id="m-deepseek-v3">
+              <div class="model-info">
+                <div class="model-name">DeepSeek V3 <span class="model-speed">⚖ Balanced</span></div>
+                <div class="model-desc">DeepSeek · General purpose</div>
+              </div>
+            </div>
+            <div class="model-toggle">
+              <input type="checkbox" id="m-groq-gemma2">
+              <div class="model-info">
+                <div class="model-name">Gemma2-9B <span class="model-speed">⚡ Fast</span></div>
+                <div class="model-desc">Groq · Fast inference</div>
+              </div>
+            </div>
+            <div class="model-toggle">
+              <input type="checkbox" id="m-gemini">
+              <div class="model-info">
+                <div class="model-name">Gemini 2.0 Flash <span class="model-speed">📄 Long-ctx</span></div>
+                <div class="model-desc">Google · 1M token context</div>
+              </div>
+            </div>
+            <div class="model-toggle">
+              <input type="checkbox" id="m-mistral">
+              <div class="model-info">
+                <div class="model-name">Mistral Small <span class="model-speed">🇪🇺 EU</span></div>
+                <div class="model-desc">Mistral · European model</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:8px;">Synthesis</div>
+          <div class="model-selector-card">
+            <div style="font-size:12.5px;color:var(--fg-secondary);margin-bottom:8px;">Synthesiser model</div>
+            <select class="select" id="synthesiser" style="font-size:12px;" title="Model to synthesise all responses">
+              <option value="nvidia-nemotron">Nemotron Ultra 253B (recommended)</option>
+              <option value="cerebras-gemma4-27">Gemma4-27B on Cerebras</option>
+              <option value="deepseek-r1">DeepSeek R1</option>
+              <option value="gemini">Gemini 2.0 Flash</option>
+            </select>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12.5px;cursor:pointer;">
+              <input type="checkbox" id="do-synthesise" checked>
+              Auto-synthesise responses
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12.5px;cursor:pointer;">
+              <input type="checkbox" id="show-thinking">
+              Show reasoning traces
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:8px;">Persona</div>
+          <select class="select" id="rt-persona" style="font-size:12px;" title="System persona for all models">
+            <option value="">Default (Prism)</option>
+            <option value="research">Research Associate</option>
+            <option value="devils-advocate">Devil's Advocate</option>
+            <option value="strategist">The Strategist</option>
+            <option value="critic">Critical Reviewer</option>
+          </select>
+        </div>
+
+        <div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:8px;">Saved Sessions</div>
+          <div id="saved-sessions" style="font-size:12px;color:var(--fg-muted);">No saved sessions.</div>
+        </div>
+      </div>
+
+      <!-- Main area -->
+      <div class="rt-main">
+        <div class="rt-input-area">
+          <div class="form-group" style="margin-bottom:10px;">
+            <textarea class="textarea" id="rt-input" rows="3" placeholder="Enter your prompt — it will be sent to all selected models simultaneously. Nemotron Ultra will synthesise the responses."></textarea>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="runRoundTable()" title="Run Round Table" id="rt-run-btn">▶ Run Round Table</button>
+            <button class="btn btn-secondary" onclick="saveSession()" title="Save this session">💾 Save Session</button>
+            <button class="btn btn-secondary" onclick="exportSession()" title="Export as Markdown">⬇ Export</button>
+            <span id="rt-status" style="font-size:12px;color:var(--fg-muted);margin-left:auto;"></span>
+          </div>
+        </div>
+        <div class="rt-results" id="rt-results">
+          <div style="text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">
+            Select models, enter a prompt, and click Run Round Table.<br>
+            <span style="font-size:12px;">Nemotron Ultra 253B synthesises all responses into a single authoritative answer.</span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
+
 <script src="/shared/prism.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  var mount = document.getElementById('sidebar-mount');
-  if (mount) { var sb = buildSidebar('/agenti/round-table/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  
-});
-
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
-var selectedModels = ['cerebras','groq','deepseek'];
-var MODELS = [
-  {id:'cerebras',name:'Cerebras',icon:'⚡',provider:'cerebras'},
-  {id:'groq',name:'Groq',icon:'🚀',provider:'groq'},
-  {id:'deepseek',name:'DeepSeek',icon:'🐋',provider:'deepseek'},
-  {id:'gemini',name:'Gemini',icon:'💎',provider:'gemini'},
-  {id:'openrouter',name:'OpenRouter',icon:'🔀',provider:'openrouter'},
-  {id:'nvidia',name:'NVIDIA',icon:'🤖',provider:'nvidia'},
-];
-function toggleModel(id) {
-  var idx = selectedModels.indexOf(id);
-  if (idx >= 0) selectedModels.splice(idx, 1);
-  else if (selectedModels.length < 5) selectedModels.push(id);
-  else { Toast.warning('Maximum 5 models'); return; }
-  renderModelSelector();
+var currentSession = {prompt:'', responses:[], synthesis:''};
+var savedSessions = [];
+
+var MODEL_META = {
+  'cerebras-gemma4':    {name:'Gemma4-9B',    provider:'Cerebras', badgeClass:'badge-cerebras', icon:'⚡'},
+  'cerebras-gemma4-27': {name:'Gemma4-27B',   provider:'Cerebras', badgeClass:'badge-cerebras', icon:'⚡'},
+  'nvidia-nemotron':    {name:'Nemotron Ultra 253B', provider:'NVIDIA', badgeClass:'badge-nvidia', icon:'🧠'},
+  'deepseek-r1':        {name:'DeepSeek R1',  provider:'DeepSeek', badgeClass:'badge-deepseek', icon:'🔍'},
+  'deepseek-v3':        {name:'DeepSeek V3',  provider:'DeepSeek', badgeClass:'badge-deepseek', icon:'⚖'},
+  'groq-gemma2':        {name:'Gemma2-9B',    provider:'Groq',     badgeClass:'badge-groq',     icon:'⚡'},
+  'gemini':             {name:'Gemini 2.0',   provider:'Google',   badgeClass:'badge-gemini',   icon:'📄'},
+  'mistral':            {name:'Mistral Small',provider:'Mistral',  badgeClass:'badge-mistral',  icon:'🇪🇺'},
+};
+
+var PERSONA_PROMPTS = {
+  '': 'You are Prism, a warm, professional, and concise AI assistant for Identity Partners. British English. No sycophancy.',
+  'research': 'You are a scholarly research associate — precise, citation-focused, evidence-based. Label inferences. British English.',
+  'devils-advocate': 'You challenge every assumption and argue the opposite position. Rigorous, not rude. British English.',
+  'strategist': 'You are outcome-focused and direct. No sentiment. What is the goal? What is the plan? British English.',
+  'critic': 'You are a critical reviewer. Find weaknesses, gaps, and counterarguments. Be constructive but rigorous. British English.',
+};
+
+function getSelectedModels() {
+  var models = [];
+  var checkboxes = {
+    'cerebras-gemma4': 'm-cerebras-gemma4',
+    'cerebras-gemma4-27': 'm-cerebras-gemma4-27',
+    'nvidia-nemotron': 'm-nvidia-nemotron',
+    'deepseek-r1': 'm-deepseek-r1',
+    'deepseek-v3': 'm-deepseek-v3',
+    'groq-gemma2': 'm-groq-gemma2',
+    'gemini': 'm-gemini',
+    'mistral': 'm-mistral',
+  };
+  Object.keys(checkboxes).forEach(function(modelId) {
+    var cb = document.getElementById(checkboxes[modelId]);
+    if (cb && cb.checked) models.push(modelId);
+  });
+  return models;
 }
-function renderModelSelector() {
-  var container = document.getElementById('model-selector');
-  if (!container) return;
-  container.innerHTML = '';
-  for (var i = 0; i < MODELS.length; i++) {
-    (function(m) {
-      var btn = document.createElement('button');
-      var active = selectedModels.indexOf(m.id) >= 0;
-      btn.className = 'chip' + (active ? ' active' : '');
-      btn.textContent = m.icon + ' ' + m.name;
-      btn.title = 'Toggle ' + m.name;
-      btn.onclick = function() { toggleModel(m.id); };
-      container.appendChild(btn);
-    })(MODELS[i]);
-  }
-}
+
 function runRoundTable() {
-  var input = document.getElementById('rt-input').value.trim();
-  if (!input) { Toast.warning('Enter a prompt'); return; }
-  if (selectedModels.length === 0) { Toast.warning('Select at least one model'); return; }
+  var prompt = document.getElementById('rt-input').value.trim();
+  if (!prompt) { Toast.warning('Enter a prompt'); return; }
+  var models = getSelectedModels();
+  if (models.length === 0) { Toast.warning('Select at least one model'); return; }
+  var synthesise = document.getElementById('do-synthesise').checked;
+  var synthesiser = document.getElementById('synthesiser').value;
+  var persona = document.getElementById('rt-persona').value;
+  var systemPrompt = PERSONA_PROMPTS[persona] || PERSONA_PROMPTS[''];
+
+  var btn = document.getElementById('rt-run-btn');
+  var status = document.getElementById('rt-status');
+  if (btn) btn.disabled = true;
+  if (status) status.textContent = 'Running ' + models.length + ' models in parallel…';
+
   var results = document.getElementById('rt-results');
   if (results) results.innerHTML = '';
-  for (var i = 0; i < selectedModels.length; i++) {
-    (function(modelId) {
-      var model = null;
-      for (var j = 0; j < MODELS.length; j++) { if (MODELS[j].id === modelId) { model = MODELS[j]; break; } }
-      if (!model) return;
-      var card = document.createElement('div');
-      card.className = 'card';
-      card.style.marginBottom = '12px';
-      var header = document.createElement('div');
-      header.className = 'card-header';
-      var title = document.createElement('span');
-      title.className = 'card-title';
-      title.textContent = model.icon + ' ' + model.name;
-      header.appendChild(title);
-      var content = document.createElement('div');
-      content.style.cssText = 'font-size:13.5px;line-height:1.6;padding:4px 0;';
-      content.innerHTML = '<div class="spinner"></div>';
-      card.appendChild(header);
-      card.appendChild(content);
-      if (results) results.appendChild(card);
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', WORKER + '/api/chat', true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState !== 4) return;
-        try {
-          var r = JSON.parse(xhr.responseText);
-          content.className = 'md-content';
-          content.innerHTML = Markdown.render(r.content || r.error || 'No response');
-          var meta = document.createElement('div');
-          meta.style.cssText = 'font-size:11px;color:var(--fg-muted);margin-top:8px;';
-          meta.textContent = 'via ' + (r.provider || modelId);
-          content.appendChild(meta);
-        } catch(e) { content.textContent = 'Error: ' + e.message; }
-      };
-      xhr.onerror = function() { content.textContent = 'Network error'; };
-      xhr.send(JSON.stringify({messages:[{role:'user',content:input}],profile:modelId==='nvidia'?'frontier-free':modelId==='deepseek'?'frontier':'balanced'}));
-    })(selectedModels[i]);
+
+  currentSession = {prompt: prompt, responses: [], synthesis: ''};
+
+  // Create placeholder cards for each model
+  var placeholders = {};
+  models.forEach(function(modelId) {
+    var meta = MODEL_META[modelId] || {name:modelId, provider:'', badgeClass:'badge-muted', icon:'🤖'};
+    var card = createModelCard(modelId, meta, null, true);
+    placeholders[modelId] = card;
+    if (results) results.appendChild(card);
+  });
+
+  // Create synthesis placeholder
+  var synthCard = null;
+  if (synthesise && models.length > 1) {
+    synthCard = createSynthesisCard(null, true);
+    if (results) results.appendChild(synthCard);
+  }
+
+  // Call Worker /api/roundtable
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/roundtable', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.timeout = 120000;
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    if (btn) btn.disabled = false;
+    if (status) status.textContent = '';
+    try {
+      var r = JSON.parse(xhr.responseText);
+      if (r.responses) {
+        r.responses.forEach(function(resp) {
+          var card = placeholders[resp.model];
+          if (card) updateModelCard(card, resp);
+          currentSession.responses.push(resp);
+        });
+      }
+      if (r.synthesis && synthCard) {
+        updateSynthesisCard(synthCard, r.synthesis);
+        currentSession.synthesis = r.synthesis;
+      }
+      if (status) status.textContent = 'Complete — ' + (r.responses||[]).filter(function(r){return r.content;}).length + '/' + models.length + ' models responded';
+    } catch(e) {
+      if (status) status.textContent = 'Error: ' + e.message;
+      Toast.error('Round Table failed: ' + e.message);
+    }
+  };
+  xhr.ontimeout = function() {
+    if (btn) btn.disabled = false;
+    if (status) status.textContent = 'Timed out';
+    Toast.error('Round Table timed out');
+  };
+  xhr.onerror = function() {
+    if (btn) btn.disabled = false;
+    if (status) status.textContent = 'Network error';
+    Toast.error('Network error');
+  };
+  xhr.send(JSON.stringify({
+    messages: [{role:'system',content:systemPrompt},{role:'user',content:prompt}],
+    models: models,
+    synthesise: synthesise,
+    synthesiser: synthesiser
+  }));
+}
+
+function createModelCard(modelId, meta, response, loading) {
+  var card = document.createElement('div');
+  card.className = 'model-card';
+  card.id = 'card-' + modelId;
+
+  var header = document.createElement('div');
+  header.className = 'model-card-header';
+  var icon = document.createElement('span');
+  icon.style.fontSize = '18px';
+  icon.textContent = meta.icon;
+  var badge = document.createElement('span');
+  badge.className = 'model-badge ' + meta.badgeClass;
+  badge.textContent = meta.name;
+  var provider = document.createElement('span');
+  provider.style.cssText = 'font-size:11px;color:var(--fg-muted);';
+  provider.textContent = meta.provider;
+  header.appendChild(icon);
+  header.appendChild(badge);
+  header.appendChild(provider);
+
+  var body = document.createElement('div');
+  body.className = 'model-card-body';
+  if (loading) {
+    body.innerHTML = '<div style="display:flex;align-items:center;gap:8px;color:var(--fg-muted);font-size:13px;"><div class="spinner"></div> Waiting for response…</div>';
+  }
+
+  var footer = document.createElement('div');
+  footer.className = 'model-card-footer';
+  var copyBtn = document.createElement('button');
+  copyBtn.className = 'btn btn-sm btn-ghost';
+  copyBtn.textContent = '📋 Copy';
+  copyBtn.onclick = function() {
+    var text = body.textContent;
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(function(){Toast.success('Copied');});
+  };
+  var draftBtn = document.createElement('button');
+  draftBtn.className = 'btn btn-sm btn-ghost';
+  draftBtn.textContent = '✍ Draft';
+  draftBtn.onclick = function() {
+    try { sessionStorage.setItem('prism-draft', body.textContent); } catch(e) {}
+    window.open('/drafting/', '_blank');
+  };
+  footer.appendChild(copyBtn);
+  footer.appendChild(draftBtn);
+
+  card.appendChild(header);
+  card.appendChild(body);
+  card.appendChild(footer);
+  return card;
+}
+
+function updateModelCard(card, resp) {
+  var body = card.querySelector('.model-card-body');
+  var footer = card.querySelector('.model-card-footer');
+  if (!body) return;
+  if (resp.error) {
+    body.innerHTML = '<div style="color:var(--danger);font-size:13px;">✗ ' + resp.error + '</div>';
+  } else {
+    body.className = 'model-card-body md-content';
+    body.innerHTML = Markdown.render(resp.content || '');
+    // Add timing if available
+    if (footer && resp.ms) {
+      var timing = document.createElement('span');
+      timing.className = 'model-timing';
+      timing.textContent = resp.ms + 'ms';
+      footer.appendChild(timing);
+    }
   }
 }
 
+function createSynthesisCard(content, loading) {
+  var card = document.createElement('div');
+  card.className = 'synthesis-card';
+  card.id = 'synthesis-card';
+
+  var header = document.createElement('div');
+  header.className = 'synthesis-header';
+  header.innerHTML = '<span style="font-size:20px;">🧠</span><span class="synthesis-title">Nemotron Ultra 253B — Synthesis</span><span style="font-size:11px;opacity:0.8;margin-left:auto;">Cross-model synthesis</span>';
+
+  var body = document.createElement('div');
+  body.className = 'synthesis-body';
+  if (loading) {
+    body.innerHTML = '<div style="display:flex;align-items:center;gap:8px;color:var(--fg-muted);font-size:13px;"><div class="spinner"></div> Synthesising responses…</div>';
+  } else if (content) {
+    body.className = 'synthesis-body md-content';
+    body.innerHTML = Markdown.render(content);
+  }
+
+  var footer = document.createElement('div');
+  footer.style.cssText = 'padding:8px 16px;border-top:1px solid rgba(15,59,58,0.2);display:flex;gap:6px;';
+  var copyBtn = document.createElement('button');
+  copyBtn.className = 'btn btn-sm btn-secondary';
+  copyBtn.textContent = '📋 Copy Synthesis';
+  copyBtn.onclick = function() {
+    if (navigator.clipboard) navigator.clipboard.writeText(body.textContent).then(function(){Toast.success('Copied');});
+  };
+  var draftBtn = document.createElement('button');
+  draftBtn.className = 'btn btn-sm btn-secondary';
+  draftBtn.textContent = '✍ Send to Drafting';
+  draftBtn.onclick = function() {
+    try { sessionStorage.setItem('prism-draft', body.textContent); } catch(e) {}
+    window.open('/drafting/', '_blank');
+  };
+  footer.appendChild(copyBtn);
+  footer.appendChild(draftBtn);
+
+  card.appendChild(header);
+  card.appendChild(body);
+  card.appendChild(footer);
+  return card;
+}
+
+function updateSynthesisCard(card, content) {
+  var body = card.querySelector('.synthesis-body');
+  if (!body) return;
+  body.className = 'synthesis-body md-content';
+  body.innerHTML = Markdown.render(content);
+}
+
+function clearResults() {
+  var results = document.getElementById('rt-results');
+  if (results) results.innerHTML = '<div style="text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">Select models, enter a prompt, and click Run Round Table.</div>';
+  currentSession = {prompt:'', responses:[], synthesis:''};
+}
+
+function saveSession() {
+  if (!currentSession.prompt) { Toast.warning('Run a session first'); return; }
+  savedSessions.push({id:'rt-'+Date.now(), prompt:currentSession.prompt, responses:currentSession.responses.length, synthesis:!!currentSession.synthesis, created:new Date().toISOString()});
+  try { localStorage.setItem('prism-rt-sessions', JSON.stringify(savedSessions)); } catch(e) {}
+  renderSavedSessions();
+  Toast.success('Session saved');
+}
+
+function renderSavedSessions() {
+  var el = document.getElementById('saved-sessions');
+  if (!el) return;
+  if (savedSessions.length === 0) { el.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);">No saved sessions.</div>'; return; }
+  el.innerHTML = '';
+  savedSessions.slice(-5).reverse().forEach(function(s) {
+    var item = document.createElement('div');
+    item.style.cssText = 'padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer;';
+    item.textContent = s.prompt.substring(0,40) + '…';
+    var meta = document.createElement('div');
+    meta.style.cssText = 'font-size:10.5px;color:var(--fg-muted);';
+    meta.textContent = s.responses + ' responses · ' + new Date(s.created).toLocaleDateString('en-GB');
+    item.appendChild(meta);
+    el.appendChild(item);
+  });
+}
+
+function exportSession() {
+  if (!currentSession.prompt) { Toast.warning('Run a session first'); return; }
+  var lines = ['# Round Table Session', '## Prompt', currentSession.prompt, ''];
+  currentSession.responses.forEach(function(r) {
+    lines.push('## ' + r.model);
+    lines.push(r.content || ('Error: ' + r.error));
+    lines.push('');
+  });
+  if (currentSession.synthesis) {
+    lines.push('## Synthesis (Nemotron Ultra 253B)');
+    lines.push(currentSession.synthesis);
+  }
+  var blob = new Blob([lines.join('
+')], {type:'text/markdown'});
+  var a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='round-table-'+Date.now()+'.md'; a.click();
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); runRoundTable(); }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb=buildSidebar('/agenti/round-table/'); mount.parentNode.insertBefore(sb,mount); mount.parentNode.removeChild(mount); }
+  try { savedSessions = JSON.parse(localStorage.getItem('prism-rt-sessions')||'[]'); } catch(e) {}
+  renderSavedSessions();
+});
 </script>
 </body>
 </html>

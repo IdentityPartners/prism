@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meta (Facebook/Instagram) OAuth — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+</head>
+<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg-primary,#f7f3e9);">
+<div style="text-align:center;padding:40px;max-width:400px;">
+  <div style="font-size:48px;margin-bottom:16px;">👥</div>
+  <div style="font-size:20px;font-weight:600;margin-bottom:10px;">Connecting Meta (Facebook/Instagram)…</div>
+  <p style="font-size:13.5px;color:#7a4254;margin-bottom:20px;">Redirecting to Meta (Facebook/Instagram) for authorisation.</p>
+  <div style="width:40px;height:40px;border:3px solid #ddd0c8;border-top-color:#0f3b3a;border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto;"></div>
+  <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+</div>
+<script>
+window.location.href = 'https://prism-api.identitypartners.workers.dev/oauth/meta/callback?' + window.location.search.slice(1);
+</script>
+</body>
+</html>

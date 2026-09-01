@@ -130,7 +130,7 @@ async function callNvidia(env, messages, model) {
   var resp = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
     method: 'POST',
     headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'nvidia/llama-3.3-nemotron-super-49b-v1', messages: messages, max_tokens: 4096})
+    body: JSON.stringify({model: model||'nvidia/llama-3.1-nemotron-ultra-253b-v1', messages: messages, max_tokens: 4096})
   });
   var data = await resp.json();
   if (!resp.ok) throw new Error('NVIDIA: '+(data.error&&data.error.message||resp.status));
@@ -315,7 +315,7 @@ var FALLBACK_CHAINS = {
     ['cerebras','gemma-4-9b-it'],          // Gemma4 on Cerebras — fastest free
     ['cerebras','gemma-4-27b-it'],          // Gemma4 27B on Cerebras
     ['groq','gemma2-9b-it'],               // Gemma2 on Groq
-    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'], // NVIDIA free tier
+    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1'], // NVIDIA free tier
     ['deepseek','deepseek-chat'],           // DeepSeek V3
     ['groq','llama-3.3-70b-versatile'],    // Groq Llama fallback
     ['chutes','deepseek-ai/DeepSeek-V3-0324'],
@@ -327,41 +327,41 @@ var FALLBACK_CHAINS = {
     ['cerebras','gemma-4-27b-it'],          // Gemma4 27B
     ['deepseek','deepseek-chat'],           // DeepSeek V3 for quality
     ['groq','gemma2-9b-it'],               // Gemma2 on Groq
-    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
+    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1'],
     ['groq','llama-3.3-70b-versatile'],
     ['chutes','deepseek-ai/DeepSeek-V3-0324'],
     ['ollama','gemma4:12b']
   ],
   'frontier-free': [
     ['cerebras','gemma-4-27b-it'],          // Gemma4 27B on Cerebras
-    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
+    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1'],
     ['deepseek','deepseek-chat'],
     ['groq','gemma2-9b-it'],
     ['gemini','gemini-2.0-flash'],          // Gemini for long-context only
     ['ollama','gemma4:e4b']
   ],
   'frontier': [
-    ['deepseek','deepseek-reasoner'],       // DeepSeek R1 for deep reasoning
-    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
+    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1'], // Nemotron Ultra 253B — 128K context + reasoning
+    ['deepseek','deepseek-reasoner'],       // DeepSeek R1
     ['cerebras','gemma-4-27b-it'],
-    ['gemini','gemini-2.0-flash'],          // Long-context reasoning
     ['deepseek','deepseek-chat'],
+    ['gemini','gemini-2.0-flash'],          // Long-context only
     ['ollama','gemma4:12b']
   ],
   'coding': [
     ['cerebras','gemma-4-9b-it'],          // Gemma4 excellent at code
     ['deepseek','deepseek-chat'],           // DeepSeek strong on code
     ['groq','gemma2-9b-it'],
-    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
+    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1'],
     ['groq','llama-3.3-70b-versatile'],
     ['ollama','gemma4:12b']
   ],
   'reasoning': [
-    ['deepseek','deepseek-reasoner'],       // DeepSeek R1 — best reasoning
-    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
+    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1'], // Nemotron Ultra 253B — primary reasoning + 128K context
+    ['deepseek','deepseek-reasoner'],       // DeepSeek R1 — strong reasoning
     ['groq','deepseek-r1-distill-llama-70b'],
-    ['gemini','gemini-2.0-flash'],          // Long-context reasoning
     ['cerebras','gemma-4-27b-it'],
+    ['gemini','gemini-2.0-flash'],          // Long-context fallback
     ['ollama','deepseek-r1:7b']
   ],
   'fast': [
@@ -375,12 +375,12 @@ var FALLBACK_CHAINS = {
     ['cerebras','gemma-4-27b-it'],
     ['deepseek','deepseek-chat'],
     ['gemini','gemini-2.0-flash'],          // Long-context for research synthesis
-    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1']
+    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1']
   ],
   'multimodal': [
     ['cerebras','gemma-4-27b-it'],          // Gemma4 is multimodal on Cerebras
     ['gemini','gemini-2.0-flash'],          // Gemini multimodal
-    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
+    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1'],
     ['ollama','gemma4:12b']
   ],
 };
@@ -808,14 +808,154 @@ export default {
       if (env.PRISM_KV) await env.PRISM_KV.put(id, JSON.stringify(item));
       return json({success:true, id:id}, 200, origin);
     }
+
+    // ── X / Twitter OAuth + posting ──────────────────────────────────────────
+    if (path === '/oauth/x/callback') {
+      var code = url.searchParams.get('code');
+      var state = url.searchParams.get('state');
+      if (!code) {
+        // Initiate OAuth 2.0 PKCE flow
+        var clientId = env.X_CLIENT_ID || env.x_client_id || env.TWITTER_CLIENT_ID;
+        if (!clientId) return json({error:'X client ID not configured. Add X_CLIENT_ID to Worker secrets.'}, 400, origin);
+        var redirectUri = 'https://prism.identitypartners.uk/oauth/x/callback';
+        var scope = 'tweet.read tweet.write users.read offline.access';
+        var authUrl = 'https://twitter.com/i/oauth2/authorize?response_type=code&client_id='+clientId+'&redirect_uri='+encodeURIComponent(redirectUri)+'&scope='+encodeURIComponent(scope)+'&state=prism&code_challenge=challenge&code_challenge_method=plain';
+        return Response.redirect(authUrl, 302);
+      }
+      // Exchange code for token
+      var clientId2 = env.X_CLIENT_ID || env.x_client_id;
+      var clientSecret = env.X_CLIENT_SECRET || env.x_client_secret;
+      var tokenResp = await fetch('https://api.twitter.com/2/oauth2/token', {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded','Authorization':'Basic '+btoa(clientId2+':'+clientSecret)},
+        body: 'grant_type=authorization_code&code='+code+'&redirect_uri='+encodeURIComponent('https://prism.identitypartners.uk/oauth/x/callback')+'&code_verifier=challenge'
+      });
+      var tokens = await tokenResp.json();
+      if (env.PRISM_KV) await env.PRISM_KV.put('oauth:x:tokens', JSON.stringify(tokens));
+      return new Response('<html><body><script>window.close();</script><p>X connected. You may close this window.</p></body></html>',{headers:{'Content-Type':'text/html'}});
+    }
+
+    // Post to X
+    if (path === '/api/social/post/x' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var tokenData = null;
+        if (env.PRISM_KV) { var td = await env.PRISM_KV.get('oauth:x:tokens'); if (td) tokenData = JSON.parse(td); }
+        if (!tokenData || !tokenData.access_token) return json({error:'X not connected. Go to /oauth/x/callback to connect.'}, 401, origin);
+        var postResp = await fetch('https://api.twitter.com/2/tweets', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json','Authorization':'Bearer '+tokenData.access_token},
+          body: JSON.stringify({text: body.text})
+        });
+        var postData = await postResp.json();
+        if (!postResp.ok) return json({error: postData.detail || 'X post failed', data: postData}, 400, origin);
+        return json({success:true, id: postData.data && postData.data.id}, 200, origin);
+      } catch(e) { return json({error:e.message},500,origin); }
+    }
+
+    // ── LinkedIn OAuth + posting ──────────────────────────────────────────────
+    if (path === '/oauth/linkedin/callback') {
+      var code = url.searchParams.get('code');
+      var clientId = env.LINKEDIN_CLIENT_ID || env.linkedin_client_id;
+      var clientSecret = env.LINKEDIN_CLIENT_SECRET || env.linkedin_primary_client_secret || env.linkedin_client_secret;
+      if (!code) {
+        if (!clientId) return json({error:'LinkedIn client ID not configured.'}, 400, origin);
+        var redirectUri = 'https://prism.identitypartners.uk/oauth/linkedin/callback';
+        var scope = 'openid profile email w_member_social';
+        var authUrl = 'https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id='+clientId+'&redirect_uri='+encodeURIComponent(redirectUri)+'&scope='+encodeURIComponent(scope)+'&state=prism';
+        return Response.redirect(authUrl, 302);
+      }
+      var redirectUri2 = 'https://prism.identitypartners.uk/oauth/linkedin/callback';
+      var tokenResp = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded'},
+        body: 'grant_type=authorization_code&code='+code+'&redirect_uri='+encodeURIComponent(redirectUri2)+'&client_id='+clientId+'&client_secret='+clientSecret
+      });
+      var tokens = await tokenResp.json();
+      if (env.PRISM_KV) await env.PRISM_KV.put('oauth:linkedin:tokens', JSON.stringify(tokens));
+      return new Response('<html><body><script>window.close();</script><p>LinkedIn connected.</p></body></html>',{headers:{'Content-Type':'text/html'}});
+    }
+
+    // Post to LinkedIn
+    if (path === '/api/social/post/linkedin' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var tokenData = null;
+        if (env.PRISM_KV) { var td = await env.PRISM_KV.get('oauth:linkedin:tokens'); if (td) tokenData = JSON.parse(td); }
+        if (!tokenData || !tokenData.access_token) return json({error:'LinkedIn not connected. Go to /oauth/linkedin/callback to connect.'}, 401, origin);
+        // Get person URN
+        var meResp = await fetch('https://api.linkedin.com/v2/userinfo', {headers:{'Authorization':'Bearer '+tokenData.access_token}});
+        var me = await meResp.json();
+        var urn = 'urn:li:person:' + me.sub;
+        var postResp = await fetch('https://api.linkedin.com/v2/ugcPosts', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json','Authorization':'Bearer '+tokenData.access_token,'X-Restli-Protocol-Version':'2.0.0'},
+          body: JSON.stringify({author:urn,lifecycleState:'PUBLISHED',specificContent:{'com.linkedin.ugc.ShareContent':{shareCommentary:{text:body.text},shareMediaCategory:'NONE'}},visibility:{'com.linkedin.ugc.MemberNetworkVisibility':'PUBLIC'}})
+        });
+        var postData = await postResp.json();
+        if (!postResp.ok) return json({error:'LinkedIn post failed', data:postData}, 400, origin);
+        return json({success:true, id:postData.id}, 200, origin);
+      } catch(e) { return json({error:e.message},500,origin); }
+    }
+
+    // ── Meta (Facebook/Instagram) OAuth ──────────────────────────────────────
+    if (path === '/oauth/meta/callback') {
+      var code = url.searchParams.get('code');
+      var clientId = env.META_APP_ID || env.meta_app_id || env.FACEBOOK_APP_ID;
+      var clientSecret = env.META_APP_SECRET || env.meta_app_secret || env.FACEBOOK_APP_SECRET;
+      if (!code) {
+        if (!clientId) return json({error:'Meta App ID not configured. Add META_APP_ID to Worker secrets.'}, 400, origin);
+        var redirectUri = 'https://prism.identitypartners.uk/oauth/meta/callback';
+        var scope = 'pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,publish_to_groups';
+        var authUrl = 'https://www.facebook.com/v19.0/dialog/oauth?client_id='+clientId+'&redirect_uri='+encodeURIComponent(redirectUri)+'&scope='+encodeURIComponent(scope)+'&state=prism';
+        return Response.redirect(authUrl, 302);
+      }
+      var redirectUri2 = 'https://prism.identitypartners.uk/oauth/meta/callback';
+      var tokenResp = await fetch('https://graph.facebook.com/v19.0/oauth/access_token?client_id='+clientId+'&redirect_uri='+encodeURIComponent(redirectUri2)+'&client_secret='+clientSecret+'&code='+code);
+      var tokens = await tokenResp.json();
+      if (env.PRISM_KV) await env.PRISM_KV.put('oauth:meta:tokens', JSON.stringify(tokens));
+      return new Response('<html><body><script>window.close();</script><p>Meta connected.</p></body></html>',{headers:{'Content-Type':'text/html'}});
+    }
+
+    // ── Unified social post endpoint (routes to correct platform) ─────────────
     if (path === '/api/social/post' && request.method === 'POST') {
       try {
         var body = await request.json();
+        var text = body.text || '';
+        var platforms = body.platforms || ['bluesky'];
         var results = {};
-        if (body.platforms && body.platforms.includes('bluesky')) results.bluesky = await postToBluesky(env, body.text);
+
+        for (var pi = 0; pi < platforms.length; pi++) {
+          var platform = platforms[pi];
+          try {
+            if (platform === 'bluesky') {
+              results.bluesky = await postToBluesky(env, text);
+            } else if (platform === 'x' || platform === 'twitter') {
+              var xTokenData = null;
+              if (env.PRISM_KV) { var xtd = await env.PRISM_KV.get('oauth:x:tokens'); if (xtd) xTokenData = JSON.parse(xtd); }
+              if (xTokenData && xTokenData.access_token) {
+                var xResp = await fetch('https://api.twitter.com/2/tweets',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+xTokenData.access_token},body:JSON.stringify({text:text.substring(0,280)})});
+                results.x = await xResp.json();
+              } else { results.x = {error:'Not connected — visit /oauth/x/callback'}; }
+            } else if (platform === 'linkedin') {
+              var liTokenData = null;
+              if (env.PRISM_KV) { var litd = await env.PRISM_KV.get('oauth:linkedin:tokens'); if (litd) liTokenData = JSON.parse(litd); }
+              if (liTokenData && liTokenData.access_token) {
+                var meR = await fetch('https://api.linkedin.com/v2/userinfo',{headers:{'Authorization':'Bearer '+liTokenData.access_token}});
+                var meD = await meR.json();
+                var liResp = await fetch('https://api.linkedin.com/v2/ugcPosts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+liTokenData.access_token,'X-Restli-Protocol-Version':'2.0.0'},body:JSON.stringify({author:'urn:li:person:'+meD.sub,lifecycleState:'PUBLISHED',specificContent:{'com.linkedin.ugc.ShareContent':{shareCommentary:{text:text},shareMediaCategory:'NONE'}},visibility:{'com.linkedin.ugc.MemberNetworkVisibility':'PUBLIC'}})});
+                results.linkedin = await liResp.json();
+              } else { results.linkedin = {error:'Not connected — visit /oauth/linkedin/callback'}; }
+            } else {
+              results[platform] = {error:'Platform not yet connected — visit Platform Manager'};
+            }
+          } catch(pe) { results[platform] = {error:pe.message}; }
+        }
         return json({success:true, results:results}, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
+      } catch(e) { return json({error:e.message},500,origin); }
     }
+
+
 
     // Dev Team
     if (path === '/api/devteam' && request.method === 'POST') {
@@ -997,6 +1137,80 @@ export default {
         } catch(e) {}
       }
       return null;
+    }
+
+
+    // Round Table — send to multiple models simultaneously, synthesise
+    if (path === '/api/roundtable' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var messages = body.messages || [];
+        var models = body.models || ['cerebras-gemma4','nvidia-nemotron','deepseek-r1'];
+        var synthesise = body.synthesise !== false;
+
+        // Load KV secrets
+        var kvRaw = null;
+        try { kvRaw = await env.PRISM_KV.get('__secrets__'); } catch(e) {}
+        var kvSecrets = {};
+        if (kvRaw) { try { kvSecrets = JSON.parse(kvRaw); } catch(e) {} }
+        var envPlus = new Proxy(env, {
+          get: function(target, prop) {
+            if (target[prop] !== undefined) return target[prop];
+            if (kvSecrets[prop] !== undefined) return kvSecrets[prop];
+            if (kvSecrets[prop.toUpperCase()] !== undefined) return kvSecrets[prop.toUpperCase()];
+            if (kvSecrets[prop.toLowerCase()] !== undefined) return kvSecrets[prop.toLowerCase()];
+            return undefined;
+          }
+        });
+
+        var MODEL_MAP = {
+          'cerebras-gemma4':  function(m) { return callCerebras(envPlus, m, 'gemma-4-9b-it'); },
+          'cerebras-gemma4-27': function(m) { return callCerebras(envPlus, m, 'gemma-4-27b-it'); },
+          'nvidia-nemotron':  function(m) { return callNvidia(envPlus, m, 'nvidia/llama-3.1-nemotron-ultra-253b-v1'); },
+          'deepseek-r1':      function(m) { return callDeepSeek(envPlus, m, 'deepseek-reasoner'); },
+          'deepseek-v3':      function(m) { return callDeepSeek(envPlus, m, 'deepseek-chat'); },
+          'groq-gemma2':      function(m) { return callGroq(envPlus, m, 'gemma2-9b-it'); },
+          'groq-llama':       function(m) { return callGroq(envPlus, m, 'llama-3.3-70b-versatile'); },
+          'gemini':           function(m) { return callGemini(envPlus, m, 'gemini-2.0-flash'); },
+          'mistral':          function(m) { return callMistral(envPlus, m, null); },
+        };
+
+        // Run all models in parallel
+        var promises = models.map(function(modelId) {
+          var fn = MODEL_MAP[modelId];
+          if (!fn) return Promise.resolve({model: modelId, content: null, error: 'Unknown model'});
+          return fn(messages).then(function(content) {
+            return {model: modelId, content: stripTropes(content), error: null};
+          }).catch(function(e) {
+            return {model: modelId, content: null, error: e.message};
+          });
+        });
+
+        var responses = await Promise.all(promises);
+        var successful = responses.filter(function(r) { return r.content; });
+
+        // Synthesise if requested and we have multiple responses
+        var synthesis = null;
+        if (synthesise && successful.length > 1) {
+          var synthContext = successful.map(function(r) {
+            return '## ' + r.model + '\n' + r.content;
+          }).join('\n\n');
+          var synthMessages = [
+            {role:'system', content:'You are a synthesis engine. You have received responses from multiple AI models to the same prompt. Synthesise the key insights, note where models agree and disagree, and produce a single authoritative response. British English. No sycophancy. Be direct.'},
+            {role:'user', content:'Synthesise these responses:\n\n' + synthContext}
+          ];
+          try {
+            synthesis = await callNvidia(envPlus, synthMessages, 'nvidia/llama-3.1-nemotron-ultra-253b-v1');
+            synthesis = stripTropes(synthesis);
+          } catch(e) {
+            try { synthesis = await callCerebras(envPlus, synthMessages, 'gemma-4-27b-it'); synthesis = stripTropes(synthesis); } catch(e2) {}
+          }
+        }
+
+        return json({responses: responses, synthesis: synthesis, modelsUsed: models}, 200, origin);
+      } catch(e) {
+        return json({error: e.message}, 500, origin);
+      }
     }
 
     return json({error:'Not found', path:path}, 404, origin);

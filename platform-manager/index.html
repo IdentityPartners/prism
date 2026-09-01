@@ -5,86 +5,177 @@
 <title>Platform Manager — Prism</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<style>
+.platform-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
+.platform-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
+.platform-card-header { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.platform-icon { font-size:28px; }
+.platform-name { font-weight:600; font-size:14px; }
+.platform-category { font-size:11px; color:var(--fg-muted); }
+.platform-status { margin-bottom:10px; }
+.platform-actions { display:flex; gap:6px; }
+.search-bar { margin-bottom:20px; }
+.category-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:20px; overflow-x:auto; }
+.cat-tab { padding:8px 16px; font-size:12.5px; font-weight:500; color:var(--fg-muted); cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; transition:all 0.15s; }
+.cat-tab:hover { color:var(--fg-primary); }
+.cat-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+</style>
 </head>
 <body>
 <div class="prism-shell">
   <div id="sidebar-mount"></div>
   <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Platform Manager</div></div>
+    <div class="topbar">
+      <div class="topbar-title">Platform Manager</div>
+      <div class="topbar-actions">
+        <span style="font-size:12px;color:var(--fg-muted);" id="connected-count">Loading…</span>
+      </div>
+    </div>
     <div class="page-content">
-
-      <p style="font-size:13px;color:var(--fg-muted);margin-bottom:20px;">Manage connections to all 196 monetisation and social platforms.</p>
-      <div class="card" style="margin-bottom:20px;">
-        <div class="card-header"><span class="card-title">Platform Search</span></div>
+      <div class="search-bar">
         <input class="input" id="platform-search" type="text" placeholder="Search platforms…" oninput="filterPlatforms(this.value)">
       </div>
-      <div class="grid-4" id="platforms-grid"></div>
+      <div class="category-tabs">
+        <div class="cat-tab active" onclick="filterCategory(this,'all')">All</div>
+        <div class="cat-tab" onclick="filterCategory(this,'social')">Social Media</div>
+        <div class="cat-tab" onclick="filterCategory(this,'monetisation')">Monetisation</div>
+        <div class="cat-tab" onclick="filterCategory(this,'podcast')">Podcasts</div>
+        <div class="cat-tab" onclick="filterCategory(this,'newsletter')">Newsletters</div>
+        <div class="cat-tab" onclick="filterCategory(this,'community')">Community</div>
+        <div class="cat-tab" onclick="filterCategory(this,'video')">Video</div>
+      </div>
+      <div class="platform-grid" id="platform-grid"></div>
     </div>
   </div>
 </div>
 <script src="/shared/prism.js"></script>
 <script>
+var PLATFORMS = [
+  // Social
+  {name:'Bluesky',icon:'🦋',cat:'social',connected:true,method:'api',connectUrl:null,note:'Active — posting enabled'},
+  {name:'X / Twitter',icon:'𝕏',cat:'social',connected:false,method:'oauth',connectUrl:'/oauth/x/'},
+  {name:'LinkedIn',icon:'💼',cat:'social',connected:false,method:'oauth',connectUrl:'/oauth/linkedin/'},
+  {name:'Instagram',icon:'📸',cat:'social',connected:false,method:'oauth',connectUrl:'/oauth/meta/'},
+  {name:'Facebook',icon:'👥',cat:'social',connected:false,method:'oauth',connectUrl:'/oauth/meta/'},
+  {name:'Threads',icon:'🧵',cat:'social',connected:false,method:'oauth',connectUrl:'/oauth/meta/'},
+  {name:'Pinterest',icon:'📌',cat:'social',connected:false,method:'oauth',connectUrl:null},
+  {name:'TikTok',icon:'🎵',cat:'social',connected:false,method:'oauth',connectUrl:null},
+  {name:'Mastodon',icon:'🐘',cat:'social',connected:false,method:'api',connectUrl:null},
+  // Monetisation
+  {name:'Stripe',icon:'💳',cat:'monetisation',connected:false,method:'api',connectUrl:null,note:'Add STRIPE_SECRET_KEY'},
+  {name:'PayPal',icon:'💰',cat:'monetisation',connected:false,method:'api',connectUrl:null},
+  {name:'Ko-fi',icon:'☕',cat:'monetisation',connected:false,method:'api',connectUrl:'https://ko-fi.com/account/api'},
+  {name:'Patreon',icon:'🎁',cat:'monetisation',connected:false,method:'oauth',connectUrl:null},
+  {name:'BuyMeACoffee',icon:'☕',cat:'monetisation',connected:false,method:'api',connectUrl:null},
+  {name:'Gumroad',icon:'🛒',cat:'monetisation',connected:false,method:'api',connectUrl:null},
+  {name:'Teachable',icon:'📚',cat:'monetisation',connected:false,method:'api',connectUrl:null},
+  {name:'Thinkific',icon:'🎓',cat:'monetisation',connected:false,method:'api',connectUrl:null},
+  // Podcasts
+  {name:'Spotify for Podcasters',icon:'🎙',cat:'podcast',connected:false,method:'oauth',connectUrl:null},
+  {name:'Apple Podcasts',icon:'🎧',cat:'podcast',connected:false,method:'rss',connectUrl:null},
+  {name:'Amazon Music',icon:'🎶',cat:'podcast',connected:false,method:'rss',connectUrl:null},
+  {name:'Pocket Casts',icon:'📻',cat:'podcast',connected:false,method:'rss',connectUrl:null},
+  {name:'Podchaser',icon:'🎤',cat:'podcast',connected:false,method:'api',connectUrl:null},
+  // Newsletters
+  {name:'Substack',icon:'📧',cat:'newsletter',connected:false,method:'api',connectUrl:null},
+  {name:'Mailchimp',icon:'🐒',cat:'newsletter',connected:false,method:'api',connectUrl:null},
+  {name:'ConvertKit',icon:'✉',cat:'newsletter',connected:false,method:'api',connectUrl:null},
+  {name:'Beehiiv',icon:'🐝',cat:'newsletter',connected:false,method:'api',connectUrl:null},
+  // Community
+  {name:'Reddit',icon:'🤖',cat:'community',connected:false,method:'oauth',connectUrl:null},
+  {name:'Quora',icon:'❓',cat:'community',connected:false,method:'api',connectUrl:null},
+  {name:'ResearchGate',icon:'🔬',cat:'community',connected:false,method:'api',connectUrl:null},
+  {name:'Academia.edu',icon:'🎓',cat:'community',connected:false,method:'api',connectUrl:null},
+  // Video
+  {name:'YouTube',icon:'▶',cat:'video',connected:false,method:'oauth',connectUrl:null},
+  {name:'Vimeo',icon:'🎬',cat:'video',connected:false,method:'api',connectUrl:null},
+  {name:'Rumble',icon:'📹',cat:'video',connected:false,method:'api',connectUrl:null},
+];
+
+var currentCategory = 'all';
+var currentSearch = '';
+
+function filterCategory(el, cat) {
+  currentCategory = cat;
+  var tabs = document.querySelectorAll('.cat-tab');
+  for (var i=0;i<tabs.length;i++) tabs[i].classList.remove('active');
+  el.classList.add('active');
+  renderPlatforms();
+}
+
+function filterPlatforms(q) { currentSearch = q.toLowerCase(); renderPlatforms(); }
+
+function renderPlatforms() {
+  var grid = document.getElementById('platform-grid');
+  if (!grid) return;
+  var filtered = PLATFORMS.filter(function(p) {
+    var catMatch = currentCategory === 'all' || p.cat === currentCategory;
+    var searchMatch = !currentSearch || p.name.toLowerCase().indexOf(currentSearch) >= 0;
+    return catMatch && searchMatch;
+  });
+  grid.innerHTML = '';
+  var connected = PLATFORMS.filter(function(p){return p.connected;}).length;
+  var countEl = document.getElementById('connected-count');
+  if (countEl) countEl.textContent = connected + ' of ' + PLATFORMS.length + ' connected';
+
+  filtered.forEach(function(p) {
+    var card = document.createElement('div');
+    card.className = 'platform-card';
+    var header = document.createElement('div');
+    header.className = 'platform-card-header';
+    var icon = document.createElement('div');
+    icon.className = 'platform-icon';
+    icon.textContent = p.icon;
+    var info = document.createElement('div');
+    var name = document.createElement('div');
+    name.className = 'platform-name';
+    name.textContent = p.name;
+    var cat = document.createElement('div');
+    cat.className = 'platform-category';
+    cat.textContent = p.cat.charAt(0).toUpperCase() + p.cat.slice(1) + ' · ' + p.method.toUpperCase();
+    info.appendChild(name); info.appendChild(cat);
+    header.appendChild(icon); header.appendChild(info);
+
+    var status = document.createElement('div');
+    status.className = 'platform-status';
+    var badge = document.createElement('span');
+    badge.className = 'badge ' + (p.connected ? 'badge-success' : 'badge-muted');
+    badge.textContent = p.connected ? '✓ Connected' : 'Not connected';
+    status.appendChild(badge);
+    if (p.note) {
+      var note = document.createElement('div');
+      note.style.cssText = 'font-size:11px;color:var(--fg-muted);margin-top:4px;';
+      note.textContent = p.note;
+      status.appendChild(note);
+    }
+
+    var actions = document.createElement('div');
+    actions.className = 'platform-actions';
+    var connectBtn = document.createElement('button');
+    connectBtn.className = 'btn btn-sm ' + (p.connected ? 'btn-secondary' : 'btn-primary');
+    connectBtn.textContent = p.connected ? '⚙ Manage' : '🔗 Connect';
+    connectBtn.title = p.connected ? 'Manage connection' : 'Connect ' + p.name;
+    connectBtn.onclick = function() {
+      if (p.connectUrl) {
+        window.open(p.connectUrl, '_blank');
+      } else {
+        Toast.info('To connect ' + p.name + ': add the API key via Settings → Secret Ingester, then the platform will activate automatically.');
+      }
+    };
+    actions.appendChild(connectBtn);
+
+    card.appendChild(header);
+    card.appendChild(status);
+    card.appendChild(actions);
+    grid.appendChild(card);
+  });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
-  if (mount) { var sb = buildSidebar('/platform-manager/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  renderPlatforms(allPlatforms);
+  if (mount) { var sb=buildSidebar('/platform-manager/'); mount.parentNode.insertBefore(sb,mount); mount.parentNode.removeChild(mount); }
+  renderPlatforms();
 });
-
-var allPlatforms = [
-  {name:'Stripe',icon:'💳',category:'Payment',status:'available'},
-  {name:'PayPal',icon:'💰',category:'Payment',status:'available'},
-  {name:'Ko-fi',icon:'☕',category:'Donation',status:'available'},
-  {name:'Patreon',icon:'🎁',category:'Subscription',status:'available'},
-  {name:'BuyMeACoffee',icon:'☕',category:'Donation',status:'available'},
-  {name:'Gumroad',icon:'🛒',category:'Digital Products',status:'available'},
-  {name:'Teachable',icon:'📚',category:'Courses',status:'available'},
-  {name:'Thinkific',icon:'🎓',category:'Courses',status:'available'},
-  {name:'Bluesky',icon:'🦋',category:'Social',status:'connected'},
-  {name:'LinkedIn',icon:'💼',category:'Social',status:'available'},
-  {name:'Instagram',icon:'📸',category:'Social',status:'available'},
-  {name:'Facebook',icon:'👥',category:'Social',status:'available'},
-  {name:'Twitter/X',icon:'🐦',category:'Social',status:'available'},
-  {name:'YouTube',icon:'▶',category:'Video',status:'available'},
-  {name:'TikTok',icon:'🎵',category:'Video',status:'available'},
-  {name:'Substack',icon:'📧',category:'Newsletter',status:'available'},
-  {name:'Mailchimp',icon:'🐒',category:'Email',status:'available'},
-  {name:'Zoho Mail',icon:'📧',category:'Email',status:'available'},
-];
-function renderPlatforms(platforms) {
-  var grid = document.getElementById('platforms-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-  for (var i = 0; i < platforms.length; i++) {
-    (function(p) {
-      var card = document.createElement('div');
-      card.className = 'card';
-      card.style.cssText = 'padding:14px;text-align:center;';
-      var icon = document.createElement('div');
-      icon.style.cssText = 'font-size:28px;margin-bottom:8px;';
-      icon.textContent = p.icon;
-      var name = document.createElement('div');
-      name.style.cssText = 'font-weight:600;font-size:13px;margin-bottom:4px;';
-      name.textContent = p.name;
-      var cat = document.createElement('div');
-      cat.style.cssText = 'font-size:11px;color:var(--fg-muted);margin-bottom:10px;';
-      cat.textContent = p.category;
-      var btn = document.createElement('button');
-      btn.className = 'btn btn-sm ' + (p.status === 'connected' ? 'btn-primary' : 'btn-secondary');
-      btn.textContent = p.status === 'connected' ? '✓ Connected' : 'Connect';
-      btn.style.width = '100%';
-      btn.title = p.status === 'connected' ? 'Connected' : 'Connect ' + p.name;
-      btn.onclick = function() { Toast.info('Connect ' + p.name + ' via Settings'); };
-      card.appendChild(icon); card.appendChild(name); card.appendChild(cat); card.appendChild(btn);
-      grid.appendChild(card);
-    })(platforms[i]);
-  }
-}
-function filterPlatforms(q) {
-  if (!q) { renderPlatforms(allPlatforms); return; }
-  var filtered = allPlatforms.filter(function(p) { return p.name.toLowerCase().indexOf(q.toLowerCase()) >= 0 || p.category.toLowerCase().indexOf(q.toLowerCase()) >= 0; });
-  renderPlatforms(filtered);
-}
-
 </script>
 </body>
 </html>
