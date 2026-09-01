@@ -341,21 +341,94 @@ var PrismAPI = (function() {
 })();
 
 // ── On-screen Keyboard Builder ────────────────────────────────────────────────
+// CRITICAL: All OSK buttons use type="button" and mousedown+preventDefault
+// to prevent focus loss from the target textarea and prevent native keyboard popup.
 var OSK = (function() {
   var ROWS = [
-    ['1','2','3','4','5','6','7','8','9','0','-','='],
-    ['q','w','e','r','t','y','u','i','o','p','[',']'],
-    ['a','s','d','f','g','h','j','k','l',';',"'"],
+    ['1','2','3','4','5','6','7','8','9','0','-','=','⌫'],
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l',"'"],
     ['z','x','c','v','b','n','m',',','.','?','!'],
-    ['Ctrl','Shift','Space','.',',','!','?',"'",'–','(',')',
-     '@','#','£','$','%','&','⌫','↵','Send','😊']
+    ['Space','–','(',')',':',';','@','#','£','$','%','&','↵','Send']
   ];
+
+  var currentTarget = null;
+  var shiftOn = false;
+
+  function setTarget(el) { currentTarget = el; }
+
+  function insertAtCursor(el, text) {
+    if (!el) return;
+    var start = el.selectionStart;
+    var end = el.selectionEnd;
+    var val = el.value;
+    el.value = val.substring(0, start) + text + val.substring(end);
+    el.selectionStart = el.selectionEnd = start + text.length;
+    // Trigger input event so word count etc update
+    var ev = new Event('input', {bubbles: true});
+    el.dispatchEvent(ev);
+  }
+
+  function handleKey(key, btn) {
+    var target = currentTarget;
+    if (!target) {
+      // Try to find any focused textarea or input
+      target = document.activeElement;
+      if (!target || (target.tagName !== 'TEXTAREA' && target.tagName !== 'INPUT')) {
+        // Fall back to first visible textarea
+        var areas = document.querySelectorAll('textarea:not([style*="display:none"]), input[type="text"]:not([style*="display:none"])');
+        if (areas.length) target = areas[0];
+      }
+    }
+    if (!target) return;
+
+    if (key === '⌫') {
+      var s = target.selectionStart;
+      var e = target.selectionEnd;
+      if (s !== e) {
+        target.value = target.value.substring(0, s) + target.value.substring(e);
+        target.selectionStart = target.selectionEnd = s;
+      } else if (s > 0) {
+        target.value = target.value.substring(0, s-1) + target.value.substring(s);
+        target.selectionStart = target.selectionEnd = s-1;
+      }
+      var ev = new Event('input', {bubbles:true}); target.dispatchEvent(ev);
+    } else if (key === '↵') {
+      insertAtCursor(target, '\n');
+    } else if (key === 'Send') {
+      var sendFn = window.prismSendMessage || window.doSend || window.sendDevTeamMessage;
+      if (typeof sendFn === 'function') sendFn();
+      return;
+    } else if (key === 'Space') {
+      insertAtCursor(target, ' ');
+    } else {
+      var ch = shiftOn ? key.toUpperCase() : key;
+      insertAtCursor(target, ch);
+      if (shiftOn) { shiftOn = false; updateShift(); }
+    }
+    // Keep focus on target without triggering native keyboard
+    target.focus({preventScroll: true});
+  }
+
+  function updateShift() {
+    var shiftBtn = document.getElementById('osk-shift-btn');
+    if (shiftBtn) shiftBtn.style.background = shiftOn ? 'var(--accent-light)' : '';
+  }
 
   function build(containerId, targetId) {
     var container = document.getElementById(containerId);
     if (!container) return;
     container.innerHTML = '';
     container.className = 'osk';
+
+    // Track focus on the target
+    if (targetId) {
+      var targetEl = document.getElementById(targetId);
+      if (targetEl) {
+        targetEl.addEventListener('focus', function() { currentTarget = targetEl; });
+        currentTarget = targetEl;
+      }
+    }
 
     for (var r = 0; r < ROWS.length; r++) {
       var row = document.createElement('div');
@@ -364,35 +437,40 @@ var OSK = (function() {
       for (var k = 0; k < keys.length; k++) {
         (function(key) {
           var btn = document.createElement('button');
+          btn.type = 'button'; // CRITICAL: prevents form submission
           btn.className = 'osk-key';
-          btn.textContent = key;
-          btn.type = 'button';
-          if (key === 'Space') { btn.className += ' space'; btn.textContent = ' '; }
-          if (key === 'Send') { btn.className += ' send'; }
-          if (key === 'Ctrl' || key === 'Shift' || key === '⌫' || key === '↵') { btn.className += ' wide'; }
-          btn.title = key === 'Send' ? 'Send message' : key === '⌫' ? 'Backspace' : key === '↵' ? 'New line' : 'Type ' + key;
-          btn.onclick = function() {
-            var target = document.getElementById(targetId);
-            if (!target) return;
-            if (key === '⌫') {
-              var val = target.value;
-              target.value = val.substring(0, val.length - 1);
-            } else if (key === '↵') {
-              target.value += '\n';
-            } else if (key === 'Send') {
-              var sendFn = window.prismSendMessage || window.doSend;
-              if (typeof sendFn === 'function') sendFn();
-            } else if (key === 'Space') {
-              target.value += ' ';
-            } else if (key === 'Ctrl' || key === 'Shift') {
-              // modifier — no-op for now
-            } else if (key === '😊') {
-              target.value += '😊';
-            } else {
-              target.value += key;
-            }
-            target.focus();
-          };
+          btn.textContent = key === 'Space' ? 'Space' : key;
+
+          if (key === 'Space') btn.className += ' space';
+          else if (key === 'Send') btn.className += ' send';
+          else if (key === '⌫' || key === '↵') btn.className += ' wide';
+
+          btn.title = key === 'Send' ? 'Send message' : key === '⌫' ? 'Backspace' : key === '↵' ? 'Enter / New line' : key === 'Space' ? 'Space' : key;
+
+          // CRITICAL: use mousedown + preventDefault to prevent focus loss
+          // and prevent native keyboard from appearing
+          btn.addEventListener('mousedown', function(e) {
+            e.preventDefault(); // Prevents blur on textarea AND prevents native keyboard
+            e.stopPropagation();
+          });
+
+          // Use mouseup for the actual action (after mousedown prevented default)
+          btn.addEventListener('mouseup', function(e) {
+            e.preventDefault();
+            handleKey(key, btn);
+          });
+
+          // Touch support — same pattern
+          btn.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+          }, {passive: false});
+
+          btn.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            handleKey(key, btn);
+          }, {passive: false});
+
           row.appendChild(btn);
         })(keys[k]);
       }
@@ -400,7 +478,27 @@ var OSK = (function() {
     }
   }
 
-  return { build: build };
+  // Build a floating OSK that attaches to any focused textarea/input
+  function buildGlobal() {
+    var existing = document.getElementById('prism-global-osk');
+    if (existing) return;
+    var osk = document.createElement('div');
+    osk.id = 'prism-global-osk';
+    osk.className = 'osk';
+    osk.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9000;background:var(--bg-surface);border-top:1px solid var(--border);padding:8px;display:none;';
+    document.body.appendChild(osk);
+    build('prism-global-osk', null);
+    // Show/hide based on focus
+    document.addEventListener('focusin', function(e) {
+      var el = e.target;
+      if ((el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.type === 'text')) && !el.closest('.osk')) {
+        currentTarget = el;
+        // Don't show global OSK on desktop — only show the inline one
+      }
+    });
+  }
+
+  return { build: build, buildGlobal: buildGlobal, setTarget: setTarget };
 })();
 
 // ── Sidebar HTML Builder ──────────────────────────────────────────────────────

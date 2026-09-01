@@ -37,7 +37,7 @@ function classifyIntent(message) {
 
 // ─── PROVIDER ADAPTERS ────────────────────────────────────────────────────────
 async function callCerebras(env, messages, model) {
-  var keys = [env.CEREBRAS_FREE_1, env.CEREBRAS_FREE_2, env.CEREBRAS_FREE_3, env.CEREBRAS_FREE_4, env.CEREBRAS_API_KEY, env.CEREBRAS_PAID].filter(Boolean);
+  var keys = [env.CEREBRAS_FREE_1, env.CEREBRAS_FREE_2, env.CEREBRAS_FREE_3, env.CEREBRAS_FREE_4, env.cerebras_free_1, env.cerebras_free_2, env.cerebras_free_3, env.cerebras_free_4, env.CEREBRAS_API_KEY, env.CEREBRAS_PAID, env.cerebras_paid, env.CEREBRAS_PAID2, env.cerebras_paid2].filter(Boolean);
   if (!keys.length) throw new Error('No Cerebras keys');
   var key = keys[Math.floor(Math.random() * keys.length)];
   var resp = await fetch('https://api.cerebras.ai/v1/chat/completions', {
@@ -51,7 +51,7 @@ async function callCerebras(env, messages, model) {
 }
 
 async function callGroq(env, messages, model) {
-  var keys = [env.GROQ_FREE_1, env.GROQ_FREE_2, env.GROQ_FREE_3, env.GROQ_API_KEY].filter(Boolean);
+  var keys = [env.GROQ_FREE_1, env.GROQ_FREE_2, env.GROQ_FREE_3, env.GROQ_API_KEY, env.groq_free_1, env.groq_free_2, env.groq_free_3, env.groq_api_key, env.GROQ_API_KEY].filter(Boolean);
   if (!keys.length) throw new Error('No Groq keys');
   var key = keys[Math.floor(Math.random() * keys.length)];
   var resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -65,7 +65,7 @@ async function callGroq(env, messages, model) {
 }
 
 async function callDeepSeek(env, messages, model) {
-  var key = env.DEEPSEEK_PAID || env.DEEPSEEK_API_KEY;
+  var key = env.DEEPSEEK_PAID || env.deepseek_paid || env.DEEPSEEK_FREE_1 || env.deepseek_free_1 || env.DEEPSEEK_API_KEY || env.deepseek_api_key;
   if (!key) throw new Error('No DeepSeek key');
   var resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
     method: 'POST',
@@ -78,7 +78,7 @@ async function callDeepSeek(env, messages, model) {
 }
 
 async function callGemini(env, messages, model) {
-  var keys = [env.GEMINI_API_KEY, env.GEMINI_API_KEY_2, env.GEMINI_API_KEY_3, env.GEMINI_API_KEY_4].filter(Boolean);
+  var keys = [env.GEMINI_API_KEY, env.gemini_api_key, env.gemini_paid_api_key, env.GEMINI_PAID_API_KEY, env.GEMINI_API_KEY_2, env.GEMINI_API_KEY_3, env.GEMINI_API_KEY_4].filter(Boolean);
   if (!keys.length) throw new Error('No Gemini keys');
   var key = keys[Math.floor(Math.random() * keys.length)];
   var mdl = model || 'gemini-2.0-flash';
@@ -99,7 +99,7 @@ async function callGemini(env, messages, model) {
 }
 
 async function callOpenRouter(env, messages, model) {
-  var key = env.OPENROUTER_API_KEY;
+  var key = env.OPENROUTER_API_KEY || env.openrouter_api_key;
   if (!key) throw new Error('No OpenRouter key');
   var resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -112,7 +112,7 @@ async function callOpenRouter(env, messages, model) {
 }
 
 async function callSambaNova(env, messages, model) {
-  var key = env.SAMBANOVA_API_KEY;
+  var key = env.SAMBANOVA_API_KEY || env.sambanova_api_key;
   if (!key) throw new Error('No SambaNova key');
   var resp = await fetch('https://api.sambanova.ai/v1/chat/completions', {
     method: 'POST',
@@ -125,7 +125,7 @@ async function callSambaNova(env, messages, model) {
 }
 
 async function callNvidia(env, messages, model) {
-  var key = env.NVIDIA_API_KEY;
+  var key = env.NVIDIA_API_KEY || env.nvidia_build_api_key || env.NVIDIA_BUILD_API_KEY || env.nvidia_build_api_key_2;
   if (!key) throw new Error('No NVIDIA key');
   var resp = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
     method: 'POST',
@@ -138,7 +138,7 @@ async function callNvidia(env, messages, model) {
 }
 
 async function callMistral(env, messages, model) {
-  var key = env.MISTRAL_API_KEY;
+  var key = env.MISTRAL_API_KEY || env.mistral_api_key;
   if (!key) throw new Error('No Mistral key');
   var resp = await fetch('https://api.mistral.ai/v1/chat/completions', {
     method: 'POST',
@@ -151,7 +151,7 @@ async function callMistral(env, messages, model) {
 }
 
 async function callTogether(env, messages, model) {
-  var key = env.TOGETHER_API_KEY;
+  var key = env.TOGETHER_API_KEY || env.together_api_key;
   if (!key) throw new Error('No Together key');
   var resp = await fetch('https://api.together.xyz/v1/chat/completions', {
     method: 'POST',
@@ -164,7 +164,7 @@ async function callTogether(env, messages, model) {
 }
 
 async function callFireworks(env, messages, model) {
-  var key = env.FIREWORKS_API_KEY;
+  var key = env.FIREWORKS_API_KEY || env.fireworks_api_key;
   if (!key) throw new Error('No Fireworks key');
   var resp = await fetch('https://api.fireworks.ai/inference/v1/chat/completions', {
     method: 'POST',
@@ -177,7 +177,7 @@ async function callFireworks(env, messages, model) {
 }
 
 async function callZhipu(env, messages, model) {
-  var key = env.ZHIPU_API_KEY;
+  var key = env.ZHIPU_API_KEY || env.zhipu_api_key;
   if (!key) throw new Error('No Zhipu key');
   var resp = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
     method: 'POST',
@@ -190,7 +190,7 @@ async function callZhipu(env, messages, model) {
 }
 
 async function callChutes(env, messages, model) {
-  var key = env.CHUTES_API_KEY;
+  var key = env.CHUTES_API_KEY || env.chutes_api_key;
   if (!key) throw new Error('No Chutes key');
   var resp = await fetch('https://llm.chutes.ai/v1/chat/completions', {
     method: 'POST',
@@ -203,7 +203,7 @@ async function callChutes(env, messages, model) {
 }
 
 async function callNebius(env, messages, model) {
-  var key = env.NEBIOUS_API_KEY;
+  var key = env.NEBIOUS_API_KEY || env.NEBIUS_API_KEY || env.nebius_api_key || env.NEBIUS_API_key;
   if (!key) throw new Error('No Nebius key');
   var resp = await fetch('https://api.studio.nebius.ai/v1/chat/completions', {
     method: 'POST',
@@ -216,7 +216,7 @@ async function callNebius(env, messages, model) {
 }
 
 async function callKimi(env, messages, model) {
-  var key = env.KIMI_API_KEY;
+  var key = env.KIMI_API_KEY || env.kimi_api_key;
   if (!key) throw new Error('No Kimi key');
   var resp = await fetch('https://api.moonshot.cn/v1/chat/completions', {
     method: 'POST',
@@ -355,11 +355,13 @@ async function listThreads(env) {
 
 // ─── IMAGE GENERATION ─────────────────────────────────────────────────────────
 async function generateImage(env, prompt, modelName) {
-  if (env.FAL_API_KEY) {
+  var _falKey = env.FAL_API_KEY || env.fal_api_key;
+  if (_falKey) {
     try {
+      var falKey = env.FAL_API_KEY || env.fal_api_key;
       var resp = await fetch('https://fal.run/fal-ai/flux/schnell', {
         method: 'POST',
-        headers: {'Content-Type':'application/json','Authorization':'Key '+env.FAL_API_KEY},
+        headers: {'Content-Type':'application/json','Authorization':'Key '+falKey},
         body: JSON.stringify({prompt: prompt, image_size: 'landscape_4_3', num_images: 1})
       });
       if (resp.ok) {
@@ -374,7 +376,7 @@ async function generateImage(env, prompt, modelName) {
 
 // ─── SEARCH ───────────────────────────────────────────────────────────────────
 async function searchTavily(env, query) {
-  var key = env.TAVILY_API_KEY || env.TAVILY_API_KEY_2;
+  var key = env.TAVILY_API_KEY || env.TAVILY_API_KEY_2 || env.tavily_api_key;
   if (!key) return [];
   var resp = await fetch('https://api.tavily.com/search', {
     method: 'POST',
@@ -387,7 +389,7 @@ async function searchTavily(env, query) {
 }
 
 async function searchBrave(env, query) {
-  var key = env.BRAVE_API_KEY || env.BRAVE_API_KEY_2;
+  var key = env.BRAVE_API_KEY || env.BRAVE_API_KEY_2 || env.brave_api_key;
   if (!key) return [];
   var resp = await fetch('https://api.search.brave.com/res/v1/web/search?q='+encodeURIComponent(query)+'&count=5', {
     headers: {'Accept':'application/json','X-Subscription-Token': key}
@@ -482,6 +484,22 @@ var DEV_TEAM_PROMPTS = {
 // ─── MAIN EXPORT (ES MODULE) ──────────────────────────────────────────────────
 export default {
   async fetch(request, env, ctx) {
+    // Helper: get secret from env or KV fallback
+    async function S(name) {
+      if (env[name]) return env[name];
+      if (env[name.toUpperCase()]) return env[name.toUpperCase()];
+      if (env.PRISM_KV) {
+        try {
+          var kv = await env.PRISM_KV.get('__secrets__');
+          if (kv) {
+            var p = JSON.parse(kv);
+            return p[name] || p[name.toUpperCase()] || p[name.toLowerCase()] || null;
+          }
+        } catch(e) {}
+      }
+      return null;
+    }
+
     var url = new URL(request.url);
     var path = url.pathname;
     var origin = request.headers.get('Origin');
@@ -517,7 +535,21 @@ export default {
           }
         }
 
-        var result = await orchestrate(env, messages, profile, intent, threadId);
+        // Merge KV secrets into env for this request
+        var kvRaw = null;
+        try { kvRaw = await env.PRISM_KV.get('__secrets__'); } catch(e) {}
+        var kvSecrets = {};
+        if (kvRaw) { try { kvSecrets = JSON.parse(kvRaw); } catch(e) {} }
+        var envPlus = new Proxy(env, {
+          get: function(target, prop) {
+            if (target[prop] !== undefined) return target[prop];
+            if (kvSecrets[prop] !== undefined) return kvSecrets[prop];
+            if (kvSecrets[prop.toUpperCase()] !== undefined) return kvSecrets[prop.toUpperCase()];
+            if (kvSecrets[prop.toLowerCase()] !== undefined) return kvSecrets[prop.toLowerCase()];
+            return undefined;
+          }
+        });
+        var result = await orchestrate(envPlus, messages, profile, intent, threadId);
 
         // Save thread
         if (env.PRISM_KV) {
@@ -601,7 +633,20 @@ export default {
     if (path === '/api/atomise' && request.method === 'POST') {
       try {
         var body = await request.json();
-        var assets = await atomise(env, body.text, body.profile);
+        var kvRaw3 = null;
+        try { kvRaw3 = await env.PRISM_KV.get('__secrets__'); } catch(e) {}
+        var kvSecrets3 = {};
+        if (kvRaw3) { try { kvSecrets3 = JSON.parse(kvRaw3); } catch(e) {} }
+        var envPlus3 = new Proxy(env, {
+          get: function(target, prop) {
+            if (target[prop] !== undefined) return target[prop];
+            if (kvSecrets3[prop] !== undefined) return kvSecrets3[prop];
+            if (kvSecrets3[prop.toUpperCase()] !== undefined) return kvSecrets3[prop.toUpperCase()];
+            if (kvSecrets3[prop.toLowerCase()] !== undefined) return kvSecrets3[prop.toLowerCase()];
+            return undefined;
+          }
+        });
+        var assets = await atomise(envPlus3, body.text, body.profile);
         return json({assets: assets}, 200, origin);
       } catch(e) { return json({error: e.message}, 500, origin); }
     }
@@ -646,7 +691,20 @@ export default {
         }
         var sysPrompt = DEV_TEAM_PROMPTS[agent] || DEV_TEAM_PROMPTS['pm'];
         var messages = [{role:'system', content:sysPrompt}].concat(history).concat([{role:'user', content:body.message}]);
-        var result = await orchestrate(env, messages, 'balanced', 'chat', null);
+        var kvRaw2 = null;
+        try { kvRaw2 = await env.PRISM_KV.get('__secrets__'); } catch(e) {}
+        var kvSecrets2 = {};
+        if (kvRaw2) { try { kvSecrets2 = JSON.parse(kvRaw2); } catch(e) {} }
+        var envPlus2 = new Proxy(env, {
+          get: function(target, prop) {
+            if (target[prop] !== undefined) return target[prop];
+            if (kvSecrets2[prop] !== undefined) return kvSecrets2[prop];
+            if (kvSecrets2[prop.toUpperCase()] !== undefined) return kvSecrets2[prop.toUpperCase()];
+            if (kvSecrets2[prop.toLowerCase()] !== undefined) return kvSecrets2[prop.toLowerCase()];
+            return undefined;
+          }
+        });
+        var result = await orchestrate(envPlus2, messages, 'balanced', 'chat', null);
         history.push({role:'user', content:body.message});
         history.push({role:'assistant', content:result.content});
         if (history.length > 40) history = history.slice(-40);
@@ -725,6 +783,81 @@ export default {
       } catch(e) {
         return json({error:'RSS fetch failed: '+e.message}, 500, origin);
       }
+    }
+
+
+    // Secret ingestion endpoint — accepts secrets and stores them in KV for immediate use
+    // Also proxies to CF API to persist them as Worker secrets
+    if (path === '/api/ingest-secrets' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var secrets = body.secrets || {}; // {KEY: value, ...}
+        var cfToken = body.cfToken;
+        var accountId = body.accountId || 'd741de91f8cfff2306cc0f850a76ee07';
+        var workerName = body.workerName || 'prism-api';
+        var results = {ok: [], failed: []};
+
+        // Store in KV immediately for instant use (no redeploy needed)
+        if (env.PRISM_KV) {
+          var kvSecrets = {};
+          try {
+            var existing = await env.PRISM_KV.get('__secrets__');
+            if (existing) kvSecrets = JSON.parse(existing);
+          } catch(e) {}
+          Object.assign(kvSecrets, secrets);
+          await env.PRISM_KV.put('__secrets__', JSON.stringify(kvSecrets));
+        }
+
+        // Also push to CF API as proper Worker secrets if token provided
+        if (cfToken) {
+          var entries = Object.entries(secrets);
+          for (var i = 0; i < entries.length; i++) {
+            var key = entries[i][0];
+            var val = entries[i][1];
+            try {
+              var r = await fetch(
+                'https://api.cloudflare.com/client/v4/accounts/' + accountId + '/workers/scripts/' + workerName + '/secrets',
+                {
+                  method: 'PUT',
+                  headers: {'Authorization': 'Bearer ' + cfToken, 'Content-Type': 'application/json'},
+                  body: JSON.stringify({name: key, text: val, type: 'secret_text'})
+                }
+              );
+              var rd = await r.json();
+              if (rd.success) results.ok.push(key);
+              else results.failed.push({key: key, error: rd.errors && rd.errors[0] ? rd.errors[0].message : 'unknown'});
+            } catch(e) {
+              results.failed.push({key: key, error: e.message});
+            }
+          }
+        } else {
+          results.ok = Object.keys(secrets);
+        }
+
+        return json({success: true, kvStored: Object.keys(secrets).length, cfPushed: results.ok.length, failed: results.failed}, 200, origin);
+      } catch(e) {
+        return json({error: e.message}, 500, origin);
+      }
+    }
+
+    // Get a secret from KV store (for runtime use)
+    async function getSecret(env, name) {
+      // Check env first (proper Worker secrets)
+      if (env[name]) return env[name];
+      // Check uppercase variant
+      if (env[name.toUpperCase()]) return env[name.toUpperCase()];
+      // Fall back to KV secret store
+      if (env.PRISM_KV) {
+        try {
+          var kvSecrets = await env.PRISM_KV.get('__secrets__');
+          if (kvSecrets) {
+            var parsed = JSON.parse(kvSecrets);
+            // Try exact match, then uppercase, then lowercase
+            return parsed[name] || parsed[name.toUpperCase()] || parsed[name.toLowerCase()] || null;
+          }
+        } catch(e) {}
+      }
+      return null;
     }
 
     return json({error:'Not found', path:path}, 404, origin);

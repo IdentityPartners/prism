@@ -317,8 +317,8 @@ function pushSecrets() {
 
   // Push sequentially to avoid rate limits
   function pushNext(idx) {
-    // Find next non-skipped secret starting from idx
-    while (idx < parsedSecrets.length && parsedSecrets[idx].skip) idx++;
+    // Find next non-skipped, non-processed secret starting from idx
+    while (idx < parsedSecrets.length && (parsedSecrets[idx].skip || parsedSecrets[idx].status === 'ok' || parsedSecrets[idx].status === 'error')) idx++;
     if (idx >= parsedSecrets.length) {
       // All done
       pushing = false;
@@ -339,56 +339,98 @@ function pushSecrets() {
     if (progressLabel) progressLabel.textContent = 'Pushing ' + (done + 1) + ' of ' + toProcess.length + ': ' + secret.key;
 
     // Use Cloudflare API to push secret
-    var url = 'https://api.cloudflare.com/client/v4/accounts/' + account + '/workers/scripts/' + workerName + '/secrets';
+    // Secrets sent via Worker endpoint to avoid CORS
     var xhr = new XMLHttpRequest();
-    xhr.open('PUT', url, true);
-    xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+    // Send in batches of 10 via Worker endpoint (avoids CORS)
+    var batchSize = 10;
+    var batch = {};
+    var batchKeys = [];
+    
+    // Collect next batch
+    var batchIdx = idx;
+    while (batchIdx < parsedSecrets.length && batchKeys.length < batchSize) {
+      if (!parsedSecrets[batchIdx].skip) {
+        batch[parsedSecrets[batchIdx].key] = parsedSecrets[batchIdx].value;
+        batchKeys.push(batchIdx);
+        parsedSecrets[batchIdx].status = 'pushing';
+      }
+      batchIdx++;
+    }
+    
+    renderTable();
+    
+    xhr.open('POST', 'https://prism-api.identitypartners.workers.dev/api/ingest-secrets', true);
     xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.timeout = 20000;
+    xhr.timeout = 60000;
 
     xhr.onreadystatechange = function() {
       if (xhr.readyState !== 4) return;
-      done++;
       try {
         var result = JSON.parse(xhr.responseText);
         if (result.success) {
-          secret.status = 'ok';
-          succeeded++;
+          for (var j = 0; j < batchKeys.length; j++) {
+            parsedSecrets[batchKeys[j]].status = 'ok';
+            succeeded++;
+            done++;
+          }
+          // Check failed ones
+          if (result.failed && result.failed.length) {
+            for (var k = 0; k < result.failed.length; k++) {
+              var failedKey = result.failed[k].key;
+              for (var m = 0; m < batchKeys.length; m++) {
+                if (parsedSecrets[batchKeys[m]].key === failedKey) {
+                  parsedSecrets[batchKeys[m]].status = 'error';
+                  parsedSecrets[batchKeys[m]].error = result.failed[k].error;
+                  succeeded--;
+                  done--;
+                  failed.push(result.failed[k]);
+                }
+              }
+            }
+          }
         } else {
-          secret.status = 'error';
-          var errMsg = (result.errors && result.errors[0]) ? result.errors[0].message : 'Unknown error';
-          secret.error = errMsg;
-          failed.push({key: secret.key, error: errMsg});
+          for (var j = 0; j < batchKeys.length; j++) {
+            parsedSecrets[batchKeys[j]].status = 'error';
+            parsedSecrets[batchKeys[j]].error = result.error || 'Failed';
+            failed.push({key: parsedSecrets[batchKeys[j]].key, error: result.error || 'Failed'});
+            done++;
+          }
         }
       } catch(e) {
-        secret.status = 'error';
-        secret.error = 'HTTP ' + xhr.status;
-        failed.push({key: secret.key, error: 'HTTP ' + xhr.status});
+        for (var j = 0; j < batchKeys.length; j++) {
+          parsedSecrets[batchKeys[j]].status = 'error';
+          parsedSecrets[batchKeys[j]].error = 'Parse error';
+          failed.push({key: parsedSecrets[batchKeys[j]].key, error: 'Parse error'});
+          done++;
+        }
       }
       renderTable();
-      // Small delay between requests to be polite to the API
-      setTimeout(function() { pushNext(idx + 1); }, 120);
+      setTimeout(function() { pushNext(batchIdx); }, 200);
     };
 
     xhr.ontimeout = function() {
-      done++;
-      secret.status = 'error';
-      secret.error = 'Timeout';
-      failed.push({key: secret.key, error: 'Timeout'});
+      for (var j = 0; j < batchKeys.length; j++) {
+        parsedSecrets[batchKeys[j]].status = 'error';
+        parsedSecrets[batchKeys[j]].error = 'Timeout';
+        failed.push({key: parsedSecrets[batchKeys[j]].key, error: 'Timeout'});
+        done++;
+      }
       renderTable();
-      setTimeout(function() { pushNext(idx + 1); }, 120);
+      setTimeout(function() { pushNext(batchIdx); }, 200);
     };
 
     xhr.onerror = function() {
-      done++;
-      secret.status = 'error';
-      secret.error = 'Network error — check CORS or token';
-      failed.push({key: secret.key, error: 'Network error'});
+      for (var j = 0; j < batchKeys.length; j++) {
+        parsedSecrets[batchKeys[j]].status = 'error';
+        parsedSecrets[batchKeys[j]].error = 'Network error';
+        failed.push({key: parsedSecrets[batchKeys[j]].key, error: 'Network error'});
+        done++;
+      }
       renderTable();
-      setTimeout(function() { pushNext(idx + 1); }, 120);
+      setTimeout(function() { pushNext(batchIdx); }, 200);
     };
 
-    xhr.send(JSON.stringify({name: secret.key, text: secret.value, type: 'secret_text'}));
+    xhr.send(JSON.stringify({secrets: batch, cfToken: token, accountId: account, workerName: workerName}));
   }
 
   pushNext(0);
