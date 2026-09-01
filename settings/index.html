@@ -1,114 +1,106 @@
 <!DOCTYPE html>
+
 <html lang="en-GB">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Settings — Prism</title>
-<link rel="stylesheet" href="/shared/prism.css">
-<link rel="stylesheet" href="/shared/themes.css">
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
 </head>
 <body>
 <div class="prism-shell">
-  <div id="sidebar-mount"></div>
-  <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Settings</div></div>
-    <div class="page-content">
-      <div class="grid-2" style="gap:20px;align-items:start;">
-
-        <!-- Theme -->
-        <div class="card">
-          <div class="card-header"><span class="card-title">Theme</span></div>
-          <div class="form-group">
-            <label class="form-label">Visual Theme</label>
-            <select class="select" id="theme-select" onchange="applyTheme(this.value)" title="Choose visual theme"></select>
-          </div>
-          <div id="theme-preview" style="height:60px;border-radius:8px;border:1px solid var(--border);margin-top:8px;background:var(--bg-primary);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--fg-muted);">Theme preview</div>
-        </div>
-
-        <!-- Routing -->
-        <div class="card">
-          <div class="card-header"><span class="card-title">Default Routing Profile</span></div>
-          <div class="form-group">
-            <label class="form-label">Profile</label>
-            <select class="select" id="profile-select" title="Default routing profile">
-              <option value="balanced">⚖ Balanced (recommended)</option>
-              <option value="free">🆓 Free</option>
-              <option value="frontier-free">🧪 Frontier Free</option>
-              <option value="frontier">💎 Full Frontier</option>
-              <option value="local">🔒 Local (Ollama)</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Ollama Tunnel URL</label>
-            <input class="input" id="ollama-url" type="text" placeholder="https://your-tunnel.trycloudflare.com" title="Cloudflare Tunnel URL for local Ollama models">
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="saveRouting()" title="Save routing settings">Save</button>
-        </div>
-
-        <!-- Key Ingester -->
-        <div class="card">
-          <div class="card-header"><span class="card-title">Key Ingester</span><span class="badge badge-accent">Secure</span></div>
-          <p style="font-size:12.5px;color:var(--fg-muted);margin-bottom:14px;">Paste API keys here. They are sent directly to the Cloudflare Worker and never stored in the browser.</p>
-          <div id="key-fields" style="display:flex;flex-direction:column;gap:10px;"></div>
-          <button class="btn btn-primary" style="margin-top:14px;width:100%;" onclick="pushKeys()" title="Push all keys to Cloudflare Worker">🔑 Push Keys to Worker</button>
-          <div id="key-status" style="margin-top:8px;font-size:12px;color:var(--fg-muted);"></div>
-        </div>
-
-        <!-- Zoho OAuth -->
-        <div class="card">
-          <div class="card-header"><span class="card-title">Zoho Integration</span></div>
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            <a href="/oauth/zoho/mail" class="btn btn-secondary" title="Connect Zoho Mail">📧 Connect Zoho Mail</a>
-            <a href="/oauth/zoho/calendar" class="btn btn-secondary" title="Connect Zoho Calendar">📅 Connect Zoho Calendar</a>
-            <a href="/oauth/zoho/crm" class="btn btn-secondary" title="Connect Zoho CRM">👥 Connect Zoho CRM</a>
-            <a href="/oauth/zoho/social" class="btn btn-secondary" title="Connect Zoho Social">📱 Connect Zoho Social</a>
-          </div>
-        </div>
-
-        <!-- Display -->
-        <div class="card">
-          <div class="card-header"><span class="card-title">Display</span></div>
-          <div class="form-group">
-            <label class="form-label">On-screen Keyboard</label>
-            <select class="select" id="osk-setting" title="On-screen keyboard visibility">
-              <option value="always">Always visible (Surface Pro default)</option>
-              <option value="toggle">Toggle with button</option>
-              <option value="never">Never show</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Sidebar</label>
-            <select class="select" id="sidebar-setting" title="Sidebar default state">
-              <option value="expanded">Expanded</option>
-              <option value="collapsed">Collapsed</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Orchestrator Visibility</label>
-            <select class="select" id="orch-visibility" title="How much orchestration detail to show">
-              <option value="standard">Standard</option>
-              <option value="quiet">Quiet</option>
-              <option value="verbose">Verbose</option>
-            </select>
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="saveDisplay()" title="Save display settings">Save</button>
-        </div>
-
-        <!-- About -->
-        <div class="card">
-          <div class="card-header"><span class="card-title">About Prism</span></div>
-          <div style="font-size:13px;color:var(--fg-secondary);line-height:1.7;">
-            <div><strong>Version:</strong> 1.0.0</div>
-            <div><strong>Worker:</strong> prism-api.identitypartners.workers.dev</div>
-            <div><strong>Pages:</strong> prism.identitypartners.uk</div>
-            <div><strong>Repo:</strong> IdentityPartners/prism</div>
-            <div style="margin-top:10px;"><a href="/sitemap/" class="btn btn-ghost btn-sm" title="View sitemap">🗺 Sitemap</a></div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </div>
+<div id="sidebar-mount"></div>
+<div class="main-content" id="main-content">
+<div class="topbar"><div class="topbar-title">Settings</div></div>
+<div class="page-content">
+<div class="grid-2" style="gap:20px;align-items:start;">
+<!-- Theme -->
+<div class="card">
+<div class="card-header"><span class="card-title">Theme</span></div>
+<div class="form-group">
+<label class="form-label">Visual Theme</label>
+<select class="select" id="theme-select" onchange="applyTheme(this.value)" title="Choose visual theme"></select>
+</div>
+<div id="theme-preview" style="height:60px;border-radius:8px;border:1px solid var(--border);margin-top:8px;background:var(--bg-primary);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--fg-muted);">Theme preview</div>
+</div>
+<!-- Routing -->
+<div class="card">
+<div class="card-header"><span class="card-title">Default Routing Profile</span></div>
+<div class="form-group">
+<label class="form-label">Profile</label>
+<select class="select" id="profile-select" title="Default routing profile">
+<option value="balanced">⚖ Balanced (recommended)</option>
+<option value="free">🆓 Free</option>
+<option value="frontier-free">🧪 Frontier Free</option>
+<option value="frontier">💎 Full Frontier</option>
+<option value="local">🔒 Local (Ollama)</option>
+</select>
+</div>
+<div class="form-group">
+<label class="form-label">Ollama Tunnel URL</label>
+<input class="input" id="ollama-url" placeholder="https://your-tunnel.trycloudflare.com" title="Cloudflare Tunnel URL for local Ollama models" type="text"/>
+</div>
+<button class="btn btn-primary btn-sm" onclick="saveRouting()" title="Save routing settings">Save</button>
+</div>
+<!-- Key Ingester -->
+<div class="card">
+<div class="card-header"><span class="card-title">Key Ingester</span><span class="badge badge-accent">Secure</span></div>
+<p style="font-size:12.5px;color:var(--fg-muted);margin-bottom:14px;">Paste a <code>.env</code> file and push all secrets directly to the Cloudflare Worker in one click. Values are never stored in the browser.</p>
+<a class="btn btn-primary" href="/settings/ingester.html" style="width:100%;" title="Open the Secret Ingester">🔑 Open Secret Ingester</a>
+</div>
+<!-- Zoho OAuth -->
+<div class="card">
+<div class="card-header"><span class="card-title">Zoho Integration</span></div>
+<div style="display:flex;flex-direction:column;gap:8px;">
+<a class="btn btn-secondary" href="/oauth/zoho/mail" title="Connect Zoho Mail">📧 Connect Zoho Mail</a>
+<a class="btn btn-secondary" href="/oauth/zoho/calendar" title="Connect Zoho Calendar">📅 Connect Zoho Calendar</a>
+<a class="btn btn-secondary" href="/oauth/zoho/crm" title="Connect Zoho CRM">👥 Connect Zoho CRM</a>
+<a class="btn btn-secondary" href="/oauth/zoho/social" title="Connect Zoho Social">📱 Connect Zoho Social</a>
+</div>
+</div>
+<!-- Display -->
+<div class="card">
+<div class="card-header"><span class="card-title">Display</span></div>
+<div class="form-group">
+<label class="form-label">On-screen Keyboard</label>
+<select class="select" id="osk-setting" title="On-screen keyboard visibility">
+<option value="always">Always visible (Surface Pro default)</option>
+<option value="toggle">Toggle with button</option>
+<option value="never">Never show</option>
+</select>
+</div>
+<div class="form-group">
+<label class="form-label">Sidebar</label>
+<select class="select" id="sidebar-setting" title="Sidebar default state">
+<option value="expanded">Expanded</option>
+<option value="collapsed">Collapsed</option>
+</select>
+</div>
+<div class="form-group">
+<label class="form-label">Orchestrator Visibility</label>
+<select class="select" id="orch-visibility" title="How much orchestration detail to show">
+<option value="standard">Standard</option>
+<option value="quiet">Quiet</option>
+<option value="verbose">Verbose</option>
+</select>
+</div>
+<button class="btn btn-primary btn-sm" onclick="saveDisplay()" title="Save display settings">Save</button>
+</div>
+<!-- About -->
+<div class="card">
+<div class="card-header"><span class="card-title">About Prism</span></div>
+<div style="font-size:13px;color:var(--fg-secondary);line-height:1.7;">
+<div><strong>Version:</strong> 1.0.0</div>
+<div><strong>Worker:</strong> prism-api.identitypartners.workers.dev</div>
+<div><strong>Pages:</strong> prism.identitypartners.uk</div>
+<div><strong>Repo:</strong> IdentityPartners/prism</div>
+<div style="margin-top:10px;"><a class="btn btn-ghost btn-sm" href="/sitemap/" title="View sitemap">🗺 Sitemap</a></div>
+</div>
+</div>
+</div>
+</div>
+</div>
 </div>
 <script src="/shared/prism.js"></script>
 <script>

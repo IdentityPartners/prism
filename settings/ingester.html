@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Secret Ingester — Prism</title>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+<style>
+.ingester-layout { max-width: 860px; margin: 0 auto; padding: 24px; }
+.ingester-header { margin-bottom: 24px; }
+.ingester-title { font-family: var(--font-heading); font-size: 22px; font-weight: 600; color: var(--fg-primary); margin-bottom: 6px; }
+.ingester-subtitle { font-size: 13.5px; color: var(--fg-muted); line-height: 1.6; }
+.paste-area {
+  width: 100%;
+  min-height: 280px;
+  padding: 14px 16px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--fg-primary);
+  background: var(--bg-elevated);
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.paste-area:focus { border-color: var(--accent); border-style: solid; }
+.paste-area::placeholder { color: var(--fg-muted); font-family: var(--font-mono); }
+.parsed-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 16px; }
+.parsed-table th { background: var(--bg-surface); padding: 8px 12px; text-align: left; font-weight: 600; border: 1px solid var(--border); color: var(--fg-secondary); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.parsed-table td { padding: 7px 12px; border: 1px solid var(--border); vertical-align: middle; }
+.parsed-table tr:nth-child(even) td { background: var(--bg-surface); }
+.key-name { font-family: var(--font-mono); font-size: 12px; color: var(--accent); font-weight: 500; }
+.key-value { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg-muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.key-status { font-size: 11px; font-weight: 600; white-space: nowrap; }
+.status-pending { color: var(--fg-muted); }
+.status-pushing { color: var(--warning); }
+.status-ok { color: var(--success); }
+.status-error { color: var(--danger); }
+.progress-wrap { background: var(--border); border-radius: 4px; height: 6px; margin: 12px 0; overflow: hidden; }
+.progress-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.3s ease; }
+.summary-card { background: var(--accent-light); border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 14px 16px; margin-top: 16px; font-size: 13px; }
+.summary-card.has-errors { background: #fbeaea; border-color: var(--danger); }
+.toggle-values { font-size: 11.5px; color: var(--accent); cursor: pointer; text-decoration: underline; }
+.cf-token-row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
+.cf-token-input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; font-family: var(--font-mono); outline: none; background: var(--bg-primary); color: var(--fg-primary); }
+.cf-token-input:focus { border-color: var(--accent); }
+.worker-name-input { width: 200px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; outline: none; background: var(--bg-primary); color: var(--fg-primary); }
+.worker-name-input:focus { border-color: var(--accent); }
+.action-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
+.count-badge { font-size: 12px; color: var(--fg-muted); }
+</style>
+</head>
+<body>
+<div class="prism-shell">
+<div id="sidebar-mount"></div>
+<div class="main-content" id="main-content">
+<div class="topbar">
+<div class="topbar-title">Secret Ingester</div>
+<div class="topbar-actions">
+<a class="btn btn-ghost btn-sm" href="/settings/" title="Back to Settings">← Settings</a>
+</div>
+</div>
+<div class="page-content">
+<div class="ingester-layout">
+<div class="ingester-header">
+<div class="ingester-title">Secret Ingester</div>
+<div class="ingester-subtitle">Paste your <code>.env</code> file below — one <code>KEY=value</code> pair per line. The ingester parses each pair and pushes it directly to your Cloudflare Worker as a secret. Values are never stored in the browser or sent anywhere except Cloudflare's API.</div>
+</div>
+<!-- Config row -->
+<div class="card" style="margin-bottom:16px;padding:14px 16px;">
+<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:10px;">Configuration</div>
+<div class="cf-token-row">
+<label style="font-size:12px;color:var(--fg-secondary);white-space:nowrap;width:120px;">CF API Token</label>
+<input class="cf-token-input" id="cf-token" placeholder="cfat_…" title="Your Cloudflare API token" type="password"/>
+<button class="btn btn-ghost btn-sm" onclick="toggleTokenVisibility()" title="Show/hide token">👁</button>
+</div>
+<div class="cf-token-row">
+<label style="font-size:12px;color:var(--fg-secondary);white-space:nowrap;width:120px;">Account ID</label>
+<input class="cf-token-input" id="cf-account" title="Cloudflare Account ID" type="text" value="d741de91f8cfff2306cc0f850a76ee07"/>
+</div>
+<div class="cf-token-row">
+<label style="font-size:12px;color:var(--fg-secondary);white-space:nowrap;width:120px;">Worker Name</label>
+<input class="worker-name-input" id="worker-name" title="Target Worker name" type="text" value="prism-api"/>
+</div>
+</div>
+<!-- Paste area -->
+<div class="card" style="margin-bottom:16px;padding:14px 16px;">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);">.env Paste Area</div>
+<div style="display:flex;gap:8px;align-items:center;">
+<span class="toggle-values" id="toggle-label" onclick="toggleShowValues()" title="Show or hide values in the preview table">Hide values</span>
+<button class="btn btn-ghost btn-sm" onclick="clearAll()" title="Clear everything">✕ Clear</button>
+</div>
+</div>
+<textarea autocapitalize="off" autocomplete="off" autocorrect="off" class="paste-area" id="env-input" oninput="parseEnv()" placeholder="Paste your .env file here, e.g.:
+
+CEREBRAS_FREE_1=csk-abc123
+GROQ_API_KEY=gsk_xyz789
+DEEPSEEK_API_KEY=sk-...
+
+Lines starting with # are treated as comments and ignored.
+Blank lines are ignored." spellcheck="false"></textarea>
+</div>
+<!-- Parsed preview -->
+<div class="hidden" id="preview-section">
+<div class="card" style="padding:14px 16px;">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);">Parsed Secrets</div>
+<span class="count-badge" id="count-badge">0 secrets</span>
+</div>
+<div style="overflow-x:auto;">
+<table class="parsed-table" id="parsed-table">
+<thead>
+<tr>
+<th style="width:40px;">#</th>
+<th>Key Name</th>
+<th>Value</th>
+<th style="width:80px;">Status</th>
+<th style="width:40px;">Skip</th>
+</tr>
+</thead>
+<tbody id="parsed-tbody"></tbody>
+</table>
+</div>
+</div>
+<!-- Progress -->
+<div class="hidden" id="progress-section" style="margin-top:16px;">
+<div id="progress-label" style="font-size:12.5px;color:var(--fg-secondary);margin-bottom:6px;">Pushing secrets…</div>
+<div class="progress-wrap">
+<div class="progress-bar" id="progress-bar" style="width:0%"></div>
+</div>
+</div>
+<!-- Summary -->
+<div class="hidden" id="summary-section"></div>
+<!-- Action row -->
+<div class="action-row">
+<button class="btn btn-primary" id="push-btn" onclick="pushSecrets()" title="Push all non-skipped secrets to the Cloudflare Worker">🔑 Push All Secrets</button>
+<button class="btn btn-secondary" onclick="selectAll(true)" title="Select all secrets">Select All</button>
+<button class="btn btn-secondary" onclick="selectAll(false)" title="Deselect all secrets">Deselect All</button>
+<span class="count-badge" id="selected-count"></span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+var parsedSecrets = [];
+var showValues = false;
+var pushing = false;
+
+// ── Pre-fill CF token from settings if saved ──────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) {
+    var sb = buildSidebar('/settings/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  // Pre-fill token if stored
+  try {
+    var saved = localStorage.getItem('prism-cf-token');
+    if (saved) document.getElementById('cf-token').value = saved;
+  } catch(e) {}
+});
+
+// ── Parse .env input ──────────────────────────────────────────────────────────
+function parseEnv() {
+  var raw = document.getElementById('env-input').value;
+  var lines = raw.split('\n');
+  parsedSecrets = [];
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line || line.charAt(0) === '#') continue;
+    var eqIdx = line.indexOf('=');
+    if (eqIdx < 1) continue;
+    var key = line.substring(0, eqIdx).trim();
+    var value = line.substring(eqIdx + 1).trim();
+    // Strip surrounding quotes if present
+    if ((value.charAt(0) === '"' && value.charAt(value.length-1) === '"') ||
+        (value.charAt(0) === "'" && value.charAt(value.length-1) === "'")) {
+      value = value.substring(1, value.length - 1);
+    }
+    if (!key || !value) continue;
+    parsedSecrets.push({key: key, value: value, status: 'pending', skip: false, error: ''});
+  }
+
+  renderTable();
+  updateSelectedCount();
+
+  var preview = document.getElementById('preview-section');
+  if (preview) {
+    if (parsedSecrets.length > 0) preview.classList.remove('hidden');
+    else preview.classList.add('hidden');
+  }
+}
+
+// ── Render table ──────────────────────────────────────────────────────────────
+function renderTable() {
+  var tbody = document.getElementById('parsed-tbody');
+  var badge = document.getElementById('count-badge');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  if (badge) badge.textContent = parsedSecrets.length + ' secret' + (parsedSecrets.length !== 1 ? 's' : '');
+
+  for (var i = 0; i < parsedSecrets.length; i++) {
+    (function(secret, idx) {
+      var tr = document.createElement('tr');
+      if (secret.skip) tr.style.opacity = '0.4';
+
+      // Row number
+      var tdNum = document.createElement('td');
+      tdNum.style.cssText = 'color:var(--fg-muted);font-size:11px;text-align:center;';
+      tdNum.textContent = idx + 1;
+
+      // Key name
+      var tdKey = document.createElement('td');
+      var keySpan = document.createElement('span');
+      keySpan.className = 'key-name';
+      keySpan.textContent = secret.key;
+      tdKey.appendChild(keySpan);
+
+      // Value (masked or shown)
+      var tdVal = document.createElement('td');
+      var valSpan = document.createElement('span');
+      valSpan.className = 'key-value';
+      if (showValues) {
+        valSpan.textContent = secret.value;
+        valSpan.title = secret.value;
+      } else {
+        var masked = secret.value.substring(0, 4) + '••••••••' + secret.value.substring(secret.value.length - 3);
+        valSpan.textContent = masked;
+        valSpan.title = 'Toggle "Show values" to reveal';
+      }
+      tdVal.appendChild(valSpan);
+
+      // Status
+      var tdStatus = document.createElement('td');
+      var statusSpan = document.createElement('span');
+      statusSpan.className = 'key-status';
+      if (secret.status === 'pending') { statusSpan.className += ' status-pending'; statusSpan.textContent = '—'; }
+      else if (secret.status === 'pushing') { statusSpan.className += ' status-pushing'; statusSpan.textContent = '⟳ Pushing'; }
+      else if (secret.status === 'ok') { statusSpan.className += ' status-ok'; statusSpan.textContent = '✓ Done'; }
+      else if (secret.status === 'error') { statusSpan.className += ' status-error'; statusSpan.textContent = '✗ Error'; statusSpan.title = secret.error; }
+      tdStatus.appendChild(statusSpan);
+
+      // Skip checkbox
+      var tdSkip = document.createElement('td');
+      tdSkip.style.textAlign = 'center';
+      var checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = secret.skip;
+      checkbox.title = 'Skip this secret';
+      checkbox.onchange = function() {
+        parsedSecrets[idx].skip = checkbox.checked;
+        tr.style.opacity = checkbox.checked ? '0.4' : '1';
+        updateSelectedCount();
+      };
+      tdSkip.appendChild(checkbox);
+
+      tr.appendChild(tdNum);
+      tr.appendChild(tdKey);
+      tr.appendChild(tdVal);
+      tr.appendChild(tdStatus);
+      tr.appendChild(tdSkip);
+      tbody.appendChild(tr);
+    })(parsedSecrets[i], i);
+  }
+}
+
+// ── Push secrets ──────────────────────────────────────────────────────────────
+function pushSecrets() {
+  if (pushing) return;
+
+  var token = document.getElementById('cf-token').value.trim();
+  var account = document.getElementById('cf-account').value.trim();
+  var workerName = document.getElementById('worker-name').value.trim();
+
+  if (!token) { Toast.error('Enter your Cloudflare API token'); return; }
+  if (!account) { Toast.error('Enter your Cloudflare Account ID'); return; }
+  if (!workerName) { Toast.error('Enter the Worker name'); return; }
+
+  // Save token for convenience (session only)
+  try { localStorage.setItem('prism-cf-token', token); } catch(e) {}
+
+  var toProcess = parsedSecrets.filter(function(s) { return !s.skip; });
+  if (toProcess.length === 0) { Toast.warning('No secrets selected to push'); return; }
+
+  pushing = true;
+  var pushBtn = document.getElementById('push-btn');
+  if (pushBtn) pushBtn.disabled = true;
+
+  var progressSection = document.getElementById('progress-section');
+  var progressBar = document.getElementById('progress-bar');
+  var progressLabel = document.getElementById('progress-label');
+  var summarySection = document.getElementById('summary-section');
+
+  if (progressSection) progressSection.classList.remove('hidden');
+  if (summarySection) summarySection.classList.add('hidden');
+
+  var done = 0;
+  var succeeded = 0;
+  var failed = [];
+
+  // Reset statuses
+  for (var i = 0; i < parsedSecrets.length; i++) {
+    if (!parsedSecrets[i].skip) parsedSecrets[i].status = 'pending';
+  }
+  renderTable();
+
+  // Push sequentially to avoid rate limits
+  function pushNext(idx) {
+    // Find next non-skipped secret starting from idx
+    while (idx < parsedSecrets.length && parsedSecrets[idx].skip) idx++;
+    if (idx >= parsedSecrets.length) {
+      // All done
+      pushing = false;
+      if (pushBtn) pushBtn.disabled = false;
+      if (progressBar) progressBar.style.width = '100%';
+      if (progressLabel) progressLabel.textContent = 'Complete — ' + succeeded + ' pushed, ' + failed.length + ' failed.';
+      showSummary(succeeded, failed);
+      renderTable();
+      return;
+    }
+
+    var secret = parsedSecrets[idx];
+    secret.status = 'pushing';
+    renderTable();
+
+    var pct = Math.round((done / toProcess.length) * 100);
+    if (progressBar) progressBar.style.width = pct + '%';
+    if (progressLabel) progressLabel.textContent = 'Pushing ' + (done + 1) + ' of ' + toProcess.length + ': ' + secret.key;
+
+    // Use Cloudflare API to push secret
+    var url = 'https://api.cloudflare.com/client/v4/accounts/' + account + '/workers/scripts/' + workerName + '/secrets';
+    var xhr = new XMLHttpRequest();
+    xhr.open('PUT', url, true);
+    xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.timeout = 20000;
+
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4) return;
+      done++;
+      try {
+        var result = JSON.parse(xhr.responseText);
+        if (result.success) {
+          secret.status = 'ok';
+          succeeded++;
+        } else {
+          secret.status = 'error';
+          var errMsg = (result.errors && result.errors[0]) ? result.errors[0].message : 'Unknown error';
+          secret.error = errMsg;
+          failed.push({key: secret.key, error: errMsg});
+        }
+      } catch(e) {
+        secret.status = 'error';
+        secret.error = 'HTTP ' + xhr.status;
+        failed.push({key: secret.key, error: 'HTTP ' + xhr.status});
+      }
+      renderTable();
+      // Small delay between requests to be polite to the API
+      setTimeout(function() { pushNext(idx + 1); }, 120);
+    };
+
+    xhr.ontimeout = function() {
+      done++;
+      secret.status = 'error';
+      secret.error = 'Timeout';
+      failed.push({key: secret.key, error: 'Timeout'});
+      renderTable();
+      setTimeout(function() { pushNext(idx + 1); }, 120);
+    };
+
+    xhr.onerror = function() {
+      done++;
+      secret.status = 'error';
+      secret.error = 'Network error — check CORS or token';
+      failed.push({key: secret.key, error: 'Network error'});
+      renderTable();
+      setTimeout(function() { pushNext(idx + 1); }, 120);
+    };
+
+    xhr.send(JSON.stringify({name: secret.key, text: secret.value, type: 'secret_text'}));
+  }
+
+  pushNext(0);
+}
+
+// ── Summary ───────────────────────────────────────────────────────────────────
+function showSummary(succeeded, failed) {
+  var section = document.getElementById('summary-section');
+  if (!section) return;
+  section.classList.remove('hidden');
+  section.innerHTML = '';
+
+  var card = document.createElement('div');
+  card.className = 'summary-card' + (failed.length > 0 ? ' has-errors' : '');
+
+  var title = document.createElement('div');
+  title.style.cssText = 'font-weight:600;font-size:14px;margin-bottom:8px;';
+  title.textContent = failed.length === 0
+    ? '✓ All ' + succeeded + ' secrets pushed successfully'
+    : succeeded + ' pushed · ' + failed.length + ' failed';
+  card.appendChild(title);
+
+  if (failed.length > 0) {
+    var failList = document.createElement('div');
+    failList.style.cssText = 'font-size:12.5px;line-height:1.8;';
+    for (var i = 0; i < failed.length; i++) {
+      var item = document.createElement('div');
+      item.style.color = 'var(--danger)';
+      item.textContent = '✗ ' + failed[i].key + ' — ' + failed[i].error;
+      failList.appendChild(item);
+    }
+    card.appendChild(failList);
+
+    var note = document.createElement('div');
+    note.style.cssText = 'font-size:12px;color:var(--fg-muted);margin-top:10px;';
+    note.textContent = 'Failed secrets may be due to an invalid token, incorrect account ID, or network restrictions. You can retry individual secrets by deselecting the successful ones and clicking Push again.';
+    card.appendChild(note);
+  } else {
+    var note2 = document.createElement('div');
+    note2.style.cssText = 'font-size:12.5px;color:var(--fg-secondary);margin-top:4px;';
+    note2.textContent = 'All secrets are now live in the ' + document.getElementById('worker-name').value + ' Worker. They will be available on the next request — no redeployment needed.';
+    card.appendChild(note2);
+  }
+
+  section.appendChild(card);
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function toggleShowValues() {
+  showValues = !showValues;
+  var label = document.getElementById('toggle-label');
+  if (label) label.textContent = showValues ? 'Hide values' : 'Show values';
+  renderTable();
+}
+
+function toggleTokenVisibility() {
+  var input = document.getElementById('cf-token');
+  if (!input) return;
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+function selectAll(selected) {
+  for (var i = 0; i < parsedSecrets.length; i++) {
+    parsedSecrets[i].skip = !selected;
+  }
+  renderTable();
+  updateSelectedCount();
+}
+
+function updateSelectedCount() {
+  var active = parsedSecrets.filter(function(s) { return !s.skip; }).length;
+  var el = document.getElementById('selected-count');
+  if (el) el.textContent = active + ' of ' + parsedSecrets.length + ' selected';
+}
+
+function clearAll() {
+  document.getElementById('env-input').value = '';
+  parsedSecrets = [];
+  var preview = document.getElementById('preview-section');
+  if (preview) preview.classList.add('hidden');
+  var progress = document.getElementById('progress-section');
+  if (progress) progress.classList.add('hidden');
+  var summary = document.getElementById('summary-section');
+  if (summary) summary.classList.add('hidden');
+}
+</script>
+</body>
+</html>
