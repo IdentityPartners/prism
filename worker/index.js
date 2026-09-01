@@ -1213,6 +1213,144 @@ export default {
       }
     }
 
+
+    // ── Calendar events (KV-backed + Zoho sync) ───────────────────────────────
+    if (path === '/api/zoho/calendar/events' && request.method === 'GET') {
+      try {
+        // Try Zoho Calendar API first
+        var zohoTokens = null;
+        if (env.PRISM_KV) { var zt = await env.PRISM_KV.get('zoho:tokens:calendar'); if (zt) zohoTokens = JSON.parse(zt); }
+        if (zohoTokens && zohoTokens.access_token) {
+          var now = new Date();
+          var from = now.toISOString().split('T')[0];
+          var to = new Date(now.getTime() + 30*86400000).toISOString().split('T')[0];
+          var calResp = await fetch('https://calendar.zoho.com/api/v1/calendars/events?range_start='+from+'&range_end='+to, {
+            headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token}
+          });
+          if (calResp.ok) {
+            var calData = await calResp.json();
+            var events = (calData.events || []).map(function(ev) {
+              return {
+                id: ev.uid,
+                title: ev.title,
+                date: ev.dateandtime && ev.dateandtime.start ? ev.dateandtime.start.split('T')[0] : '',
+                time: ev.dateandtime && ev.dateandtime.start ? ev.dateandtime.start.split('T')[1].substring(0,5) : '',
+                type: ev.isprivate ? 'personal' : 'event',
+                notes: ev.description || ''
+              };
+            });
+            return json({events: events, source: 'zoho'}, 200, origin);
+          }
+        }
+        // Fall back to KV-stored events
+        var stored = null;
+        if (env.PRISM_KV) stored = await env.PRISM_KV.get('calendar:events');
+        var events = stored ? JSON.parse(stored) : [];
+        return json({events: events, source: 'kv', error: zohoTokens ? null : 'not connected'}, 200, origin);
+      } catch(e) {
+        return json({events: [], error: e.message}, 200, origin);
+      }
+    }
+
+    if (path === '/api/zoho/calendar/events' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var events = [];
+        if (env.PRISM_KV) {
+          var stored = await env.PRISM_KV.get('calendar:events');
+          if (stored) events = JSON.parse(stored);
+        }
+        events.push(body);
+        if (env.PRISM_KV) await env.PRISM_KV.put('calendar:events', JSON.stringify(events));
+        // Also try to create in Zoho Calendar
+        var zohoTokens = null;
+        if (env.PRISM_KV) { var zt = await env.PRISM_KV.get('zoho:tokens:calendar'); if (zt) zohoTokens = JSON.parse(zt); }
+        if (zohoTokens && zohoTokens.access_token && body.date && body.time) {
+          var startDt = body.date + 'T' + body.time + ':00';
+          var endDt = body.date + 'T' + (parseInt(body.time.split(':')[0]) + 1) + ':00:00';
+          await fetch('https://calendar.zoho.com/api/v1/calendars/events', {
+            method: 'POST',
+            headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token, 'Content-Type': 'application/json'},
+            body: JSON.stringify({title: body.title, dateandtime: {start: startDt, end: endDt}, description: body.notes || ''})
+          });
+        }
+        return json({success: true, event: body}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Bookings ──────────────────────────────────────────────────────────────
+    if (path === '/api/bookings' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        // Store booking in KV
+        var bookingId = 'booking:' + Date.now();
+        if (env.PRISM_KV) await env.PRISM_KV.put(bookingId, JSON.stringify(body));
+        // Also store as calendar event
+        var events = [];
+        if (env.PRISM_KV) { var stored = await env.PRISM_KV.get('calendar:events'); if (stored) events = JSON.parse(stored); }
+        events.push({id: bookingId, title: body.clientName + ' — ' + body.sessionType, date: body.date, time: body.time, type: 'booking', clientEmail: body.clientEmail, notes: body.notes});
+        if (env.PRISM_KV) await env.PRISM_KV.put('calendar:events', JSON.stringify(events));
+        // Send confirmation via Telegram
+        var confirmMsg = '📅 New Booking!
+
+Client: ' + body.clientName + '
+Email: ' + body.clientEmail + '
+Date: ' + body.date + ' at ' + body.time + '
+Type: ' + body.sessionType + (body.notes ? '
+Notes: ' + body.notes : '');
+        await sendTelegram(env, confirmMsg);
+        return json({success: true, bookingId: bookingId}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    if (path === '/api/bookings' && request.method === 'GET') {
+      try {
+        if (!env.PRISM_KV) return json({bookings: []}, 200, origin);
+        var list = await env.PRISM_KV.list({prefix: 'booking:'});
+        var bookings = [];
+        for (var i = 0; i < list.keys.length; i++) {
+          var val = await env.PRISM_KV.get(list.keys[i].name);
+          if (val) bookings.push(JSON.parse(val));
+        }
+        return json({bookings: bookings.sort(function(a,b){return new Date(a.date+' '+a.time)-new Date(b.date+' '+b.time);})}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Social analytics ──────────────────────────────────────────────────────
+    if (path === '/api/social/analytics' && request.method === 'GET') {
+      try {
+        // Get Bluesky profile stats
+        var handle = env.BLUESKY_HANDLE || env.bluesky_handle || 'identitypartners.bsky.social';
+        var profileResp = await fetch('https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=' + handle);
+        if (profileResp.ok) {
+          var profile = await profileResp.json();
+          // Get recent posts count
+          var feedResp = await fetch('https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=' + handle + '&limit=30');
+          var posts = 0, impressions = 0, engagement = 0;
+          if (feedResp.ok) {
+            var feed = await feedResp.json();
+            posts = (feed.feed || []).length;
+            (feed.feed || []).forEach(function(item) {
+              var post = item.post;
+              impressions += (post.likeCount||0) + (post.repostCount||0) + (post.replyCount||0);
+              engagement += (post.likeCount||0) + (post.repostCount||0);
+            });
+          }
+          return json({
+            followers: profile.followersCount || 0,
+            following: profile.followsCount || 0,
+            posts: posts,
+            impressions: impressions,
+            engagement: posts > 0 ? Math.round(engagement/posts*10)/10 + ' avg' : '0',
+            clicks: '—',
+            visits: '—',
+            source: 'bluesky'
+          }, 200, origin);
+        }
+        return json({posts:'—',followers:'—',impressions:'—',engagement:'—',clicks:'—',visits:'—'}, 200, origin);
+      } catch(e) { return json({posts:'—',followers:'—',impressions:'—',engagement:'—',clicks:'—',visits:'—',error:e.message}, 200, origin); }
+    }
+
     return json({error:'Not found', path:path}, 404, origin);
   }
 };
