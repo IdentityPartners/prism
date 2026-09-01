@@ -1,0 +1,21 @@
+name = "prism-api"
+main = "worker/index.js"
+compatibility_date = "2024-09-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "d741de91f8cfff2306cc0f850a76ee07"
+
+[[kv_namespaces]]
+binding = "PRISM_KV"
+id = "8d1a583cc99a482380aacb526d873030"
+
+[[d1_databases]]
+binding = "PRISM_D1"
+database_name = "prism_d1"
+database_id = "e953848b-7d62-4629-bb4d-271da0d03fd5"
+
+[[r2_buckets]]
+binding = "PRISM_ASSETS"
+bucket_name = "prism-assets"
+
+[vars]
+ENVIRONMENT = "production"

@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CRM — Prism</title>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+<style>
+.crm-layout { display: grid; grid-template-columns: 280px 1fr 320px; height: calc(100vh - var(--topbar-h)); overflow: hidden; }
+@media(max-width:1200px){ .crm-layout{ grid-template-columns: 240px 1fr; } .crm-detail{ display:none; } }
+@media(max-width:800px){ .crm-layout{ grid-template-columns: 1fr; } .crm-list{ display:none; } }
+.crm-list { border-right: 1px solid var(--border); background: var(--bg-surface); display: flex; flex-direction: column; overflow: hidden; }
+.crm-main { overflow-y: auto; padding: 20px; }
+.crm-detail { border-left: 1px solid var(--border); background: var(--bg-elevated); overflow-y: auto; padding: 16px; }
+.crm-list-header { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.crm-search { padding: 8px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.crm-search input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; outline: none; background: var(--bg-elevated); color: var(--fg-primary); }
+.crm-search input:focus { border-color: var(--accent); }
+.contacts-list { flex: 1; overflow-y: auto; }
+.contact-item { padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 10px; }
+.contact-item:hover { background: var(--accent-light); }
+.contact-item.active { background: var(--accent-light); border-left: 3px solid var(--accent); }
+.contact-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; flex-shrink: 0; }
+.contact-info { flex: 1; min-width: 0; }
+.contact-name { font-size: 13px; font-weight: 500; color: var(--fg-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.contact-role { font-size: 11px; color: var(--fg-muted); }
+.contact-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.status-active { background: var(--success); }
+.status-inactive { background: var(--fg-muted); }
+.status-prospect { background: var(--warning); }
+.crm-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.crm-stat { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; text-align: center; }
+.crm-stat-num { font-size: 24px; font-weight: 700; color: var(--accent); font-family: var(--font-heading); }
+.crm-stat-label { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+.contact-detail-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.contact-detail-avatar { width: 56px; height: 56px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 600; flex-shrink: 0; }
+.contact-detail-name { font-family: var(--font-heading); font-size: 18px; font-weight: 600; }
+.contact-detail-role { font-size: 13px; color: var(--fg-muted); }
+.detail-section { margin-bottom: 16px; }
+.detail-section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); margin-bottom: 8px; }
+.detail-field { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.detail-field:last-child { border-bottom: none; }
+.detail-field-label { color: var(--fg-muted); width: 100px; flex-shrink: 0; }
+.detail-field-value { color: var(--fg-primary); flex: 1; }
+.note-item { padding: 10px; background: var(--bg-surface); border-radius: 6px; margin-bottom: 8px; font-size: 12.5px; line-height: 1.5; }
+.note-meta { font-size: 10.5px; color: var(--fg-muted); margin-top: 4px; }
+.add-note-area { margin-top: 10px; }
+.add-note-textarea { width: 100%; min-height: 70px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; font-family: var(--font-ui); resize: none; outline: none; background: var(--bg-primary); color: var(--fg-primary); }
+.add-note-textarea:focus { border-color: var(--accent); }
+.modal-overlay { position: fixed; inset: 0; background: rgba(92,45,63,0.3); backdrop-filter: blur(2px); z-index: 500; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.modal { background: var(--bg-elevated); border-radius: var(--radius); box-shadow: var(--shadow-lg); width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+.modal-header { padding: 18px 22px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.modal-title { font-family: var(--font-heading); font-size: 16px; font-weight: 600; }
+.modal-body { padding: 18px 22px; }
+.modal-footer { padding: 14px 22px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+<div class="prism-shell">
+<div id="sidebar-mount"></div>
+<div class="main-content" id="main-content">
+<div class="topbar">
+<div class="topbar-title">CRM</div>
+<div class="topbar-actions">
+<button class="btn btn-sm btn-secondary" onclick="openAddContact()" title="Add new contact">＋ Add Contact</button>
+<button class="btn btn-sm btn-secondary" onclick="loadContacts()" title="Refresh contacts">↺ Refresh</button>
+</div>
+</div>
+<div class="crm-layout">
+<!-- Contacts list -->
+<div class="crm-list">
+<div class="crm-list-header">
+<span style="font-size:12px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.06em;">Contacts</span>
+<button class="btn btn-ghost btn-sm btn-icon" onclick="openAddContact()" title="Add contact">＋</button>
+</div>
+<div class="crm-search">
+<input id="crm-search" oninput="filterContacts(this.value)" placeholder="Search contacts…" type="text"/>
+</div>
+<div class="contacts-list" id="contacts-list">
+<div style="padding:20px;text-align:center;color:var(--fg-muted);font-size:12.5px;">Loading contacts…</div>
+</div>
+</div>
+<!-- Main area -->
+<div class="crm-main">
+<div class="crm-stats">
+<div class="crm-stat"><div class="crm-stat-num" id="stat-total">—</div><div class="crm-stat-label">Total Contacts</div></div>
+<div class="crm-stat"><div class="crm-stat-num" id="stat-active">—</div><div class="crm-stat-label">Active Clients</div></div>
+<div class="crm-stat"><div class="crm-stat-num" id="stat-prospects">—</div><div class="crm-stat-label">Prospects</div></div>
+<div class="crm-stat"><div class="crm-stat-num" id="stat-sessions">—</div><div class="crm-stat-label">Sessions This Month</div></div>
+</div>
+<div id="crm-main-content">
+<div style="text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">Select a contact to view details, or add a new one.</div>
+</div>
+</div>
+<!-- Detail panel -->
+<div class="crm-detail" id="crm-detail">
+<div style="text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">Select a contact.</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Add Contact Modal -->
+<div class="modal-overlay hidden" id="add-contact-modal">
+<div class="modal">
+<div class="modal-header">
+<span class="modal-title">Add Contact</span>
+<button class="btn btn-ghost btn-sm" onclick="closeAddContact()">✕</button>
+</div>
+<div class="modal-body">
+<div class="form-group"><label class="form-label">Full Name *</label><input class="input" id="new-name" placeholder="Jane Smith" type="text"/></div>
+<div class="form-group"><label class="form-label">Email</label><input class="input" id="new-email" placeholder="jane@example.com" type="email"/></div>
+<div class="form-group"><label class="form-label">Phone</label><input class="input" id="new-phone" placeholder="+44 7700 000000" type="tel"/></div>
+<div class="form-group"><label class="form-label">Role / Programme</label><input class="input" id="new-role" placeholder="e.g. Recovery Programme Client" type="text"/></div>
+<div class="form-group"><label class="form-label">Status</label>
+<select class="select" id="new-status">
+<option value="prospect">Prospect</option>
+<option value="active">Active Client</option>
+<option value="inactive">Inactive</option>
+<option value="referral">Referral</option>
+</select>
+</div>
+<div class="form-group"><label class="form-label">Notes</label><textarea class="textarea" id="new-notes" placeholder="Initial notes…"></textarea></div>
+</div>
+<div class="modal-footer">
+<button class="btn btn-secondary" onclick="closeAddContact()">Cancel</button>
+<button class="btn btn-primary" onclick="saveContact()">Save Contact</button>
+</div>
+</div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var allContacts = [];
+var selectedContact = null;
+
+function loadContacts() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', WORKER + '/api/crm/contacts', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      allContacts = result.contacts || [];
+      updateStats();
+      renderContactsList(allContacts);
+    } catch(e) { renderContactsList([]); }
+  };
+  xhr.onerror = function() { renderContactsList([]); };
+  xhr.send();
+}
+
+function updateStats() {
+  var active = allContacts.filter(function(c) { return c.status === 'active'; }).length;
+  var prospects = allContacts.filter(function(c) { return c.status === 'prospect'; }).length;
+  var s = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
+  s('stat-total', allContacts.length);
+  s('stat-active', active);
+  s('stat-prospects', prospects);
+  s('stat-sessions', '—');
+}
+
+function getInitials(name) {
+  if (!name) return '?';
+  var parts = name.trim().split(' ');
+  return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+}
+
+function renderContactsList(contacts) {
+  var list = document.getElementById('contacts-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!contacts || contacts.length === 0) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);font-size:12.5px;">No contacts yet. Add your first contact.</div>';
+    return;
+  }
+  for (var i = 0; i < contacts.length; i++) {
+    (function(contact) {
+      var item = document.createElement('div');
+      item.className = 'contact-item' + (selectedContact && selectedContact.id === contact.id ? ' active' : '');
+      var avatar = document.createElement('div');
+      avatar.className = 'contact-avatar';
+      avatar.textContent = getInitials(contact.name);
+      var info = document.createElement('div');
+      info.className = 'contact-info';
+      var name = document.createElement('div');
+      name.className = 'contact-name';
+      name.textContent = contact.name || 'Unknown';
+      var role = document.createElement('div');
+      role.className = 'contact-role';
+      role.textContent = contact.role || contact.status || '';
+      info.appendChild(name);
+      info.appendChild(role);
+      var status = document.createElement('div');
+      status.className = 'contact-status status-' + (contact.status || 'inactive');
+      item.appendChild(avatar);
+      item.appendChild(info);
+      item.appendChild(status);
+      item.onclick = function() { selectContact(contact); };
+      list.appendChild(item);
+    })(contacts[i]);
+  }
+}
+
+function filterContacts(query) {
+  if (!query) { renderContactsList(allContacts); return; }
+  var q = query.toLowerCase();
+  var filtered = allContacts.filter(function(c) {
+    return (c.name||'').toLowerCase().indexOf(q) >= 0 || (c.email||'').toLowerCase().indexOf(q) >= 0 || (c.role||'').toLowerCase().indexOf(q) >= 0;
+  });
+  renderContactsList(filtered);
+}
+
+function selectContact(contact) {
+  selectedContact = contact;
+  renderContactsList(allContacts);
+  showContactDetail(contact);
+}
+
+function showContactDetail(contact) {
+  var detail = document.getElementById('crm-detail');
+  if (!detail) return;
+  detail.innerHTML = '';
+
+  var header = document.createElement('div');
+  header.className = 'contact-detail-header';
+  var avatar = document.createElement('div');
+  avatar.className = 'contact-detail-avatar';
+  avatar.textContent = getInitials(contact.name);
+  var info = document.createElement('div');
+  var name = document.createElement('div');
+  name.className = 'contact-detail-name';
+  name.textContent = contact.name || 'Unknown';
+  var role = document.createElement('div');
+  role.className = 'contact-detail-role';
+  role.textContent = contact.role || '';
+  info.appendChild(name);
+  info.appendChild(role);
+  header.appendChild(avatar);
+  header.appendChild(info);
+  detail.appendChild(header);
+
+  var fields = [
+    {label: 'Email', value: contact.email || '—'},
+    {label: 'Phone', value: contact.phone || '—'},
+    {label: 'Status', value: contact.status || '—'},
+    {label: 'Added', value: contact.created ? new Date(contact.created).toLocaleDateString('en-GB') : '—'},
+  ];
+  var fieldsSection = document.createElement('div');
+  fieldsSection.className = 'detail-section';
+  var fieldsTitle = document.createElement('div');
+  fieldsTitle.className = 'detail-section-title';
+  fieldsTitle.textContent = 'Details';
+  fieldsSection.appendChild(fieldsTitle);
+  for (var i = 0; i < fields.length; i++) {
+    var row = document.createElement('div');
+    row.className = 'detail-field';
+    var lbl = document.createElement('span');
+    lbl.className = 'detail-field-label';
+    lbl.textContent = fields[i].label;
+    var val = document.createElement('span');
+    val.className = 'detail-field-value';
+    val.textContent = fields[i].value;
+    row.appendChild(lbl);
+    row.appendChild(val);
+    fieldsSection.appendChild(row);
+  }
+  detail.appendChild(fieldsSection);
+
+  // Actions
+  var actionsSection = document.createElement('div');
+  actionsSection.className = 'detail-section';
+  var actTitle = document.createElement('div');
+  actTitle.className = 'detail-section-title';
+  actTitle.textContent = 'Actions';
+  actionsSection.appendChild(actTitle);
+  var actRow = document.createElement('div');
+  actRow.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
+  var emailBtn = document.createElement('a');
+  emailBtn.className = 'btn btn-sm btn-secondary';
+  emailBtn.href = '/comms/email/?to=' + encodeURIComponent(contact.email || '');
+  emailBtn.textContent = '📧 Send Email';
+  emailBtn.title = 'Send email to this contact';
+  var chatBtn = document.createElement('button');
+  chatBtn.className = 'btn btn-sm btn-secondary';
+  chatBtn.textContent = '💬 Chat about this contact';
+  chatBtn.title = 'Open chat with context about this contact';
+  chatBtn.onclick = function() {
+    try { sessionStorage.setItem('prism-chat-prefill', 'Tell me about my client ' + contact.name + '. Their role is ' + (contact.role||'unknown') + '.'); } catch(e) {}
+    window.location.href = '/chat/';
+  };
+  actRow.appendChild(emailBtn);
+  actRow.appendChild(chatBtn);
+  actionsSection.appendChild(actRow);
+  detail.appendChild(actionsSection);
+
+  // Notes
+  var notesSection = document.createElement('div');
+  notesSection.className = 'detail-section';
+  var notesTitle = document.createElement('div');
+  notesTitle.className = 'detail-section-title';
+  notesTitle.textContent = 'Notes';
+  notesSection.appendChild(notesTitle);
+  if (contact.notes) {
+    var noteEl = document.createElement('div');
+    noteEl.className = 'note-item';
+    noteEl.textContent = contact.notes;
+    var noteMeta = document.createElement('div');
+    noteMeta.className = 'note-meta';
+    noteMeta.textContent = 'Added ' + (contact.created ? new Date(contact.created).toLocaleDateString('en-GB') : '');
+    noteEl.appendChild(noteMeta);
+    notesSection.appendChild(noteEl);
+  }
+  var addNoteArea = document.createElement('div');
+  addNoteArea.className = 'add-note-area';
+  var noteTextarea = document.createElement('textarea');
+  noteTextarea.className = 'add-note-textarea';
+  noteTextarea.placeholder = 'Add a session note or observation…';
+  var addNoteBtn = document.createElement('button');
+  addNoteBtn.className = 'btn btn-sm btn-primary';
+  addNoteBtn.style.marginTop = '6px';
+  addNoteBtn.textContent = '＋ Add Note';
+  addNoteBtn.title = 'Add note to this contact';
+  addNoteBtn.onclick = function() {
+    var text = noteTextarea.value.trim();
+    if (!text) return;
+    var noteEl2 = document.createElement('div');
+    noteEl2.className = 'note-item';
+    noteEl2.textContent = text;
+    var meta2 = document.createElement('div');
+    meta2.className = 'note-meta';
+    meta2.textContent = 'Added ' + new Date().toLocaleDateString('en-GB');
+    noteEl2.appendChild(meta2);
+    notesSection.insertBefore(noteEl2, addNoteArea);
+    noteTextarea.value = '';
+    Toast.success('Note added');
+  };
+  addNoteArea.appendChild(noteTextarea);
+  addNoteArea.appendChild(addNoteBtn);
+  notesSection.appendChild(addNoteArea);
+  detail.appendChild(notesSection);
+}
+
+function openAddContact() {
+  var modal = document.getElementById('add-contact-modal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeAddContact() {
+  var modal = document.getElementById('add-contact-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function saveContact() {
+  var name = document.getElementById('new-name').value.trim();
+  if (!name) { Toast.warning('Name is required'); return; }
+  var contact = {
+    name: name,
+    email: document.getElementById('new-email').value.trim(),
+    phone: document.getElementById('new-phone').value.trim(),
+    role: document.getElementById('new-role').value.trim(),
+    status: document.getElementById('new-status').value,
+    notes: document.getElementById('new-notes').value.trim(),
+  };
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/crm/contacts', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      if (result.success) {
+        Toast.success('Contact saved');
+        closeAddContact();
+        loadContacts();
+        ['new-name','new-email','new-phone','new-role','new-notes'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+      } else {
+        Toast.error('Save failed: ' + (result.error || 'Unknown'));
+      }
+    } catch(e) { Toast.error('Save failed'); }
+  };
+  xhr.onerror = function() { Toast.error('Network error'); };
+  xhr.send(JSON.stringify(contact));
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/crm/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  loadContacts();
+});
+</script>
+</body>
+</html>

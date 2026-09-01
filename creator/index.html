@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Creator Studio — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar"><div class="topbar-title">Creator Studio</div></div>
+    <div class="page-content">
+      <div class="card" style="text-align:center;padding:40px;">
+        <div style="font-size:48px;margin-bottom:16px;">🎨</div>
+        <div style="font-family:var(--font-heading);font-size:20px;font-weight:600;margin-bottom:10px;">Creator Studio</div>
+        <p style="font-size:13.5px;color:var(--fg-muted);max-width:400px;margin:0 auto 20px;">Create visual assets, podcasts, worksheets, and social series.</p>
+        <a href="/chat/" class="btn btn-primary" title="Use Chat to create content">💬 Use Chat to Create</a>
+      </div></div>
+  </div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/creator/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  
+});
+
+</script>
+</body>
+</html>

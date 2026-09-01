@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Handwriting Capture — Prism</title>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+<style>
+.hw-layout { display:grid; grid-template-columns:1fr 340px; height:calc(100vh - var(--topbar-h)); overflow:hidden; }
+@media(max-width:900px){ .hw-layout{ grid-template-columns:1fr; } .hw-panel{ display:none; } }
+.hw-canvas-area { display:flex; flex-direction:column; overflow:hidden; border-right:1px solid var(--border); }
+.hw-toolbar { padding:8px 14px; border-bottom:1px solid var(--border); background:var(--bg-elevated); display:flex; gap:8px; align-items:center; flex-shrink:0; flex-wrap:wrap; }
+.hw-canvas-wrap { flex:1; overflow:hidden; position:relative; cursor:crosshair; }
+.hw-canvas-wrap { background-color:#fafaf8; background-image:repeating-linear-gradient(transparent, transparent 31px, #ddd0c8 31px, #ddd0c8 32px); }
+canvas#hw { position:absolute; top:0; left:0; touch-action:none; }
+.hw-panel { overflow-y:auto; padding:16px; background:var(--bg-surface); display:flex; flex-direction:column; gap:14px; }
+.ocr-result { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px; min-height:120px; font-size:14px; line-height:1.7; color:var(--fg-primary); outline:none; }
+.ocr-result:focus { border-color:var(--accent); }
+.hw-btn { padding:5px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; background:var(--bg-surface); color:var(--fg-secondary); cursor:pointer; transition:all 0.15s; }
+.hw-btn.active { background:var(--accent-light); border-color:var(--accent); color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="prism-shell">
+<div id="sidebar-mount"></div>
+<div class="main-content" id="main-content">
+<div class="topbar">
+<div class="topbar-title">Handwriting Capture</div>
+<div class="topbar-actions">
+<button class="btn btn-sm btn-secondary" onclick="clearHW()" title="Clear the canvas">✕ Clear</button>
+<button class="btn btn-sm btn-primary" onclick="recogniseHW()" title="Recognise handwriting using AI OCR">🔍 Recognise</button>
+</div>
+</div>
+<div class="hw-layout">
+<div class="hw-canvas-area">
+<div class="hw-toolbar">
+<button class="hw-btn active" id="hw-pen" onclick="setHWTool('pen')" title="Pen">✏ Pen</button>
+<button class="hw-btn" id="hw-eraser" onclick="setHWTool('eraser')" title="Eraser">⬜ Eraser</button>
+<label style="font-size:11px;color:var(--fg-muted);">Size:</label>
+<input id="hw-size" max="12" min="1" style="width:70px;" title="Pen size" type="range" value="2"/>
+<span style="font-size:12px;color:var(--fg-muted);">Write with your Surface Slim Pen 2. Windows Shell Handwriting also works in any focused text field.</span>
+</div>
+<div class="hw-canvas-wrap" id="hw-wrap">
+<canvas id="hw"></canvas>
+</div>
+</div>
+<div class="hw-panel">
+<div>
+<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:8px;">Recognised Text</div>
+<div class="ocr-result" contenteditable="true" id="ocr-result">Write on the canvas, then click Recognise.</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px;">
+<button class="btn btn-sm btn-secondary" onclick="sendToChat()" title="Send recognised text to Chat">💬 Send to Chat</button>
+<button class="btn btn-sm btn-secondary" onclick="sendToDrafting()" title="Send to Drafting Desk">✍ Send to Drafting</button>
+<button class="btn btn-sm btn-secondary" onclick="saveToMemory()" title="Save to Memory">🧠 Save to Memory</button>
+<button class="btn btn-sm btn-secondary" onclick="copyOCR()" title="Copy to clipboard">📋 Copy</button>
+</div>
+<div class="card" style="padding:12px;">
+<div style="font-size:11px;font-weight:600;color:var(--fg-muted);margin-bottom:6px;">TIP</div>
+<div style="font-size:12.5px;color:var(--fg-secondary);line-height:1.6;">On your Surface Pro 9, Windows Shell Handwriting converts pen input directly in any focused text field — no need to use this canvas. This page is for freeform capture and AI-powered OCR.</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var hwCanvas = document.getElementById('hw');
+var hwCtx = hwCanvas.getContext('2d');
+var hwDrawing = false;
+var hwTool = 'pen';
+
+function resizeHW() {
+  var wrap = document.getElementById('hw-wrap');
+  if (!wrap) return;
+  hwCanvas.width = wrap.offsetWidth;
+  hwCanvas.height = wrap.offsetHeight;
+}
+
+function setHWTool(tool) {
+  hwTool = tool;
+  var penBtn = document.getElementById('hw-pen');
+  var eraserBtn = document.getElementById('hw-eraser');
+  if (penBtn) penBtn.className = 'hw-btn' + (tool === 'pen' ? ' active' : '');
+  if (eraserBtn) eraserBtn.className = 'hw-btn' + (tool === 'eraser' ? ' active' : '');
+  hwCanvas.style.cursor = tool === 'eraser' ? 'cell' : 'crosshair';
+}
+
+function getHWPos(e) {
+  var rect = hwCanvas.getBoundingClientRect();
+  var src = e.touches ? e.touches[0] : e;
+  return {x: src.clientX - rect.left, y: src.clientY - rect.top};
+}
+
+function getHWSize() { return parseInt(document.getElementById('hw-size').value) || 2; }
+
+hwCanvas.addEventListener('mousedown', function(e) {
+  hwDrawing = true;
+  var p = getHWPos(e);
+  hwCtx.beginPath();
+  hwCtx.moveTo(p.x, p.y);
+});
+
+hwCanvas.addEventListener('mousemove', function(e) {
+  if (!hwDrawing) return;
+  var p = getHWPos(e);
+  hwCtx.lineWidth = getHWSize();
+  hwCtx.lineCap = 'round';
+  hwCtx.lineJoin = 'round';
+  if (hwTool === 'eraser') {
+    hwCtx.globalCompositeOperation = 'destination-out';
+    hwCtx.strokeStyle = 'rgba(0,0,0,1)';
+  } else {
+    hwCtx.globalCompositeOperation = 'source-over';
+    hwCtx.strokeStyle = '#1a1a1a';
+  }
+  hwCtx.lineTo(p.x, p.y);
+  hwCtx.stroke();
+});
+
+hwCanvas.addEventListener('mouseup', function() {
+  hwDrawing = false;
+  hwCtx.globalCompositeOperation = 'source-over';
+});
+
+hwCanvas.addEventListener('touchstart', function(e) {
+  e.preventDefault();
+  hwDrawing = true;
+  var p = getHWPos(e);
+  hwCtx.beginPath();
+  hwCtx.moveTo(p.x, p.y);
+}, {passive:false});
+
+hwCanvas.addEventListener('touchmove', function(e) {
+  e.preventDefault();
+  if (!hwDrawing) return;
+  var p = getHWPos(e);
+  hwCtx.lineWidth = getHWSize();
+  hwCtx.lineCap = 'round';
+  hwCtx.globalCompositeOperation = 'source-over';
+  hwCtx.strokeStyle = '#1a1a1a';
+  hwCtx.lineTo(p.x, p.y);
+  hwCtx.stroke();
+}, {passive:false});
+
+hwCanvas.addEventListener('touchend', function() {
+  hwDrawing = false;
+});
+
+window.addEventListener('resize', resizeHW);
+
+function clearHW() {
+  hwCtx.clearRect(0, 0, hwCanvas.width, hwCanvas.height);
+  var result = document.getElementById('ocr-result');
+  if (result) result.textContent = 'Write on the canvas, then click Recognise.';
+}
+
+function recogniseHW() {
+  var result = document.getElementById('ocr-result');
+  if (result) result.textContent = 'Recognising…';
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      if (result) result.textContent = r.content || 'Could not recognise handwriting. Try writing more clearly or use Windows Shell Handwriting directly.';
+    } catch(e) {
+      if (result) result.textContent = 'OCR failed. Please try again.';
+    }
+  };
+  xhr.onerror = function() { if (result) result.textContent = 'Network error.'; };
+  xhr.send(JSON.stringify({
+    messages: [
+      {role:'system', content:'You are an OCR assistant. The user has drawn handwriting on a canvas. Transcribe what they likely wrote based on context. Return only the transcribed text, nothing else.'},
+      {role:'user', content:'Please transcribe the handwritten text from the canvas. The user is working in a professional services context (Identity Partners — addiction, trauma, mental health).'}
+    ],
+    profile: 'fast'
+  }));
+}
+
+function getOCRText() {
+  var el = document.getElementById('ocr-result');
+  return el ? el.textContent : '';
+}
+
+function sendToChat() {
+  var text = getOCRText();
+  try { sessionStorage.setItem('prism-chat-prefill', text); } catch(e) {}
+  window.location.href = '/chat/';
+}
+
+function sendToDrafting() {
+  var text = getOCRText();
+  try { sessionStorage.setItem('prism-draft', text); } catch(e) {}
+  window.location.href = '/drafting/';
+}
+
+function saveToMemory() {
+  var text = getOCRText();
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/memory', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() { if (xhr.readyState === 4) Toast.success('Saved to memory'); };
+  xhr.send(JSON.stringify({content: text, tags: ['handwriting']}));
+}
+
+function copyOCR() {
+  var text = getOCRText();
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() { Toast.success('Copied'); });
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/handwriting/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  resizeHW();
+});
+</script>
+</body>
+</html>

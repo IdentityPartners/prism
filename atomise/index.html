@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Atomise — Prism</title>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+<style>
+.atomise-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 0; height: calc(100vh - var(--topbar-h)); overflow: hidden; }
+@media(max-width:900px){ .atomise-layout{ grid-template-columns: 1fr; } }
+.atomise-input-pane { border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+.atomise-output-pane { overflow-y: auto; background: var(--bg-surface); }
+.input-header { padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.input-header-title { font-size: 13px; font-weight: 600; color: var(--fg-secondary); }
+.word-counter { font-size: 11.5px; color: var(--fg-muted); }
+.word-counter.over { color: var(--danger); }
+.atomise-textarea { flex: 1; padding: 16px; border: none; outline: none; font-size: 13.5px; font-family: var(--font-ui); line-height: 1.7; color: var(--fg-primary); background: var(--bg-primary); resize: none; }
+.atomise-controls { padding: 12px 16px; border-top: 1px solid var(--border); background: var(--bg-elevated); flex-shrink: 0; }
+.profile-row { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.profile-chip { padding: 4px 10px; border: 1px solid var(--border); border-radius: 20px; font-size: 11.5px; cursor: pointer; color: var(--fg-secondary); background: var(--bg-surface); transition: all 0.15s; }
+.profile-chip.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.atomise-btn { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+.atomise-btn:hover { background: var(--accent-hover); }
+.atomise-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.progress-bar { width: 100%; height: 4px; background: var(--border); border-radius: 2px; margin-top: 10px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s ease; }
+.output-header { padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+.output-header-title { font-size: 13px; font-weight: 600; color: var(--fg-secondary); }
+.assets-grid { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.asset-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.asset-card-header { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg-surface); }
+.asset-type-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--accent); }
+.asset-card-actions { display: flex; gap: 6px; }
+.asset-action { padding: 3px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px; background: var(--bg-elevated); color: var(--fg-muted); cursor: pointer; transition: all 0.15s; }
+.asset-action:hover { border-color: var(--accent); color: var(--accent); }
+.asset-action.approved { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.asset-content { padding: 14px; font-size: 13.5px; line-height: 1.65; color: var(--fg-primary); white-space: pre-wrap; }
+.asset-content.editable { outline: 1px solid var(--accent); background: var(--bg-primary); }
+.carousel-slide { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.carousel-slide:last-child { border-bottom: none; }
+.carousel-slide-num { font-size: 10px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+.carousel-slide-title { font-size: 13.5px; font-weight: 600; color: var(--fg-primary); margin-bottom: 4px; }
+.carousel-slide-body { font-size: 12.5px; color: var(--fg-secondary); line-height: 1.5; }
+.queue-all-btn { width: calc(100% - 32px); margin: 0 16px 16px; padding: 12px; background: var(--rose); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+.queue-all-btn:hover { background: #7a3a50; }
+.empty-output { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 12px; color: var(--fg-muted); padding: 40px; text-align: center; }
+.empty-icon { font-size: 48px; }
+</style>
+</head>
+<body>
+<div class="prism-shell">
+<div id="sidebar-mount"></div>
+<div class="main-content" id="main-content">
+<div class="topbar">
+<div class="topbar-title">Atomise</div>
+<div class="topbar-actions">
+<button class="btn btn-sm btn-ghost" onclick="clearAll()" title="Clear everything">✕ Clear</button>
+<a class="btn btn-sm btn-secondary" href="/social-queue/" title="View Social Queue">📅 View Queue</a>
+</div>
+</div>
+<div class="atomise-layout">
+<!-- Input pane -->
+<div class="atomise-input-pane">
+<div class="input-header">
+<span class="input-header-title">Source Text</span>
+<span class="word-counter" id="word-counter">0 / 1,500 words</span>
+</div>
+<textarea class="atomise-textarea" id="atomise-input" placeholder="Paste your text here — a programme description, session note, research synthesis, or any content about Identity Partners.
+
+The system will generate: 3 quote cards, 1 LinkedIn post, 1 Bluesky thread, 1 email snippet, and a 5-slide carousel."></textarea>
+<div class="atomise-controls">
+<div class="profile-row">
+<span class="profile-chip active" onclick="setProfile(this,'balanced')">⚖ Balanced</span>
+<span class="profile-chip" onclick="setProfile(this,'free')">🆓 Free</span>
+<span class="profile-chip" onclick="setProfile(this,'frontier')">💎 Frontier</span>
+</div>
+<button class="atomise-btn" id="atomise-btn" onclick="doAtomise()" title="Generate social media assets">⚡ Create Assets</button>
+<div class="progress-bar hidden" id="progress-bar">
+<div class="progress-fill" id="progress-fill" style="width:0%"></div>
+</div>
+</div>
+</div>
+<!-- Output pane -->
+<div class="atomise-output-pane" id="output-pane">
+<div class="empty-output" id="empty-output">
+<div class="empty-icon">⚡</div>
+<div style="font-size:15px;font-weight:600;color:var(--fg-secondary);">Paste text and click Create Assets</div>
+<div style="font-size:13px;">The system generates 7 asset types in under 60 seconds.</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var currentProfile = 'balanced';
+var approvedAssets = [];
+var generatedAssets = null;
+
+function setProfile(el, profile) {
+  currentProfile = profile;
+  var chips = document.querySelectorAll('.profile-chip');
+  for (var i = 0; i < chips.length; i++) chips[i].classList.remove('active');
+  el.classList.add('active');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var input = document.getElementById('atomise-input');
+  if (input) {
+    input.addEventListener('input', function() {
+      var words = this.value.trim() ? this.value.trim().split(/\s+/).length : 0;
+      var counter = document.getElementById('word-counter');
+      if (counter) {
+        counter.textContent = words.toLocaleString() + ' / 1,500 words';
+        counter.className = 'word-counter' + (words > 1500 ? ' over' : '');
+      }
+    });
+  }
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/atomise/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  var prefill = '';
+  try { prefill = sessionStorage.getItem('prism-atomise') || ''; sessionStorage.removeItem('prism-atomise'); } catch(e) {}
+  if (prefill && input) { input.value = prefill; input.dispatchEvent(new Event('input')); }
+});
+
+function doAtomise() {
+  var input = document.getElementById('atomise-input');
+  if (!input || !input.value.trim()) { Toast.warning('Please paste some text first'); return; }
+  var words = input.value.trim().split(/\s+/).length;
+  if (words > 1500) { Toast.error('Please keep text under 1,500 words'); return; }
+
+  var btn = document.getElementById('atomise-btn');
+  var progressBar = document.getElementById('progress-bar');
+  var progressFill = document.getElementById('progress-fill');
+  var outputPane = document.getElementById('output-pane');
+  var emptyOutput = document.getElementById('empty-output');
+
+  if (btn) btn.disabled = true;
+  if (progressBar) progressBar.classList.remove('hidden');
+  if (emptyOutput) emptyOutput.style.display = 'none';
+  approvedAssets = [];
+
+  var progress = 0;
+  var progressInterval = setInterval(function() {
+    progress = Math.min(progress + 6, 88);
+    if (progressFill) progressFill.style.width = progress + '%';
+  }, 500);
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/atomise', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    clearInterval(progressInterval);
+    if (progressFill) progressFill.style.width = '100%';
+    setTimeout(function() { if (progressBar) progressBar.classList.add('hidden'); if (progressFill) progressFill.style.width = '0%'; }, 600);
+    if (btn) btn.disabled = false;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      if (result.assets) {
+        generatedAssets = result.assets;
+        renderAssets(result.assets);
+        Toast.success('Assets created! Review and approve below.');
+      } else {
+        Toast.error('Error: ' + (result.error || 'Failed'));
+        if (emptyOutput) emptyOutput.style.display = '';
+      }
+    } catch(e) {
+      Toast.error('Failed to parse response');
+      if (emptyOutput) emptyOutput.style.display = '';
+    }
+  };
+  xhr.onerror = function() {
+    clearInterval(progressInterval);
+    if (btn) btn.disabled = false;
+    if (progressBar) progressBar.classList.add('hidden');
+    Toast.error('Network error');
+    if (emptyOutput) emptyOutput.style.display = '';
+  };
+  xhr.send(JSON.stringify({text: input.value, profile: currentProfile}));
+}
+
+function renderAssets(assets) {
+  var pane = document.getElementById('output-pane');
+  if (!pane) return;
+  pane.innerHTML = '';
+
+  var header = document.createElement('div');
+  header.className = 'output-header';
+  var title = document.createElement('span');
+  title.className = 'output-header-title';
+  title.textContent = 'Generated Assets';
+  var queueAllBtn = document.createElement('button');
+  queueAllBtn.className = 'btn btn-sm btn-rose';
+  queueAllBtn.textContent = '📅 Queue Approved';
+  queueAllBtn.title = 'Queue all approved assets to Social Queue';
+  queueAllBtn.onclick = queueApproved;
+  header.appendChild(title);
+  header.appendChild(queueAllBtn);
+  pane.appendChild(header);
+
+  var grid = document.createElement('div');
+  grid.className = 'assets-grid';
+
+  if (assets.linkedin) grid.appendChild(makeAssetCard('LinkedIn Post', assets.linkedin, 'linkedin'));
+  if (assets.email) grid.appendChild(makeAssetCard('Email Snippet', assets.email, 'email'));
+  if (assets.quotes && assets.quotes.length) {
+    for (var i = 0; i < assets.quotes.length; i++) {
+      grid.appendChild(makeAssetCard('Quote Card ' + (i+1), assets.quotes[i], 'quote-' + i));
+    }
+  }
+  if (assets.bluesky && assets.bluesky.length) {
+    grid.appendChild(makeAssetCard('Bluesky Thread', assets.bluesky.join('\n\n'), 'bluesky'));
+  }
+  if (assets.carousel && assets.carousel.length) {
+    grid.appendChild(makeCarouselCard(assets.carousel));
+  }
+
+  pane.appendChild(grid);
+
+  var queueBtn = document.createElement('button');
+  queueBtn.className = 'queue-all-btn';
+  queueBtn.textContent = '📅 Queue All Approved Assets';
+  queueBtn.onclick = queueApproved;
+  pane.appendChild(queueBtn);
+}
+
+function makeAssetCard(type, content, id) {
+  var card = document.createElement('div');
+  card.className = 'asset-card';
+  card.id = 'card-' + id;
+
+  var header = document.createElement('div');
+  header.className = 'asset-card-header';
+  var label = document.createElement('span');
+  label.className = 'asset-type-label';
+  label.textContent = type;
+  var actions = document.createElement('div');
+  actions.className = 'asset-card-actions';
+
+  var approved = false;
+  var approveBtn = document.createElement('button');
+  approveBtn.className = 'asset-action';
+  approveBtn.textContent = '✓ Approve';
+  approveBtn.title = 'Approve for queuing';
+  approveBtn.onclick = function() {
+    approved = !approved;
+    approveBtn.className = 'asset-action' + (approved ? ' approved' : '');
+    approveBtn.textContent = approved ? '✓ Approved' : '✓ Approve';
+    if (approved) approvedAssets.push({type: type, content: content, id: id});
+    else approvedAssets = approvedAssets.filter(function(a) { return a.id !== id; });
+  };
+
+  var editBtn = document.createElement('button');
+  editBtn.className = 'asset-action';
+  editBtn.textContent = '✏ Edit';
+  editBtn.title = 'Edit this asset';
+  editBtn.onclick = function() {
+    var contentEl = card.querySelector('.asset-content');
+    if (!contentEl) return;
+    contentEl.contentEditable = contentEl.contentEditable === 'true' ? 'false' : 'true';
+    contentEl.classList.toggle('editable');
+    editBtn.textContent = contentEl.contentEditable === 'true' ? '✓ Done' : '✏ Edit';
+  };
+
+  var copyBtn = document.createElement('button');
+  copyBtn.className = 'asset-action';
+  copyBtn.textContent = '📋 Copy';
+  copyBtn.title = 'Copy to clipboard';
+  copyBtn.onclick = function() {
+    if (navigator.clipboard) navigator.clipboard.writeText(content).then(function() { Toast.success('Copied'); });
+  };
+
+  var postBtn = document.createElement('button');
+  postBtn.className = 'asset-action';
+  postBtn.textContent = '🚀 Post';
+  postBtn.title = 'Post directly to Bluesky';
+  if (id === 'bluesky') {
+    postBtn.onclick = function() { postToBluesky(content); };
+    actions.appendChild(postBtn);
+  }
+
+  actions.appendChild(approveBtn);
+  actions.appendChild(editBtn);
+  actions.appendChild(copyBtn);
+  header.appendChild(label);
+  header.appendChild(actions);
+
+  var contentEl = document.createElement('div');
+  contentEl.className = 'asset-content';
+  contentEl.textContent = content;
+
+  card.appendChild(header);
+  card.appendChild(contentEl);
+  return card;
+}
+
+function makeCarouselCard(slides) {
+  var card = document.createElement('div');
+  card.className = 'asset-card';
+  var header = document.createElement('div');
+  header.className = 'asset-card-header';
+  var label = document.createElement('span');
+  label.className = 'asset-type-label';
+  label.textContent = 'LinkedIn Carousel (5 slides)';
+  header.appendChild(label);
+  card.appendChild(header);
+  for (var i = 0; i < slides.length; i++) {
+    var slide = document.createElement('div');
+    slide.className = 'carousel-slide';
+    var num = document.createElement('div');
+    num.className = 'carousel-slide-num';
+    num.textContent = 'Slide ' + (i+1) + ' of ' + slides.length;
+    var title = document.createElement('div');
+    title.className = 'carousel-slide-title';
+    title.textContent = slides[i].title || '';
+    var body = document.createElement('div');
+    body.className = 'carousel-slide-body';
+    body.textContent = slides[i].body || '';
+    slide.appendChild(num);
+    slide.appendChild(title);
+    slide.appendChild(body);
+    card.appendChild(slide);
+  }
+  return card;
+}
+
+function queueApproved() {
+  if (approvedAssets.length === 0) { Toast.warning('Approve at least one asset first'); return; }
+  var queued = 0;
+  for (var i = 0; i < approvedAssets.length; i++) {
+    (function(asset) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', WORKER + '/api/social/queue', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        queued++;
+        if (queued === approvedAssets.length) Toast.success(queued + ' asset' + (queued > 1 ? 's' : '') + ' queued!');
+      };
+      xhr.send(JSON.stringify({type: asset.type, content: asset.content, status: 'pending', scheduledAt: new Date(Date.now() + 86400000).toISOString()}));
+    })(approvedAssets[i]);
+  }
+}
+
+function postToBluesky(text) {
+  var posts = text.split('\n\n');
+  var first = posts[0] || text;
+  if (first.length > 300) { Toast.warning('First post exceeds 300 characters. Edit before posting.'); return; }
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/social/post', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      if (result.success) Toast.success('Posted to Bluesky!');
+      else Toast.error('Post failed: ' + (result.error || 'Unknown error'));
+    } catch(e) { Toast.error('Post failed'); }
+  };
+  xhr.onerror = function() { Toast.error('Network error'); };
+  xhr.send(JSON.stringify({text: first, platforms: ['bluesky']}));
+}
+
+function clearAll() {
+  var input = document.getElementById('atomise-input');
+  if (input) input.value = '';
+  var pane = document.getElementById('output-pane');
+  if (pane) {
+    pane.innerHTML = '';
+    var empty = document.createElement('div');
+    empty.className = 'empty-output';
+    empty.id = 'empty-output';
+    empty.innerHTML = '<div class="empty-icon">⚡</div><div style="font-size:15px;font-weight:600;color:var(--fg-secondary);">Paste text and click Create Assets</div><div style="font-size:13px;">The system generates 7 asset types in under 60 seconds.</div>';
+    pane.appendChild(empty);
+  }
+  approvedAssets = [];
+  generatedAssets = null;
+}
+</script>
+</body>
+</html>

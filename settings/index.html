@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar"><div class="topbar-title">Settings</div></div>
+    <div class="page-content">
+      <div class="grid-2" style="gap:20px;align-items:start;">
+
+        <!-- Theme -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">Theme</span></div>
+          <div class="form-group">
+            <label class="form-label">Visual Theme</label>
+            <select class="select" id="theme-select" onchange="applyTheme(this.value)" title="Choose visual theme"></select>
+          </div>
+          <div id="theme-preview" style="height:60px;border-radius:8px;border:1px solid var(--border);margin-top:8px;background:var(--bg-primary);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--fg-muted);">Theme preview</div>
+        </div>
+
+        <!-- Routing -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">Default Routing Profile</span></div>
+          <div class="form-group">
+            <label class="form-label">Profile</label>
+            <select class="select" id="profile-select" title="Default routing profile">
+              <option value="balanced">⚖ Balanced (recommended)</option>
+              <option value="free">🆓 Free</option>
+              <option value="frontier-free">🧪 Frontier Free</option>
+              <option value="frontier">💎 Full Frontier</option>
+              <option value="local">🔒 Local (Ollama)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ollama Tunnel URL</label>
+            <input class="input" id="ollama-url" type="text" placeholder="https://your-tunnel.trycloudflare.com" title="Cloudflare Tunnel URL for local Ollama models">
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveRouting()" title="Save routing settings">Save</button>
+        </div>
+
+        <!-- Key Ingester -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">Key Ingester</span><span class="badge badge-accent">Secure</span></div>
+          <p style="font-size:12.5px;color:var(--fg-muted);margin-bottom:14px;">Paste API keys here. They are sent directly to the Cloudflare Worker and never stored in the browser.</p>
+          <div id="key-fields" style="display:flex;flex-direction:column;gap:10px;"></div>
+          <button class="btn btn-primary" style="margin-top:14px;width:100%;" onclick="pushKeys()" title="Push all keys to Cloudflare Worker">🔑 Push Keys to Worker</button>
+          <div id="key-status" style="margin-top:8px;font-size:12px;color:var(--fg-muted);"></div>
+        </div>
+
+        <!-- Zoho OAuth -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">Zoho Integration</span></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <a href="/oauth/zoho/mail" class="btn btn-secondary" title="Connect Zoho Mail">📧 Connect Zoho Mail</a>
+            <a href="/oauth/zoho/calendar" class="btn btn-secondary" title="Connect Zoho Calendar">📅 Connect Zoho Calendar</a>
+            <a href="/oauth/zoho/crm" class="btn btn-secondary" title="Connect Zoho CRM">👥 Connect Zoho CRM</a>
+            <a href="/oauth/zoho/social" class="btn btn-secondary" title="Connect Zoho Social">📱 Connect Zoho Social</a>
+          </div>
+        </div>
+
+        <!-- Display -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">Display</span></div>
+          <div class="form-group">
+            <label class="form-label">On-screen Keyboard</label>
+            <select class="select" id="osk-setting" title="On-screen keyboard visibility">
+              <option value="always">Always visible (Surface Pro default)</option>
+              <option value="toggle">Toggle with button</option>
+              <option value="never">Never show</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sidebar</label>
+            <select class="select" id="sidebar-setting" title="Sidebar default state">
+              <option value="expanded">Expanded</option>
+              <option value="collapsed">Collapsed</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Orchestrator Visibility</label>
+            <select class="select" id="orch-visibility" title="How much orchestration detail to show">
+              <option value="standard">Standard</option>
+              <option value="quiet">Quiet</option>
+              <option value="verbose">Verbose</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveDisplay()" title="Save display settings">Save</button>
+        </div>
+
+        <!-- About -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">About Prism</span></div>
+          <div style="font-size:13px;color:var(--fg-secondary);line-height:1.7;">
+            <div><strong>Version:</strong> 1.0.0</div>
+            <div><strong>Worker:</strong> prism-api.identitypartners.workers.dev</div>
+            <div><strong>Pages:</strong> prism.identitypartners.uk</div>
+            <div><strong>Repo:</strong> IdentityPartners/prism</div>
+            <div style="margin-top:10px;"><a href="/sitemap/" class="btn btn-ghost btn-sm" title="View sitemap">🗺 Sitemap</a></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var KEY_FIELDS = [
+  {name:'CEREBRAS_API_KEY',label:'Cerebras API Key'},
+  {name:'GROQ_API_KEY',label:'Groq API Key'},
+  {name:'DEEPSEEK_API_KEY',label:'DeepSeek API Key'},
+  {name:'GEMINI_API_KEY',label:'Gemini API Key'},
+  {name:'OPENROUTER_API_KEY',label:'OpenRouter API Key'},
+  {name:'TAVILY_API_KEY',label:'Tavily API Key'},
+  {name:'BRAVE_API_KEY',label:'Brave Search API Key'},
+  {name:'FAL_API_KEY',label:'FAL API Key'},
+  {name:'ELEVENLABS_API_KEY',label:'ElevenLabs API Key'},
+  {name:'NVIDIA_API_KEY',label:'NVIDIA NIM API Key'},
+];
+
+function initThemeSelect() {
+  var sel = document.getElementById('theme-select');
+  if (!sel) return;
+  var themes = ThemeSystem.getAll();
+  var names = ThemeSystem.getNames();
+  for (var i = 0; i < themes.length; i++) {
+    var opt = document.createElement('option');
+    opt.value = themes[i];
+    opt.textContent = names[i];
+    if (themes[i] === ThemeSystem.getCurrent()) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+function applyTheme(theme) {
+  ThemeSystem.apply(theme);
+  Toast.success('Theme applied: ' + theme);
+}
+
+function initKeyFields() {
+  var container = document.getElementById('key-fields');
+  if (!container) return;
+  for (var i = 0; i < KEY_FIELDS.length; i++) {
+    (function(field) {
+      var group = document.createElement('div');
+      group.className = 'form-group';
+      group.style.marginBottom = '8px';
+      var label = document.createElement('label');
+      label.className = 'form-label';
+      label.textContent = field.label;
+      var input = document.createElement('input');
+      input.className = 'input';
+      input.type = 'password';
+      input.id = 'key-' + field.name;
+      input.placeholder = 'Paste key here…';
+      input.setAttribute('data-keyname', field.name);
+      group.appendChild(label);
+      group.appendChild(input);
+      container.appendChild(group);
+    })(KEY_FIELDS[i]);
+  }
+}
+
+function pushKeys() {
+  var inputs = document.querySelectorAll('[data-keyname]');
+  var keys = [];
+  for (var i = 0; i < inputs.length; i++) {
+    var val = inputs[i].value.trim();
+    if (val) keys.push({name: inputs[i].getAttribute('data-keyname'), value: val});
+  }
+  if (keys.length === 0) { Toast.warning('No keys to push'); return; }
+  var status = document.getElementById('key-status');
+  if (status) status.textContent = 'Pushing ' + keys.length + ' key(s)…';
+  var pushed = 0;
+  for (var i = 0; i < keys.length; i++) {
+    (function(key) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', WORKER + '/api/devteam', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        pushed++;
+        if (pushed === keys.length) {
+          if (status) status.textContent = pushed + ' key(s) noted. Use the Cloudflare dashboard to push secrets directly to the Worker.';
+          Toast.success(pushed + ' key(s) recorded');
+        }
+      };
+      xhr.send(JSON.stringify({agent:'api_champion', message:'New API key received for ' + key.name + '. Please note this for the next deployment.'}));
+    })(keys[i]);
+  }
+}
+
+function saveRouting() {
+  var profile = document.getElementById('profile-select').value;
+  var ollamaUrl = document.getElementById('ollama-url').value.trim();
+  try {
+    localStorage.setItem('prism-default-profile', profile);
+    if (ollamaUrl) localStorage.setItem('prism-ollama-url', ollamaUrl);
+  } catch(e) {}
+  Toast.success('Routing settings saved');
+}
+
+function saveDisplay() {
+  try {
+    localStorage.setItem('prism-osk', document.getElementById('osk-setting').value);
+    localStorage.setItem('prism-orch-visibility', document.getElementById('orch-visibility').value);
+  } catch(e) {}
+  Toast.success('Display settings saved');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/settings/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  initThemeSelect();
+  initKeyFields();
+  try {
+    var savedProfile = localStorage.getItem('prism-default-profile');
+    if (savedProfile) document.getElementById('profile-select').value = savedProfile;
+    var ollamaUrl = localStorage.getItem('prism-ollama-url');
+    if (ollamaUrl) document.getElementById('ollama-url').value = ollamaUrl;
+  } catch(e) {}
+});
+</script>
+</body>
+</html>

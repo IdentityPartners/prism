@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zoho Calendar — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar"><div class="topbar-title">Zoho Calendar</div><div class="topbar-actions"><a href="/oauth/zoho/calendar" class="btn btn-sm btn-secondary" title="Connect Zoho Calendar">🔑 Connect Zoho</a></div></div>
+    <div class="page-content">
+
+      <div class="card" style="text-align:center;padding:40px;">
+        <div style="font-size:48px;margin-bottom:16px;">📅</div>
+        <div style="font-family:var(--font-heading);font-size:20px;font-weight:600;margin-bottom:10px;">Zoho Calendar</div>
+        <p style="font-size:13.5px;color:var(--fg-muted);max-width:400px;margin:0 auto 20px;">Connect your Zoho Calendar to view events, manage bookings, and sync with Zoho Bookings.</p>
+        <a href="/oauth/zoho/calendar" class="btn btn-primary" title="Connect Zoho Calendar">Connect Zoho Calendar</a>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/comms/zoho-calendar/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  
+});
+
+</script>
+</body>
+</html>

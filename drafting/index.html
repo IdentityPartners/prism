@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Drafting Desk — Prism</title>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+<style>
+.drafting-layout { display: grid; grid-template-columns: 220px 1fr 280px; height: calc(100vh - var(--topbar-h)); overflow: hidden; }
+@media(max-width:1100px){ .drafting-layout{ grid-template-columns: 1fr 260px; } .drafting-docs{ display:none; } }
+@media(max-width:800px){ .drafting-layout{ grid-template-columns: 1fr; } .drafting-assist{ display:none; } }
+.drafting-docs { border-right: 1px solid var(--border); background: var(--bg-surface); overflow-y: auto; padding: 12px; }
+.drafting-editor { display: flex; flex-direction: column; overflow: hidden; }
+.drafting-assist { border-left: 1px solid var(--border); background: var(--bg-surface); overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.editor-toolbar { padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); display: flex; gap: 4px; flex-wrap: wrap; align-items: center; flex-shrink: 0; }
+.toolbar-btn { padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; background: var(--bg-surface); color: var(--fg-secondary); cursor: pointer; transition: all 0.15s; }
+.toolbar-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.toolbar-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+.editor-meta { padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+.doc-title-input { flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; font-weight: 500; outline: none; background: var(--bg-primary); color: var(--fg-primary); }
+.doc-title-input:focus { border-color: var(--accent); }
+.editor-area { flex: 1; overflow-y: auto; padding: 20px 24px; }
+.editor-textarea { width: 100%; min-height: 100%; padding: 0; border: none; outline: none; font-size: 14px; font-family: var(--font-ui); line-height: 1.8; color: var(--fg-primary); background: transparent; resize: none; }
+.word-count { font-size: 11px; color: var(--fg-muted); padding: 6px 14px; border-top: 1px solid var(--border); background: var(--bg-elevated); flex-shrink: 0; }
+.doc-item { padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; background: var(--bg-elevated); transition: border-color 0.15s; }
+.doc-item:hover { border-color: var(--accent); }
+.doc-item.active { border-color: var(--accent); background: var(--accent-light); }
+.doc-item-title { font-size: 12.5px; font-weight: 500; color: var(--fg-primary); margin-bottom: 2px; }
+.doc-item-meta { font-size: 11px; color: var(--fg-muted); }
+.assist-section { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+.assist-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); margin-bottom: 8px; }
+.assist-prompt { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; font-family: var(--font-ui); resize: none; outline: none; background: var(--bg-primary); color: var(--fg-primary); min-height: 60px; }
+.assist-prompt:focus { border-color: var(--accent); }
+.assist-result { font-size: 12.5px; line-height: 1.6; color: var(--fg-secondary); margin-top: 8px; padding: 8px; background: var(--bg-surface); border-radius: 6px; }
+.tone-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.tone-chip { padding: 3px 8px; border: 1px solid var(--border); border-radius: 12px; font-size: 11px; cursor: pointer; color: var(--fg-secondary); background: var(--bg-surface); transition: all 0.15s; }
+.tone-chip:hover, .tone-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+</style>
+</head>
+<body>
+<div class="prism-shell">
+<div id="sidebar-mount"></div>
+<div class="main-content" id="main-content">
+<div class="topbar">
+<div class="topbar-title">Drafting Desk</div>
+<div class="topbar-actions">
+<button class="btn btn-sm btn-secondary" onclick="newDoc()" title="New document">＋ New</button>
+<button class="btn btn-sm btn-secondary" onclick="saveDoc()" title="Save document">💾 Save</button>
+<button class="btn btn-sm btn-secondary" onclick="exportDoc()" title="Export as Markdown">⬇ Export</button>
+<button class="btn btn-sm btn-primary" onclick="sendToAtomise()" title="Send to Atomise pipeline">⚡ Atomise</button>
+</div>
+</div>
+<div class="drafting-layout">
+<!-- Documents list -->
+<div class="drafting-docs">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+<span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);">Documents</span>
+<button class="btn btn-ghost btn-sm btn-icon" onclick="newDoc()" title="New document">＋</button>
+</div>
+<div id="docs-list"></div>
+</div>
+<!-- Editor -->
+<div class="drafting-editor">
+<div class="editor-toolbar">
+<button class="toolbar-btn" onclick="insertMd('**','**')" title="Bold">B</button>
+<button class="toolbar-btn" onclick="insertMd('*','*')" style="font-style:italic;" title="Italic">I</button>
+<button class="toolbar-btn" onclick="insertMd('# ','')" title="Heading 1">H1</button>
+<button class="toolbar-btn" onclick="insertMd('## ','')" title="Heading 2">H2</button>
+<button class="toolbar-btn" onclick="insertMd('### ','')" title="Heading 3">H3</button>
+<div class="toolbar-sep"></div>
+<button class="toolbar-btn" onclick="insertMd('- ','')" title="Bullet list">• List</button>
+<button class="toolbar-btn" onclick="insertMd('&gt; ','')" title="Blockquote">❝</button>
+<button class="toolbar-btn" onclick="insertMd('`','`')" title="Inline code">Code</button>
+<button class="toolbar-btn" onclick="insertMd('---\n','')" title="Horizontal rule">—</button>
+<div class="toolbar-sep"></div>
+<button class="toolbar-btn" id="preview-btn" onclick="togglePreview()" title="Toggle preview">Preview</button>
+<button class="toolbar-btn" onclick="toggleHandwriting()" title="Toggle handwriting mode">✒ Handwriting</button>
+<button class="toolbar-btn" id="dictate-btn" onclick="toggleDictation()" title="Toggle voice dictation">🎤 Dictate</button>
+</div>
+<div class="editor-meta">
+<input class="doc-title-input" id="doc-title" placeholder="Document title…" type="text" value="Untitled Document"/>
+<select class="select" id="doc-type" style="width:auto;padding:6px 10px;font-size:12.5px;" title="Document type">
+<option>General</option>
+<option>Report</option>
+<option>Email</option>
+<option>Blog Post</option>
+<option>Session Note</option>
+<option>Proposal</option>
+<option>Newsletter</option>
+</select>
+</div>
+<div class="editor-area" id="editor-area">
+<textarea class="editor-textarea" id="editor" placeholder="Start writing… Handwriting via Surface Slim Pen 2 works directly in this field."></textarea>
+<div class="md-content hidden" id="preview-pane"></div>
+</div>
+<div class="word-count" id="word-count">0 words · 0 characters</div>
+</div>
+<!-- AI Assist panel -->
+<div class="drafting-assist">
+<div class="assist-section">
+<div class="assist-title">AI Assist</div>
+<div class="tone-chips" id="tone-chips">
+<span class="tone-chip active" onclick="setTone(this,'professional')">Professional</span>
+<span class="tone-chip" onclick="setTone(this,'academic')">Academic</span>
+<span class="tone-chip" onclick="setTone(this,'conversational')">Conversational</span>
+<span class="tone-chip" onclick="setTone(this,'persuasive')">Persuasive</span>
+<span class="tone-chip" onclick="setTone(this,'empathetic')">Empathetic</span>
+</div>
+<textarea class="assist-prompt" id="assist-prompt" placeholder="Ask the AI to help… e.g. 'Improve this paragraph', 'Add an introduction', 'Make this more concise'"></textarea>
+<button class="btn btn-primary btn-sm" onclick="runAssist()" style="width:100%;margin-top:6px;" title="Run AI assist">✨ Assist</button>
+<div class="assist-result hidden" id="assist-result"></div>
+</div>
+<div class="assist-section">
+<div class="assist-title">Quick Actions</div>
+<div style="display:flex;flex-direction:column;gap:6px;">
+<button class="btn btn-sm btn-secondary" onclick="quickAction('Improve the clarity and flow of this text')" title="Improve clarity">✨ Improve Clarity</button>
+<button class="btn btn-sm btn-secondary" onclick="quickAction('Make this more concise without losing meaning')" title="Make concise">✂ Make Concise</button>
+<button class="btn btn-sm btn-secondary" onclick="quickAction('Expand this with more detail and examples')" title="Expand">↕ Expand</button>
+<button class="btn btn-sm btn-secondary" onclick="quickAction('Fix any grammar and spelling errors')" title="Fix grammar">✓ Fix Grammar</button>
+<button class="btn btn-sm btn-secondary" onclick="quickAction('Rewrite this in British English')" title="British English">🇬🇧 British English</button>
+<button class="btn btn-sm btn-secondary" onclick="quickAction('Write an executive summary of this document')" title="Summarise">📋 Summarise</button>
+</div>
+</div>
+<div class="assist-section">
+<div class="assist-title">Insert</div>
+<div style="display:flex;flex-direction:column;gap:6px;">
+<button class="btn btn-sm btn-secondary" onclick="insertTemplate('email')" title="Insert email template">📧 Email Template</button>
+<button class="btn btn-sm btn-secondary" onclick="insertTemplate('report')" title="Insert report template">📄 Report Template</button>
+<button class="btn btn-sm btn-secondary" onclick="insertTemplate('session')" title="Insert session note template">📝 Session Note</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var docs = [];
+var currentDocId = null;
+var currentTone = 'professional';
+var previewing = false;
+var dictating = false;
+var recognition = null;
+
+var TEMPLATES = {
+  email: 'Subject: \n\nDear [Name],\n\nI hope this finds you well.\n\n[Body]\n\nKind regards,\nSimon Johnson\nIdentity Partners',
+  report: '# Report Title\n\n## Executive Summary\n\n[Summary]\n\n## Background\n\n[Context]\n\n## Findings\n\n[Findings]\n\n## Recommendations\n\n[Recommendations]\n\n## Conclusion\n\n[Conclusion]',
+  session: '# Session Note\n\n**Date:** ' + new Date().toLocaleDateString('en-GB') + '\n**Client:** \n**Session type:** \n\n## Presenting issues\n\n## Key themes\n\n## Interventions\n\n## Client response\n\n## Next steps\n\n## Risk assessment\n',
+};
+
+function init() {
+  try { docs = JSON.parse(localStorage.getItem('prism-docs') || '[]'); } catch(e) { docs = []; }
+  if (docs.length === 0) newDoc();
+  else { currentDocId = docs[0].id; loadDoc(docs[0]); }
+  renderDocsList();
+  updateWordCount();
+}
+
+function newDoc() {
+  var doc = {id: 'd' + Date.now(), title: 'Untitled Document', content: '', type: 'General', created: new Date().toISOString(), updated: new Date().toISOString()};
+  docs.unshift(doc);
+  saveDocs();
+  currentDocId = doc.id;
+  loadDoc(doc);
+  renderDocsList();
+}
+
+function loadDoc(doc) {
+  var titleEl = document.getElementById('doc-title');
+  var editor = document.getElementById('editor');
+  var typeEl = document.getElementById('doc-type');
+  if (titleEl) titleEl.value = doc.title || '';
+  if (editor) editor.value = doc.content || '';
+  if (typeEl) typeEl.value = doc.type || 'General';
+  updateWordCount();
+}
+
+function saveDoc() {
+  var titleEl = document.getElementById('doc-title');
+  var editor = document.getElementById('editor');
+  var typeEl = document.getElementById('doc-type');
+  var doc = docs.find(function(d) { return d.id === currentDocId; });
+  if (!doc) return;
+  doc.title = titleEl ? titleEl.value : doc.title;
+  doc.content = editor ? editor.value : doc.content;
+  doc.type = typeEl ? typeEl.value : doc.type;
+  doc.updated = new Date().toISOString();
+  saveDocs();
+  renderDocsList();
+  Toast.success('Saved');
+}
+
+function saveDocs() {
+  try { localStorage.setItem('prism-docs', JSON.stringify(docs)); } catch(e) {}
+}
+
+function renderDocsList() {
+  var list = document.getElementById('docs-list');
+  if (!list) return;
+  list.innerHTML = '';
+  for (var i = 0; i < docs.length; i++) {
+    (function(doc) {
+      var item = document.createElement('div');
+      item.className = 'doc-item' + (doc.id === currentDocId ? ' active' : '');
+      var title = document.createElement('div');
+      title.className = 'doc-item-title';
+      title.textContent = doc.title || 'Untitled';
+      var meta = document.createElement('div');
+      meta.className = 'doc-item-meta';
+      meta.textContent = doc.type + ' · ' + new Date(doc.updated).toLocaleDateString('en-GB');
+      item.appendChild(title);
+      item.appendChild(meta);
+      item.onclick = function() { saveDoc(); currentDocId = doc.id; loadDoc(doc); renderDocsList(); };
+      list.appendChild(item);
+    })(docs[i]);
+  }
+}
+
+function updateWordCount() {
+  var editor = document.getElementById('editor');
+  var el = document.getElementById('word-count');
+  if (!editor || !el) return;
+  var text = editor.value;
+  var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  el.textContent = words + ' words · ' + text.length + ' characters';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var editor = document.getElementById('editor');
+  if (editor) {
+    editor.addEventListener('input', updateWordCount);
+    editor.addEventListener('keydown', function(e) {
+      if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveDoc(); }
+    });
+  }
+});
+
+function insertMd(before, after) {
+  var editor = document.getElementById('editor');
+  if (!editor) return;
+  var start = editor.selectionStart;
+  var end = editor.selectionEnd;
+  var selected = editor.value.substring(start, end);
+  var replacement = before + selected + after;
+  editor.value = editor.value.substring(0, start) + replacement + editor.value.substring(end);
+  editor.selectionStart = start + before.length;
+  editor.selectionEnd = start + before.length + selected.length;
+  editor.focus();
+  updateWordCount();
+}
+
+function togglePreview() {
+  previewing = !previewing;
+  var editor = document.getElementById('editor');
+  var preview = document.getElementById('preview-pane');
+  var btn = document.getElementById('preview-btn');
+  if (!editor || !preview) return;
+  if (previewing) {
+    preview.innerHTML = Markdown.render(editor.value);
+    editor.classList.add('hidden');
+    preview.classList.remove('hidden');
+    if (btn) btn.textContent = 'Edit';
+  } else {
+    editor.classList.remove('hidden');
+    preview.classList.add('hidden');
+    if (btn) btn.textContent = 'Preview';
+  }
+}
+
+function toggleHandwriting() {
+  var editor = document.getElementById('editor');
+  if (!editor) return;
+  editor.focus();
+  Toast.info('Focus is on the editor. Use your Surface Slim Pen 2 to write directly.');
+}
+
+function toggleDictation() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) { Toast.warning('Voice dictation not supported'); return; }
+  var btn = document.getElementById('dictate-btn');
+  if (dictating) {
+    if (recognition) recognition.stop();
+    dictating = false;
+    if (btn) btn.textContent = '🎤 Dictate';
+    return;
+  }
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.continuous = true;
+  recognition.interimResults = false;
+  recognition.lang = 'en-GB';
+  recognition.onresult = function(e) {
+    var editor = document.getElementById('editor');
+    if (!editor) return;
+    for (var i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) editor.value += e.results[i][0].transcript + ' ';
+    }
+    updateWordCount();
+  };
+  recognition.onend = function() { dictating = false; if (btn) btn.textContent = '🎤 Dictate'; };
+  recognition.start();
+  dictating = true;
+  if (btn) btn.textContent = '🔴 Stop';
+}
+
+function setTone(el, tone) {
+  currentTone = tone;
+  var chips = document.querySelectorAll('.tone-chip');
+  for (var i = 0; i < chips.length; i++) chips[i].classList.remove('active');
+  el.classList.add('active');
+}
+
+function runAssist() {
+  var prompt = document.getElementById('assist-prompt').value.trim();
+  var editor = document.getElementById('editor');
+  var resultEl = document.getElementById('assist-result');
+  if (!prompt || !editor) return;
+  var content = editor.value;
+  if (resultEl) { resultEl.classList.remove('hidden'); resultEl.textContent = 'Working…'; }
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      if (resultEl) {
+        resultEl.classList.remove('hidden');
+        resultEl.innerHTML = Markdown.render(result.content || 'No response');
+        var applyBtn = document.createElement('button');
+        applyBtn.className = 'btn btn-sm btn-primary';
+        applyBtn.style.marginTop = '8px';
+        applyBtn.textContent = 'Apply to document';
+        applyBtn.onclick = function() {
+          if (editor) { editor.value = result.content; updateWordCount(); }
+          resultEl.classList.add('hidden');
+          Toast.success('Applied');
+        };
+        resultEl.appendChild(applyBtn);
+      }
+    } catch(e) {
+      if (resultEl) resultEl.textContent = 'Error: ' + e.message;
+    }
+  };
+  xhr.onerror = function() { if (resultEl) resultEl.textContent = 'Network error'; };
+  xhr.send(JSON.stringify({
+    messages: [
+      {role:'system', content:'You are a professional writing assistant. Tone: ' + currentTone + '. British English. No sycophancy.'},
+      {role:'user', content: prompt + '\n\nDocument:\n' + content}
+    ],
+    profile: 'balanced'
+  }));
+}
+
+function quickAction(prompt) {
+  var el = document.getElementById('assist-prompt');
+  if (el) el.value = prompt;
+  runAssist();
+}
+
+function insertTemplate(type) {
+  var editor = document.getElementById('editor');
+  if (!editor) return;
+  editor.value = TEMPLATES[type] || '';
+  updateWordCount();
+  Toast.info('Template inserted');
+}
+
+function exportDoc() {
+  var editor = document.getElementById('editor');
+  var title = document.getElementById('doc-title');
+  if (!editor) return;
+  var blob = new Blob([editor.value], {type: 'text/markdown'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (title ? title.value : 'document') + '.md';
+  a.click();
+}
+
+function sendToAtomise() {
+  var editor = document.getElementById('editor');
+  if (!editor || !editor.value.trim()) { Toast.warning('Nothing to atomise'); return; }
+  try { sessionStorage.setItem('prism-atomise', editor.value); } catch(e) {}
+  window.location.href = '/atomise/';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/drafting/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  init();
+  var prefill = '';
+  try { prefill = sessionStorage.getItem('prism-draft') || ''; sessionStorage.removeItem('prism-draft'); } catch(e) {}
+  if (prefill) { var editor = document.getElementById('editor'); if (editor) { editor.value = prefill; updateWordCount(); } }
+});
+</script>
+</body>
+</html>

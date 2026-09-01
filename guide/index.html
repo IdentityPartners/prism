@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Integration Guide — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar"><div class="topbar-title">Integration Guide</div></div>
+    <div class="page-content">
+      <div class="card" style="max-width:800px;">
+        <div class="card-header"><span class="card-title">Integration Guide</span></div>
+        <div class="md-content" style="font-size:13.5px;line-height:1.8;">
+          <h2>Zoho Integration</h2>
+          <p>Prism integrates with Zoho Mail, Calendar, CRM, and Social. To connect:</p>
+          <ol>
+            <li>Go to <strong>Settings → Zoho Integration</strong></li>
+            <li>Click the service you want to connect</li>
+            <li>You will be redirected to Zoho to authorise access</li>
+            <li>After authorising, you will be returned to Prism automatically</li>
+          </ol>
+          <p><strong>Important:</strong> Use the Global Zoho API console (api-console.zoho.com), not the EU console. The EU console produces intermittent authentication errors.</p>
+          <h2>Cloudflare Tunnel (Local Models)</h2>
+          <p>To use local Ollama models remotely:</p>
+          <ol>
+            <li>Install Cloudflare Tunnel on your Surface Pro 9</li>
+            <li>Run: <code>cloudflared tunnel --url http://localhost:11434</code></li>
+            <li>Copy the tunnel URL (e.g. https://xxx.trycloudflare.com)</li>
+            <li>Paste it in <strong>Settings → Routing → Ollama Tunnel URL</strong></li>
+          </ol>
+          <h2>API Keys</h2>
+          <p>All API keys are stored in Cloudflare Worker environment variables. To add or update a key:</p>
+          <ol>
+            <li>Go to the Cloudflare dashboard</li>
+            <li>Navigate to Workers &amp; Pages → prism-api → Settings → Variables</li>
+            <li>Add or update the secret</li>
+          </ol>
+          <p>Alternatively, use the Key Ingester in <strong>Settings</strong> to note keys for the next deployment.</p>
+          <h2>Bluesky</h2>
+          <p>Bluesky posting uses your app password (not your main password). Generate one at bsky.app → Settings → App Passwords. The handle and app password are already configured in the Worker.</p>
+        </div>
+      </div></div>
+  </div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/guide/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  
+});
+
+</script>
+</body>
+</html>

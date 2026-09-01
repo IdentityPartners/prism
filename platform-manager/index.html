@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Platform Manager — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar"><div class="topbar-title">Platform Manager</div></div>
+    <div class="page-content">
+
+      <p style="font-size:13px;color:var(--fg-muted);margin-bottom:20px;">Manage connections to all 196 monetisation and social platforms.</p>
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-header"><span class="card-title">Platform Search</span></div>
+        <input class="input" id="platform-search" type="text" placeholder="Search platforms…" oninput="filterPlatforms(this.value)">
+      </div>
+      <div class="grid-4" id="platforms-grid"></div>
+    </div>
+  </div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/platform-manager/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  renderPlatforms(allPlatforms);
+});
+
+var allPlatforms = [
+  {name:'Stripe',icon:'💳',category:'Payment',status:'available'},
+  {name:'PayPal',icon:'💰',category:'Payment',status:'available'},
+  {name:'Ko-fi',icon:'☕',category:'Donation',status:'available'},
+  {name:'Patreon',icon:'🎁',category:'Subscription',status:'available'},
+  {name:'BuyMeACoffee',icon:'☕',category:'Donation',status:'available'},
+  {name:'Gumroad',icon:'🛒',category:'Digital Products',status:'available'},
+  {name:'Teachable',icon:'📚',category:'Courses',status:'available'},
+  {name:'Thinkific',icon:'🎓',category:'Courses',status:'available'},
+  {name:'Bluesky',icon:'🦋',category:'Social',status:'connected'},
+  {name:'LinkedIn',icon:'💼',category:'Social',status:'available'},
+  {name:'Instagram',icon:'📸',category:'Social',status:'available'},
+  {name:'Facebook',icon:'👥',category:'Social',status:'available'},
+  {name:'Twitter/X',icon:'🐦',category:'Social',status:'available'},
+  {name:'YouTube',icon:'▶',category:'Video',status:'available'},
+  {name:'TikTok',icon:'🎵',category:'Video',status:'available'},
+  {name:'Substack',icon:'📧',category:'Newsletter',status:'available'},
+  {name:'Mailchimp',icon:'🐒',category:'Email',status:'available'},
+  {name:'Zoho Mail',icon:'📧',category:'Email',status:'available'},
+];
+function renderPlatforms(platforms) {
+  var grid = document.getElementById('platforms-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (var i = 0; i < platforms.length; i++) {
+    (function(p) {
+      var card = document.createElement('div');
+      card.className = 'card';
+      card.style.cssText = 'padding:14px;text-align:center;';
+      var icon = document.createElement('div');
+      icon.style.cssText = 'font-size:28px;margin-bottom:8px;';
+      icon.textContent = p.icon;
+      var name = document.createElement('div');
+      name.style.cssText = 'font-weight:600;font-size:13px;margin-bottom:4px;';
+      name.textContent = p.name;
+      var cat = document.createElement('div');
+      cat.style.cssText = 'font-size:11px;color:var(--fg-muted);margin-bottom:10px;';
+      cat.textContent = p.category;
+      var btn = document.createElement('button');
+      btn.className = 'btn btn-sm ' + (p.status === 'connected' ? 'btn-primary' : 'btn-secondary');
+      btn.textContent = p.status === 'connected' ? '✓ Connected' : 'Connect';
+      btn.style.width = '100%';
+      btn.title = p.status === 'connected' ? 'Connected' : 'Connect ' + p.name;
+      btn.onclick = function() { Toast.info('Connect ' + p.name + ' via Settings'); };
+      card.appendChild(icon); card.appendChild(name); card.appendChild(cat); card.appendChild(btn);
+      grid.appendChild(card);
+    })(platforms[i]);
+  }
+}
+function filterPlatforms(q) {
+  if (!q) { renderPlatforms(allPlatforms); return; }
+  var filtered = allPlatforms.filter(function(p) { return p.name.toLowerCase().indexOf(q.toLowerCase()) >= 0 || p.category.toLowerCase().indexOf(q.toLowerCase()) >= 0; });
+  renderPlatforms(filtered);
+}
+
+</script>
+</body>
+</html>

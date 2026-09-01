@@ -1,0 +1,517 @@
+// Prism Shared Utilities — Identity Partners
+// Rules: var only at top level, no arrow functions, no innerHTML with mixed quotes
+
+var PRISM_WORKER = 'https://prism-api.identitypartners.workers.dev';
+var PRISM_VERSION = '1.0.0';
+
+// ── Theme System ──────────────────────────────────────────────────────────────
+var ThemeSystem = (function() {
+  var THEMES = [
+    'parchment','teal-rose','olive','faded-blue','midnight-teal',
+    'midnight-rose','cloudflare','linear','notion','stripe',
+    'vercel','wordpress','therapy','retreat','scholarly','dawn','dusk'
+  ];
+  var THEME_NAMES = [
+    'Parchment & Rose','Teal & Rose Reversed','Olive & Cream','Faded Blue & Sand',
+    'Midnight Teal','Midnight Rose','Cloudflare Light','Linear Light','Notion Classic',
+    'Stripe Light','Vercel Light','WordPress TT4','Therapy Adjacent','Retreat & Restore',
+    'Scholarly Authority','Dawn','Dusk'
+  ];
+
+  function getTimeTheme() {
+    var h = new Date().getHours();
+    if (h >= 5 && h < 8) return 'dawn';
+    if (h >= 8 && h < 12) return 'parchment';
+    if (h >= 12 && h < 17) return 'parchment';
+    if (h >= 17 && h < 20) return 'dawn';
+    return 'midnight-teal';
+  }
+
+  function apply(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('prism-theme', theme); } catch(e) {}
+  }
+
+  function init() {
+    var saved;
+    try { saved = localStorage.getItem('prism-theme'); } catch(e) {}
+    apply(saved || getTimeTheme());
+  }
+
+  function getAll() { return THEMES; }
+  function getNames() { return THEME_NAMES; }
+  function getCurrent() {
+    return document.documentElement.getAttribute('data-theme') || 'parchment';
+  }
+
+  return { init: init, apply: apply, getAll: getAll, getNames: getNames, getCurrent: getCurrent };
+})();
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+var Toast = (function() {
+  var container = null;
+
+  function getContainer() {
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'toast-container';
+      document.body.appendChild(container);
+    }
+    return container;
+  }
+
+  function show(message, type, duration) {
+    var c = getContainer();
+    var toast = document.createElement('div');
+    toast.className = 'toast' + (type ? ' ' + type : '');
+    toast.textContent = message;
+    c.appendChild(toast);
+    setTimeout(function() {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, duration || 3500);
+  }
+
+  return {
+    success: function(msg) { show(msg, 'success'); },
+    error: function(msg) { show(msg, 'error', 5000); },
+    warning: function(msg) { show(msg, 'warning'); },
+    info: function(msg) { show(msg, ''); }
+  };
+})();
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+var Sidebar = (function() {
+  var collapsed = false;
+
+  function init() {
+    try { collapsed = localStorage.getItem('prism-sidebar-collapsed') === 'true'; } catch(e) {}
+    var sidebar = document.querySelector('.sidebar');
+    var main = document.querySelector('.main-content');
+    if (!sidebar) return;
+    if (collapsed) {
+      sidebar.classList.add('collapsed');
+      if (main) main.classList.add('sidebar-collapsed');
+    }
+    var toggleBtn = document.querySelector('.sidebar-toggle-btn');
+    if (toggleBtn) {
+      toggleBtn.onclick = function() { toggle(); };
+    }
+    // Mark active nav item
+    var path = window.location.pathname;
+    var navItems = document.querySelectorAll('.nav-item');
+    for (var i = 0; i < navItems.length; i++) {
+      var href = navItems[i].getAttribute('href');
+      if (href && path.startsWith(href) && href !== '/') {
+        navItems[i].classList.add('active');
+      }
+    }
+  }
+
+  function toggle() {
+    collapsed = !collapsed;
+    var sidebar = document.querySelector('.sidebar');
+    var main = document.querySelector('.main-content');
+    if (sidebar) sidebar.classList.toggle('collapsed', collapsed);
+    if (main) main.classList.toggle('sidebar-collapsed', collapsed);
+    try { localStorage.setItem('prism-sidebar-collapsed', collapsed); } catch(e) {}
+  }
+
+  return { init: init, toggle: toggle };
+})();
+
+// ── World Clocks ──────────────────────────────────────────────────────────────
+var WorldClocks = (function() {
+  var zones = [
+    {label: 'London', tz: 'Europe/London'},
+    {label: 'New York', tz: 'America/New_York'},
+    {label: 'LA', tz: 'America/Los_Angeles'},
+    {label: 'Dubai', tz: 'Asia/Dubai'},
+    {label: 'Sydney', tz: 'Australia/Sydney'},
+  ];
+
+  function format(tz) {
+    return new Date().toLocaleTimeString('en-GB', {timeZone: tz, hour: '2-digit', minute: '2-digit'});
+  }
+
+  function render(containerId) {
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = '';
+    for (var i = 0; i < zones.length; i++) {
+      var item = document.createElement('div');
+      item.className = 'world-clock-item';
+      var time = document.createElement('span');
+      time.className = 'world-clock-time';
+      time.textContent = format(zones[i].tz);
+      var label = document.createElement('span');
+      label.className = 'world-clock-label';
+      label.textContent = zones[i].label;
+      item.appendChild(time);
+      item.appendChild(label);
+      el.appendChild(item);
+    }
+  }
+
+  function start(containerId) {
+    render(containerId);
+    setInterval(function() { render(containerId); }, 30000);
+  }
+
+  return { start: start };
+})();
+
+// ── Pomodoro ──────────────────────────────────────────────────────────────────
+var Pomodoro = (function() {
+  var duration = 25 * 60;
+  var remaining = duration;
+  var running = false;
+  var interval = null;
+  var displayId = null;
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function updateDisplay() {
+    var el = document.getElementById(displayId);
+    if (!el) return;
+    var m = Math.floor(remaining / 60);
+    var s = remaining % 60;
+    el.textContent = pad(m) + ':' + pad(s);
+  }
+
+  function tick() {
+    if (remaining <= 0) {
+      clearInterval(interval);
+      running = false;
+      Toast.info('Pomodoro complete. Take a break.');
+      remaining = duration;
+      updateDisplay();
+      return;
+    }
+    remaining--;
+    updateDisplay();
+  }
+
+  function start(timeDisplayId) {
+    displayId = timeDisplayId;
+    if (!running) {
+      running = true;
+      interval = setInterval(tick, 1000);
+    }
+    updateDisplay();
+  }
+
+  function pause() {
+    running = false;
+    clearInterval(interval);
+  }
+
+  function reset() {
+    pause();
+    remaining = duration;
+    updateDisplay();
+  }
+
+  return { start: start, pause: pause, reset: reset };
+})();
+
+// ── Markdown Renderer ─────────────────────────────────────────────────────────
+var Markdown = (function() {
+  function render(text) {
+    if (!text) return '';
+    var t = text;
+    // Code blocks
+    t = t.replace(/```(\w*)\n?([\s\S]*?)```/g, function(m, lang, code) {
+      var pre = document.createElement('pre');
+      var codeEl = document.createElement('code');
+      codeEl.textContent = code.trim();
+      pre.appendChild(codeEl);
+      return pre.outerHTML;
+    });
+    // Inline code
+    t = t.replace(/`([^`]+)`/g, function(m, code) {
+      var el = document.createElement('code');
+      el.textContent = code;
+      return el.outerHTML;
+    });
+    // Headers
+    t = t.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    t = t.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    t = t.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+    // Bold / italic
+    t = t.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    t = t.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // Blockquote
+    t = t.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+    // HR
+    t = t.replace(/^---$/gm, '<hr>');
+    // Unordered lists
+    t = t.replace(/^[\*\-] (.+)$/gm, '<li>$1</li>');
+    t = t.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>');
+    // Ordered lists
+    t = t.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+    // Links
+    t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    // Paragraphs
+    t = t.replace(/\n\n/g, '</p><p>');
+    t = '<p>' + t + '</p>';
+    // Clean up empty paragraphs
+    t = t.replace(/<p>\s*<\/p>/g, '');
+    t = t.replace(/<p>(<h[1-6]>)/g, '$1');
+    t = t.replace(/(<\/h[1-6]>)<\/p>/g, '$1');
+    t = t.replace(/<p>(<ul>)/g, '$1');
+    t = t.replace(/(<\/ul>)<\/p>/g, '$1');
+    t = t.replace(/<p>(<blockquote>)/g, '$1');
+    t = t.replace(/(<\/blockquote>)<\/p>/g, '$1');
+    t = t.replace(/<p>(<hr>)<\/p>/g, '$1');
+    t = t.replace(/<p>(<pre>)/g, '$1');
+    t = t.replace(/(<\/pre>)<\/p>/g, '$1');
+    return t;
+  }
+
+  function renderInto(text, element) {
+    element.className = (element.className || '') + ' md-content';
+    element.innerHTML = render(text);
+  }
+
+  return { render: render, renderInto: renderInto };
+})();
+
+// ── API Client ────────────────────────────────────────────────────────────────
+var PrismAPI = (function() {
+  function post(path, data, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', PRISM_WORKER + path, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === 4) {
+        try {
+          var result = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            callback(null, result);
+          } else {
+            callback(result.error || 'Request failed', null);
+          }
+        } catch(e) {
+          callback('Invalid response', null);
+        }
+      }
+    };
+    xhr.onerror = function() { callback('Network error', null); };
+    xhr.send(JSON.stringify(data));
+  }
+
+  function get(path, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', PRISM_WORKER + path, true);
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === 4) {
+        try {
+          var result = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            callback(null, result);
+          } else {
+            callback(result.error || 'Request failed', null);
+          }
+        } catch(e) {
+          callback('Invalid response', null);
+        }
+      }
+    };
+    xhr.onerror = function() { callback('Network error', null); };
+    xhr.send();
+  }
+
+  function chat(messages, profile, threadId, callback) {
+    post('/api/chat', {messages: messages, profile: profile || 'balanced', threadId: threadId}, callback);
+  }
+
+  function getThreads(callback) { get('/api/threads', callback); }
+  function getThread(id, callback) { get('/api/threads/' + id, callback); }
+  function getMemory(callback) { get('/api/memory', callback); }
+  function saveMemory(content, tags, callback) { post('/api/memory', {content: content, tags: tags}, callback); }
+  function search(query, sources, callback) { post('/api/search', {query: query, sources: sources}, callback); }
+  function atomise(text, profile, callback) { post('/api/atomise', {text: text, profile: profile}, callback); }
+  function generateImage(prompt, model, callback) { post('/api/image', {prompt: prompt, model: model}, callback); }
+  function devteam(agent, message, callback) { post('/api/devteam', {agent: agent, message: message}, callback); }
+
+  return { post: post, get: get, chat: chat, getThreads: getThreads, getThread: getThread,
+           getMemory: getMemory, saveMemory: saveMemory, search: search, atomise: atomise,
+           generateImage: generateImage, devteam: devteam };
+})();
+
+// ── On-screen Keyboard Builder ────────────────────────────────────────────────
+var OSK = (function() {
+  var ROWS = [
+    ['1','2','3','4','5','6','7','8','9','0','-','='],
+    ['q','w','e','r','t','y','u','i','o','p','[',']'],
+    ['a','s','d','f','g','h','j','k','l',';',"'"],
+    ['z','x','c','v','b','n','m',',','.','?','!'],
+    ['Ctrl','Shift','Space','.',',','!','?',"'",'–','(',')',
+     '@','#','£','$','%','&','⌫','↵','Send','😊']
+  ];
+
+  function build(containerId, targetId) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    container.className = 'osk';
+
+    for (var r = 0; r < ROWS.length; r++) {
+      var row = document.createElement('div');
+      row.className = 'osk-row';
+      var keys = ROWS[r];
+      for (var k = 0; k < keys.length; k++) {
+        (function(key) {
+          var btn = document.createElement('button');
+          btn.className = 'osk-key';
+          btn.textContent = key;
+          btn.type = 'button';
+          if (key === 'Space') { btn.className += ' space'; btn.textContent = ' '; }
+          if (key === 'Send') { btn.className += ' send'; }
+          if (key === 'Ctrl' || key === 'Shift' || key === '⌫' || key === '↵') { btn.className += ' wide'; }
+          btn.title = key === 'Send' ? 'Send message' : key === '⌫' ? 'Backspace' : key === '↵' ? 'New line' : 'Type ' + key;
+          btn.onclick = function() {
+            var target = document.getElementById(targetId);
+            if (!target) return;
+            if (key === '⌫') {
+              var val = target.value;
+              target.value = val.substring(0, val.length - 1);
+            } else if (key === '↵') {
+              target.value += '\n';
+            } else if (key === 'Send') {
+              var sendFn = window.prismSendMessage || window.doSend;
+              if (typeof sendFn === 'function') sendFn();
+            } else if (key === 'Space') {
+              target.value += ' ';
+            } else if (key === 'Ctrl' || key === 'Shift') {
+              // modifier — no-op for now
+            } else if (key === '😊') {
+              target.value += '😊';
+            } else {
+              target.value += key;
+            }
+            target.focus();
+          };
+          row.appendChild(btn);
+        })(keys[k]);
+      }
+      container.appendChild(row);
+    }
+  }
+
+  return { build: build };
+})();
+
+// ── Sidebar HTML Builder ──────────────────────────────────────────────────────
+function buildSidebar(activePage) {
+  var nav = [
+    {label: 'Home', icon: '⌂', href: '/home/'},
+    {label: 'Chat', icon: '💬', href: '/chat/'},
+    {label: 'Research', icon: '🔍', href: '/research/'},
+    {label: 'Drafting Desk', icon: '✍', href: '/drafting/'},
+    {type: 'section', label: 'Create'},
+    {label: 'Creator Studio', icon: '🎨', href: '/creator/'},
+    {label: '↳ Canvas', icon: '', href: '/creator/canvas/', sub: true},
+    {label: '↳ Assets', icon: '', href: '/creator/assets/', sub: true},
+    {label: '↳ Podcasts', icon: '', href: '/creator/podcasts/', sub: true},
+    {label: '↳ Worksheets', icon: '', href: '/creator/worksheets/', sub: true},
+    {label: '↳ Social Series', icon: '', href: '/creator/social-series/', sub: true},
+    {label: '↳ Brand Kit', icon: '', href: '/creator/brand-kit/', sub: true},
+    {label: 'Atomise', icon: '⚡', href: '/atomise/'},
+    {label: 'Social Queue', icon: '📅', href: '/social-queue/'},
+    {type: 'section', label: 'Business'},
+    {label: 'CRM', icon: '👥', href: '/crm/'},
+    {label: 'Monetisation', icon: '💷', href: '/monetisation/'},
+    {label: '↳ Platform Manager', icon: '', href: '/platform-manager/', sub: true},
+    {label: 'Comms Centre', icon: '📧', href: '/comms/'},
+    {label: '↳ Email', icon: '', href: '/comms/email/', sub: true},
+    {label: '↳ Zoho Social', icon: '', href: '/comms/zoho-social/', sub: true},
+    {label: '↳ Zoho Calendar', icon: '', href: '/comms/zoho-calendar/', sub: true},
+    {label: '↳ Zoho CRM', icon: '', href: '/comms/zoho-crm/', sub: true},
+    {type: 'section', label: 'Intelligence'},
+    {label: 'Agenti City', icon: '🤖', href: '/agenti/'},
+    {label: '↳ Agent Builder', icon: '', href: '/agenti/agent-builder/', sub: true},
+    {label: '↳ Persona Maker', icon: '', href: '/agenti/persona-maker/', sub: true},
+    {label: '↳ Round Table', icon: '', href: '/agenti/round-table/', sub: true},
+    {label: '↳ Workflow Wizard', icon: '', href: '/agenti/workflow-wizard/', sub: true},
+    {label: 'Orchestrator', icon: '⚙', href: '/orchestrator/'},
+    {type: 'section', label: 'System'},
+    {label: 'My Profile', icon: '👤', href: '/profile/'},
+    {label: 'Workspaces', icon: '🗂', href: '/workspaces/'},
+    {label: 'Memory', icon: '🧠', href: '/memory/'},
+    {label: 'Whiteboard', icon: '🖊', href: '/whiteboard/'},
+    {label: 'Handwriting', icon: '✒', href: '/handwriting/'},
+    {label: 'Settings', icon: '⚙', href: '/settings/'},
+    {label: 'Dev Team', icon: '🛠', href: '/dev-team/'},
+    {label: 'Sitemap', icon: '🗺', href: '/sitemap/'},
+  ];
+
+  var sidebar = document.createElement('nav');
+  sidebar.className = 'sidebar';
+  sidebar.id = 'sidebar';
+
+  // Logo
+  var logo = document.createElement('div');
+  logo.className = 'sidebar-logo';
+  var logoMark = document.createElement('div');
+  logoMark.className = 'sidebar-logo-mark';
+  logoMark.innerHTML = '<svg viewBox="0 0 28 28" fill="none"><path d="M14 4 L24 14 L14 24 L4 14 Z" fill="#0f3b3a" opacity="0.8"/><path d="M14 8 L20 14 L14 20 L8 14 Z" fill="#5c2d3f" opacity="0.8"/></svg>';
+  var logoText = document.createElement('span');
+  logoText.className = 'sidebar-logo-text';
+  logoText.textContent = 'Prism';
+  logo.appendChild(logoMark);
+  logo.appendChild(logoText);
+  sidebar.appendChild(logo);
+
+  // Nav
+  var navEl = document.createElement('div');
+  navEl.className = 'sidebar-nav';
+
+  for (var i = 0; i < nav.length; i++) {
+    var item = nav[i];
+    if (item.type === 'section') {
+      var sec = document.createElement('div');
+      sec.className = 'sidebar-section';
+      sec.textContent = item.label;
+      navEl.appendChild(sec);
+    } else {
+      var a = document.createElement('a');
+      a.className = 'nav-item' + (item.sub ? ' nav-sub' : '');
+      a.href = item.href;
+      a.title = item.label;
+      if (activePage && item.href === activePage) a.classList.add('active');
+      if (item.icon) {
+        var icon = document.createElement('span');
+        icon.className = 'nav-item-icon';
+        icon.textContent = item.icon;
+        a.appendChild(icon);
+      }
+      var lbl = document.createElement('span');
+      lbl.className = 'nav-item-label';
+      lbl.textContent = item.label;
+      a.appendChild(lbl);
+      navEl.appendChild(a);
+    }
+  }
+  sidebar.appendChild(navEl);
+
+  // Toggle
+  var toggleDiv = document.createElement('div');
+  toggleDiv.className = 'sidebar-toggle';
+  var toggleBtn = document.createElement('button');
+  toggleBtn.className = 'sidebar-toggle-btn';
+  toggleBtn.textContent = '◀';
+  toggleBtn.title = 'Collapse sidebar';
+  toggleBtn.onclick = function() { Sidebar.toggle(); };
+  toggleDiv.appendChild(toggleBtn);
+  sidebar.appendChild(toggleDiv);
+
+  return sidebar;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  ThemeSystem.init();
+  Sidebar.init();
+});

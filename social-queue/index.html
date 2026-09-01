@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Social Queue — Prism</title>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+<style>
+.queue-layout { display: grid; grid-template-columns: 1fr 340px; gap: 0; height: calc(100vh - var(--topbar-h)); overflow: hidden; }
+@media(max-width:900px){ .queue-layout{ grid-template-columns: 1fr; } .queue-compose{ display:none; } }
+.queue-main { overflow-y: auto; padding: 20px; }
+.queue-compose { border-left: 1px solid var(--border); background: var(--bg-surface); overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.queue-filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+.filter-chip { padding: 5px 12px; border: 1px solid var(--border); border-radius: 20px; font-size: 12px; cursor: pointer; color: var(--fg-secondary); background: var(--bg-elevated); transition: all 0.15s; }
+.filter-chip.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.queue-item { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px; transition: border-color 0.15s; }
+.queue-item:hover { border-color: var(--accent); }
+.queue-item-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.platform-icon { font-size: 20px; }
+.platform-name { font-size: 12px; font-weight: 600; color: var(--fg-secondary); }
+.queue-item-status { margin-left: auto; }
+.queue-item-content { font-size: 13.5px; line-height: 1.6; color: var(--fg-primary); margin-bottom: 10px; white-space: pre-wrap; }
+.queue-item-footer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.queue-item-time { font-size: 11.5px; color: var(--fg-muted); }
+.queue-item-actions { margin-left: auto; display: flex; gap: 6px; }
+.compose-section { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; }
+.compose-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); margin-bottom: 10px; }
+.compose-textarea { width: 100%; min-height: 100px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13.5px; font-family: var(--font-ui); resize: none; outline: none; background: var(--bg-primary); color: var(--fg-primary); line-height: 1.6; }
+.compose-textarea:focus { border-color: var(--accent); }
+.char-count { font-size: 11px; color: var(--fg-muted); text-align: right; margin-top: 4px; }
+.char-count.over { color: var(--danger); }
+.platform-toggles { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.platform-toggle { padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; cursor: pointer; color: var(--fg-secondary); background: var(--bg-surface); transition: all 0.15s; display: flex; align-items: center; gap: 4px; }
+.platform-toggle.active { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.schedule-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.schedule-input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; outline: none; background: var(--bg-primary); color: var(--fg-primary); }
+.schedule-input:focus { border-color: var(--accent); }
+.ai-assist-row { display: flex; gap: 6px; margin-top: 8px; }
+.ai-assist-input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; outline: none; background: var(--bg-primary); color: var(--fg-primary); }
+.ai-assist-input:focus { border-color: var(--accent); }
+.stats-row { display: flex; gap: 12px; margin-bottom: 16px; }
+.stat-card { flex: 1; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
+.stat-number { font-size: 22px; font-weight: 700; color: var(--accent); font-family: var(--font-heading); }
+.stat-label { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="prism-shell">
+<div id="sidebar-mount"></div>
+<div class="main-content" id="main-content">
+<div class="topbar">
+<div class="topbar-title">Social Queue</div>
+<div class="topbar-actions">
+<button class="btn btn-sm btn-secondary" onclick="loadQueue()" title="Refresh queue">↺ Refresh</button>
+<a class="btn btn-sm btn-primary" href="/atomise/" title="Create new assets via Atomise">⚡ Atomise</a>
+</div>
+</div>
+<div class="queue-layout">
+<!-- Queue list -->
+<div class="queue-main">
+<div class="stats-row" id="stats-row">
+<div class="stat-card"><div class="stat-number" id="stat-pending">—</div><div class="stat-label">Pending</div></div>
+<div class="stat-card"><div class="stat-number" id="stat-scheduled">—</div><div class="stat-label">Scheduled</div></div>
+<div class="stat-card"><div class="stat-number" id="stat-posted">—</div><div class="stat-label">Posted</div></div>
+<div class="stat-card"><div class="stat-number" id="stat-total">—</div><div class="stat-label">Total</div></div>
+</div>
+<div class="queue-filters">
+<span class="filter-chip active" onclick="filterQueue(this,'all')">All</span>
+<span class="filter-chip" onclick="filterQueue(this,'pending')">Pending</span>
+<span class="filter-chip" onclick="filterQueue(this,'scheduled')">Scheduled</span>
+<span class="filter-chip" onclick="filterQueue(this,'posted')">Posted</span>
+<span class="filter-chip" onclick="filterQueue(this,'bluesky')">🦋 Bluesky</span>
+<span class="filter-chip" onclick="filterQueue(this,'linkedin')">💼 LinkedIn</span>
+</div>
+<div id="queue-list">
+<div style="text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">Loading queue…</div>
+</div>
+</div>
+<!-- Compose panel -->
+<div class="queue-compose">
+<div class="compose-section">
+<div class="compose-title">Compose Post</div>
+<textarea class="compose-textarea" id="compose-text" oninput="updateCharCount()" placeholder="Write your post…"></textarea>
+<div class="char-count" id="char-count">0 / 300</div>
+<div class="platform-toggles">
+<div class="platform-toggle active" onclick="togglePlatform(this,'bluesky')" title="Post to Bluesky">🦋 Bluesky</div>
+<div class="platform-toggle" onclick="togglePlatform(this,'linkedin')" title="Post to LinkedIn">💼 LinkedIn</div>
+<div class="platform-toggle" onclick="togglePlatform(this,'twitter')" title="Post to Twitter/X">🐦 Twitter</div>
+</div>
+<div class="schedule-row">
+<input class="schedule-input" id="schedule-time" title="Schedule post time" type="datetime-local"/>
+<button class="btn btn-sm btn-secondary" onclick="scheduleNow()" title="Schedule for now">Now</button>
+</div>
+<div style="display:flex;gap:6px;margin-top:10px;">
+<button class="btn btn-primary" onclick="addToQueue()" style="flex:1;" title="Add to queue">📅 Queue</button>
+<button class="btn btn-rose" onclick="postNow()" style="flex:1;" title="Post immediately">🚀 Post Now</button>
+</div>
+</div>
+<div class="compose-section">
+<div class="compose-title">AI Assist</div>
+<input class="ai-assist-input" id="ai-assist-input" placeholder="e.g. Write a post about addiction recovery…" type="text"/>
+<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+<button class="btn btn-sm btn-secondary" onclick="aiAssist()" title="Generate post with AI">✨ Generate</button>
+<button class="btn btn-sm btn-secondary" onclick="aiImprove()" title="Improve current text">✨ Improve</button>
+<button class="btn btn-sm btn-secondary" onclick="aiHashtags()" title="Add hashtags">🏷 Hashtags</button>
+</div>
+</div>
+<div class="compose-section">
+<div class="compose-title">Quick Actions</div>
+<div style="display:flex;flex-direction:column;gap:6px;">
+<a class="btn btn-sm btn-secondary" href="/atomise/" title="Create assets from long-form text">⚡ Atomise Text</a>
+<button class="btn btn-sm btn-secondary" onclick="clearQueue()" title="Clear all pending posts">🗑 Clear Pending</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var allQueue = [];
+var currentFilter = 'all';
+var activePlatforms = ['bluesky'];
+
+var PLATFORM_ICONS = {bluesky:'🦋', linkedin:'💼', twitter:'🐦', instagram:'📸', facebook:'👥', general:'📝'};
+
+function togglePlatform(el, platform) {
+  el.classList.toggle('active');
+  if (el.classList.contains('active')) activePlatforms.push(platform);
+  else activePlatforms = activePlatforms.filter(function(p) { return p !== platform; });
+}
+
+function updateCharCount() {
+  var text = document.getElementById('compose-text').value;
+  var el = document.getElementById('char-count');
+  if (el) {
+    el.textContent = text.length + ' / 300';
+    el.className = 'char-count' + (text.length > 300 ? ' over' : '');
+  }
+}
+
+function scheduleNow() {
+  var el = document.getElementById('schedule-time');
+  if (el) el.value = new Date(Date.now() + 3600000).toISOString().slice(0,16);
+}
+
+function loadQueue() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', WORKER + '/api/social/queue', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      allQueue = result.queue || [];
+      updateStats();
+      renderQueue(allQueue);
+    } catch(e) { renderQueue([]); }
+  };
+  xhr.onerror = function() { renderQueue([]); };
+  xhr.send();
+}
+
+function updateStats() {
+  var pending = allQueue.filter(function(i) { return i.status === 'pending'; }).length;
+  var scheduled = allQueue.filter(function(i) { return i.status === 'scheduled'; }).length;
+  var posted = allQueue.filter(function(i) { return i.status === 'posted'; }).length;
+  var s = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
+  s('stat-pending', pending);
+  s('stat-scheduled', scheduled);
+  s('stat-posted', posted);
+  s('stat-total', allQueue.length);
+}
+
+function filterQueue(el, filter) {
+  currentFilter = filter;
+  var chips = document.querySelectorAll('.filter-chip');
+  for (var i = 0; i < chips.length; i++) chips[i].classList.remove('active');
+  el.classList.add('active');
+  var filtered = allQueue;
+  if (filter !== 'all') {
+    filtered = allQueue.filter(function(item) {
+      return item.status === filter || (item.type && item.type.toLowerCase().indexOf(filter) >= 0) || (item.platform && item.platform.toLowerCase() === filter);
+    });
+  }
+  renderQueue(filtered);
+}
+
+function renderQueue(items) {
+  var list = document.getElementById('queue-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!items || items.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">Queue is empty. Use Atomise or compose a post to add items.</div>';
+    return;
+  }
+  for (var i = 0; i < items.length; i++) {
+    (function(item) {
+      var el = document.createElement('div');
+      el.className = 'queue-item';
+      var header = document.createElement('div');
+      header.className = 'queue-item-header';
+      var icon = document.createElement('span');
+      icon.className = 'platform-icon';
+      var platform = (item.platform || item.type || 'general').toLowerCase();
+      icon.textContent = PLATFORM_ICONS[platform] || '📝';
+      var name = document.createElement('span');
+      name.className = 'platform-name';
+      name.textContent = item.type || item.platform || 'Post';
+      var statusBadge = document.createElement('span');
+      statusBadge.className = 'queue-item-status';
+      var badgeClass = item.status === 'posted' ? 'badge-success' : item.status === 'scheduled' ? 'badge-accent' : 'badge-warning';
+      statusBadge.innerHTML = '<span class="badge ' + badgeClass + '">' + (item.status || 'pending') + '</span>';
+      header.appendChild(icon);
+      header.appendChild(name);
+      header.appendChild(statusBadge);
+      var content = document.createElement('div');
+      content.className = 'queue-item-content';
+      content.textContent = (item.content || '').substring(0, 280) + (item.content && item.content.length > 280 ? '…' : '');
+      var footer = document.createElement('div');
+      footer.className = 'queue-item-footer';
+      var time = document.createElement('span');
+      time.className = 'queue-item-time';
+      time.textContent = item.scheduledAt ? '📅 ' + new Date(item.scheduledAt).toLocaleString('en-GB') : 'No schedule';
+      var actions = document.createElement('div');
+      actions.className = 'queue-item-actions';
+      if (item.status !== 'posted') {
+        var postBtn = document.createElement('button');
+        postBtn.className = 'btn btn-sm btn-primary';
+        postBtn.textContent = '🚀 Post';
+        postBtn.title = 'Post this now';
+        postBtn.onclick = function() { postItem(item); };
+        actions.appendChild(postBtn);
+      }
+      var delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-sm btn-ghost';
+      delBtn.textContent = '🗑';
+      delBtn.title = 'Delete this item';
+      delBtn.onclick = function() { deleteItem(item.id); };
+      actions.appendChild(delBtn);
+      footer.appendChild(time);
+      footer.appendChild(actions);
+      el.appendChild(header);
+      el.appendChild(content);
+      el.appendChild(footer);
+      list.appendChild(el);
+    })(items[i]);
+  }
+}
+
+function addToQueue() {
+  var text = document.getElementById('compose-text').value.trim();
+  if (!text) { Toast.warning('Write something first'); return; }
+  var scheduleEl = document.getElementById('schedule-time');
+  var scheduledAt = scheduleEl && scheduleEl.value ? new Date(scheduleEl.value).toISOString() : new Date(Date.now() + 3600000).toISOString();
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/social/queue', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    Toast.success('Added to queue');
+    document.getElementById('compose-text').value = '';
+    updateCharCount();
+    loadQueue();
+  };
+  xhr.onerror = function() { Toast.error('Network error'); };
+  xhr.send(JSON.stringify({content: text, platforms: activePlatforms, status: 'scheduled', scheduledAt: scheduledAt}));
+}
+
+function postNow() {
+  var text = document.getElementById('compose-text').value.trim();
+  if (!text) { Toast.warning('Write something first'); return; }
+  if (activePlatforms.length === 0) { Toast.warning('Select at least one platform'); return; }
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/social/post', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      if (result.success) { Toast.success('Posted!'); document.getElementById('compose-text').value = ''; updateCharCount(); }
+      else Toast.error('Post failed: ' + (result.error || 'Unknown'));
+    } catch(e) { Toast.error('Post failed'); }
+  };
+  xhr.onerror = function() { Toast.error('Network error'); };
+  xhr.send(JSON.stringify({text: text, platforms: activePlatforms}));
+}
+
+function postItem(item) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/social/post', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      if (result.success) { Toast.success('Posted!'); loadQueue(); }
+      else Toast.error('Post failed: ' + (result.error || 'Unknown'));
+    } catch(e) { Toast.error('Post failed'); }
+  };
+  xhr.onerror = function() { Toast.error('Network error'); };
+  xhr.send(JSON.stringify({text: item.content, platforms: ['bluesky']}));
+}
+
+function deleteItem(id) {
+  if (!id) return;
+  var xhr = new XMLHttpRequest();
+  xhr.open('DELETE', WORKER + '/api/social/queue/' + id, true);
+  xhr.onreadystatechange = function() { if (xhr.readyState === 4) { Toast.info('Deleted'); loadQueue(); } };
+  xhr.onerror = function() { Toast.error('Network error'); };
+  xhr.send();
+}
+
+function aiAssist() {
+  var prompt = document.getElementById('ai-assist-input').value.trim();
+  if (!prompt) { Toast.warning('Enter a prompt first'); return; }
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      var el = document.getElementById('compose-text');
+      if (el && result.content) { el.value = result.content; updateCharCount(); }
+    } catch(e) { Toast.error('AI assist failed'); }
+  };
+  xhr.onerror = function() { Toast.error('Network error'); };
+  xhr.send(JSON.stringify({messages:[{role:'system',content:'Write a social media post for Identity Partners. British English. Professional. Under 280 characters unless specified. No hashtags unless asked.'},{role:'user',content:prompt}],profile:'balanced'}));
+}
+
+function aiImprove() {
+  var text = document.getElementById('compose-text').value.trim();
+  if (!text) { Toast.warning('Write something first'); return; }
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      var el = document.getElementById('compose-text');
+      if (el && result.content) { el.value = result.content; updateCharCount(); }
+    } catch(e) { Toast.error('AI improve failed'); }
+  };
+  xhr.onerror = function() { Toast.error('Network error'); };
+  xhr.send(JSON.stringify({messages:[{role:'system',content:'Improve this social media post. Keep it under 280 characters. British English. Professional.'},{role:'user',content:text}],profile:'balanced'}));
+}
+
+function aiHashtags() {
+  var text = document.getElementById('compose-text').value.trim();
+  if (!text) { Toast.warning('Write something first'); return; }
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      var el = document.getElementById('compose-text');
+      if (el && result.content) { el.value = text + '\n\n' + result.content; updateCharCount(); }
+    } catch(e) { Toast.error('Hashtag generation failed'); }
+  };
+  xhr.onerror = function() { Toast.error('Network error'); };
+  xhr.send(JSON.stringify({messages:[{role:'system',content:'Generate 5 relevant hashtags for this social media post. Return only the hashtags, space-separated.'},{role:'user',content:text}],profile:'free'}));
+}
+
+function clearQueue() {
+  if (!confirm('Clear all pending posts? This cannot be undone.')) return;
+  var pending = allQueue.filter(function(i) { return i.status === 'pending'; });
+  var deleted = 0;
+  if (pending.length === 0) { Toast.info('No pending posts to clear'); return; }
+  for (var i = 0; i < pending.length; i++) {
+    (function(item) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('DELETE', WORKER + '/api/social/queue/' + item.id, true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        deleted++;
+        if (deleted === pending.length) { Toast.success('Cleared ' + deleted + ' pending posts'); loadQueue(); }
+      };
+      xhr.send();
+    })(pending[i]);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/social-queue/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  scheduleNow();
+  loadQueue();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Whiteboard — Prism</title>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+<style>
+.wb-toolbar { height:48px; background:var(--bg-elevated); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 14px; gap:6px; flex-shrink:0; overflow-x:auto; }
+.wb-canvas-wrap { flex:1; overflow:hidden; position:relative; background:#ffffff; cursor:crosshair; }
+canvas#wb { position:absolute; top:0; left:0; touch-action:none; }
+.wb-btn { padding:5px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; background:var(--bg-surface); color:var(--fg-secondary); cursor:pointer; white-space:nowrap; transition:all 0.15s; }
+.wb-btn.active { background:var(--accent-light); border-color:var(--accent); color:var(--accent); }
+.wb-sep { width:1px; height:24px; background:var(--border); margin:0 4px; flex-shrink:0; }
+.color-dot { width:22px; height:22px; border-radius:50%; border:2px solid transparent; cursor:pointer; flex-shrink:0; transition:border-color 0.15s; }
+.color-dot.active { border-color:var(--fg-primary); }
+</style>
+</head>
+<body>
+<div class="prism-shell">
+<div id="sidebar-mount"></div>
+<div class="main-content" id="main-content" style="display:flex;flex-direction:column;overflow:hidden;height:100vh;">
+<div class="wb-toolbar">
+<button class="wb-btn active" id="tool-pen" onclick="setTool('pen')" title="Pen tool">✏ Pen</button>
+<button class="wb-btn" id="tool-eraser" onclick="setTool('eraser')" title="Eraser tool">⬜ Eraser</button>
+<button class="wb-btn" id="tool-line" onclick="setTool('line')" title="Draw a straight line">╱ Line</button>
+<button class="wb-btn" id="tool-rect" onclick="setTool('rect')" title="Draw a rectangle">▭ Rect</button>
+<div class="wb-sep"></div>
+<div class="color-dot active" onclick="setColor('#0f3b3a',this)" style="background:#0f3b3a;" title="Teal"></div>
+<div class="color-dot" onclick="setColor('#5c2d3f',this)" style="background:#5c2d3f;" title="Rose"></div>
+<div class="color-dot" onclick="setColor('#1a1a1a',this)" style="background:#1a1a1a;" title="Black"></div>
+<div class="color-dot" onclick="setColor('#e74c3c',this)" style="background:#e74c3c;" title="Red"></div>
+<div class="color-dot" onclick="setColor('#3498db',this)" style="background:#3498db;" title="Blue"></div>
+<div class="color-dot" onclick="setColor('#27ae60',this)" style="background:#27ae60;" title="Green"></div>
+<div class="color-dot" onclick="setColor('#f39c12',this)" style="background:#f39c12;" title="Orange"></div>
+<div class="wb-sep"></div>
+<label style="font-size:11px;color:var(--fg-muted);white-space:nowrap;">Size:</label>
+<input id="brush-size" max="40" min="1" style="width:70px;" title="Brush size" type="range" value="3"/>
+<div class="wb-sep"></div>
+<button class="wb-btn" onclick="undoStroke()" title="Undo last stroke">↩ Undo</button>
+<button class="wb-btn" onclick="clearCanvas()" title="Clear the whiteboard">✕ Clear</button>
+<button class="wb-btn" onclick="saveCanvas()" title="Save as PNG image">⬇ Save PNG</button>
+</div>
+<div class="wb-canvas-wrap" id="wb-wrap">
+<canvas id="wb"></canvas>
+</div>
+</div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+var canvas = document.getElementById('wb');
+var ctx = canvas.getContext('2d');
+var drawing = false;
+var currentTool = 'pen';
+var currentColor = '#0f3b3a';
+var strokes = [];
+var currentPoints = [];
+var startX = 0, startY = 0;
+
+function resize() {
+  var wrap = document.getElementById('wb-wrap');
+  if (!wrap) return;
+  var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  canvas.width = wrap.offsetWidth;
+  canvas.height = wrap.offsetHeight;
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function setTool(tool) {
+  currentTool = tool;
+  var btns = ['pen','eraser','line','rect'];
+  for (var i = 0; i < btns.length; i++) {
+    var btn = document.getElementById('tool-' + btns[i]);
+    if (btn) btn.className = 'wb-btn' + (btns[i] === tool ? ' active' : '');
+  }
+  canvas.style.cursor = tool === 'eraser' ? 'cell' : 'crosshair';
+}
+
+function setColor(color, el) {
+  currentColor = color;
+  var dots = document.querySelectorAll('.color-dot');
+  for (var i = 0; i < dots.length; i++) dots[i].classList.remove('active');
+  if (el) el.classList.add('active');
+}
+
+function getPos(e) {
+  var rect = canvas.getBoundingClientRect();
+  var src = e.touches ? e.touches[0] : e;
+  return {x: src.clientX - rect.left, y: src.clientY - rect.top};
+}
+
+function getBrushSize() {
+  return parseInt(document.getElementById('brush-size').value) || 3;
+}
+
+canvas.addEventListener('mousedown', function(e) {
+  drawing = true;
+  var p = getPos(e);
+  startX = p.x; startY = p.y;
+  currentPoints = [{x:p.x, y:p.y}];
+  ctx.beginPath();
+  ctx.moveTo(p.x, p.y);
+});
+
+canvas.addEventListener('mousemove', function(e) {
+  if (!drawing) return;
+  var p = getPos(e);
+  var size = getBrushSize();
+  ctx.lineWidth = size;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  if (currentTool === 'eraser') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.strokeStyle = 'rgba(0,0,0,1)';
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  } else if (currentTool === 'pen') {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = currentColor;
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+  currentPoints.push({x:p.x, y:p.y});
+});
+
+canvas.addEventListener('mouseup', function(e) {
+  if (!drawing) return;
+  drawing = false;
+  ctx.globalCompositeOperation = 'source-over';
+  var p = getPos(e);
+  var size = getBrushSize();
+  if (currentTool === 'line') {
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(p.x, p.y);
+    ctx.strokeStyle = currentColor;
+    ctx.lineWidth = size;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    currentPoints.push({x:p.x, y:p.y});
+  } else if (currentTool === 'rect') {
+    ctx.strokeStyle = currentColor;
+    ctx.lineWidth = size;
+    ctx.strokeRect(startX, startY, p.x - startX, p.y - startY);
+    currentPoints.push({x:p.x, y:p.y});
+  }
+  strokes.push({tool:currentTool, color:currentColor, size:size, points:currentPoints.slice(), sx:startX, sy:startY});
+  currentPoints = [];
+});
+
+canvas.addEventListener('touchstart', function(e) { e.preventDefault(); drawing=true; var p=getPos(e); startX=p.x; startY=p.y; currentPoints=[{x:p.x,y:p.y}]; ctx.beginPath(); ctx.moveTo(p.x,p.y); }, {passive:false});
+canvas.addEventListener('touchmove', function(e) {
+  e.preventDefault();
+  if (!drawing) return;
+  var p = getPos(e);
+  var size = getBrushSize();
+  ctx.lineWidth = size; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (currentTool === 'eraser') { ctx.globalCompositeOperation='destination-out'; ctx.strokeStyle='rgba(0,0,0,1)'; }
+  else { ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=currentColor; }
+  ctx.lineTo(p.x, p.y); ctx.stroke();
+  currentPoints.push({x:p.x,y:p.y});
+}, {passive:false});
+canvas.addEventListener('touchend', function() { drawing=false; ctx.globalCompositeOperation='source-over'; strokes.push({tool:currentTool,color:currentColor,size:getBrushSize(),points:currentPoints.slice(),sx:startX,sy:startY}); currentPoints=[]; });
+
+function undoStroke() {
+  if (strokes.length === 0) return;
+  strokes.pop();
+  redraw();
+}
+
+function redraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (var i = 0; i < strokes.length; i++) {
+    var s = strokes[i];
+    ctx.lineWidth = s.size; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (s.tool === 'eraser') { ctx.globalCompositeOperation='destination-out'; ctx.strokeStyle='rgba(0,0,0,1)'; }
+    else { ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=s.color; }
+    if (s.tool === 'pen' || s.tool === 'eraser') {
+      ctx.beginPath();
+      if (s.points.length > 0) ctx.moveTo(s.points[0].x, s.points[0].y);
+      for (var j = 1; j < s.points.length; j++) ctx.lineTo(s.points[j].x, s.points[j].y);
+      ctx.stroke();
+    } else if (s.tool === 'line' && s.points.length > 0) {
+      var last = s.points[s.points.length-1];
+      ctx.beginPath(); ctx.moveTo(s.sx, s.sy); ctx.lineTo(last.x, last.y); ctx.stroke();
+    } else if (s.tool === 'rect' && s.points.length > 0) {
+      var last = s.points[s.points.length-1];
+      ctx.strokeRect(s.sx, s.sy, last.x-s.sx, last.y-s.sy);
+    }
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+function clearCanvas() {
+  if (!confirm('Clear the whiteboard? This cannot be undone.')) return;
+  strokes = [];
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function saveCanvas() {
+  var a = document.createElement('a');
+  a.download = 'prism-whiteboard-' + Date.now() + '.png';
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+}
+
+window.addEventListener('resize', resize);
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/whiteboard/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  resize();
+});
+</script>
+</body>
+</html>

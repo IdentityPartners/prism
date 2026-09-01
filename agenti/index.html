@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agenti City — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar"><div class="topbar-title">Agenti City</div></div>
+    <div class="page-content">
+      <p style="font-size:13px;color:var(--fg-muted);margin-bottom:20px;">Build, configure, and deploy AI agents for every task.</p>
+      <div class="grid-2" style="gap:20px;">
+        <a href="/agenti/agent-builder/" class="card" style="text-decoration:none;display:block;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Agent Builder">
+          <div style="font-size:32px;margin-bottom:10px;">🤖</div>
+          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:6px;">Agent Builder</div>
+          <div style="font-size:13px;color:var(--fg-muted);">Create custom AI agents with specific system prompts, tools, and routing profiles.</div>
+        </a>
+        <a href="/agenti/persona-maker/" class="card" style="text-decoration:none;display:block;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Persona Maker">
+          <div style="font-size:32px;margin-bottom:10px;">🎭</div>
+          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:6px;">Persona Maker</div>
+          <div style="font-size:13px;color:var(--fg-muted);">Design chat personas with distinct voices, avatars, and system prompts.</div>
+        </a>
+        <a href="/agenti/round-table/" class="card" style="text-decoration:none;display:block;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Round Table">
+          <div style="font-size:32px;margin-bottom:10px;">🪑</div>
+          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:6px;">Round Table</div>
+          <div style="font-size:13px;color:var(--fg-muted);">Send the same prompt to multiple models simultaneously and compare responses.</div>
+        </a>
+        <a href="/agenti/workflow-wizard/" class="card" style="text-decoration:none;display:block;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Workflow Wizard">
+          <div style="font-size:32px;margin-bottom:10px;">⚡</div>
+          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:6px;">Workflow Wizard</div>
+          <div style="font-size:13px;color:var(--fg-muted);">Build automated multi-step workflows that chain AI calls, searches, and actions.</div>
+        </a>
+      </div></div>
+  </div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/agenti/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  
+});
+
+</script>
+</body>
+</html>

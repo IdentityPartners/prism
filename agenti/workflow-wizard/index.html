@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workflow Wizard — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar"><div class="topbar-title">Workflow Wizard</div><div class="topbar-actions"><button class="btn btn-sm btn-primary" onclick="saveWorkflow()" title="Save workflow">Save Workflow</button></div></div>
+    <div class="page-content">
+      <div class="grid-2" style="gap:20px;align-items:start;">
+        <div class="card">
+          <div class="card-header"><span class="card-title">New Workflow</span></div>
+          <div class="form-group"><label class="form-label">Workflow Name *</label><input class="input" id="wf-name" type="text" placeholder="e.g. Morning Briefing"></div>
+          <div class="form-group"><label class="form-label">Description</label><textarea class="textarea" id="wf-desc" placeholder="What does this workflow do?"></textarea></div>
+          <div class="card" style="margin-bottom:14px;padding:12px;">
+            <div style="font-size:12px;font-weight:600;color:var(--fg-muted);margin-bottom:8px;">STEPS</div>
+            <div id="wf-steps" style="font-size:12.5px;color:var(--fg-muted);">No steps yet. Add steps below.</div>
+            <button class="btn btn-sm btn-secondary" style="margin-top:8px;" onclick="Toast.info('Step builder coming soon')" title="Add step">＋ Add Step</button>
+          </div>
+          <button class="btn btn-primary" onclick="saveWorkflow()" title="Save workflow">Save Workflow</button>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Saved Workflows</span></div>
+          <div id="workflows-list"></div>
+          <div class="card" style="margin-top:16px;padding:12px;background:var(--accent-light);border-color:var(--accent);">
+            <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:6px;">EXAMPLE WORKFLOWS</div>
+            <div style="font-size:12.5px;color:var(--fg-secondary);line-height:1.6;">
+              <div>• Morning Briefing — news + calendar + inbox summary</div>
+              <div>• Content Pipeline — research → draft → atomise → queue</div>
+              <div>• Client Onboarding — CRM entry + welcome email + calendar invite</div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+  </div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/agenti/workflow-wizard/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  loadWorkflows();
+});
+
+var workflows = [];
+function loadWorkflows() { try { workflows = JSON.parse(localStorage.getItem('prism-workflows') || '[]'); } catch(e) { workflows = []; } renderWorkflows(); }
+function saveWorkflows() { try { localStorage.setItem('prism-workflows', JSON.stringify(workflows)); } catch(e) {} }
+function saveWorkflow() {
+  var name = document.getElementById('wf-name').value.trim();
+  if (!name) { Toast.warning('Enter a workflow name'); return; }
+  var wf = {id:'wf-'+Date.now(), name:name, description:document.getElementById('wf-desc').value, steps:[], created:new Date().toISOString()};
+  workflows.push(wf); saveWorkflows(); renderWorkflows(); Toast.success('Workflow saved: ' + name);
+}
+function renderWorkflows() {
+  var list = document.getElementById('workflows-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (workflows.length === 0) { list.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">No workflows yet.</div>'; return; }
+  for (var i = 0; i < workflows.length; i++) {
+    (function(wf) {
+      var el = document.createElement('div');
+      el.style.cssText = 'padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;';
+      var name = document.createElement('div');
+      name.style.cssText = 'font-weight:600;font-size:13px;margin-bottom:3px;';
+      name.textContent = wf.name;
+      var desc = document.createElement('div');
+      desc.style.cssText = 'font-size:11.5px;color:var(--fg-muted);';
+      desc.textContent = wf.description || 'No description';
+      var delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-ghost btn-sm';
+      delBtn.textContent = '🗑';
+      delBtn.title = 'Delete workflow';
+      delBtn.onclick = function() { workflows = workflows.filter(function(w){return w.id!==wf.id;}); saveWorkflows(); renderWorkflows(); };
+      el.appendChild(name); el.appendChild(desc); el.appendChild(delBtn);
+      list.appendChild(el);
+    })(workflows[i]);
+  }
+}
+
+</script>
+</body>
+</html>

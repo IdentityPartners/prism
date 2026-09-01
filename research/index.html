@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Research — Prism</title>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+<style>
+.research-layout { display: grid; grid-template-columns: 240px 1fr 320px; height: calc(100vh - var(--topbar-h)); overflow: hidden; }
+@media(max-width:1200px){ .research-layout{ grid-template-columns: 200px 1fr; } .research-detail{ display:none; } }
+@media(max-width:800px){ .research-layout{ grid-template-columns: 1fr; } .research-saved{ display:none; } }
+.research-saved { border-right: 1px solid var(--border); background: var(--bg-surface); overflow-y: auto; padding: 12px; }
+.research-main { display: flex; flex-direction: column; overflow: hidden; }
+.research-detail { border-left: 1px solid var(--border); background: var(--bg-elevated); overflow-y: auto; padding: 16px; }
+.search-bar-area { padding: 16px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); flex-shrink: 0; }
+.search-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.search-input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; outline: none; background: var(--bg-primary); color: var(--fg-primary); }
+.search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(15,59,58,0.08); }
+.source-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.source-tab { padding: 7px 14px; font-size: 12px; font-weight: 500; color: var(--fg-muted); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.15s; }
+.source-tab:hover { color: var(--fg-primary); }
+.source-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.source-chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--bg-surface); flex-shrink: 0; }
+.source-chip { padding: 4px 10px; border: 1px solid var(--border); border-radius: 20px; font-size: 11.5px; color: var(--fg-secondary); background: var(--bg-elevated); cursor: pointer; transition: all 0.15s; }
+.source-chip.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.results-list { flex: 1; overflow-y: auto; padding: 12px 16px; }
+.result-item { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 10px; cursor: pointer; transition: border-color 0.15s; }
+.result-item:hover { border-color: var(--accent); }
+.result-item.active { border-color: var(--accent); background: var(--accent-light); }
+.result-title { font-size: 13.5px; font-weight: 500; color: var(--fg-primary); margin-bottom: 4px; line-height: 1.4; }
+.result-url { font-size: 11px; color: var(--accent); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.result-snippet { font-size: 12.5px; color: var(--fg-secondary); line-height: 1.5; }
+.result-meta { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.result-source-badge { font-size: 10px; padding: 2px 6px; border-radius: 10px; background: var(--bg-surface); color: var(--fg-muted); border: 1px solid var(--border); }
+.saved-run { padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; background: var(--bg-elevated); transition: border-color 0.15s; }
+.saved-run:hover { border-color: var(--accent); }
+.saved-run-title { font-size: 12.5px; font-weight: 500; color: var(--fg-primary); margin-bottom: 2px; }
+.saved-run-meta { font-size: 11px; color: var(--fg-muted); }
+.detail-title { font-family: var(--font-heading); font-size: 17px; font-weight: 600; margin-bottom: 8px; line-height: 1.4; }
+.detail-url { font-size: 12px; color: var(--accent); margin-bottom: 12px; word-break: break-all; }
+.detail-content { font-size: 13.5px; line-height: 1.7; color: var(--fg-secondary); }
+.synthesis-card { background: var(--accent-light); border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 16px; }
+.synthesis-title { font-size: 12px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+.synthesis-text { font-size: 13.5px; line-height: 1.6; color: var(--fg-primary); }
+</style>
+</head>
+<body>
+<div class="prism-shell">
+<div id="sidebar-mount"></div>
+<div class="main-content" id="main-content">
+<div class="topbar">
+<div class="topbar-title">Research Hub</div>
+<div class="topbar-actions">
+<button class="btn btn-sm btn-secondary" onclick="saveRun()" title="Save this research run">💾 Save Run</button>
+<button class="btn btn-sm btn-primary" onclick="synthesise()" title="AI synthesis of all results">✨ Synthesise</button>
+</div>
+</div>
+<div class="research-layout">
+<!-- Saved runs -->
+<div class="research-saved">
+<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:10px;">Saved Runs</div>
+<div id="saved-runs-list">
+<div style="font-size:12px;color:var(--fg-muted);">No saved runs yet.</div>
+</div>
+</div>
+<!-- Main search area -->
+<div class="research-main">
+<div class="search-bar-area">
+<div class="search-row">
+<input class="search-input" id="search-input" placeholder="Search across 80+ sources…" type="text"/>
+<button class="btn btn-primary" onclick="doSearch()" title="Search">🔍 Search</button>
+<button class="btn btn-secondary" onclick="clearResults()" title="Clear results">✕ Clear</button>
+</div>
+<div class="source-tabs" id="source-tabs">
+<div class="source-tab active" id="tab-api" onclick="switchSourceTab('api')">API Sources</div>
+<div class="source-tab" id="tab-scholarly" onclick="switchSourceTab('scholarly')">Scholarly</div>
+<div class="source-tab" id="tab-news" onclick="switchSourceTab('news')">News</div>
+<div class="source-tab" id="tab-social" onclick="switchSourceTab('social')">Social</div>
+</div>
+</div>
+<div class="source-chips" id="source-chips">
+<span class="source-chip active" data-source="tavily" onclick="toggleSource(this)">Tavily</span>
+<span class="source-chip active" data-source="brave" onclick="toggleSource(this)">Brave</span>
+<span class="source-chip" data-source="exa" onclick="toggleSource(this)">Exa</span>
+<span class="source-chip" data-source="semantic_scholar" onclick="toggleSource(this)">Semantic Scholar</span>
+<span class="source-chip" data-source="pubmed" onclick="toggleSource(this)">PubMed</span>
+<span class="source-chip" data-source="firecrawl" onclick="toggleSource(this)">Firecrawl</span>
+<button class="btn btn-ghost btn-sm" onclick="selectAllSources()" title="Select all sources">Select All</button>
+<button class="btn btn-ghost btn-sm" onclick="clearSources()" title="Clear all sources">Clear</button>
+</div>
+<div class="results-list" id="results-list">
+<div style="font-size:13px;color:var(--fg-muted);padding:20px 0;text-align:center;">Enter a search query above to begin.</div>
+</div>
+</div>
+<!-- Detail view -->
+<div class="research-detail" id="research-detail">
+<div style="font-size:13px;color:var(--fg-muted);padding:20px 0;text-align:center;">Select a result to view details.</div>
+</div>
+</div>
+</div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var activeSources = ['tavily','brave'];
+var allResults = [];
+var savedRuns = [];
+var currentQuery = '';
+
+function toggleSource(el) {
+  var source = el.getAttribute('data-source');
+  if (el.classList.contains('active')) {
+    el.classList.remove('active');
+    activeSources = activeSources.filter(function(s) { return s !== source; });
+  } else {
+    el.classList.add('active');
+    activeSources.push(source);
+  }
+}
+
+function selectAllSources() {
+  var chips = document.querySelectorAll('.source-chip');
+  activeSources = [];
+  for (var i = 0; i < chips.length; i++) {
+    chips[i].classList.add('active');
+    activeSources.push(chips[i].getAttribute('data-source'));
+  }
+}
+
+function clearSources() {
+  var chips = document.querySelectorAll('.source-chip');
+  for (var i = 0; i < chips.length; i++) chips[i].classList.remove('active');
+  activeSources = [];
+}
+
+function switchSourceTab(tab) {
+  var tabs = document.querySelectorAll('.source-tab');
+  for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
+  var el = document.getElementById('tab-' + tab);
+  if (el) el.classList.add('active');
+  var chips = document.getElementById('source-chips');
+  if (!chips) return;
+  var sets = {
+    api: ['Tavily','Brave','Exa','Semantic Scholar','PubMed','Firecrawl'],
+    scholarly: ['Semantic Scholar','PubMed','CORE','OpenAlex','Crossref'],
+    news: ['The Guardian','BBC News','Sky News','The Independent','NYT'],
+    social: ['Bluesky','Reddit','Twitter/X'],
+  };
+  chips.innerHTML = '';
+  var sources = sets[tab] || sets['api'];
+  for (var i = 0; i < sources.length; i++) {
+    var chip = document.createElement('span');
+    chip.className = 'source-chip';
+    chip.setAttribute('data-source', sources[i].toLowerCase().replace(/[^a-z0-9]/g,'_'));
+    chip.textContent = sources[i];
+    chip.onclick = function() { toggleSource(this); };
+    chips.appendChild(chip);
+  }
+  var selAll = document.createElement('button');
+  selAll.className = 'btn btn-ghost btn-sm';
+  selAll.textContent = 'Select All';
+  selAll.onclick = selectAllSources;
+  chips.appendChild(selAll);
+  var clr = document.createElement('button');
+  clr.className = 'btn btn-ghost btn-sm';
+  clr.textContent = 'Clear';
+  clr.onclick = clearSources;
+  chips.appendChild(clr);
+}
+
+function doSearch() {
+  var input = document.getElementById('search-input');
+  if (!input || !input.value.trim()) return;
+  currentQuery = input.value.trim();
+  var list = document.getElementById('results-list');
+  if (list) list.innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner"></div><div style="margin-top:8px;font-size:12.5px;color:var(--fg-muted);">Searching ' + activeSources.length + ' sources…</div></div>';
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/search', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var data = JSON.parse(xhr.responseText);
+      allResults = [];
+      if (data.results) {
+        if (data.results.tavily) allResults = allResults.concat(data.results.tavily.map(function(r) { r._source = 'Tavily'; return r; }));
+        if (data.results.brave) allResults = allResults.concat(data.results.brave.map(function(r) { r._source = 'Brave'; return r; }));
+      }
+      renderResults(allResults);
+    } catch(e) {
+      if (list) list.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:16px;">Search failed: ' + e.message + '</div>';
+    }
+  };
+  xhr.onerror = function() {
+    if (list) list.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:16px;">Network error.</div>';
+  };
+  xhr.send(JSON.stringify({query: currentQuery, sources: activeSources}));
+}
+
+function renderResults(results) {
+  var list = document.getElementById('results-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!results || results.length === 0) {
+    list.innerHTML = '<div style="font-size:13px;color:var(--fg-muted);padding:20px 0;text-align:center;">No results found. Try different sources or a broader query.</div>';
+    return;
+  }
+  var countEl = document.createElement('div');
+  countEl.style.cssText = 'font-size:12px;color:var(--fg-muted);margin-bottom:10px;';
+  countEl.textContent = results.length + ' results for "' + currentQuery + '"';
+  list.appendChild(countEl);
+  for (var i = 0; i < results.length; i++) {
+    (function(result) {
+      var item = document.createElement('div');
+      item.className = 'result-item';
+      var title = document.createElement('div');
+      title.className = 'result-title';
+      title.textContent = result.title || result.name || 'Untitled';
+      var url = document.createElement('div');
+      url.className = 'result-url';
+      url.textContent = result.url || result.link || '';
+      var snippet = document.createElement('div');
+      snippet.className = 'result-snippet';
+      snippet.textContent = (result.content || result.snippet || result.description || '').substring(0, 200) + '…';
+      var meta = document.createElement('div');
+      meta.className = 'result-meta';
+      var badge = document.createElement('span');
+      badge.className = 'result-source-badge';
+      badge.textContent = result._source || 'Web';
+      var openBtn = document.createElement('a');
+      openBtn.href = result.url || result.link || '#';
+      openBtn.target = '_blank';
+      openBtn.rel = 'noopener';
+      openBtn.className = 'btn btn-ghost btn-sm';
+      openBtn.textContent = '↗ Open';
+      openBtn.style.fontSize = '11px';
+      meta.appendChild(badge);
+      meta.appendChild(openBtn);
+      item.appendChild(title);
+      item.appendChild(url);
+      item.appendChild(snippet);
+      item.appendChild(meta);
+      item.onclick = function(e) { if (e.target === openBtn || openBtn.contains(e.target)) return; showDetail(result); };
+      list.appendChild(item);
+    })(results[i]);
+  }
+}
+
+function showDetail(result) {
+  var detail = document.getElementById('research-detail');
+  if (!detail) return;
+  detail.innerHTML = '';
+  var title = document.createElement('div');
+  title.className = 'detail-title';
+  title.textContent = result.title || result.name || 'Untitled';
+  var url = document.createElement('a');
+  url.className = 'detail-url';
+  url.href = result.url || result.link || '#';
+  url.target = '_blank';
+  url.rel = 'noopener';
+  url.textContent = result.url || result.link || '';
+  var content = document.createElement('div');
+  content.className = 'detail-content';
+  content.textContent = result.content || result.snippet || result.description || 'No content available.';
+  var actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;';
+  var draftBtn = document.createElement('button');
+  draftBtn.className = 'btn btn-sm btn-secondary';
+  draftBtn.textContent = '✍ Send to Drafting';
+  draftBtn.onclick = function() { try { sessionStorage.setItem('prism-draft', result.content || result.snippet || ''); } catch(e) {} window.open('/drafting/','_blank'); };
+  var memBtn = document.createElement('button');
+  memBtn.className = 'btn btn-sm btn-secondary';
+  memBtn.textContent = '🧠 Save to Memory';
+  memBtn.onclick = function() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', WORKER + '/api/memory', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onreadystatechange = function() { if (xhr.readyState === 4) Toast.success('Saved to memory'); };
+    xhr.send(JSON.stringify({content: (result.title || '') + ': ' + (result.content || result.snippet || ''), tags: ['research', currentQuery]}));
+  };
+  actions.appendChild(draftBtn);
+  actions.appendChild(memBtn);
+  detail.appendChild(title);
+  detail.appendChild(url);
+  detail.appendChild(content);
+  detail.appendChild(actions);
+}
+
+function synthesise() {
+  if (allResults.length === 0) { Toast.warning('Run a search first'); return; }
+  var detail = document.getElementById('research-detail');
+  if (!detail) return;
+  detail.innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner"></div><div style="margin-top:8px;font-size:12.5px;color:var(--fg-muted);">Synthesising…</div></div>';
+  var context = allResults.slice(0,5).map(function(r) { return (r.title||'') + ': ' + (r.content||r.snippet||'').substring(0,300); }).join('\n\n');
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      detail.innerHTML = '';
+      var card = document.createElement('div');
+      card.className = 'synthesis-card';
+      var title = document.createElement('div');
+      title.className = 'synthesis-title';
+      title.textContent = '✨ AI Synthesis — ' + currentQuery;
+      var text = document.createElement('div');
+      text.className = 'synthesis-text md-content';
+      text.innerHTML = Markdown.render(result.content || 'Synthesis failed.');
+      card.appendChild(title);
+      card.appendChild(text);
+      detail.appendChild(card);
+    } catch(e) {
+      detail.innerHTML = '<div style="color:var(--danger);font-size:13px;">Synthesis failed.</div>';
+    }
+  };
+  xhr.onerror = function() { detail.innerHTML = '<div style="color:var(--danger);font-size:13px;">Network error.</div>'; };
+  xhr.send(JSON.stringify({
+    messages: [
+      {role:'system', content:'You are a research synthesiser. Produce a structured, evidence-based synthesis. British English. Label inferences. Cite sources by title.'},
+      {role:'user', content:'Synthesise these search results for the query "' + currentQuery + '":\n\n' + context}
+    ],
+    profile: 'balanced'
+  }));
+}
+
+function saveRun() {
+  if (!currentQuery || allResults.length === 0) { Toast.warning('Run a search first'); return; }
+  var run = {query: currentQuery, results: allResults, date: new Date().toISOString()};
+  savedRuns.push(run);
+  try { localStorage.setItem('prism-research-runs', JSON.stringify(savedRuns)); } catch(e) {}
+  renderSavedRuns();
+  Toast.success('Research run saved');
+}
+
+function renderSavedRuns() {
+  var list = document.getElementById('saved-runs-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (savedRuns.length === 0) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);">No saved runs yet.</div>';
+    return;
+  }
+  for (var i = savedRuns.length - 1; i >= 0; i--) {
+    (function(run) {
+      var el = document.createElement('div');
+      el.className = 'saved-run';
+      var title = document.createElement('div');
+      title.className = 'saved-run-title';
+      title.textContent = run.query;
+      var meta = document.createElement('div');
+      meta.className = 'saved-run-meta';
+      meta.textContent = run.results.length + ' results · ' + new Date(run.date).toLocaleDateString('en-GB');
+      el.appendChild(title);
+      el.appendChild(meta);
+      el.onclick = function() { currentQuery = run.query; allResults = run.results; renderResults(run.results); };
+      list.appendChild(el);
+    })(savedRuns[i]);
+  }
+}
+
+function clearResults() {
+  allResults = [];
+  currentQuery = '';
+  var list = document.getElementById('results-list');
+  if (list) list.innerHTML = '<div style="font-size:13px;color:var(--fg-muted);padding:20px 0;text-align:center;">Enter a search query above to begin.</div>';
+  var detail = document.getElementById('research-detail');
+  if (detail) detail.innerHTML = '<div style="font-size:13px;color:var(--fg-muted);padding:20px 0;text-align:center;">Select a result to view details.</div>';
+}
+
+document.addEventListener('keydown', function(e) {
+  if (document.activeElement === document.getElementById('search-input') && e.key === 'Enter') doSearch();
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/research/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  try { savedRuns = JSON.parse(localStorage.getItem('prism-research-runs') || '[]'); } catch(e) { savedRuns = []; }
+  renderSavedRuns();
+  var prefill = '';
+  try { prefill = sessionStorage.getItem('prism-research-prefill') || ''; sessionStorage.removeItem('prism-research-prefill'); } catch(e) {}
+  if (prefill) { var input = document.getElementById('search-input'); if (input) { input.value = prefill; doSearch(); } }
+});
+</script>
+</body>
+</html>

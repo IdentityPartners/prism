@@ -1,0 +1,372 @@
+/* Prism — 17 Visual Themes */
+/* Each theme is a distinct visual identity, not just a colour swap */
+
+/* ── Theme 1: Parchment & Rose (default — defined in prism.css) ─────────────── */
+[data-theme="parchment"] {
+  --bg-primary:   #f7f3e9;
+  --bg-surface:   #f0e9e0;
+  --bg-elevated:  #ffffff;
+  --fg-primary:   #5c2d3f;
+  --fg-secondary: #7a4254;
+  --fg-muted:     #a88792;
+  --border:       #ddd0c8;
+  --accent:       #0f3b3a;
+  --accent-hover: #1a5550;
+  --accent-light: #e8f4f4;
+  --rose:         #5c2d3f;
+  --rose-light:   #f5e8ec;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Playfair Display', Georgia, serif;
+  --radius:       12px;
+}
+
+/* ── Theme 2: Teal & Rose Reversed ─────────────────────────────────────────── */
+[data-theme="teal-rose"] {
+  --bg-primary:   #f0f7f6;
+  --bg-surface:   #e4f0ef;
+  --bg-elevated:  #ffffff;
+  --fg-primary:   #0f3b3a;
+  --fg-secondary: #1a5550;
+  --fg-muted:     #6a9e9b;
+  --border:       #c8dedd;
+  --accent:       #5c2d3f;
+  --accent-hover: #7a3a50;
+  --accent-light: #f5e8ec;
+  --rose:         #5c2d3f;
+  --rose-light:   #f5e8ec;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Merriweather', Georgia, serif;
+  --radius:       10px;
+}
+
+/* ── Theme 3: Olive & Cream ─────────────────────────────────────────────────── */
+[data-theme="olive"] {
+  --bg-primary:   #f5f2e8;
+  --bg-surface:   #ede9d8;
+  --bg-elevated:  #fafaf5;
+  --fg-primary:   #3a3a2a;
+  --fg-secondary: #5a5a3a;
+  --fg-muted:     #9a9a7a;
+  --border:       #d8d4c0;
+  --accent:       #5a6e2a;
+  --accent-hover: #6e8a32;
+  --accent-light: #eef3e0;
+  --rose:         #8a4a2a;
+  --rose-light:   #f5ede8;
+  --font-ui:      'DM Sans', sans-serif;
+  --font-heading: 'Playfair Display', Georgia, serif;
+  --radius:       8px;
+}
+
+/* ── Theme 4: Faded Blue & Sand ─────────────────────────────────────────────── */
+[data-theme="faded-blue"] {
+  --bg-primary:   #f4f2ee;
+  --bg-surface:   #ece9e2;
+  --bg-elevated:  #ffffff;
+  --fg-primary:   #1e2d4a;
+  --fg-secondary: #2e4a6e;
+  --fg-muted:     #7a8ea8;
+  --border:       #d0cec8;
+  --accent:       #1e3a6e;
+  --accent-hover: #2a4e8a;
+  --accent-light: #e8eef8;
+  --rose:         #6e3a1e;
+  --rose-light:   #f5ede8;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Plus Jakarta Sans', sans-serif;
+  --radius:       10px;
+}
+
+/* ── Theme 5: Midnight Teal ─────────────────────────────────────────────────── */
+[data-theme="midnight-teal"] {
+  --bg-primary:   #0d1f1e;
+  --bg-surface:   #152a29;
+  --bg-elevated:  #1e3836;
+  --fg-primary:   #e8f4f4;
+  --fg-secondary: #a8d4d2;
+  --fg-muted:     #5a8e8c;
+  --border:       #2a4a48;
+  --accent:       #4ecdc4;
+  --accent-hover: #6eddd4;
+  --accent-light: #1a3a38;
+  --rose:         #e8a0b0;
+  --rose-light:   #2a1a20;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Inter', sans-serif;
+  --radius:       10px;
+}
+[data-theme="midnight-teal"] .sidebar { background: #0a1817; border-color: #1e3836; }
+[data-theme="midnight-teal"] .topbar { background: #152a29; border-color: #2a4a48; }
+[data-theme="midnight-teal"] .card { background: #1e3836; border-color: #2a4a48; }
+[data-theme="midnight-teal"] .osk-key { background: #1e3836; border-color: #2a4a48; color: #e8f4f4; }
+[data-theme="midnight-teal"] .input, [data-theme="midnight-teal"] .textarea { background: #152a29; border-color: #2a4a48; color: #e8f4f4; }
+
+/* ── Theme 6: Midnight Rose ─────────────────────────────────────────────────── */
+[data-theme="midnight-rose"] {
+  --bg-primary:   #1a0d12;
+  --bg-surface:   #261218;
+  --bg-elevated:  #321820;
+  --fg-primary:   #f4e8ec;
+  --fg-secondary: #d4a8b8;
+  --fg-muted:     #8a5a6a;
+  --border:       #4a2030;
+  --accent:       #e8a0b0;
+  --accent-hover: #f0b8c8;
+  --accent-light: #2a1018;
+  --rose:         #e8a0b0;
+  --rose-light:   #2a1018;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Merriweather', Georgia, serif;
+  --radius:       12px;
+}
+[data-theme="midnight-rose"] .sidebar { background: #140a0e; border-color: #321820; }
+[data-theme="midnight-rose"] .topbar { background: #261218; border-color: #4a2030; }
+[data-theme="midnight-rose"] .card { background: #321820; border-color: #4a2030; }
+[data-theme="midnight-rose"] .input, [data-theme="midnight-rose"] .textarea { background: #261218; border-color: #4a2030; color: #f4e8ec; }
+
+/* ── Theme 7: Cloudflare Light ──────────────────────────────────────────────── */
+[data-theme="cloudflare"] {
+  --bg-primary:   #f8f8f8;
+  --bg-surface:   #f0f0f0;
+  --bg-elevated:  #ffffff;
+  --fg-primary:   #1a1a1a;
+  --fg-secondary: #3a3a3a;
+  --fg-muted:     #8a8a8a;
+  --border:       #e0e0e0;
+  --accent:       #f6821f;
+  --accent-hover: #e07010;
+  --accent-light: #fff4ec;
+  --rose:         #f6821f;
+  --rose-light:   #fff4ec;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Inter', sans-serif;
+  --radius:       6px;
+}
+
+/* ── Theme 8: Linear Light ──────────────────────────────────────────────────── */
+[data-theme="linear"] {
+  --bg-primary:   #ffffff;
+  --bg-surface:   #f7f7f7;
+  --bg-elevated:  #ffffff;
+  --fg-primary:   #0a0a0a;
+  --fg-secondary: #2a2a2a;
+  --fg-muted:     #7a7a7a;
+  --border:       #e8e8e8;
+  --accent:       #5e6ad2;
+  --accent-hover: #4a56c0;
+  --accent-light: #f0f1fc;
+  --rose:         #e8365d;
+  --rose-light:   #fef0f3;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Inter', sans-serif;
+  --radius:       6px;
+}
+
+/* ── Theme 9: Notion Classic ────────────────────────────────────────────────── */
+[data-theme="notion"] {
+  --bg-primary:   #ffffff;
+  --bg-surface:   #f7f6f3;
+  --bg-elevated:  #ffffff;
+  --fg-primary:   #37352f;
+  --fg-secondary: #6b6b6b;
+  --fg-muted:     #9b9b9b;
+  --border:       #e9e9e7;
+  --accent:       #2eaadc;
+  --accent-hover: #1a96c8;
+  --accent-light: #e8f5fc;
+  --rose:         #e03e3e;
+  --rose-light:   #fdecea;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Inter', sans-serif;
+  --radius:       4px;
+}
+[data-theme="notion"] .sidebar { background: #f7f6f3; }
+
+/* ── Theme 10: Stripe Light ─────────────────────────────────────────────────── */
+[data-theme="stripe"] {
+  --bg-primary:   #f6f9fc;
+  --bg-surface:   #eef2f7;
+  --bg-elevated:  #ffffff;
+  --fg-primary:   #0a2540;
+  --fg-secondary: #1a3a5c;
+  --fg-muted:     #6b7c93;
+  --border:       #d8e0ea;
+  --accent:       #635bff;
+  --accent-hover: #4f46e5;
+  --accent-light: #f0efff;
+  --rose:         #e25950;
+  --rose-light:   #fef0ef;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Plus Jakarta Sans', sans-serif;
+  --radius:       8px;
+}
+
+/* ── Theme 11: Vercel Light ─────────────────────────────────────────────────── */
+[data-theme="vercel"] {
+  --bg-primary:   #ffffff;
+  --bg-surface:   #fafafa;
+  --bg-elevated:  #ffffff;
+  --fg-primary:   #000000;
+  --fg-secondary: #333333;
+  --fg-muted:     #888888;
+  --border:       #eaeaea;
+  --accent:       #000000;
+  --accent-hover: #333333;
+  --accent-light: #f5f5f5;
+  --rose:         #e00;
+  --rose-light:   #fff0f0;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Inter', sans-serif;
+  --radius:       8px;
+}
+
+/* ── Theme 12: WordPress TT4 ────────────────────────────────────────────────── */
+[data-theme="wordpress"] {
+  --bg-primary:   #ffffff;
+  --bg-surface:   #f6f6f6;
+  --bg-elevated:  #ffffff;
+  --fg-primary:   #1e1e1e;
+  --fg-secondary: #3a3a3a;
+  --fg-muted:     #767676;
+  --border:       #ddd;
+  --accent:       #0073aa;
+  --accent-hover: #005a87;
+  --accent-light: #e8f4fb;
+  --rose:         #c0392b;
+  --rose-light:   #fdecea;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Playfair Display', Georgia, serif;
+  --radius:       4px;
+}
+
+/* ── Theme 13: Therapy Adjacent ─────────────────────────────────────────────── */
+[data-theme="therapy"] {
+  --bg-primary:   #f5f7f4;
+  --bg-surface:   #edf0eb;
+  --bg-elevated:  #ffffff;
+  --fg-primary:   #2d3a2e;
+  --fg-secondary: #4a5e4b;
+  --fg-muted:     #8a9e8b;
+  --border:       #d4dcd4;
+  --accent:       #4a7c59;
+  --accent-hover: #3a6a48;
+  --accent-light: #eaf2ec;
+  --rose:         #8a5a6a;
+  --rose-light:   #f5eef0;
+  --font-ui:      'DM Sans', sans-serif;
+  --font-heading: 'Merriweather', Georgia, serif;
+  --radius:       14px;
+}
+[data-theme="therapy"] .sidebar { background: #4a7c59; }
+[data-theme="therapy"] .sidebar .nav-item { color: #d4ead8; }
+[data-theme="therapy"] .sidebar .nav-item:hover, [data-theme="therapy"] .sidebar .nav-item.active { background: rgba(255,255,255,0.15); color: #fff; }
+[data-theme="therapy"] .sidebar .sidebar-logo-text { color: #fff; }
+[data-theme="therapy"] .sidebar .sidebar-section { color: rgba(255,255,255,0.6); }
+
+/* ── Theme 14: Retreat & Restore ────────────────────────────────────────────── */
+[data-theme="retreat"] {
+  --bg-primary:   #faf6f0;
+  --bg-surface:   #f2ece2;
+  --bg-elevated:  #ffffff;
+  --fg-primary:   #4a3a28;
+  --fg-secondary: #6a5a40;
+  --fg-muted:     #a89878;
+  --border:       #ddd0b8;
+  --accent:       #8a6a3a;
+  --accent-hover: #7a5a2a;
+  --accent-light: #f5ede0;
+  --rose:         #a85a4a;
+  --rose-light:   #f5ece8;
+  --font-ui:      'Lora', Georgia, serif;
+  --font-heading: 'DM Sans', sans-serif;
+  --radius:       16px;
+}
+[data-theme="retreat"] .sidebar { background: #f2ece2; border-color: #ddd0b8; }
+
+/* ── Theme 15: Scholarly Authority ──────────────────────────────────────────── */
+[data-theme="scholarly"] {
+  --bg-primary:   #fafaf8;
+  --bg-surface:   #f2f2ee;
+  --bg-elevated:  #ffffff;
+  --fg-primary:   #1a1a2e;
+  --fg-secondary: #2a2a4a;
+  --fg-muted:     #6a6a8a;
+  --border:       #d8d8e8;
+  --accent:       #1a1a6e;
+  --accent-hover: #2a2a8a;
+  --accent-light: #e8e8f8;
+  --rose:         #6e1a2a;
+  --rose-light:   #f5e8ec;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Playfair Display', Georgia, serif;
+  --radius:       6px;
+}
+[data-theme="scholarly"] .sidebar { background: #1a1a2e; border-color: #2a2a4a; }
+[data-theme="scholarly"] .sidebar .nav-item { color: #a8a8c8; }
+[data-theme="scholarly"] .sidebar .nav-item:hover, [data-theme="scholarly"] .sidebar .nav-item.active { background: rgba(255,255,255,0.1); color: #fff; }
+[data-theme="scholarly"] .sidebar .sidebar-logo-text { color: #e8e8f8; }
+[data-theme="scholarly"] .sidebar .sidebar-section { color: rgba(255,255,255,0.4); }
+
+/* ── Theme 16: Dawn ─────────────────────────────────────────────────────────── */
+[data-theme="dawn"] {
+  --bg-primary:   #fdf8f0;
+  --bg-surface:   #f8f0e4;
+  --bg-elevated:  #ffffff;
+  --fg-primary:   #4a3020;
+  --fg-secondary: #6a5040;
+  --fg-muted:     #a89080;
+  --border:       #e8d8c8;
+  --accent:       #c87820;
+  --accent-hover: #b06810;
+  --accent-light: #fdf0d8;
+  --rose:         #c84820;
+  --rose-light:   #fdf0ec;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Playfair Display', Georgia, serif;
+  --radius:       10px;
+}
+
+/* ── Theme 17: Dusk ─────────────────────────────────────────────────────────── */
+[data-theme="dusk"] {
+  --bg-primary:   #f5f0fa;
+  --bg-surface:   #ede5f5;
+  --bg-elevated:  #ffffff;
+  --fg-primary:   #2a1a3a;
+  --fg-secondary: #4a2a6a;
+  --fg-muted:     #8a6a9a;
+  --border:       #d8c8e8;
+  --accent:       #6a2a9a;
+  --accent-hover: #7a3aaa;
+  --accent-light: #f0e8fa;
+  --rose:         #9a2a6a;
+  --rose-light:   #fae8f0;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Merriweather', Georgia, serif;
+  --radius:       12px;
+}
+[data-theme="dusk"] .sidebar { background: #2a1a3a; border-color: #4a2a6a; }
+[data-theme="dusk"] .sidebar .nav-item { color: #c8a8e8; }
+[data-theme="dusk"] .sidebar .nav-item:hover, [data-theme="dusk"] .sidebar .nav-item.active { background: rgba(255,255,255,0.1); color: #fff; }
+[data-theme="dusk"] .sidebar .sidebar-logo-text { color: #e8d8f8; }
+[data-theme="dusk"] .sidebar .sidebar-section { color: rgba(255,255,255,0.4); }
+
+/* ── Mobile Themes (6) ──────────────────────────────────────────────────────── */
+[data-mobile-theme="identity"] {
+  --bg-primary: #f7f3e9; --accent: #0f3b3a; --fg-primary: #5c2d3f;
+}
+[data-mobile-theme="midnight"] {
+  --bg-primary: #0d1f1e; --accent: #4ecdc4; --fg-primary: #e8f4f4;
+  --bg-surface: #152a29; --bg-elevated: #1e3836; --border: #2a4a48;
+}
+[data-mobile-theme="teal"] {
+  --bg-primary: #f0f7f6; --accent: #0f3b3a; --fg-primary: #0f3b3a;
+}
+[data-mobile-theme="rose"] {
+  --bg-primary: #fdf0f3; --accent: #5c2d3f; --fg-primary: #5c2d3f;
+}
+[data-mobile-theme="slate"] {
+  --bg-primary: #f4f6f8; --accent: #2d4a6e; --fg-primary: #1a2a3a;
+}
+[data-mobile-theme="gold"] {
+  --bg-primary: #fdf8f0; --accent: #c87820; --fg-primary: #4a3020;
+}

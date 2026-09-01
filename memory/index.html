@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Memory — Prism</title>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+</head>
+<body>
+<div class="prism-shell">
+<div id="sidebar-mount"></div>
+<div class="main-content" id="main-content">
+<div class="topbar">
+<div class="topbar-title">Memory</div>
+<div class="topbar-actions">
+<button class="btn btn-sm btn-primary" onclick="document.getElementById('mem-content').focus()" title="Add a new memory">＋ Add Memory</button>
+</div>
+</div>
+<div class="page-content">
+<div class="grid-2" style="gap:20px;align-items:start;">
+<div>
+<div class="card" style="margin-bottom:16px;">
+<div class="card-header"><span class="card-title">Search Memories</span></div>
+<input class="input" id="mem-search" oninput="filterMemories(this.value)" placeholder="Search memories…" type="text"/>
+</div>
+<div id="memory-list" style="display:flex;flex-direction:column;gap:10px;">
+<div style="text-align:center;padding:20px;color:var(--fg-muted);font-size:13px;">Loading memories…</div>
+</div>
+</div>
+<div class="card">
+<div class="card-header"><span class="card-title">Add Memory</span></div>
+<div class="form-group">
+<label class="form-label">Content</label>
+<textarea class="textarea textarea-lg" id="mem-content" placeholder="What should Prism remember?"></textarea>
+</div>
+<div class="form-group">
+<label class="form-label">Tags (comma-separated)</label>
+<input class="input" id="mem-tags" placeholder="e.g. client, research, preference" type="text"/>
+</div>
+<button class="btn btn-primary" onclick="saveMemory()" title="Save this memory">Save Memory</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var allMemories = [];
+
+function loadMemories() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', WORKER + '/api/memory', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try { var r = JSON.parse(xhr.responseText); allMemories = r.memories || []; renderMemories(allMemories); }
+    catch(e) { renderMemories([]); }
+  };
+  xhr.onerror = function() { renderMemories([]); };
+  xhr.send();
+}
+
+function renderMemories(mems) {
+  var list = document.getElementById('memory-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!mems || mems.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--fg-muted);font-size:13px;">No memories yet. Add your first memory above.</div>';
+    return;
+  }
+  for (var i = 0; i < mems.length; i++) {
+    (function(mem) {
+      var card = document.createElement('div');
+      card.className = 'card';
+      card.style.padding = '14px';
+      var content = document.createElement('div');
+      content.style.cssText = 'font-size:13.5px;line-height:1.6;color:var(--fg-primary);margin-bottom:8px;';
+      content.textContent = mem.content || '';
+      var footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+      if (mem.tags && mem.tags.length) {
+        for (var j = 0; j < mem.tags.length; j++) {
+          var t = document.createElement('span');
+          t.className = 'badge badge-accent';
+          t.textContent = mem.tags[j];
+          footer.appendChild(t);
+        }
+      }
+      var date = document.createElement('span');
+      date.style.cssText = 'font-size:11px;color:var(--fg-muted);margin-left:auto;';
+      date.textContent = mem.created ? new Date(mem.created).toLocaleDateString('en-GB') : '';
+      var delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-ghost btn-sm btn-icon';
+      delBtn.textContent = '🗑';
+      delBtn.title = 'Delete this memory';
+      delBtn.onclick = function() { deleteMemory(mem.id); };
+      footer.appendChild(date);
+      footer.appendChild(delBtn);
+      card.appendChild(content);
+      card.appendChild(footer);
+      list.appendChild(card);
+    })(mems[i]);
+  }
+}
+
+function filterMemories(q) {
+  if (!q) { renderMemories(allMemories); return; }
+  var filtered = allMemories.filter(function(m) { return (m.content||'').toLowerCase().indexOf(q.toLowerCase()) >= 0; });
+  renderMemories(filtered);
+}
+
+function saveMemory() {
+  var content = document.getElementById('mem-content').value.trim();
+  if (!content) { Toast.warning('Enter some content'); return; }
+  var tagsRaw = document.getElementById('mem-tags').value;
+  var tags = tagsRaw.split(',').map(function(t) { return t.trim(); }).filter(Boolean);
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/memory', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    Toast.success('Memory saved');
+    document.getElementById('mem-content').value = '';
+    document.getElementById('mem-tags').value = '';
+    loadMemories();
+  };
+  xhr.onerror = function() { Toast.error('Network error'); };
+  xhr.send(JSON.stringify({content: content, tags: tags}));
+}
+
+function deleteMemory(id) {
+  if (!id) return;
+  var xhr = new XMLHttpRequest();
+  xhr.open('DELETE', WORKER + '/api/memory/' + id, true);
+  xhr.onreadystatechange = function() { if (xhr.readyState === 4) { Toast.info('Deleted'); loadMemories(); } };
+  xhr.send();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/memory/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  loadMemories();
+});
+</script>
+</body>
+</html>

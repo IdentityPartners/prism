@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar"><div class="topbar-title">Email</div><div class="topbar-actions"><a href="/oauth/zoho/mail" class="btn btn-sm btn-secondary" title="Connect Zoho Mail">🔑 Connect Zoho</a><button class="btn btn-sm btn-primary" onclick="openCompose()" title="Compose new email">✏ Compose</button></div></div>
+    <div class="page-content">
+
+      <div class="grid-2" style="gap:20px;align-items:start;">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Inbox</span><span class="badge badge-muted">Connect Zoho to load emails</span></div>
+          <div id="inbox-list" style="font-size:13px;color:var(--fg-muted);padding:20px 0;text-align:center;">Connect your Zoho Mail account to view your inbox.<br><br><a href="/oauth/zoho/mail" class="btn btn-primary btn-sm" title="Connect Zoho Mail">Connect Zoho Mail</a></div>
+        </div>
+        <div class="card" id="compose-card">
+          <div class="card-header"><span class="card-title">Compose</span></div>
+          <div class="form-group"><label class="form-label">To</label><input class="input" id="email-to" type="email" placeholder="recipient@example.com"></div>
+          <div class="form-group"><label class="form-label">Subject</label><input class="input" id="email-subject" type="text" placeholder="Subject…"></div>
+          <div class="form-group"><label class="form-label">Message</label><textarea class="textarea textarea-lg" id="email-body" placeholder="Write your message…"></textarea></div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary" onclick="sendEmail()" title="Send email">📧 Send</button>
+            <button class="btn btn-secondary" onclick="aiDraftEmail()" title="AI draft this email">✨ AI Draft</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/comms/email/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  checkEmailPrefill();
+});
+
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+function openCompose() { document.getElementById('email-to').focus(); }
+function checkEmailPrefill() {
+  var params = new URLSearchParams(window.location.search);
+  var to = params.get('to');
+  if (to) { var el = document.getElementById('email-to'); if (el) el.value = to; }
+}
+function sendEmail() {
+  var to = document.getElementById('email-to').value.trim();
+  var subject = document.getElementById('email-subject').value.trim();
+  var body = document.getElementById('email-body').value.trim();
+  if (!to || !subject || !body) { Toast.warning('Please fill in all fields'); return; }
+  Toast.info('Email sending requires Zoho Mail OAuth connection. Connect via Settings.');
+}
+function aiDraftEmail() {
+  var subject = document.getElementById('email-subject').value.trim();
+  var to = document.getElementById('email-to').value.trim();
+  if (!subject) { Toast.warning('Enter a subject first'); return; }
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try { var r = JSON.parse(xhr.responseText); var el = document.getElementById('email-body'); if (el && r.content) el.value = r.content; }
+    catch(e) { Toast.error('AI draft failed'); }
+  };
+  xhr.send(JSON.stringify({messages:[{role:'system',content:'You are an email writing assistant for Identity Partners. Write professional, warm emails in British English. Sign off as Simon Johnson, Identity Partners.'},{role:'user',content:'Write an email with subject: "' + subject + '"' + (to ? ' to ' + to : '')}],profile:'balanced'}));
+}
+
+</script>
+</body>
+</html>

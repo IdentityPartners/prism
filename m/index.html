@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<meta content="yes" name="apple-mobile-web-app-capable"/>
+<meta content="default" name="apple-mobile-web-app-status-bar-style"/>
+<meta content="#f7f3e9" name="theme-color"/>
+<title>Prism Mobile</title>
+<link href="/manifest.json" rel="manifest"/>
+<style>
+/* Mobile — standalone, no shared CSS dependency */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg: #f7f3e9;
+  --bg2: #f0e9e0;
+  --bg3: #ffffff;
+  --fg: #5c2d3f;
+  --fg2: #7a4254;
+  --muted: #a88792;
+  --border: #ddd0c8;
+  --accent: #0f3b3a;
+  --accent2: #1a5550;
+  --accent-light: #e8f4f4;
+  --rose: #5c2d3f;
+  --success: #5a7a4f;
+  --danger: #8b3a3a;
+  --nav-h: 64px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; overflow: hidden; font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+button { cursor: pointer; font-family: inherit; }
+input, textarea { font-family: inherit; }
+
+/* ── App shell ── */
+.app { display: flex; flex-direction: column; height: 100%; }
+.app-header {
+  height: 52px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 10px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.app-logo { font-size: 18px; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; }
+.app-logo span { color: var(--rose); }
+.app-header-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.header-btn {
+  width: 36px; height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg2);
+  color: var(--fg2);
+  font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── Screens ── */
+.screen { flex: 1; overflow-y: auto; display: none; flex-direction: column; }
+.screen.active { display: flex; }
+
+/* ── Bottom nav ── */
+.bottom-nav {
+  height: var(--nav-h);
+  padding-bottom: var(--safe-bottom);
+  background: var(--bg3);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-shrink: 0;
+}
+.nav-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+  transition: color 0.15s;
+  border: none;
+  background: none;
+  padding: 8px 0;
+}
+.nav-tab.active { color: var(--accent); }
+.nav-tab-icon { font-size: 22px; line-height: 1; }
+
+/* ── Chat screen ── */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.msg { display: flex; gap: 8px; }
+.msg.user { flex-direction: row-reverse; }
+.msg-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--bg2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.msg-bubble { max-width: 78%; padding: 9px 12px; border-radius: 14px; font-size: 14px; line-height: 1.55; word-break: break-word; }
+.msg.user .msg-bubble { background: var(--accent); color: #fff; border-radius: 14px 14px 2px 14px; }
+.msg.assistant .msg-bubble { background: var(--bg3); border: 1px solid var(--border); border-radius: 14px 14px 14px 2px; }
+.msg-meta { font-size: 10px; color: var(--muted); margin-top: 3px; }
+.chat-input-area {
+  border-top: 1px solid var(--border);
+  background: var(--bg3);
+  padding: 10px 12px;
+  flex-shrink: 0;
+}
+.chat-input-row { display: flex; gap: 8px; align-items: flex-end; }
+.chat-input {
+  flex: 1;
+  min-height: 48px;
+  max-height: 120px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 15px;
+  resize: none;
+  outline: none;
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.5;
+}
+.chat-input:focus { border-color: var(--accent); }
+.chat-send {
+  width: 48px; height: 48px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.chat-send:disabled { opacity: 0.5; }
+.typing-dots { display: flex; gap: 4px; padding: 8px 0; }
+.typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: bounce 1.2s infinite; }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+
+/* ── Threads screen ── */
+.threads-list { flex: 1; overflow-y: auto; }
+.thread-item {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.thread-item:active { background: var(--accent-light); }
+.thread-title { font-size: 14px; font-weight: 500; color: var(--fg); margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thread-meta { font-size: 11.5px; color: var(--muted); display: flex; justify-content: space-between; }
+.screen-header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+  flex-shrink: 0;
+}
+.screen-title { font-size: 17px; font-weight: 600; color: var(--fg); }
+.search-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--fg);
+  outline: none;
+  margin-top: 10px;
+}
+.search-input:focus { border-color: var(--accent); }
+
+/* ── Create / Atomise screen ── */
+.atomise-container { padding: 16px; flex: 1; overflow-y: auto; }
+.atomise-label { font-size: 13px; font-weight: 600; color: var(--fg2); margin-bottom: 6px; }
+.atomise-textarea {
+  width: 100%;
+  min-height: 140px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 14px;
+  resize: none;
+  outline: none;
+  background: var(--bg3);
+  color: var(--fg);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+.atomise-textarea:focus { border-color: var(--accent); }
+.atomise-btn {
+  width: 100%;
+  padding: 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-bottom: 16px;
+}
+.atomise-btn:hover { background: var(--accent2); }
+.atomise-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.asset-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.asset-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.asset-type { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); }
+.asset-actions { display: flex; gap: 6px; }
+.asset-action-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11.5px;
+  background: var(--bg2);
+  color: var(--fg2);
+  cursor: pointer;
+}
+.asset-action-btn.approve { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.asset-content { font-size: 13.5px; line-height: 1.6; color: var(--fg); white-space: pre-wrap; }
+.queue-btn {
+  width: 100%;
+  padding: 14px;
+  background: var(--rose);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 12px 0;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* ── More screen ── */
+.more-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
+.more-item {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--fg);
+  transition: all 0.15s;
+}
+.more-item:active { background: var(--accent-light); border-color: var(--accent); }
+.more-icon { font-size: 28px; }
+.more-label { font-size: 12.5px; font-weight: 500; text-align: center; }
+
+/* ── Theme picker ── */
+.theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 16px; }
+.theme-swatch {
+  height: 56px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  display: flex;
+  align-items: flex-end;
+  padding: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(0,0,0,0.6);
+}
+.theme-swatch.active { border-color: var(--accent); }
+.theme-swatch:active { transform: scale(0.96); }
+
+/* ── Toast ── */
+.toast-container { position: fixed; bottom: calc(var(--nav-h) + 12px + var(--safe-bottom)); left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 6px; pointer-events: none; width: calc(100% - 32px); max-width: 360px; }
+.toast { background: var(--fg); color: #fff; padding: 11px 16px; border-radius: 10px; font-size: 13.5px; text-align: center; animation: toastIn 0.2s ease; }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); }
+@keyframes toastIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+
+/* ── Spinner ── */
+.spinner { width: 22px; height: 22px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* ── Empty state ── */
+.empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--muted); padding: 32px; text-align: center; }
+.empty-icon { font-size: 40px; }
+.empty-text { font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="app">
+<!-- Header -->
+<div class="app-header">
+<div class="app-logo">Prism<span>.</span></div>
+<div class="app-header-right">
+<button class="header-btn" onclick="openThemePicker()" title="Change theme">🎨</button>
+<button class="header-btn" onclick="showScreen('more')" title="More options">⋯</button>
+</div>
+</div>
+<!-- Chat screen -->
+<div class="screen active" id="screen-chat">
+<div class="chat-messages" id="m-chat-messages">
+<div class="msg assistant">
+<div class="msg-avatar">🤖</div>
+<div>
+<div class="msg-bubble">Good day. I'm Prism. What would you like to work on?</div>
+<div class="msg-meta">Prism · ready</div>
+</div>
+</div>
+</div>
+<div class="chat-input-area">
+<div class="chat-input-row">
+<textarea class="chat-input" id="m-chat-input" placeholder="Message Prism…" rows="1"></textarea>
+<button class="chat-send" id="m-send-btn" onclick="mDoSend()" title="Send">➤</button>
+</div>
+</div>
+</div>
+<!-- Threads screen -->
+<div class="screen" id="screen-threads">
+<div class="screen-header">
+<div class="screen-title">Threads</div>
+<input class="search-input" oninput="filterMThreads(this.value)" placeholder="Search threads…" type="text"/>
+</div>
+<div class="threads-list" id="m-threads-list">
+<div class="empty-state">
+<div class="empty-icon">💬</div>
+<div class="empty-text">No threads yet. Start a conversation.</div>
+</div>
+</div>
+</div>
+<!-- Create / Atomise screen -->
+<div class="screen" id="screen-create">
+<div class="atomise-container">
+<div class="atomise-label">Paste your text (up to 1,500 words)</div>
+<textarea class="atomise-textarea" id="m-atomise-input" maxlength="12000" placeholder="Paste a programme description, session note, research synthesis, or any text about Identity Partners…"></textarea>
+<div class="progress-bar hidden" id="m-progress-bar">
+<div class="progress-fill" id="m-progress-fill" style="width:0%"></div>
+</div>
+<button class="atomise-btn" id="m-atomise-btn" onclick="mDoAtomise()" title="Generate social media assets from your text">⚡ Create Assets</button>
+<div id="m-assets-container"></div>
+<div class="hidden" id="m-queue-actions">
+<button class="queue-btn" onclick="mQueueAll()" title="Queue all approved assets to Social Queue">📅 Queue All Approved</button>
+</div>
+</div>
+</div>
+<!-- More screen -->
+<div class="screen" id="screen-more">
+<div class="screen-header">
+<div class="screen-title">More</div>
+</div>
+<div class="more-grid">
+<a class="more-item" href="/research/" title="Research Hub">
+<span class="more-icon">🔍</span>
+<span class="more-label">Research</span>
+</a>
+<a class="more-item" href="/crm/" title="CRM">
+<span class="more-icon">👥</span>
+<span class="more-label">CRM</span>
+</a>
+<a class="more-item" href="/comms/zoho-calendar/" title="Calendar">
+<span class="more-icon">📅</span>
+<span class="more-label">Calendar</span>
+</a>
+<a class="more-item" href="/social-queue/" title="Social Queue">
+<span class="more-icon">📱</span>
+<span class="more-label">Social Queue</span>
+</a>
+<a class="more-item" href="/comms/email/" title="Email">
+<span class="more-icon">📧</span>
+<span class="more-label">Email</span>
+</a>
+<a class="more-item" href="/settings/" title="Settings">
+<span class="more-icon">⚙</span>
+<span class="more-label">Settings</span>
+</a>
+<a class="more-item" href="/" title="Full desktop interface">
+<span class="more-icon">🖥</span>
+<span class="more-label">Desktop View</span>
+</a>
+<div class="more-item" onclick="openThemePicker()" title="Change theme">
+<span class="more-icon">🎨</span>
+<span class="more-label">Theme</span>
+</div>
+</div>
+</div>
+<!-- Bottom nav -->
+<div class="bottom-nav">
+<button class="nav-tab active" id="nav-chat" onclick="showScreen('chat')" title="Chat">
+<span class="nav-tab-icon">💬</span>
+<span>Chat</span>
+</button>
+<button class="nav-tab" id="nav-threads" onclick="showScreen('threads')" title="Threads">
+<span class="nav-tab-icon">🗂</span>
+<span>Threads</span>
+</button>
+<button class="nav-tab" id="nav-create" onclick="showScreen('create')" title="Create assets">
+<span class="nav-tab-icon">⚡</span>
+<span>Create</span>
+</button>
+<button class="nav-tab" id="nav-more" onclick="showScreen('more')" title="More">
+<span class="nav-tab-icon">⋯</span>
+<span>More</span>
+</button>
+</div>
+</div>
+<!-- Toast container -->
+<div class="toast-container" id="m-toast-container"></div>
+<!-- Theme picker overlay -->
+<div id="theme-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:flex-end;">
+<div style="background:var(--bg3);border-radius:20px 20px 0 0;padding:20px 16px;width:100%;max-height:70vh;overflow-y:auto;">
+<div style="font-size:16px;font-weight:600;margin-bottom:14px;">Choose Theme</div>
+<div class="theme-grid" id="theme-grid"></div>
+<button onclick="closeThemePicker()" style="width:100%;padding:14px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;font-size:15px;margin-top:8px;cursor:pointer;">Close</button>
+</div>
+</div>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var mCurrentThreadId = 't' + Date.now();
+var mMessageHistory = [];
+var mAllThreads = [];
+var mApprovedAssets = [];
+var mCurrentTheme = 'identity';
+
+var MOBILE_THEMES = [
+  {id:'identity', label:'Identity', bg:'#f7f3e9', accent:'#0f3b3a'},
+  {id:'midnight', label:'Midnight', bg:'#0d1f1e', accent:'#4ecdc4'},
+  {id:'teal',     label:'Teal',     bg:'#f0f7f6', accent:'#0f3b3a'},
+  {id:'rose',     label:'Rose',     bg:'#fdf0f3', accent:'#5c2d3f'},
+  {id:'slate',    label:'Slate',    bg:'#f4f6f8', accent:'#2d4a6e'},
+  {id:'gold',     label:'Gold',     bg:'#fdf8f0', accent:'#c87820'},
+];
+
+// ── Screen navigation ─────────────────────────────────────────────────────────
+function showScreen(name) {
+  var screens = document.querySelectorAll('.screen');
+  for (var i = 0; i < screens.length; i++) screens[i].classList.remove('active');
+  var tabs = document.querySelectorAll('.nav-tab');
+  for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
+  var screen = document.getElementById('screen-' + name);
+  if (screen) screen.classList.add('active');
+  var tab = document.getElementById('nav-' + name);
+  if (tab) tab.classList.add('active');
+  if (name === 'threads') loadMThreads();
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function mToast(msg, type) {
+  var c = document.getElementById('m-toast-container');
+  if (!c) return;
+  var t = document.createElement('div');
+  t.className = 'toast' + (type ? ' ' + type : '');
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 3000);
+}
+
+// ── Chat — self-contained send ────────────────────────────────────────────────
+function mDoSend() {
+  var input = document.getElementById('m-chat-input');
+  if (!input) return;
+  var text = input.value.trim();
+  if (!text) return;
+  var sendBtn = document.getElementById('m-send-btn');
+  if (sendBtn) sendBtn.disabled = true;
+  input.value = '';
+  input.style.height = 'auto';
+
+  mAppendMsg('user', text);
+  mMessageHistory.push({role: 'user', content: text});
+
+  var typingId = mShowTyping();
+
+  var messages = [{role:'system', content:'You are Prism, a warm, professional, and concise AI assistant for Identity Partners. British English. No sycophancy. No AI tropes.'}].concat(mMessageHistory);
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    mRemoveTyping(typingId);
+    if (sendBtn) sendBtn.disabled = false;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      if (result.content) {
+        mMessageHistory.push({role: 'assistant', content: result.content});
+        mAppendMsg('assistant', result.content);
+        mCurrentThreadId = result.threadId || mCurrentThreadId;
+      } else {
+        mAppendMsg('assistant', 'Error: ' + (result.error || 'No response'));
+      }
+    } catch(e) {
+      mAppendMsg('assistant', 'Failed to parse response.');
+    }
+  };
+  xhr.onerror = function() {
+    mRemoveTyping(typingId);
+    if (sendBtn) sendBtn.disabled = false;
+    mAppendMsg('assistant', 'Network error.');
+  };
+  xhr.send(JSON.stringify({messages: messages, profile: 'balanced', threadId: mCurrentThreadId}));
+}
+
+function mAppendMsg(role, content) {
+  var container = document.getElementById('m-chat-messages');
+  if (!container) return;
+  var msg = document.createElement('div');
+  msg.className = 'msg ' + role;
+  var avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = role === 'user' ? '👤' : '🤖';
+  var body = document.createElement('div');
+  var bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.textContent = content;
+  var meta = document.createElement('div');
+  meta.className = 'msg-meta';
+  meta.textContent = new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+  body.appendChild(bubble);
+  body.appendChild(meta);
+  msg.appendChild(avatar);
+  msg.appendChild(body);
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+}
+
+function mShowTyping() {
+  var container = document.getElementById('m-chat-messages');
+  if (!container) return null;
+  var id = 'mtyping-' + Date.now();
+  var msg = document.createElement('div');
+  msg.className = 'msg assistant';
+  msg.id = id;
+  var avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = '🤖';
+  var body = document.createElement('div');
+  var bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  var dots = document.createElement('div');
+  dots.className = 'typing-dots';
+  for (var i = 0; i < 3; i++) {
+    var d = document.createElement('div');
+    d.className = 'typing-dot';
+    dots.appendChild(d);
+  }
+  bubble.appendChild(dots);
+  body.appendChild(bubble);
+  msg.appendChild(avatar);
+  msg.appendChild(body);
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+  return id;
+}
+
+function mRemoveTyping(id) {
+  if (!id) return;
+  var el = document.getElementById(id);
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+// ── Threads ───────────────────────────────────────────────────────────────────
+function loadMThreads() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', WORKER + '/api/threads', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      mAllThreads = result.threads || [];
+      renderMThreads(mAllThreads);
+    } catch(e) { renderMThreads([]); }
+  };
+  xhr.onerror = function() { renderMThreads([]); };
+  xhr.send();
+}
+
+function renderMThreads(threads) {
+  var list = document.getElementById('m-threads-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!threads || threads.length === 0) {
+    var empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.innerHTML = '<div class="empty-icon">💬</div><div class="empty-text">No threads yet.</div>';
+    list.appendChild(empty);
+    return;
+  }
+  for (var i = 0; i < threads.length; i++) {
+    (function(t) {
+      var item = document.createElement('div');
+      item.className = 'thread-item';
+      var title = document.createElement('div');
+      title.className = 'thread-title';
+      title.textContent = t.title || 'Untitled';
+      var meta = document.createElement('div');
+      meta.className = 'thread-meta';
+      var count = document.createElement('span');
+      count.textContent = (t.messageCount || 0) + ' messages';
+      var date = document.createElement('span');
+      date.textContent = t.updated ? new Date(t.updated).toLocaleDateString('en-GB') : '';
+      meta.appendChild(count);
+      meta.appendChild(date);
+      item.appendChild(title);
+      item.appendChild(meta);
+      item.onclick = function() { loadMThread(t.id); };
+      list.appendChild(item);
+    })(threads[i]);
+  }
+}
+
+function filterMThreads(q) {
+  if (!q) { renderMThreads(mAllThreads); return; }
+  var filtered = mAllThreads.filter(function(t) { return (t.title||'').toLowerCase().indexOf(q.toLowerCase()) >= 0; });
+  renderMThreads(filtered);
+}
+
+function loadMThread(threadId) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', WORKER + '/api/threads/' + threadId, true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var thread = JSON.parse(xhr.responseText);
+      mCurrentThreadId = threadId;
+      mMessageHistory = thread.messages || [];
+      var container = document.getElementById('m-chat-messages');
+      if (container) {
+        container.innerHTML = '';
+        for (var i = 0; i < mMessageHistory.length; i++) {
+          mAppendMsg(mMessageHistory[i].role, mMessageHistory[i].content);
+        }
+      }
+      showScreen('chat');
+    } catch(e) {}
+  };
+  xhr.send();
+}
+
+// ── Atomise ───────────────────────────────────────────────────────────────────
+function mDoAtomise() {
+  var input = document.getElementById('m-atomise-input');
+  if (!input) return;
+  var text = input.value.trim();
+  if (!text) { mToast('Please paste some text first', 'error'); return; }
+  if (text.split(/\s+/).length > 1500) { mToast('Please keep text under 1,500 words', 'error'); return; }
+
+  var btn = document.getElementById('m-atomise-btn');
+  var progressBar = document.getElementById('m-progress-bar');
+  var progressFill = document.getElementById('m-progress-fill');
+  var assetsContainer = document.getElementById('m-assets-container');
+  var queueActions = document.getElementById('m-queue-actions');
+
+  if (btn) btn.disabled = true;
+  if (progressBar) progressBar.classList.remove('hidden');
+  if (assetsContainer) assetsContainer.innerHTML = '';
+  if (queueActions) queueActions.classList.add('hidden');
+  mApprovedAssets = [];
+
+  // Animate progress
+  var progress = 0;
+  var progressInterval = setInterval(function() {
+    progress = Math.min(progress + 8, 85);
+    if (progressFill) progressFill.style.width = progress + '%';
+  }, 400);
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/atomise', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    clearInterval(progressInterval);
+    if (progressFill) progressFill.style.width = '100%';
+    setTimeout(function() {
+      if (progressBar) progressBar.classList.add('hidden');
+      if (progressFill) progressFill.style.width = '0%';
+    }, 500);
+    if (btn) btn.disabled = false;
+
+    try {
+      var result = JSON.parse(xhr.responseText);
+      if (result.assets) {
+        renderMAssets(result.assets);
+        if (queueActions) queueActions.classList.remove('hidden');
+        mToast('Assets created! Review and approve below.', 'success');
+      } else {
+        mToast('Error: ' + (result.error || 'Failed to create assets'), 'error');
+      }
+    } catch(e) {
+      mToast('Failed to parse response', 'error');
+    }
+  };
+  xhr.onerror = function() {
+    clearInterval(progressInterval);
+    if (btn) btn.disabled = false;
+    if (progressBar) progressBar.classList.add('hidden');
+    mToast('Network error', 'error');
+  };
+  xhr.send(JSON.stringify({text: text, profile: 'balanced'}));
+}
+
+function renderMAssets(assets) {
+  var container = document.getElementById('m-assets-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  function makeCard(type, content, id) {
+    var card = document.createElement('div');
+    card.className = 'asset-card';
+    card.id = 'asset-' + id;
+    var header = document.createElement('div');
+    header.className = 'asset-card-header';
+    var typeEl = document.createElement('div');
+    typeEl.className = 'asset-type';
+    typeEl.textContent = type;
+    var actions = document.createElement('div');
+    actions.className = 'asset-actions';
+    var approveBtn = document.createElement('button');
+    approveBtn.className = 'asset-action-btn';
+    approveBtn.textContent = '✓ Approve';
+    approveBtn.title = 'Approve this asset for queuing';
+    var approved = false;
+    approveBtn.onclick = function() {
+      approved = !approved;
+      approveBtn.className = 'asset-action-btn' + (approved ? ' approve' : '');
+      approveBtn.textContent = approved ? '✓ Approved' : '✓ Approve';
+      if (approved) {
+        mApprovedAssets.push({type: type, content: content, id: id});
+      } else {
+        mApprovedAssets = mApprovedAssets.filter(function(a) { return a.id !== id; });
+      }
+    };
+    var copyBtn = document.createElement('button');
+    copyBtn.className = 'asset-action-btn';
+    copyBtn.textContent = '📋 Copy';
+    copyBtn.title = 'Copy to clipboard';
+    copyBtn.onclick = function() {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(content).then(function() { mToast('Copied!'); });
+      }
+    };
+    actions.appendChild(approveBtn);
+    actions.appendChild(copyBtn);
+    header.appendChild(typeEl);
+    header.appendChild(actions);
+    var contentEl = document.createElement('div');
+    contentEl.className = 'asset-content';
+    contentEl.textContent = content;
+    card.appendChild(header);
+    card.appendChild(contentEl);
+    container.appendChild(card);
+  }
+
+  if (assets.linkedin) makeCard('LinkedIn Post', assets.linkedin, 'linkedin');
+  if (assets.email) makeCard('Email Snippet', assets.email, 'email');
+  if (assets.quotes && assets.quotes.length) {
+    for (var i = 0; i < assets.quotes.length; i++) {
+      makeCard('Quote Card ' + (i+1), assets.quotes[i], 'quote-' + i);
+    }
+  }
+  if (assets.bluesky && assets.bluesky.length) {
+    makeCard('Bluesky Thread', assets.bluesky.join('\n\n'), 'bluesky');
+  }
+  if (assets.carousel && assets.carousel.length) {
+    var carouselText = assets.carousel.map(function(s, i) { return (i+1) + '. ' + s.title + '\n' + s.body; }).join('\n\n');
+    makeCard('LinkedIn Carousel (5 slides)', carouselText, 'carousel');
+  }
+}
+
+function mQueueAll() {
+  if (mApprovedAssets.length === 0) { mToast('Approve at least one asset first', 'error'); return; }
+  var queued = 0;
+  for (var i = 0; i < mApprovedAssets.length; i++) {
+    (function(asset) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', WORKER + '/api/social/queue', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        queued++;
+        if (queued === mApprovedAssets.length) {
+          mToast(queued + ' asset' + (queued > 1 ? 's' : '') + ' queued!', 'success');
+          mApprovedAssets = [];
+        }
+      };
+      xhr.send(JSON.stringify({type: asset.type, content: asset.content, platform: 'social', status: 'pending', scheduledAt: new Date(Date.now() + 86400000).toISOString()}));
+    })(mApprovedAssets[i]);
+  }
+}
+
+// ── Theme picker ──────────────────────────────────────────────────────────────
+function openThemePicker() {
+  var overlay = document.getElementById('theme-overlay');
+  var grid = document.getElementById('theme-grid');
+  if (!overlay || !grid) return;
+  grid.innerHTML = '';
+  for (var i = 0; i < MOBILE_THEMES.length; i++) {
+    (function(theme) {
+      var swatch = document.createElement('div');
+      swatch.className = 'theme-swatch' + (theme.id === mCurrentTheme ? ' active' : '');
+      swatch.style.background = theme.bg;
+      swatch.style.borderColor = theme.id === mCurrentTheme ? theme.accent : 'transparent';
+      swatch.textContent = theme.label;
+      swatch.style.color = theme.accent;
+      swatch.onclick = function() { applyMobileTheme(theme); closeThemePicker(); };
+      grid.appendChild(swatch);
+    })(MOBILE_THEMES[i]);
+  }
+  overlay.style.display = 'flex';
+}
+
+function closeThemePicker() {
+  var overlay = document.getElementById('theme-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function applyMobileTheme(theme) {
+  mCurrentTheme = theme.id;
+  document.documentElement.style.setProperty('--bg', theme.bg);
+  document.documentElement.style.setProperty('--accent', theme.accent);
+  try { localStorage.setItem('prism-mobile-theme', theme.id); } catch(e) {}
+  mToast('Theme: ' + theme.label);
+}
+
+// ── Auto-resize textarea ──────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  var input = document.getElementById('m-chat-input');
+  if (input) {
+    input.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        mDoSend();
+      }
+    });
+  }
+
+  // Restore theme
+  try {
+    var saved = localStorage.getItem('prism-mobile-theme');
+    if (saved) {
+      for (var i = 0; i < MOBILE_THEMES.length; i++) {
+        if (MOBILE_THEMES[i].id === saved) { applyMobileTheme(MOBILE_THEMES[i]); break; }
+      }
+    }
+  } catch(e) {}
+});
+</script>
+</body>
+</html>

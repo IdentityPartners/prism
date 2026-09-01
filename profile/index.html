@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Profile — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar"><div class="topbar-title">My Profile</div><div class="topbar-actions"><button class="btn btn-sm btn-primary" onclick="saveProfile()" title="Save profile">Save</button></div></div>
+    <div class="page-content">
+
+      <div class="grid-2" style="gap:20px;align-items:start;">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Identity</span></div>
+          <div class="form-group"><label class="form-label">Full Name</label><input class="input" id="p-name" type="text" value="Simon Johnson"></div>
+          <div class="form-group"><label class="form-label">Email</label><input class="input" id="p-email" type="email" value="simon@identitypartners.uk"></div>
+          <div class="form-group"><label class="form-label">Organisation</label><input class="input" id="p-org" type="text" value="Identity Partners"></div>
+          <div class="form-group"><label class="form-label">Role</label><input class="input" id="p-role" type="text" value="Director"></div>
+          <div class="form-group"><label class="form-label">Bio</label><textarea class="textarea" id="p-bio">Founder of Identity Partners, a professional services firm focused on addiction, trauma, mental health, and community wellbeing.</textarea></div>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-header"><span class="card-title">Team</span></div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;">
+                <div style="width:36px;height:36px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;">SJ</div>
+                <div><div style="font-weight:500;font-size:13px;">Simon Johnson</div><div style="font-size:11px;color:var(--fg-muted);">simon@identitypartners.uk · Admin</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;">
+                <div style="width:36px;height:36px;border-radius:50%;background:var(--rose);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;">OJ</div>
+                <div><div style="font-weight:500;font-size:13px;">Olivia</div><div style="font-size:11px;color:var(--fg-muted);">olivia@identitypartners.uk · Member</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">AI Context</span></div>
+            <p style="font-size:12.5px;color:var(--fg-muted);margin-bottom:12px;">This context is injected into every AI conversation.</p>
+            <div class="form-group"><label class="form-label">About your work</label><textarea class="textarea" id="p-context">Identity Partners provides professional services in addiction recovery, trauma therapy, mental health support, and community wellbeing. We work with individuals, organisations, and the VCSE sector.</textarea></div>
+            <div class="form-group"><label class="form-label">Preferred writing style</label><input class="input" id="p-style" type="text" value="Professional, warm, evidence-based. British English."></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/profile/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  loadProfile();
+});
+
+function saveProfile() {
+  var profile = {name:document.getElementById('p-name').value,email:document.getElementById('p-email').value,org:document.getElementById('p-org').value,role:document.getElementById('p-role').value,bio:document.getElementById('p-bio').value,context:document.getElementById('p-context').value,style:document.getElementById('p-style').value};
+  try{localStorage.setItem('prism-profile',JSON.stringify(profile));}catch(e){}
+  Toast.success('Profile saved');
+}
+function loadProfile() {
+  try{var s=JSON.parse(localStorage.getItem('prism-profile')||'{}');
+  if(s.name)document.getElementById('p-name').value=s.name;
+  if(s.email)document.getElementById('p-email').value=s.email;
+  if(s.org)document.getElementById('p-org').value=s.org;
+  if(s.role)document.getElementById('p-role').value=s.role;
+  if(s.bio)document.getElementById('p-bio').value=s.bio;
+  if(s.context)document.getElementById('p-context').value=s.context;
+  if(s.style)document.getElementById('p-style').value=s.style;
+  }catch(e){}
+}
+</script>
+</body>
+</html>

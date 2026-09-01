@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Home — Prism</title>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+<style>
+.home-layout { display: grid; grid-template-columns: 280px 1fr 280px; gap: 20px; padding: 20px; max-width: 1400px; margin: 0 auto; }
+@media(max-width:1280px){ .home-layout{ grid-template-columns: 240px 1fr; } .home-right{ display:none; } }
+@media(max-width:900px){ .home-layout{ grid-template-columns: 1fr; } .home-left{ display:none; } }
+.home-hero {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 16px;
+  min-height: 160px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--rose) 100%);
+  display: flex;
+  align-items: flex-end;
+  padding: 20px;
+}
+.home-hero-bg {
+  position: absolute; inset: 0;
+  background-size: cover; background-position: center;
+  opacity: 0.35;
+  transition: opacity 0.5s;
+}
+.home-hero-content { position: relative; z-index: 1; color: #fff; }
+.home-hero-greeting { font-family: var(--font-heading); font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+.home-hero-date { font-size: 13px; opacity: 0.85; }
+.hero-cycle-btn {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);
+  color: #fff; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+.hero-cycle-btn:hover { background: rgba(255,255,255,0.35); }
+.atmosphere-strip {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;
+}
+.atm-btn {
+  padding: 5px 12px; border: 1px solid var(--border); border-radius: 20px;
+  font-size: 12px; background: var(--bg-elevated); color: var(--fg-secondary);
+  cursor: pointer; transition: all 0.15s;
+}
+.atm-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.embed-panel { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 16px; }
+.embed-url-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.embed-url-input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; outline: none; background: var(--bg-primary); color: var(--fg-primary); }
+.embed-url-input:focus { border-color: var(--accent); }
+.embed-frame { width: 100%; height: 200px; border: none; border-radius: 6px; background: var(--bg-surface); }
+.briefing-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+.briefing-title { font-family: var(--font-heading); font-size: 15px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.briefing-item { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; display: flex; gap: 8px; align-items: flex-start; }
+.briefing-item:last-child { border-bottom: none; }
+.briefing-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.quick-input-area { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
+.quick-textarea { width: 100%; min-height: 80px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13.5px; font-family: var(--font-ui); resize: none; outline: none; background: var(--bg-primary); color: var(--fg-primary); }
+.quick-textarea:focus { border-color: var(--accent); }
+.quick-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.news-feed { display: flex; flex-direction: column; gap: 10px; }
+.news-item { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; display: flex; gap: 10px; cursor: pointer; transition: border-color 0.15s; }
+.news-item:hover { border-color: var(--accent); }
+.news-thumb { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: var(--bg-surface); }
+.news-content { flex: 1; min-width: 0; }
+.news-headline { font-size: 13px; font-weight: 500; color: var(--fg-primary); margin-bottom: 4px; line-height: 1.4; }
+.news-meta { font-size: 11px; color: var(--fg-muted); }
+.news-new { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-right: 4px; vertical-align: middle; }
+.calendar-widget { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
+.cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.cal-title { font-family: var(--font-heading); font-size: 14px; font-weight: 600; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+.cal-day-label { font-size: 10px; font-weight: 600; color: var(--fg-muted); padding: 4px 0; }
+.cal-day { font-size: 12px; padding: 5px 2px; border-radius: 4px; cursor: pointer; color: var(--fg-secondary); }
+.cal-day:hover { background: var(--accent-light); color: var(--accent); }
+.cal-day.today { background: var(--accent); color: #fff; font-weight: 600; }
+.cal-day.has-event { position: relative; }
+.cal-day.has-event::after { content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--rose); }
+.event-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.event-item { padding: 7px 10px; background: var(--accent-light); border-radius: 6px; font-size: 12.5px; color: var(--accent); display: flex; gap: 8px; align-items: center; }
+.event-time { font-weight: 600; font-size: 11px; flex-shrink: 0; }
+.social-notif { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
+.notif-item { display: flex; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.notif-item:last-child { border-bottom: none; }
+.notif-platform { font-size: 18px; flex-shrink: 0; }
+.notif-text { flex: 1; color: var(--fg-secondary); }
+.notif-count { font-weight: 600; color: var(--accent); font-size: 12px; }
+.memory-snapshot { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
+.memory-item { padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; color: var(--fg-secondary); line-height: 1.5; }
+.memory-item:last-child { border-bottom: none; }
+.todo-panel { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
+.todo-item { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.todo-item:last-child { border-bottom: none; }
+.todo-check { width: 16px; height: 16px; border: 1.5px solid var(--border); border-radius: 3px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+.todo-check.done { background: var(--accent); border-color: var(--accent); color: #fff; }
+.todo-text { flex: 1; }
+.todo-text.done { text-decoration: line-through; color: var(--fg-muted); }
+.todo-add { display: flex; gap: 6px; margin-top: 8px; }
+.todo-input { flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; outline: none; background: var(--bg-primary); color: var(--fg-primary); }
+.todo-input:focus { border-color: var(--accent); }
+.social-queue-preview { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
+.queue-item { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.queue-item:last-child { border-bottom: none; }
+.queue-platform { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin-bottom: 2px; }
+.queue-text { color: var(--fg-secondary); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.queue-time { font-size: 10.5px; color: var(--fg-muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="prism-shell">
+<div id="sidebar-mount"></div>
+<div class="main-content" id="main-content">
+<div class="topbar">
+<div class="topbar-title">Home</div>
+<div class="topbar-actions">
+<div class="world-clocks" id="world-clocks"></div>
+<div class="pomodoro">
+<span class="pomodoro-time" id="pomo-time">25:00</span>
+<button class="pomodoro-btn" onclick="Pomodoro.start('pomo-time')" title="Start Pomodoro timer">▶</button>
+<button class="pomodoro-btn" onclick="Pomodoro.pause()" title="Pause">⏸</button>
+<button class="pomodoro-btn" onclick="Pomodoro.reset()" title="Reset">↺</button>
+</div>
+</div>
+</div>
+<div class="page-content full-width">
+<div class="home-layout">
+<!-- Left: Calendar -->
+<div class="home-left">
+<div class="calendar-widget">
+<div class="cal-header">
+<span class="cal-title" id="cal-month">September 2026</span>
+<div style="display:flex;gap:4px;">
+<button class="btn btn-ghost btn-sm btn-icon" onclick="calPrev()" title="Previous month">‹</button>
+<button class="btn btn-ghost btn-sm btn-icon" onclick="calNext()" title="Next month">›</button>
+</div>
+</div>
+<div class="cal-grid" id="cal-grid"></div>
+<div class="event-list" id="event-list">
+<div class="event-item"><span class="event-time">09:00</span><span>Morning briefing</span></div>
+<div class="event-item"><span class="event-time">14:00</span><span>Client session</span></div>
+</div>
+</div>
+<div class="todo-panel">
+<div class="card-header" style="margin-bottom:10px;padding-bottom:8px;">
+<span class="card-title">Today's Tasks</span>
+<button class="btn btn-ghost btn-sm" onclick="clearDoneTodos()" title="Clear completed tasks">Clear done</button>
+</div>
+<div id="todo-list"></div>
+<div class="todo-add">
+<input class="todo-input" id="todo-input" placeholder="Add a task…" type="text"/>
+<button class="btn btn-sm btn-primary" onclick="addTodo()" title="Add task">Add</button>
+</div>
+</div>
+</div>
+<!-- Centre: Main content -->
+<div class="home-centre">
+<!-- Hero -->
+<div class="home-hero" id="home-hero">
+<div class="home-hero-bg" id="hero-bg"></div>
+<button class="hero-cycle-btn" onclick="cycleHeroImage()" title="Next background image">Next image</button>
+<div class="home-hero-content">
+<div class="home-hero-greeting" id="hero-greeting">Good morning, Simon.</div>
+<div class="home-hero-date" id="hero-date"></div>
+</div>
+</div>
+<!-- Atmosphere strip -->
+<div class="atmosphere-strip">
+<button class="atm-btn" onclick="toggleEmbed('spotify')" title="Embed a Spotify playlist">🎵 Spotify</button>
+<button class="atm-btn" onclick="toggleEmbed('youtube')" title="Embed a YouTube video">▶ YouTube</button>
+<button class="atm-btn" onclick="window.open('https://www.bbc.co.uk/iplayer','_blank')" title="Open BBC iPlayer">📺 iPlayer</button>
+<button class="atm-btn" onclick="window.open('https://www.globalplayer.com','_blank')" title="Open Global Player">📻 Global Player</button>
+<button class="atm-btn" onclick="window.open('https://music.amazon.co.uk','_blank')" title="Open Amazon Music">🎶 Amazon Music</button>
+<button class="atm-btn" onclick="playAmbient('whitenoise')" title="Play white noise">🌊 White Noise</button>
+<button class="atm-btn" onclick="playAmbient('nature')" title="Play nature sounds">🌿 Nature</button>
+<button class="atm-btn" onclick="playAmbient('lofi')" title="Play lo-fi music">🎹 Lo-Fi</button>
+</div>
+<!-- Embed panel (hidden by default) -->
+<div class="embed-panel hidden" id="embed-panel">
+<div class="embed-url-row">
+<input class="embed-url-input" id="embed-url" placeholder="Paste Spotify playlist or YouTube URL…" type="text"/>
+<button class="btn btn-sm btn-primary" onclick="loadEmbed()" title="Load embed">Load</button>
+<button class="btn btn-sm btn-ghost" onclick="closeEmbed()" title="Close embed">✕</button>
+</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+<button class="atm-btn" onclick="loadPreset('https://open.spotify.com/embed/playlist/37i9dQZF1DX4sWSpwq3LiO')" title="Peaceful Piano playlist">Peaceful Piano</button>
+<button class="atm-btn" onclick="loadPreset('https://open.spotify.com/embed/playlist/37i9dQZF1DWZeKCadgRdKQ')" title="Deep Focus playlist">Deep Focus</button>
+<button class="atm-btn" onclick="loadPreset('https://open.spotify.com/embed/playlist/37i9dQZF1DX3Ogo9pFvBkY')" title="Ambient Chill playlist">Ambient Chill</button>
+<button class="atm-btn" onclick="loadPreset('https://www.youtube.com/embed/jfKfPfyJRdk')" title="Lo-Fi Hip Hop">Lo-Fi Hip Hop</button>
+</div>
+<iframe allow="autoplay; encrypted-media" allowfullscreen="" class="embed-frame" id="embed-frame" src=""></iframe>
+</div>
+<!-- Morning briefing -->
+<div class="briefing-card">
+<div class="briefing-title">☀ Morning Briefing <span class="badge badge-accent" style="font-size:10px;">Auto</span></div>
+<div id="briefing-content">
+<div class="briefing-item"><span class="briefing-icon">📅</span><span>Loading calendar summary…</span></div>
+<div class="briefing-item"><span class="briefing-icon">📱</span><span>Loading social queue…</span></div>
+<div class="briefing-item"><span class="briefing-icon">📧</span><span>Loading inbox preview…</span></div>
+</div>
+</div>
+<!-- Quick input -->
+<div class="quick-input-area">
+<textarea class="quick-textarea" id="quick-input" placeholder="What's on your mind? Type, write, or dictate…"></textarea>
+<div class="quick-actions">
+<button class="btn btn-sm btn-primary" onclick="quickSendToChat()" title="Send to Chat">💬 Chat</button>
+<button class="btn btn-sm btn-secondary" onclick="quickSendToResearch()" title="Send to Research">🔍 Research</button>
+<button class="btn btn-sm btn-secondary" onclick="quickSendToDrafting()" title="Send to Drafting Desk">✍ Draft</button>
+<button class="btn btn-sm btn-secondary" onclick="quickAtomise()" title="Atomise this text">⚡ Atomise</button>
+<button class="btn btn-sm btn-secondary" onclick="quickGenerateImage()" title="Generate an image">🖼 Image</button>
+</div>
+</div>
+<!-- Social queue preview -->
+<div class="social-queue-preview">
+<div class="card-header" style="margin-bottom:10px;padding-bottom:8px;">
+<span class="card-title">Social Queue</span>
+<a class="btn btn-ghost btn-sm" href="/social-queue/" title="View full social queue">View all →</a>
+</div>
+<div id="queue-preview-list">
+<div style="font-size:12.5px;color:var(--fg-muted);padding:8px 0;">Loading queue…</div>
+</div>
+</div>
+<!-- News feed -->
+<div class="card-header" style="margin-bottom:12px;">
+<span class="card-title">News Feed</span>
+<button class="btn btn-ghost btn-sm" onclick="refreshNews()" title="Refresh news feed">↺ Refresh</button>
+</div>
+<div class="news-feed" id="news-feed">
+<div style="font-size:12.5px;color:var(--fg-muted);">Loading news…</div>
+</div>
+</div>
+<!-- Right: Notifications, inbox, memory -->
+<div class="home-right">
+<div class="social-notif">
+<div class="card-header" style="margin-bottom:10px;padding-bottom:8px;">
+<span class="card-title">Social</span>
+<a class="btn btn-ghost btn-sm" href="/social-queue/" title="Social Queue">→</a>
+</div>
+<div id="social-notifs">
+<div class="notif-item"><span class="notif-platform">🦋</span><span class="notif-text">Bluesky</span><span class="notif-count">—</span></div>
+<div class="notif-item"><span class="notif-platform">💼</span><span class="notif-text">LinkedIn</span><span class="notif-count">—</span></div>
+</div>
+</div>
+<div class="memory-snapshot">
+<div class="card-header" style="margin-bottom:10px;padding-bottom:8px;">
+<span class="card-title">Recent Memories</span>
+<a class="btn btn-ghost btn-sm" href="/memory/" title="Memory">→</a>
+</div>
+<div id="memory-list">
+<div style="font-size:12.5px;color:var(--fg-muted);">Loading memories…</div>
+</div>
+</div>
+<div class="card">
+<div class="card-header">
+<span class="card-title">Quick Image</span>
+</div>
+<div class="form-group">
+<input class="input" id="img-prompt" placeholder="Describe an image…" type="text"/>
+</div>
+<button class="btn btn-primary" onclick="quickImage()" style="width:100%;" title="Generate image">🖼 Generate</button>
+<div id="img-result" style="margin-top:10px;"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var heroImages = [
+  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&q=80',
+  'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=1200&q=80',
+  'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1200&q=80',
+  'https://images.unsplash.com/photo-1518173946687-a4c8892bbd9f?w=1200&q=80',
+  'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=1200&q=80',
+];
+var heroIdx = 0;
+var todos = [];
+var calYear = 2026;
+var calMonth = 8; // 0-indexed, 8 = September
+
+function init() {
+  setGreeting();
+  setHeroImage();
+  renderCalendar();
+  loadTodos();
+  loadMemories();
+  loadQueuePreview();
+  loadNews();
+  WorldClocks.start('world-clocks');
+}
+
+function setGreeting() {
+  var h = new Date().getHours();
+  var greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  var el = document.getElementById('hero-greeting');
+  if (el) el.textContent = greeting + ', Simon.';
+  var dateEl = document.getElementById('hero-date');
+  if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',day:'numeric',month:'long',year:'numeric'});
+}
+
+function setHeroImage() {
+  var bg = document.getElementById('hero-bg');
+  if (bg) bg.style.backgroundImage = 'url(' + heroImages[heroIdx] + ')';
+}
+
+function cycleHeroImage() {
+  heroIdx = (heroIdx + 1) % heroImages.length;
+  setHeroImage();
+}
+
+function toggleEmbed(type) {
+  var panel = document.getElementById('embed-panel');
+  if (!panel) return;
+  panel.classList.toggle('hidden');
+  if (!panel.classList.contains('hidden')) {
+    var input = document.getElementById('embed-url');
+    if (input) input.placeholder = type === 'spotify' ? 'Paste Spotify playlist URL…' : 'Paste YouTube URL…';
+  }
+}
+
+function closeEmbed() {
+  var panel = document.getElementById('embed-panel');
+  if (panel) panel.classList.add('hidden');
+  var frame = document.getElementById('embed-frame');
+  if (frame) frame.src = '';
+}
+
+function loadEmbed() {
+  var url = document.getElementById('embed-url').value.trim();
+  if (!url) return;
+  var embedUrl = url;
+  if (url.includes('youtube.com/watch')) {
+    var vid = url.split('v=')[1];
+    if (vid) embedUrl = 'https://www.youtube.com/embed/' + vid.split('&')[0];
+  } else if (url.includes('youtu.be/')) {
+    var vid = url.split('youtu.be/')[1];
+    if (vid) embedUrl = 'https://www.youtube.com/embed/' + vid;
+  } else if (url.includes('spotify.com') && !url.includes('/embed/')) {
+    embedUrl = url.replace('open.spotify.com/', 'open.spotify.com/embed/');
+  }
+  var frame = document.getElementById('embed-frame');
+  if (frame) frame.src = embedUrl;
+}
+
+function loadPreset(url) {
+  var frame = document.getElementById('embed-frame');
+  if (frame) frame.src = url;
+  var panel = document.getElementById('embed-panel');
+  if (panel) panel.classList.remove('hidden');
+}
+
+function playAmbient(type) {
+  var urls = {
+    whitenoise: 'https://www.youtube.com/embed/nMfPqeZjc2c?autoplay=1',
+    nature: 'https://www.youtube.com/embed/eKFTSSKCzWA?autoplay=1',
+    lofi: 'https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1',
+  };
+  if (urls[type]) loadPreset(urls[type]);
+}
+
+// Calendar
+function renderCalendar() {
+  var grid = document.getElementById('cal-grid');
+  var monthEl = document.getElementById('cal-month');
+  if (!grid) return;
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  if (monthEl) monthEl.textContent = months[calMonth] + ' ' + calYear;
+  grid.innerHTML = '';
+  var days = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+  for (var i = 0; i < days.length; i++) {
+    var lbl = document.createElement('div');
+    lbl.className = 'cal-day-label';
+    lbl.textContent = days[i];
+    grid.appendChild(lbl);
+  }
+  var firstDay = new Date(calYear, calMonth, 1).getDay();
+  var offset = firstDay === 0 ? 6 : firstDay - 1;
+  var daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  var today = new Date();
+  for (var i = 0; i < offset; i++) {
+    var empty = document.createElement('div');
+    grid.appendChild(empty);
+  }
+  for (var d = 1; d <= daysInMonth; d++) {
+    var cell = document.createElement('div');
+    cell.className = 'cal-day';
+    cell.textContent = d;
+    if (d === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear()) {
+      cell.classList.add('today');
+    }
+    grid.appendChild(cell);
+  }
+}
+
+function calPrev() { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); }
+function calNext() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); }
+
+// Todos
+function loadTodos() {
+  try { todos = JSON.parse(localStorage.getItem('prism-todos') || '[]'); } catch(e) { todos = []; }
+  renderTodos();
+}
+
+function saveTodos() {
+  try { localStorage.setItem('prism-todos', JSON.stringify(todos)); } catch(e) {}
+}
+
+function renderTodos() {
+  var list = document.getElementById('todo-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (todos.length === 0) {
+    var empty = document.createElement('div');
+    empty.style.cssText = 'font-size:12.5px;color:var(--fg-muted);padding:8px 0;';
+    empty.textContent = 'No tasks. Add one below.';
+    list.appendChild(empty);
+    return;
+  }
+  for (var i = 0; i < todos.length; i++) {
+    (function(todo, idx) {
+      var item = document.createElement('div');
+      item.className = 'todo-item';
+      var check = document.createElement('div');
+      check.className = 'todo-check' + (todo.done ? ' done' : '');
+      check.textContent = todo.done ? '✓' : '';
+      check.title = todo.done ? 'Mark incomplete' : 'Mark complete';
+      check.onclick = function() { todos[idx].done = !todos[idx].done; saveTodos(); renderTodos(); };
+      var text = document.createElement('span');
+      text.className = 'todo-text' + (todo.done ? ' done' : '');
+      text.textContent = todo.text;
+      var del = document.createElement('button');
+      del.className = 'btn btn-ghost btn-sm btn-icon';
+      del.textContent = '✕';
+      del.title = 'Delete task';
+      del.style.fontSize = '11px';
+      del.onclick = function() { todos.splice(idx, 1); saveTodos(); renderTodos(); };
+      item.appendChild(check);
+      item.appendChild(text);
+      item.appendChild(del);
+      list.appendChild(item);
+    })(todos[i], i);
+  }
+}
+
+function addTodo() {
+  var input = document.getElementById('todo-input');
+  if (!input || !input.value.trim()) return;
+  todos.push({text: input.value.trim(), done: false});
+  input.value = '';
+  saveTodos();
+  renderTodos();
+}
+
+function clearDoneTodos() {
+  todos = todos.filter(function(t) { return !t.done; });
+  saveTodos();
+  renderTodos();
+}
+
+document.addEventListener('keydown', function(e) {
+  if (document.activeElement === document.getElementById('todo-input') && e.key === 'Enter') addTodo();
+});
+
+// Memories
+function loadMemories() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', WORKER + '/api/memory', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    var list = document.getElementById('memory-list');
+    if (!list) return;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      var mems = result.memories || [];
+      list.innerHTML = '';
+      if (mems.length === 0) {
+        list.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">No memories yet.</div>';
+        return;
+      }
+      for (var i = 0; i < Math.min(mems.length, 5); i++) {
+        var item = document.createElement('div');
+        item.className = 'memory-item';
+        item.textContent = mems[i].content ? mems[i].content.substring(0, 100) + (mems[i].content.length > 100 ? '…' : '') : '';
+        list.appendChild(item);
+      }
+    } catch(e) {
+      list.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">Could not load memories.</div>';
+    }
+  };
+  xhr.onerror = function() {};
+  xhr.send();
+}
+
+// Queue preview
+function loadQueuePreview() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', WORKER + '/api/social/queue', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    var list = document.getElementById('queue-preview-list');
+    if (!list) return;
+    try {
+      var result = JSON.parse(xhr.responseText);
+      var queue = result.queue || [];
+      list.innerHTML = '';
+      if (queue.length === 0) {
+        list.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">Queue is empty.</div>';
+        return;
+      }
+      for (var i = 0; i < Math.min(queue.length, 3); i++) {
+        var item = document.createElement('div');
+        item.className = 'queue-item';
+        var platform = document.createElement('div');
+        platform.className = 'queue-platform';
+        platform.textContent = queue[i].type || queue[i].platform || 'Post';
+        var text = document.createElement('div');
+        text.className = 'queue-text';
+        text.textContent = queue[i].content ? queue[i].content.substring(0, 80) + '…' : '';
+        var time = document.createElement('div');
+        time.className = 'queue-time';
+        time.textContent = queue[i].scheduledAt ? new Date(queue[i].scheduledAt).toLocaleDateString('en-GB') : 'Pending';
+        item.appendChild(platform);
+        item.appendChild(text);
+        item.appendChild(time);
+        list.appendChild(item);
+      }
+    } catch(e) {
+      list.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">Could not load queue.</div>';
+    }
+  };
+  xhr.onerror = function() {};
+  xhr.send();
+}
+
+// News (RSS via allorigins proxy)
+var RSS_FEEDS = [
+  'https://feeds.theguardian.com/theguardian/uk/rss',
+  'https://feeds.bbci.co.uk/news/rss.xml',
+];
+var newsItems = [];
+
+function loadNews() {
+  var feed = RSS_FEEDS[0];
+  var url = 'https://api.allorigins.win/get?url=' + encodeURIComponent(feed);
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', url, true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var data = JSON.parse(xhr.responseText);
+      var parser = new DOMParser();
+      var xml = parser.parseFromString(data.contents, 'text/xml');
+      var items = xml.querySelectorAll('item');
+      newsItems = [];
+      for (var i = 0; i < Math.min(items.length, 8); i++) {
+        var title = items[i].querySelector('title');
+        var link = items[i].querySelector('link');
+        var pubDate = items[i].querySelector('pubDate');
+        var source = 'The Guardian';
+        newsItems.push({
+          title: title ? title.textContent : '',
+          link: link ? link.textContent : '#',
+          date: pubDate ? pubDate.textContent : '',
+          source: source,
+        });
+      }
+      renderNews();
+    } catch(e) {
+      renderNewsFallback();
+    }
+  };
+  xhr.onerror = function() { renderNewsFallback(); };
+  xhr.send();
+}
+
+function renderNews() {
+  var feed = document.getElementById('news-feed');
+  if (!feed) return;
+  feed.innerHTML = '';
+  for (var i = 0; i < newsItems.length; i++) {
+    (function(item) {
+      var el = document.createElement('div');
+      el.className = 'news-item';
+      el.onclick = function() { window.open(item.link, '_blank'); };
+      var thumb = document.createElement('div');
+      thumb.className = 'news-thumb';
+      thumb.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:24px;';
+      thumb.textContent = '📰';
+      var content = document.createElement('div');
+      content.className = 'news-content';
+      var headline = document.createElement('div');
+      headline.className = 'news-headline';
+      headline.textContent = item.title;
+      var meta = document.createElement('div');
+      meta.className = 'news-meta';
+      meta.textContent = item.source + (item.date ? ' · ' + new Date(item.date).toLocaleDateString('en-GB') : '');
+      content.appendChild(headline);
+      content.appendChild(meta);
+      el.appendChild(thumb);
+      el.appendChild(content);
+      feed.appendChild(el);
+    })(newsItems[i]);
+  }
+}
+
+function renderNewsFallback() {
+  var feed = document.getElementById('news-feed');
+  if (feed) feed.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);padding:12px 0;">News feed unavailable. Check your connection.</div>';
+}
+
+function refreshNews() { loadNews(); Toast.info('Refreshing news…'); }
+
+// Quick actions
+function quickSendToChat() {
+  var text = document.getElementById('quick-input').value.trim();
+  if (!text) return;
+  try { sessionStorage.setItem('prism-chat-prefill', text); } catch(e) {}
+  window.location.href = '/chat/';
+}
+function quickSendToResearch() {
+  var text = document.getElementById('quick-input').value.trim();
+  if (!text) return;
+  try { sessionStorage.setItem('prism-research-prefill', text); } catch(e) {}
+  window.location.href = '/research/';
+}
+function quickSendToDrafting() {
+  var text = document.getElementById('quick-input').value.trim();
+  if (!text) return;
+  try { sessionStorage.setItem('prism-draft', text); } catch(e) {}
+  window.location.href = '/drafting/';
+}
+function quickAtomise() {
+  var text = document.getElementById('quick-input').value.trim();
+  if (!text) return;
+  try { sessionStorage.setItem('prism-atomise', text); } catch(e) {}
+  window.location.href = '/atomise/';
+}
+function quickGenerateImage() {
+  var text = document.getElementById('quick-input').value.trim();
+  if (!text) return;
+  try { sessionStorage.setItem('prism-chat-prefill', 'Generate an image of ' + text); } catch(e) {}
+  window.location.href = '/chat/';
+}
+
+// Quick image in right panel
+function quickImage() {
+  var prompt = document.getElementById('img-prompt').value.trim();
+  if (!prompt) return;
+  var result = document.getElementById('img-result');
+  if (result) result.innerHTML = '<div class="spinner"></div>';
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/image', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var data = JSON.parse(xhr.responseText);
+      if (data.url && result) {
+        var img = document.createElement('img');
+        img.src = data.url;
+        img.style.cssText = 'width:100%;border-radius:8px;border:1px solid var(--border);';
+        img.alt = prompt;
+        result.innerHTML = '';
+        result.appendChild(img);
+      }
+    } catch(e) {
+      if (result) result.innerHTML = '<div style="color:var(--danger);font-size:12px;">Image generation failed.</div>';
+    }
+  };
+  xhr.onerror = function() {
+    if (result) result.innerHTML = '<div style="color:var(--danger);font-size:12px;">Network error.</div>';
+  };
+  xhr.send(JSON.stringify({prompt: prompt}));
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) {
+    var sb = buildSidebar('/home/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  init();
+});
+</script>
+</body>
+</html>

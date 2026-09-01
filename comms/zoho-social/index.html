@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zoho Social — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar"><div class="topbar-title">Zoho Social</div><div class="topbar-actions"><a href="/oauth/zoho/social" class="btn btn-sm btn-secondary" title="Connect Zoho Social">🔑 Connect Zoho</a></div></div>
+    <div class="page-content">
+
+      <div class="card" style="text-align:center;padding:40px;">
+        <div style="font-size:48px;margin-bottom:16px;">📱</div>
+        <div style="font-family:var(--font-heading);font-size:20px;font-weight:600;margin-bottom:10px;">Zoho Social</div>
+        <p style="font-size:13.5px;color:var(--fg-muted);max-width:400px;margin:0 auto 20px;">Connect Zoho Social to manage your social media accounts, schedule posts, and monitor engagement.</p>
+        <a href="/oauth/zoho/social" class="btn btn-primary" title="Connect Zoho Social">Connect Zoho Social</a>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/comms/zoho-social/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  
+});
+
+</script>
+</body>
+</html>

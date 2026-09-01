@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Round Table — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar"><div class="topbar-title">Round Table</div><div class="topbar-actions"><button class="btn btn-sm btn-primary" onclick="runRoundTable()" title="Send to all selected models">▶ Run</button></div></div>
+    <div class="page-content">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-header"><span class="card-title">Select Models (up to 5)</span></div>
+        <div id="model-selector" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;"></div>
+        <div class="form-group"><label class="form-label">Prompt</label>
+          <textarea class="textarea" id="rt-input" rows="3" placeholder="Enter your prompt — it will be sent to all selected models simultaneously…"></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="runRoundTable()" title="Send to all selected models">▶ Run Round Table</button>
+      </div>
+      <div id="rt-results"></div>
+      <script>renderModelSelector();</script></div>
+  </div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/agenti/round-table/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  
+});
+
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var selectedModels = ['cerebras','groq','deepseek'];
+var MODELS = [
+  {id:'cerebras',name:'Cerebras',icon:'⚡',provider:'cerebras'},
+  {id:'groq',name:'Groq',icon:'🚀',provider:'groq'},
+  {id:'deepseek',name:'DeepSeek',icon:'🐋',provider:'deepseek'},
+  {id:'gemini',name:'Gemini',icon:'💎',provider:'gemini'},
+  {id:'openrouter',name:'OpenRouter',icon:'🔀',provider:'openrouter'},
+  {id:'nvidia',name:'NVIDIA',icon:'🤖',provider:'nvidia'},
+];
+function toggleModel(id) {
+  var idx = selectedModels.indexOf(id);
+  if (idx >= 0) selectedModels.splice(idx, 1);
+  else if (selectedModels.length < 5) selectedModels.push(id);
+  else { Toast.warning('Maximum 5 models'); return; }
+  renderModelSelector();
+}
+function renderModelSelector() {
+  var container = document.getElementById('model-selector');
+  if (!container) return;
+  container.innerHTML = '';
+  for (var i = 0; i < MODELS.length; i++) {
+    (function(m) {
+      var btn = document.createElement('button');
+      var active = selectedModels.indexOf(m.id) >= 0;
+      btn.className = 'chip' + (active ? ' active' : '');
+      btn.textContent = m.icon + ' ' + m.name;
+      btn.title = 'Toggle ' + m.name;
+      btn.onclick = function() { toggleModel(m.id); };
+      container.appendChild(btn);
+    })(MODELS[i]);
+  }
+}
+function runRoundTable() {
+  var input = document.getElementById('rt-input').value.trim();
+  if (!input) { Toast.warning('Enter a prompt'); return; }
+  if (selectedModels.length === 0) { Toast.warning('Select at least one model'); return; }
+  var results = document.getElementById('rt-results');
+  if (results) results.innerHTML = '';
+  for (var i = 0; i < selectedModels.length; i++) {
+    (function(modelId) {
+      var model = null;
+      for (var j = 0; j < MODELS.length; j++) { if (MODELS[j].id === modelId) { model = MODELS[j]; break; } }
+      if (!model) return;
+      var card = document.createElement('div');
+      card.className = 'card';
+      card.style.marginBottom = '12px';
+      var header = document.createElement('div');
+      header.className = 'card-header';
+      var title = document.createElement('span');
+      title.className = 'card-title';
+      title.textContent = model.icon + ' ' + model.name;
+      header.appendChild(title);
+      var content = document.createElement('div');
+      content.style.cssText = 'font-size:13.5px;line-height:1.6;padding:4px 0;';
+      content.innerHTML = '<div class="spinner"></div>';
+      card.appendChild(header);
+      card.appendChild(content);
+      if (results) results.appendChild(card);
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', WORKER + '/api/chat', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        try {
+          var r = JSON.parse(xhr.responseText);
+          content.className = 'md-content';
+          content.innerHTML = Markdown.render(r.content || r.error || 'No response');
+          var meta = document.createElement('div');
+          meta.style.cssText = 'font-size:11px;color:var(--fg-muted);margin-top:8px;';
+          meta.textContent = 'via ' + (r.provider || modelId);
+          content.appendChild(meta);
+        } catch(e) { content.textContent = 'Error: ' + e.message; }
+      };
+      xhr.onerror = function() { content.textContent = 'Network error'; };
+      xhr.send(JSON.stringify({messages:[{role:'user',content:input}],profile:modelId==='nvidia'?'frontier-free':modelId==='deepseek'?'frontier':'balanced'}));
+    })(selectedModels[i]);
+  }
+}
+
+</script>
+</body>
+</html>

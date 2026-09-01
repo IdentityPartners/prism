@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Persona Maker — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar"><div class="topbar-title">Persona Maker</div><div class="topbar-actions"><button class="btn btn-sm btn-primary" onclick="savePersona()" title="Save persona">Save Persona</button></div></div>
+    <div class="page-content">
+      <div class="grid-2" style="gap:20px;align-items:start;">
+        <div class="card">
+          <div class="card-header"><span class="card-title">New Persona</span></div>
+          <div class="form-group"><label class="form-label">Name *</label><input class="input" id="persona-name" type="text" placeholder="e.g. The Strategist"></div>
+          <div class="form-group"><label class="form-label">Avatar (emoji)</label><input class="input" id="persona-avatar" type="text" placeholder="🤖" maxlength="4"></div>
+          <div class="form-group"><label class="form-label">System Prompt</label><textarea class="textarea textarea-lg" id="persona-prompt" placeholder="You are…"></textarea></div>
+          <button class="btn btn-primary" onclick="savePersona()" title="Save persona">Save Persona</button>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Built-in Personas</span></div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:20px;">🤖</span><span>Prism — warm, professional, concise</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:20px;">🎩</span><span>Sardonic Butler — dry wit, impeccable manners</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:20px;">🔬</span><span>Research Associate — scholarly, precise</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:20px;">😈</span><span>Devil's Advocate — challenges every assumption</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:20px;">🦉</span><span>Wise Sage — reflective, philosophical</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:20px;">♟</span><span>The Strategist — outcome-focused, direct</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;"><span style="font-size:20px;">🖊</span><span>The Poet — lyrical, evocative</span></div>
+          </div>
+          <div class="card-header" style="margin-top:16px;"><span class="card-title">Custom Personas</span></div>
+          <div id="personas-list"></div>
+        </div>
+      </div></div>
+  </div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/agenti/persona-maker/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  loadPersonas();
+});
+
+var personas = [];
+function loadPersonas() { try { personas = JSON.parse(localStorage.getItem('prism-personas') || '[]'); } catch(e) { personas = []; } renderPersonas(); }
+function savePersonas() { try { localStorage.setItem('prism-personas', JSON.stringify(personas)); } catch(e) {} }
+function savePersona() {
+  var name = document.getElementById('persona-name').value.trim();
+  if (!name) { Toast.warning('Enter a persona name'); return; }
+  var persona = {id:'persona-'+Date.now(), name:name, avatar:document.getElementById('persona-avatar').value||'🤖', systemPrompt:document.getElementById('persona-prompt').value, created:new Date().toISOString()};
+  personas.push(persona); savePersonas(); renderPersonas(); Toast.success('Persona saved: ' + name);
+}
+function renderPersonas() {
+  var list = document.getElementById('personas-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (personas.length === 0) { list.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">No custom personas yet.</div>'; return; }
+  for (var i = 0; i < personas.length; i++) {
+    (function(p) {
+      var el = document.createElement('div');
+      el.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;';
+      var av = document.createElement('span');
+      av.style.fontSize = '24px';
+      av.textContent = p.avatar;
+      var info = document.createElement('div');
+      info.style.flex = '1';
+      var name = document.createElement('div');
+      name.style.cssText = 'font-weight:600;font-size:13px;';
+      name.textContent = p.name;
+      info.appendChild(name);
+      var delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-ghost btn-sm';
+      delBtn.textContent = '🗑';
+      delBtn.title = 'Delete persona';
+      delBtn.onclick = function() { personas = personas.filter(function(x){return x.id!==p.id;}); savePersonas(); renderPersonas(); };
+      el.appendChild(av); el.appendChild(info); el.appendChild(delBtn);
+      list.appendChild(el);
+    })(personas[i]);
+  }
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Orchestrator — Prism</title>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+</head>
+<body>
+<div class="prism-shell">
+<div id="sidebar-mount"></div>
+<div class="main-content" id="main-content">
+<div class="topbar">
+<div class="topbar-title">Orchestrator</div>
+<div class="topbar-actions">
+<button class="btn btn-sm btn-secondary" onclick="checkHealth()" title="Check Worker health">🩺 Health Check</button>
+<button class="btn btn-sm btn-primary" onclick="runTest()" title="Send a test message through the orchestrator">🧪 Test</button>
+</div>
+</div>
+<div class="page-content">
+<div class="grid-2" style="gap:20px;align-items:start;">
+<div>
+<div class="card" style="margin-bottom:16px;">
+<div class="card-header"><span class="card-title">Routing Profiles</span></div>
+<div id="profiles-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+</div>
+<div class="card" style="margin-bottom:16px;">
+<div class="card-header"><span class="card-title">Provider Adapters</span></div>
+<div id="provider-list" style="display:flex;flex-direction:column;gap:4px;font-size:12.5px;"></div>
+</div>
+<div class="card">
+<div class="card-header"><span class="card-title">Worker Health</span></div>
+<div id="health-result" style="font-size:13px;color:var(--fg-muted);">Click Health Check to verify.</div>
+</div>
+</div>
+<div>
+<div class="card" style="margin-bottom:16px;">
+<div class="card-header"><span class="card-title">Test Orchestrator</span></div>
+<div class="form-group">
+<label class="form-label">Test message</label>
+<textarea class="textarea" id="test-input" rows="3">What is the capital of France?</textarea>
+</div>
+<div class="form-group">
+<label class="form-label">Routing profile</label>
+<select class="select" id="test-profile" title="Routing profile">
+<option value="balanced">⚖ Balanced</option>
+<option value="free">🆓 Free</option>
+<option value="fast">⚡ Fast</option>
+<option value="frontier">💎 Full Frontier</option>
+<option value="reasoning">🧠 Reasoning</option>
+<option value="coding">💻 Coding</option>
+</select>
+</div>
+<button class="btn btn-primary" onclick="runTest()" title="Run test through orchestrator">▶ Run Test</button>
+<div id="test-result" style="margin-top:14px;"></div>
+</div>
+<div class="card">
+<div class="card-header"><span class="card-title">Intent Classification</span></div>
+<div class="form-group">
+<label class="form-label">Test intent detection</label>
+<input class="input" id="intent-input" placeholder="Type a message to classify…" type="text"/>
+</div>
+<button class="btn btn-sm btn-secondary" onclick="testIntent()" title="Classify intent">Classify</button>
+<div id="intent-result" style="margin-top:8px;font-size:13px;color:var(--fg-secondary);"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+
+var PROFILES = [
+  {id:'local', name:'🔒 Local', desc:'All processing on Surface Pro via Ollama. Zero cost, fully private.'},
+  {id:'free', name:'🆓 Free', desc:'Cerebras → Groq → SambaNova → Together → Chutes → OpenRouter'},
+  {id:'balanced', name:'⚖ Balanced (default)', desc:'Free providers first; escalates to DeepSeek V4 Flash when quality requires it.'},
+  {id:'frontier-free', name:'🧪 Frontier Free', desc:'Gemini → NVIDIA Nemotron → DeepSeek → OpenRouter'},
+  {id:'frontier', name:'💎 Full Frontier', desc:'DeepSeek R1 → Gemini Pro → OpenRouter best-available → DeepSeek Chat'},
+  {id:'coding', name:'💻 Coding', desc:'Zhipu GLM-4 Flash → Cerebras → DeepSeek → Groq'},
+  {id:'reasoning', name:'🧠 Reasoning', desc:'NVIDIA Nemotron → DeepSeek R1 → Groq DeepSeek R1 distill'},
+  {id:'fast', name:'⚡ Fast', desc:'Cerebras → Groq → Zhipu GLM-4 Flash'},
+];
+
+var PROVIDERS = [
+  'cerebras','groq','deepseek','gemini','openrouter','sambanova',
+  'nvidia','mistral','together','fireworks','zhipu','chutes','nebius','kimi','ollama'
+];
+
+var INTENT_PATTERNS = [
+  {pattern:/\b(generate|create|draw|illustrate|make)\s+(an?\s+)?(image|picture|photo)\b/i, intent:'image_gen'},
+  {pattern:/\b(generate|create|compose)\s+(a\s+)?(song|music|audio)\b/i, intent:'audio_gen'},
+  {pattern:/\b(search|find|research|look up)\b/i, intent:'research'},
+  {pattern:/\b(write|draft|compose)\s+(a\s+)?(email|letter|report|article)\b/i, intent:'drafting'},
+  {pattern:/\b(code|function|script|program|debug|fix|implement)\b/i, intent:'coding'},
+  {pattern:/\b(reason|analyse|analyze|evaluate|assess)\b/i, intent:'reasoning'},
+  {pattern:/\b(remember|save|store|note|memory)\b/i, intent:'memory_action'},
+  {pattern:/\b(crm|client|contact|session|booking)\b/i, intent:'crm_action'},
+  {pattern:/\b(post|tweet|publish|schedule|social)\b/i, intent:'social_post'},
+  {pattern:/\b(atomise|atomize|refract|repurpose)\b/i, intent:'social_post'},
+];
+
+function renderProfiles() {
+  var list = document.getElementById('profiles-list');
+  if (!list) return;
+  list.innerHTML = '';
+  for (var i = 0; i < PROFILES.length; i++) {
+    var p = PROFILES[i];
+    var el = document.createElement('div');
+    el.style.cssText = 'padding:10px 12px;border:1px solid var(--border);border-radius:8px;';
+    var name = document.createElement('div');
+    name.style.cssText = 'font-weight:600;font-size:13px;margin-bottom:3px;color:var(--fg-primary);';
+    name.textContent = p.name;
+    var desc = document.createElement('div');
+    desc.style.cssText = 'font-size:11.5px;color:var(--fg-muted);line-height:1.5;';
+    desc.textContent = p.desc;
+    el.appendChild(name);
+    el.appendChild(desc);
+    list.appendChild(el);
+  }
+}
+
+function renderProviders() {
+  var list = document.getElementById('provider-list');
+  if (!list) return;
+  list.innerHTML = '';
+  for (var i = 0; i < PROVIDERS.length; i++) {
+    var el = document.createElement('div');
+    el.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);';
+    var name = document.createElement('span');
+    name.style.textTransform = 'capitalize';
+    name.textContent = PROVIDERS[i];
+    var badge = document.createElement('span');
+    badge.className = 'badge badge-success';
+    badge.textContent = 'Configured';
+    el.appendChild(name);
+    el.appendChild(badge);
+    list.appendChild(el);
+  }
+}
+
+function checkHealth() {
+  var result = document.getElementById('health-result');
+  if (result) result.innerHTML = '<div class="spinner"></div> Checking…';
+  var start = Date.now();
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', WORKER + '/health', true);
+  xhr.timeout = 10000;
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    var elapsed = Date.now() - start;
+    if (result) {
+      if (xhr.status === 200) {
+        try {
+          var data = JSON.parse(xhr.responseText);
+          result.innerHTML = '<span class="badge badge-success">✓ Healthy</span> <span style="font-size:12px;color:var(--fg-muted);">v' + (data.version||'?') + ' · ' + elapsed + 'ms</span>';
+        } catch(e) {
+          result.innerHTML = '<span class="badge badge-success">✓ Responding</span> <span style="font-size:12px;color:var(--fg-muted);">' + elapsed + 'ms</span>';
+        }
+      } else {
+        result.innerHTML = '<span class="badge badge-danger">✗ HTTP ' + xhr.status + '</span>';
+      }
+    }
+  };
+  xhr.ontimeout = function() { if (result) result.innerHTML = '<span class="badge badge-danger">✗ Timeout</span>'; };
+  xhr.onerror = function() { if (result) result.innerHTML = '<span class="badge badge-warning">⚠ Network error — proxy may be intercepting</span>'; };
+  xhr.send();
+}
+
+function runTest() {
+  var input = document.getElementById('test-input').value.trim();
+  var profile = document.getElementById('test-profile').value;
+  var result = document.getElementById('test-result');
+  if (!input) { Toast.warning('Enter a test message'); return; }
+  if (result) result.innerHTML = '<div class="spinner"></div> Routing through ' + profile + ' profile…';
+  var start = Date.now();
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    var elapsed = Date.now() - start;
+    if (!result) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      result.innerHTML = '';
+      var meta = document.createElement('div');
+      meta.style.cssText = 'font-size:11px;color:var(--fg-muted);margin-bottom:8px;padding:6px 10px;background:var(--bg-surface);border-radius:6px;';
+      meta.textContent = 'Provider: ' + (r.provider||'—') + ' · ' + elapsed + 'ms · Intent: ' + (r.intent||'chat') + ' · Profile: ' + profile;
+      var content = document.createElement('div');
+      content.className = 'md-content';
+      content.style.cssText = 'font-size:13.5px;line-height:1.6;padding:10px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;';
+      content.innerHTML = Markdown.render(r.content || r.error || 'No response');
+      result.appendChild(meta);
+      result.appendChild(content);
+    } catch(e) {
+      result.innerHTML = '<div style="color:var(--danger);font-size:13px;">Parse error: ' + e.message + '</div>';
+    }
+  };
+  xhr.onerror = function() { if (result) result.innerHTML = '<div style="color:var(--danger);font-size:13px;">Network error</div>'; };
+  xhr.send(JSON.stringify({messages:[{role:'user',content:input}], profile:profile}));
+}
+
+function testIntent() {
+  var input = document.getElementById('intent-input').value.trim();
+  var result = document.getElementById('intent-result');
+  if (!input || !result) return;
+  var detected = 'chat';
+  for (var i = 0; i < INTENT_PATTERNS.length; i++) {
+    if (INTENT_PATTERNS[i].pattern.test(input)) { detected = INTENT_PATTERNS[i].intent; break; }
+  }
+  result.innerHTML = 'Detected intent: <span class="badge badge-accent">' + detected + '</span>';
+}
+
+document.addEventListener('keydown', function(e) {
+  if (document.activeElement === document.getElementById('intent-input') && e.key === 'Enter') testIntent();
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/orchestrator/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  renderProfiles();
+  renderProviders();
+});
+</script>
+</body>
+</html>

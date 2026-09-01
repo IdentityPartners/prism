@@ -1,0 +1,22 @@
+{
+  "name": "Prism \u2014 Identity Partners",
+  "short_name": "Prism",
+  "description": "Personal AI operating environment for Identity Partners",
+  "start_url": "/m/",
+  "display": "standalone",
+  "background_color": "#f7f3e9",
+  "theme_color": "#0f3b3a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192x192/0f3b3a/ffffff?text=P",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://via.placeholder.com/512x512/0f3b3a/ffffff?text=P",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

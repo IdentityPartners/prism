@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comms Centre — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar"><div class="topbar-title">Comms Centre</div></div>
+    <div class="page-content">
+
+      <div class="grid-2" style="gap:20px;">
+        <a href="/comms/email/" class="card" style="text-decoration:none;display:block;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Email">
+          <div style="font-size:32px;margin-bottom:10px;">📧</div>
+          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:6px;">Email</div>
+          <div style="font-size:13px;color:var(--fg-muted);">Zoho Mail — simon@identitypartners.uk and olivia@identitypartners.uk</div>
+        </a>
+        <a href="/comms/zoho-social/" class="card" style="text-decoration:none;display:block;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Zoho Social">
+          <div style="font-size:32px;margin-bottom:10px;">📱</div>
+          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:6px;">Zoho Social</div>
+          <div style="font-size:13px;color:var(--fg-muted);">Manage social media accounts and scheduled posts via Zoho Social.</div>
+        </a>
+        <a href="/comms/zoho-calendar/" class="card" style="text-decoration:none;display:block;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Zoho Calendar">
+          <div style="font-size:32px;margin-bottom:10px;">📅</div>
+          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:6px;">Zoho Calendar</div>
+          <div style="font-size:13px;color:var(--fg-muted);">View and manage calendar events, bookings, and appointments.</div>
+        </a>
+        <a href="/comms/zoho-crm/" class="card" style="text-decoration:none;display:block;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Zoho CRM">
+          <div style="font-size:32px;margin-bottom:10px;">👥</div>
+          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:6px;">Zoho CRM</div>
+          <div style="font-size:13px;color:var(--fg-muted);">Manage contacts, leads, and deals in Zoho CRM.</div>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/comms/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  
+});
+
+</script>
+</body>
+</html>

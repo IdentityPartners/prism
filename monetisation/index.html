@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monetisation — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar"><div class="topbar-title">Monetisation</div><div class="topbar-actions"><a href="/platform-manager/" class="btn btn-sm btn-secondary" title="Platform Manager">Platform Manager →</a></div></div>
+    <div class="page-content">
+
+      <p style="font-size:13px;color:var(--fg-muted);margin-bottom:20px;">Track revenue across all monetisation platforms. Connect platforms via Settings.</p>
+      <div class="grid-4" style="margin-bottom:24px;">
+        <div class="card" style="text-align:center;"><div style="font-size:28px;font-weight:700;color:var(--accent);font-family:var(--font-heading);">£0</div><div style="font-size:11px;color:var(--fg-muted);margin-top:4px;">This Month</div></div>
+        <div class="card" style="text-align:center;"><div style="font-size:28px;font-weight:700;color:var(--accent);font-family:var(--font-heading);">£0</div><div style="font-size:11px;color:var(--fg-muted);margin-top:4px;">Last Month</div></div>
+        <div class="card" style="text-align:center;"><div style="font-size:28px;font-weight:700;color:var(--accent);font-family:var(--font-heading);">0</div><div style="font-size:11px;color:var(--fg-muted);margin-top:4px;">Active Subscribers</div></div>
+        <div class="card" style="text-align:center;"><div style="font-size:28px;font-weight:700;color:var(--accent);font-family:var(--font-heading);">196</div><div style="font-size:11px;color:var(--fg-muted);margin-top:4px;">Platforms Available</div></div>
+      </div>
+      <div class="grid-3">
+        <div class="card"><div class="card-header"><span class="card-title">Payment Platforms</span></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>💳 Stripe</span><span class="badge badge-muted">Not connected</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>💰 PayPal</span><span class="badge badge-muted">Not connected</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>☕ Ko-fi</span><span class="badge badge-muted">Not connected</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;font-size:13px;"><span>🎁 Patreon</span><span class="badge badge-muted">Not connected</span></div>
+          </div>
+          <a href="/settings/" class="btn btn-sm btn-secondary" style="margin-top:12px;width:100%;" title="Connect platforms in Settings">Connect Platforms →</a>
+        </div>
+        <div class="card"><div class="card-header"><span class="card-title">Booking</span></div>
+          <div style="font-size:13px;color:var(--fg-muted);margin-bottom:12px;">Zoho Bookings integration for session scheduling.</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>📅 Zoho Bookings</span><span class="badge badge-muted">Not connected</span></div>
+          </div>
+          <a href="/oauth/zoho/calendar" class="btn btn-sm btn-secondary" style="margin-top:12px;width:100%;" title="Connect Zoho Calendar">Connect Zoho →</a>
+        </div>
+        <div class="card"><div class="card-header"><span class="card-title">Programmes</span></div>
+          <div style="font-size:13px;color:var(--fg-muted);margin-bottom:12px;">Track programme enrolments and revenue.</div>
+          <button class="btn btn-sm btn-primary" style="width:100%;" onclick="Toast.info('Programme tracking coming soon')" title="Add programme">＋ Add Programme</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/shared/prism.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/monetisation/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  
+});
+
+</script>
+</body>
+</html>
