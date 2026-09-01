@@ -1024,7 +1024,7 @@ export default {
       var tokenResp = await fetch('https://accounts.zoho.com/oauth/v2/token', {
         method: 'POST',
         headers: {'Content-Type':'application/x-www-form-urlencoded'},
-        body: 'grant_type=authorization_code&client_id='+(env.ZOHO_CLIENT_ID||env.Zoho_Client_ID)+'&client_secret='+(env.ZOHO_CLIENT_SECRET||env.Zoho_Client_Secret)+'&redirect_uri='+encodeURIComponent(redirectUri)+'&code='+code
+        body: 'grant_type=authorization_code&client_id='+(env.ZOHO_CLIENT_ID||env.Zoho_Client_ID)+'&client_secret='+(env.ZOHO_CLIENT_SECRET||env.Zoho_Client_Secret)+'&redirect_uri='+encodeURIComponent(redirectUri)+'&code='+code+'&access_type=offline'
       });
       var tokens = await tokenResp.json();
       if (env.PRISM_KV) await env.PRISM_KV.put('zoho:tokens:'+service, JSON.stringify(tokens));

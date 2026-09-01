@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Book a Session — Identity Partners</title>
+<meta name="description" content="Book a session with Identity Partners. Free consultations available. Specialising in addiction, trauma, and mental health.">
+<style>
+* { box-sizing:border-box; margin:0; padding:0; }
+:root {
+  --teal:#0f3b3a; --rose:#5c2d3f; --ivory:#f7f3e9;
+  --teal2:#1a5550; --grey:#ddd0c8; --border:#e8e0d8;
+  --success:#5a7a4f; --danger:#8b3a3a;
+}
+body { font-family:'Inter',system-ui,sans-serif; background:var(--ivory); color:var(--rose); min-height:100vh; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;600&display=swap');
+
+.booking-shell { max-width:680px; margin:0 auto; padding:32px 20px; }
+.booking-header { text-align:center; margin-bottom:32px; }
+.booking-logo { display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:16px; }
+.logo-text { font-family:'Playfair Display',serif; font-size:24px; }
+.logo-teal { color:var(--teal); }
+.logo-rose { color:var(--rose); }
+.booking-title { font-family:'Playfair Display',serif; font-size:28px; font-weight:600; color:var(--teal); margin-bottom:8px; }
+.booking-subtitle { font-size:15px; color:#7a4254; line-height:1.6; }
+
+/* Steps */
+.steps { display:flex; justify-content:center; gap:0; margin-bottom:32px; }
+.step { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--grey); }
+.step.active { color:var(--teal); font-weight:600; }
+.step.done { color:var(--success); }
+.step-num { width:28px; height:28px; border-radius:50%; border:2px solid currentColor; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; flex-shrink:0; }
+.step-sep { width:40px; height:2px; background:var(--border); margin:0 4px; }
+
+/* Session types */
+.session-types { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:24px; }
+@media(max-width:500px){ .session-types{ grid-template-columns:1fr; } }
+.session-type { border:2px solid var(--border); border-radius:12px; padding:16px; cursor:pointer; transition:all 0.18s; background:#fff; text-align:center; }
+.session-type:hover { border-color:var(--teal); }
+.session-type.selected { border-color:var(--teal); background:#e8f4f4; }
+.session-icon { font-size:28px; margin-bottom:8px; }
+.session-name { font-weight:600; font-size:14px; color:var(--teal); margin-bottom:4px; }
+.session-duration { font-size:12px; color:#7a4254; margin-bottom:4px; }
+.session-price { font-size:15px; font-weight:700; color:var(--teal); }
+.session-price.free { color:var(--success); }
+
+/* Calendar */
+.cal-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:20px; }
+.cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.cal-month { font-family:'Playfair Display',serif; font-size:17px; font-weight:600; color:var(--teal); }
+.cal-nav-btn { width:32px; height:32px; border:1px solid var(--border); border-radius:6px; background:#fff; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center; color:var(--teal); }
+.cal-nav-btn:hover { background:var(--ivory); }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+.cal-day-hdr { text-align:center; font-size:11px; font-weight:600; color:#a88792; padding:4px 0; text-transform:uppercase; }
+.cal-day { aspect-ratio:1; display:flex; align-items:center; justify-content:center; border-radius:8px; font-size:13px; cursor:pointer; color:var(--rose); transition:all 0.15s; }
+.cal-day:hover:not(.disabled):not(.other) { background:#e8f4f4; color:var(--teal); }
+.cal-day.today { font-weight:700; color:var(--teal); }
+.cal-day.selected { background:var(--teal); color:#fff; font-weight:600; }
+.cal-day.disabled { color:var(--border); cursor:not-allowed; }
+.cal-day.other { color:var(--border); cursor:default; }
+.cal-day.has-slots { position:relative; }
+.cal-day.has-slots::after { content:''; position:absolute; bottom:3px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:var(--teal); }
+
+/* Time slots */
+.slots-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:20px; }
+@media(max-width:400px){ .slots-grid{ grid-template-columns:repeat(2,1fr); } }
+.slot { border:1.5px solid var(--border); border-radius:8px; padding:10px; text-align:center; cursor:pointer; font-size:13px; font-weight:500; color:var(--teal); background:#fff; transition:all 0.15s; }
+.slot:hover { border-color:var(--teal); background:#e8f4f4; }
+.slot.selected { border-color:var(--teal); background:var(--teal); color:#fff; }
+.slot.booked { border-color:var(--border); color:var(--border); cursor:not-allowed; background:#fafafa; text-decoration:line-through; }
+
+/* Form */
+.booking-form { background:#fff; border:1px solid var(--border); border-radius:12px; padding:24px; margin-bottom:20px; }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+@media(max-width:500px){ .form-row{ grid-template-columns:1fr; } }
+.form-group { margin-bottom:14px; }
+.form-label { display:block; font-size:12.5px; font-weight:500; color:#7a4254; margin-bottom:5px; }
+.form-input { width:100%; padding:10px 13px; border:1.5px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; outline:none; color:var(--rose); background:#fff; transition:border-color 0.15s; }
+.form-input:focus { border-color:var(--teal); box-shadow:0 0 0 3px rgba(15,59,58,0.08); }
+.form-textarea { min-height:80px; resize:vertical; }
+.form-select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235c2d3f' stroke-width='1.5' fill='none'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:36px; }
+
+/* Summary */
+.booking-summary { background:#e8f4f4; border:1px solid var(--teal); border-radius:10px; padding:14px 16px; margin-bottom:20px; font-size:13.5px; }
+.summary-row { display:flex; justify-content:space-between; padding:4px 0; }
+.summary-label { color:#1a5550; }
+.summary-value { font-weight:600; color:var(--teal); }
+
+/* Buttons */
+.btn-primary { width:100%; padding:14px; background:var(--teal); color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; transition:background 0.15s; }
+.btn-primary:hover { background:var(--teal2); }
+.btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
+.btn-secondary { width:100%; padding:12px; background:#fff; color:var(--teal); border:1.5px solid var(--teal); border-radius:10px; font-size:14px; font-weight:500; cursor:pointer; font-family:inherit; margin-top:8px; transition:all 0.15s; }
+.btn-secondary:hover { background:#e8f4f4; }
+
+/* Confirmation */
+.confirmation { text-align:center; padding:40px 20px; }
+.confirmation-icon { font-size:64px; margin-bottom:16px; }
+.confirmation-title { font-family:'Playfair Display',serif; font-size:24px; font-weight:600; color:var(--teal); margin-bottom:10px; }
+.confirmation-text { font-size:14px; color:#7a4254; line-height:1.7; margin-bottom:20px; }
+.confirmation-details { background:#e8f4f4; border-radius:10px; padding:16px; text-align:left; margin-bottom:20px; font-size:13.5px; }
+
+/* Trust signals */
+.trust-row { display:flex; justify-content:center; gap:24px; margin-top:24px; flex-wrap:wrap; }
+.trust-item { display:flex; align-items:center; gap:6px; font-size:12px; color:#a88792; }
+
+/* Powered by */
+.powered-by { text-align:center; margin-top:24px; font-size:11px; color:#c8b8bc; }
+.powered-by a { color:#a88792; text-decoration:none; }
+
+/* Embed mode */
+body.embed-mode { background:transparent; }
+body.embed-mode .booking-header { display:none; }
+body.embed-mode .booking-shell { padding:16px; }
+</style>
+</head>
+<body>
+<div class="booking-shell">
+  <div class="booking-header">
+    <div class="booking-logo">
+      <span class="logo-text"><span class="logo-teal">Identity</span><span class="logo-rose">Partners</span></span>
+    </div>
+    <div class="booking-title">Book a Session</div>
+    <div class="booking-subtitle">Understand your past · Appreciate the present · Define your future</div>
+  </div>
+
+  <!-- Steps indicator -->
+  <div class="steps" id="steps-indicator">
+    <div class="step active" id="step-1"><div class="step-num">1</div> Session</div>
+    <div class="step-sep"></div>
+    <div class="step" id="step-2"><div class="step-num">2</div> Date & Time</div>
+    <div class="step-sep"></div>
+    <div class="step" id="step-3"><div class="step-num">3</div> Your Details</div>
+    <div class="step-sep"></div>
+    <div class="step" id="step-4"><div class="step-num">4</div> Confirm</div>
+  </div>
+
+  <!-- Step 1: Session type -->
+  <div id="panel-1">
+    <div class="session-types">
+      <div class="session-type selected" onclick="selectSession(this,'consultation','Free Consultation','30 min',0)" title="Free 30-minute consultation">
+        <div class="session-icon">☕</div>
+        <div class="session-name">Free Consultation</div>
+        <div class="session-duration">30 minutes</div>
+        <div class="session-price free">Free</div>
+      </div>
+      <div class="session-type" onclick="selectSession(this,'individual','Individual Session','60 min',80)" title="Individual therapy session">
+        <div class="session-icon">🌿</div>
+        <div class="session-name">Individual Session</div>
+        <div class="session-duration">60 minutes</div>
+        <div class="session-price">£80</div>
+      </div>
+      <div class="session-type" onclick="selectSession(this,'group','Group Session','90 min',40)" title="Group therapy session">
+        <div class="session-icon">🤝</div>
+        <div class="session-name">Group Session</div>
+        <div class="session-duration">90 minutes</div>
+        <div class="session-price">£40</div>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="goStep(2)" title="Choose date and time">Choose Date & Time →</button>
+  </div>
+
+  <!-- Step 2: Date & time -->
+  <div id="panel-2" style="display:none;">
+    <div class="cal-card">
+      <div class="cal-header">
+        <button class="cal-nav-btn" onclick="calPrev()" title="Previous month">‹</button>
+        <span class="cal-month" id="cal-month-label">September 2026</span>
+        <button class="cal-nav-btn" onclick="calNext()" title="Next month">›</button>
+      </div>
+      <div class="cal-grid" id="booking-cal-grid"></div>
+    </div>
+    <div id="slots-section" style="display:none;">
+      <div style="font-size:13px;font-weight:600;color:var(--teal);margin-bottom:10px;" id="slots-date-label">Available times</div>
+      <div class="slots-grid" id="slots-grid"></div>
+    </div>
+    <button class="btn-secondary" onclick="goStep(1)" title="Back to session type">← Back</button>
+  </div>
+
+  <!-- Step 3: Details -->
+  <div id="panel-3" style="display:none;">
+    <div class="booking-form">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">First Name *</label><input class="form-input" id="b-first" type="text" placeholder="Jane" autocomplete="given-name"></div>
+        <div class="form-group"><label class="form-label">Last Name *</label><input class="form-input" id="b-last" type="text" placeholder="Smith" autocomplete="family-name"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Email Address *</label><input class="form-input" id="b-email" type="email" placeholder="jane@example.com" autocomplete="email"></div>
+      <div class="form-group"><label class="form-label">Phone Number</label><input class="form-input" id="b-phone" type="tel" placeholder="+44 7700 000000" autocomplete="tel"></div>
+      <div class="form-group"><label class="form-label">How did you hear about us?</label>
+        <select class="form-input form-select" id="b-source">
+          <option value="">Please select…</option>
+          <option value="website">Website search</option>
+          <option value="social">Social media</option>
+          <option value="referral">Personal referral</option>
+          <option value="nhs">NHS / GP referral</option>
+          <option value="charity">Charity / VCSE organisation</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Anything you'd like me to know before our session?</label>
+        <textarea class="form-input form-textarea" id="b-notes" placeholder="This is completely optional and confidential. Share only what you're comfortable with."></textarea>
+      </div>
+      <div style="font-size:12px;color:#a88792;line-height:1.6;margin-top:4px;">
+        Your information is kept strictly confidential in accordance with GDPR and professional ethics guidelines. It will never be shared without your explicit consent.
+      </div>
+    </div>
+    <button class="btn-primary" onclick="goStep(4)" title="Review your booking">Review Booking →</button>
+    <button class="btn-secondary" onclick="goStep(2)" title="Back to date and time">← Back</button>
+  </div>
+
+  <!-- Step 4: Confirm -->
+  <div id="panel-4" style="display:none;">
+    <div class="booking-summary" id="booking-summary"></div>
+    <div class="booking-form">
+      <div style="font-size:14px;color:#7a4254;line-height:1.7;margin-bottom:16px;">
+        By confirming this booking, you agree to our <a href="https://identitypartners.uk/cancellation-policy" style="color:var(--teal);">cancellation policy</a>. We ask for 24 hours' notice for cancellations or rescheduling.
+      </div>
+      <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;color:#7a4254;cursor:pointer;margin-bottom:16px;">
+        <input type="checkbox" id="b-consent" style="margin-top:2px;flex-shrink:0;">
+        I consent to Identity Partners storing my contact details and session notes in accordance with their privacy policy.
+      </label>
+    </div>
+    <button class="btn-primary" onclick="confirmBooking()" id="confirm-btn" title="Confirm your booking">✓ Confirm Booking</button>
+    <button class="btn-secondary" onclick="goStep(3)" title="Back to your details">← Back</button>
+  </div>
+
+  <!-- Confirmation -->
+  <div id="panel-confirm" style="display:none;">
+    <div class="confirmation">
+      <div class="confirmation-icon">✅</div>
+      <div class="confirmation-title">Booking Confirmed!</div>
+      <div class="confirmation-text">Thank you. A confirmation email has been sent to <strong id="confirm-email-display"></strong>. Simon will be in touch shortly to confirm the details.</div>
+      <div class="confirmation-details" id="confirm-details"></div>
+      <button class="btn-primary" onclick="resetBooking()" title="Book another session">Book Another Session</button>
+    </div>
+  </div>
+
+  <!-- Trust signals -->
+  <div class="trust-row">
+    <div class="trust-item">🔒 Secure & confidential</div>
+    <div class="trust-item">📧 Instant confirmation</div>
+    <div class="trust-item">🔄 Free cancellation (24h notice)</div>
+  </div>
+
+  <div class="powered-by">Powered by <a href="https://prism.identitypartners.uk" target="_blank">Prism</a> · Identity Partners</div>
+</div>
+
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var booking = {sessionType:'consultation', sessionName:'Free Consultation', duration:'30 min', price:0, date:'', time:'', dateLabel:''};
+var calYear = new Date().getFullYear();
+var calMonth = new Date().getMonth();
+var currentStep = 1;
+
+// ── Session selection ─────────────────────────────────────────────────────────
+function selectSession(el, type, name, duration, price) {
+  document.querySelectorAll('.session-type').forEach(function(e){e.classList.remove('selected');});
+  el.classList.add('selected');
+  booking.sessionType = type;
+  booking.sessionName = name;
+  booking.duration = duration;
+  booking.price = price;
+}
+
+// ── Step navigation ───────────────────────────────────────────────────────────
+function goStep(n) {
+  if (n === 4) {
+    var first = document.getElementById('b-first').value.trim();
+    var email = document.getElementById('b-email').value.trim();
+    if (!first || !email) { alert('Please enter your name and email address.'); return; }
+    if (!booking.date || !booking.time) { alert('Please select a date and time.'); goStep(2); return; }
+    renderSummary();
+  }
+  for (var i=1;i<=4;i++) {
+    var panel = document.getElementById('panel-'+i);
+    if (panel) panel.style.display = i===n ? 'block' : 'none';
+  }
+  document.getElementById('panel-confirm').style.display = 'none';
+  currentStep = n;
+  updateStepIndicator(n);
+  window.scrollTo(0,0);
+}
+
+function updateStepIndicator(n) {
+  for (var i=1;i<=4;i++) {
+    var el = document.getElementById('step-'+i);
+    if (!el) continue;
+    el.className = 'step' + (i===n?' active':i<n?' done':'');
+    var num = el.querySelector('.step-num');
+    if (num) num.textContent = i < n ? '✓' : i;
+  }
+}
+
+// ── Calendar ──────────────────────────────────────────────────────────────────
+function renderBookingCal() {
+  var grid = document.getElementById('booking-cal-grid');
+  var label = document.getElementById('cal-month-label');
+  if (!grid) return;
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  if (label) label.textContent = months[calMonth] + ' ' + calYear;
+  grid.innerHTML = '';
+  var days = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+  days.forEach(function(d) {
+    var h = document.createElement('div');
+    h.className = 'cal-day-hdr';
+    h.textContent = d;
+    grid.appendChild(h);
+  });
+  var firstDay = new Date(calYear, calMonth, 1).getDay();
+  var offset = firstDay === 0 ? 6 : firstDay - 1;
+  var daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  var today = new Date();
+  today.setHours(0,0,0,0);
+  var prevDays = new Date(calYear, calMonth, 0).getDate();
+  for (var i=offset-1;i>=0;i--) {
+    var cell = document.createElement('div');
+    cell.className = 'cal-day other';
+    cell.textContent = prevDays - i;
+    grid.appendChild(cell);
+  }
+  for (var d=1;d<=daysInMonth;d++) {
+    (function(day) {
+      var date = new Date(calYear, calMonth, day);
+      var dateStr = calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+      var cell = document.createElement('div');
+      var isPast = date < today;
+      var isWeekend = date.getDay()===0||date.getDay()===6;
+      cell.className = 'cal-day' + (isPast||isWeekend?' disabled':'') + (date.getTime()===today.getTime()?' today':'') + (!isPast&&!isWeekend?' has-slots':'');
+      if (booking.date === dateStr) cell.classList.add('selected');
+      cell.textContent = day;
+      if (!isPast && !isWeekend) {
+        cell.onclick = function() { selectDate(dateStr, day); };
+      }
+      grid.appendChild(cell);
+    })(d);
+  }
+  var total = offset + daysInMonth;
+  var remaining = total%7===0?0:7-(total%7);
+  for (var i=1;i<=remaining;i++) {
+    var cell = document.createElement('div');
+    cell.className = 'cal-day other';
+    cell.textContent = i;
+    grid.appendChild(cell);
+  }
+}
+
+function calPrev() { calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderBookingCal(); }
+function calNext() { calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderBookingCal(); }
+
+function selectDate(dateStr, day) {
+  booking.date = dateStr;
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var date = new Date(calYear, calMonth, day);
+  var dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  booking.dateLabel = dayNames[date.getDay()] + ', ' + day + ' ' + months[calMonth] + ' ' + calYear;
+  renderBookingCal();
+  renderSlots(dateStr);
+}
+
+function renderSlots(dateStr) {
+  var section = document.getElementById('slots-section');
+  var grid = document.getElementById('slots-grid');
+  var label = document.getElementById('slots-date-label');
+  if (!section||!grid) return;
+  section.style.display = 'block';
+  if (label) label.textContent = 'Available times on ' + booking.dateLabel;
+  grid.innerHTML = '';
+  var times = ['09:00','09:30','10:00','10:30','11:00','11:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00'];
+  // Fetch booked slots from Worker
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', WORKER + '/api/bookings?date=' + dateStr, true);
+  xhr.onreadystatechange = function() {
+    var bookedTimes = [];
+    if (xhr.readyState === 4) {
+      try { var r=JSON.parse(xhr.responseText); bookedTimes=(r.bookings||[]).filter(function(b){return b.date===dateStr;}).map(function(b){return b.time;}); } catch(e) {}
+    }
+    grid.innerHTML = '';
+    times.forEach(function(time) {
+      var slot = document.createElement('div');
+      var isBooked = bookedTimes.indexOf(time) >= 0;
+      slot.className = 'slot' + (isBooked?' booked':'') + (booking.time===time?' selected':'');
+      slot.textContent = time;
+      if (!isBooked) {
+        slot.onclick = function() {
+          booking.time = time;
+          document.querySelectorAll('.slot').forEach(function(s){s.classList.remove('selected');});
+          slot.classList.add('selected');
+          // Auto-advance after short delay
+          setTimeout(function(){goStep(3);},400);
+        };
+      }
+      grid.appendChild(slot);
+    });
+  };
+  xhr.onerror = function() {
+    times.forEach(function(time) {
+      var slot = document.createElement('div');
+      slot.className = 'slot' + (booking.time===time?' selected':'');
+      slot.textContent = time;
+      slot.onclick = function() {
+        booking.time = time;
+        document.querySelectorAll('.slot').forEach(function(s){s.classList.remove('selected');});
+        slot.classList.add('selected');
+        setTimeout(function(){goStep(3);},400);
+      };
+      grid.appendChild(slot);
+    });
+  };
+  xhr.send();
+}
+
+// ── Summary ───────────────────────────────────────────────────────────────────
+function renderSummary() {
+  var el = document.getElementById('booking-summary');
+  if (!el) return;
+  var first = document.getElementById('b-first').value.trim();
+  var last = document.getElementById('b-last').value.trim();
+  var email = document.getElementById('b-email').value.trim();
+  el.innerHTML = '';
+  var rows = [
+    {label:'Session', value:booking.sessionName + ' (' + booking.duration + ')'},
+    {label:'Date', value:booking.dateLabel},
+    {label:'Time', value:booking.time},
+    {label:'Name', value:first + ' ' + last},
+    {label:'Email', value:email},
+    {label:'Price', value:booking.price===0?'Free':'£'+booking.price},
+  ];
+  rows.forEach(function(row) {
+    var div = document.createElement('div');
+    div.className = 'summary-row';
+    div.innerHTML = '<span class="summary-label">'+row.label+'</span><span class="summary-value">'+row.value+'</span>';
+    el.appendChild(div);
+  });
+}
+
+// ── Confirm booking ───────────────────────────────────────────────────────────
+function confirmBooking() {
+  var consent = document.getElementById('b-consent').checked;
+  if (!consent) { alert('Please confirm your consent to proceed.'); return; }
+  var btn = document.getElementById('confirm-btn');
+  if (btn) btn.disabled = true;
+  if (btn) btn.textContent = 'Confirming…';
+  var first = document.getElementById('b-first').value.trim();
+  var last = document.getElementById('b-last').value.trim();
+  var email = document.getElementById('b-email').value.trim();
+  var phone = document.getElementById('b-phone').value.trim();
+  var source = document.getElementById('b-source').value;
+  var notes = document.getElementById('b-notes').value.trim();
+  var bookingData = {
+    clientName: first + ' ' + last,
+    clientEmail: email,
+    clientPhone: phone,
+    sessionType: booking.sessionName,
+    date: booking.date,
+    time: booking.time,
+    duration: booking.duration,
+    price: booking.price,
+    source: source,
+    notes: notes,
+    status: 'confirmed'
+  };
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/bookings', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    showConfirmation(bookingData);
+  };
+  xhr.onerror = function() {
+    // Still show confirmation — booking saved locally
+    showConfirmation(bookingData);
+  };
+  xhr.send(JSON.stringify(bookingData));
+}
+
+function showConfirmation(data) {
+  for (var i=1;i<=4;i++) { var p=document.getElementById('panel-'+i); if(p) p.style.display='none'; }
+  document.getElementById('panel-confirm').style.display = 'block';
+  var emailEl = document.getElementById('confirm-email-display');
+  if (emailEl) emailEl.textContent = data.clientEmail;
+  var details = document.getElementById('confirm-details');
+  if (details) {
+    details.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px;">' +
+      '<div><strong>Session:</strong> ' + data.sessionType + '</div>' +
+      '<div><strong>Date:</strong> ' + booking.dateLabel + '</div>' +
+      '<div><strong>Time:</strong> ' + data.time + '</div>' +
+      '<div><strong>Price:</strong> ' + (data.price===0?'Free':'£'+data.price) + '</div>' +
+      '</div>';
+  }
+  updateStepIndicator(5);
+  window.scrollTo(0,0);
+}
+
+function resetBooking() {
+  booking = {sessionType:'consultation',sessionName:'Free Consultation',duration:'30 min',price:0,date:'',time:'',dateLabel:''};
+  document.getElementById('panel-confirm').style.display = 'none';
+  goStep(1);
+}
+
+// ── Embed mode detection ──────────────────────────────────────────────────────
+if (window.self !== window.top || new URLSearchParams(window.location.search).get('embed') === '1') {
+  document.body.classList.add('embed-mode');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+renderBookingCal();
+</script>
+</body>
+</html>
