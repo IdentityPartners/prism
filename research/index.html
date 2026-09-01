@@ -105,6 +105,84 @@
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
 var activeSources = ['tavily','brave','exa','semantic_scholar','pubmed','crossref','openalex','core'];
+
+var ALL_SOURCES = {
+  web: [
+    {id:'tavily',name:'Tavily',desc:'Web search'},
+    {id:'brave',name:'Brave',desc:'Web search'},
+    {id:'exa',name:'Exa',desc:'Neural search'},
+    {id:'perplexity',name:'Perplexity',desc:'AI web search'},
+    {id:'firecrawl',name:'Firecrawl',desc:'Web scraper'},
+  ],
+  scholarly: [
+    {id:'semantic_scholar',name:'Semantic Scholar',desc:'Academic papers'},
+    {id:'pubmed',name:'PubMed',desc:'Biomedical'},
+    {id:'crossref',name:'Crossref',desc:'Academic metadata'},
+    {id:'openalex',name:'OpenAlex',desc:'Open academic graph'},
+    {id:'core',name:'CORE',desc:'Open access'},
+    {id:'google_scholar',name:'Google Scholar',desc:'Via scrape'},
+    {id:'base',name:'BASE',desc:'Bielefeld Academic'},
+    {id:'opendoar',name:'OpenDOAR',desc:'Open repositories'},
+    {id:'openaire',name:'OpenAIRE',desc:'EU research'},
+    {id:'jstor',name:'JSTOR Open',desc:'Open content'},
+    {id:'internet_archive_scholar',name:'Internet Archive Scholar',desc:'Scholarly archive'},
+  ],
+  preprints: [
+    {id:'arxiv',name:'arXiv',desc:'Physics/CS/Math'},
+    {id:'biorxiv',name:'bioRxiv',desc:'Biology'},
+    {id:'medrxiv',name:'medRxiv',desc:'Medicine'},
+    {id:'ssrn',name:'SSRN',desc:'Social science'},
+    {id:'psyarxiv',name:'PsyArXiv',desc:'Psychology'},
+    {id:'socarxiv',name:'SocArXiv',desc:'Social science'},
+    {id:'osf',name:'OSF',desc:'Open Science Framework'},
+    {id:'research_square',name:'Research Square',desc:'Preprints'},
+  ],
+  health: [
+    {id:'pubmed',name:'PubMed',desc:'NCBI biomedical'},
+    {id:'europe_pmc',name:'Europe PMC',desc:'European biomedical'},
+    {id:'clinicaltrials',name:'ClinicalTrials.gov',desc:'Clinical trials'},
+    {id:'openfda',name:'OpenFDA',desc:'FDA data'},
+    {id:'who',name:'WHO GHO',desc:'Global Health Observatory'},
+    {id:'ghdx',name:'GHDx',desc:'Global Health Data Exchange'},
+    {id:'our_world_in_data',name:'Our World in Data',desc:'Health data'},
+    {id:'cdc',name:'CDC Data',desc:'US health data'},
+  ],
+  data: [
+    {id:'zenodo',name:'Zenodo',desc:'Research data'},
+    {id:'figshare',name:'Figshare',desc:'Research data'},
+    {id:'world_bank',name:'World Bank',desc:'Development data'},
+    {id:'oecd',name:'OECD',desc:'Economic data'},
+    {id:'eurostat',name:'Eurostat',desc:'EU statistics'},
+    {id:'who_data',name:'WHO Data',desc:'Health statistics'},
+    {id:'un_data',name:'UN Data',desc:'UN statistics'},
+    {id:'kaggle',name:'Kaggle',desc:'Datasets'},
+    {id:'harvard_dataverse',name:'Harvard Dataverse',desc:'Research data'},
+    {id:'dryad',name:'Dryad',desc:'Scientific data'},
+  ],
+  uk: [
+    {id:'data_gov_uk',name:'data.gov.uk',desc:'UK open data'},
+    {id:'ons',name:'ONS',desc:'Office for National Statistics'},
+    {id:'uk_data_service',name:'UK Data Service',desc:'Social research data'},
+    {id:'nomis',name:'Nomis',desc:'Labour market data'},
+    {id:'parliament',name:'Parliament Data',desc:'UK Parliament'},
+    {id:'ethos',name:'EThOS',desc:'UK theses'},
+    {id:'national_archives',name:'National Archives',desc:'UK archives'},
+  ],
+  social: [
+    {id:'ssrn',name:'SSRN',desc:'Social science preprints'},
+    {id:'icpsr',name:'ICPSR',desc:'Social research data'},
+    {id:'uk_data_service',name:'UK Data Service',desc:'Social data'},
+    {id:'european_social_survey',name:'European Social Survey',desc:'ESS data'},
+    {id:'world_values_survey',name:'World Values Survey',desc:'WVS data'},
+    {id:'pew_research',name:'Pew Research',desc:'Survey data'},
+    {id:'ideas_repec',name:'IDEAS/RePEc',desc:'Economics papers'},
+  ],
+};
+
+function selectDefaultSources() {
+  activeSources = ['tavily','brave','exa','semantic_scholar','pubmed','crossref','openalex','core'];
+  renderSourceChips('all');
+}
 var allResults = [];
 var savedRuns = [];
 var currentQuery = '';
@@ -121,18 +199,20 @@ function toggleSource(el) {
 }
 
 function selectAllSources() {
-  var chips = document.querySelectorAll('.source-chip');
   activeSources = [];
-  for (var i = 0; i < chips.length; i++) {
-    chips[i].classList.add('active');
-    activeSources.push(chips[i].getAttribute('data-source'));
-  }
+  Object.keys(ALL_SOURCES).forEach(function(cat) {
+    ALL_SOURCES[cat].forEach(function(s) {
+      if (activeSources.indexOf(s.id) < 0) activeSources.push(s.id);
+    });
+  });
+  var chips = document.querySelectorAll('.source-chip');
+  for (var i = 0; i < chips.length; i++) chips[i].classList.add('active');
 }
 
 function clearSources() {
+  activeSources = [];
   var chips = document.querySelectorAll('.source-chip');
   for (var i = 0; i < chips.length; i++) chips[i].classList.remove('active');
-  activeSources = [];
 }
 
 function switchSourceTab(tab) {
@@ -140,46 +220,62 @@ function switchSourceTab(tab) {
   for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
   var el = document.getElementById('tab-' + tab);
   if (el) el.classList.add('active');
+  renderSourceChips(tab);
+}
+
+function renderSourceChips(tab) {
   var chips = document.getElementById('source-chips');
   if (!chips) return;
-  var sets = {
-    api: [
-      {name:'Tavily',id:'tavily'},{name:'Brave',id:'brave'},{name:'Exa',id:'exa'},
-      {name:'Perplexity',id:'perplexity'},{name:'Firecrawl',id:'firecrawl'}
-    ],
-    scholarly: [
-      {name:'Semantic Scholar',id:'semantic_scholar'},{name:'PubMed',id:'pubmed'},
-      {name:'Crossref',id:'crossref'},{name:'OpenAlex',id:'openalex'},{name:'CORE',id:'core'}
-    ],
-    news: [
-      {name:'The Guardian',id:'guardian'},{name:'BBC News',id:'bbc'},
-      {name:'Sky News',id:'sky'},{name:'The Independent',id:'independent'}
-    ],
-    social: [
-      {name:'Bluesky',id:'bluesky'},{name:'Reddit',id:'reddit'}
-    ],
-  };
   chips.innerHTML = '';
-  var sources = sets[tab] || sets['api'];
-  for (var i = 0; i < sources.length; i++) {
-    var chip = document.createElement('span');
-    var src = typeof sources[i] === 'object' ? sources[i] : {name:sources[i], id:sources[i].toLowerCase().replace(/[^a-z0-9]/g,'_')};
-    chip.className = 'source-chip' + (activeSources.indexOf(src.id) >= 0 ? ' active' : '');
-    chip.setAttribute('data-source', src.id);
-    chip.textContent = src.name;
-    chip.onclick = function() { toggleSource(this); };
-    chips.appendChild(chip);
-  }
+  // Add control buttons first
   var selAll = document.createElement('button');
   selAll.className = 'btn btn-ghost btn-sm';
   selAll.textContent = 'Select All';
-  selAll.onclick = selectAllSources;
+  selAll.title = 'Select all visible sources';
+  selAll.onclick = function() { selectAllSources(); renderSourceChips(tab); };
   chips.appendChild(selAll);
   var clr = document.createElement('button');
   clr.className = 'btn btn-ghost btn-sm';
   clr.textContent = 'Clear';
-  clr.onclick = clearSources;
+  clr.title = 'Clear all sources';
+  clr.onclick = function() { clearSources(); renderSourceChips(tab); };
   chips.appendChild(clr);
+  var rec = document.createElement('button');
+  rec.className = 'btn btn-ghost btn-sm';
+  rec.textContent = 'Recommended';
+  rec.title = 'Select recommended sources';
+  rec.onclick = function() { selectDefaultSources(); renderSourceChips(tab); };
+  chips.appendChild(rec);
+
+  // Get sources for this tab
+  var sources = [];
+  if (tab === 'all') {
+    Object.keys(ALL_SOURCES).forEach(function(cat) {
+      ALL_SOURCES[cat].forEach(function(s) {
+        if (!sources.find(function(x){return x.id===s.id;})) sources.push(s);
+      });
+    });
+  } else {
+    sources = ALL_SOURCES[tab] || [];
+  }
+
+  // Add category label
+  if (tab !== 'all') {
+    var lbl = document.createElement('span');
+    lbl.style.cssText = 'font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--fg-muted);padding:4px 4px;align-self:center;';
+    lbl.textContent = sources.length + ' sources:';
+    chips.appendChild(lbl);
+  }
+
+  sources.forEach(function(src) {
+    var chip = document.createElement('span');
+    chip.className = 'source-chip' + (activeSources.indexOf(src.id) >= 0 ? ' active' : '');
+    chip.setAttribute('data-source', src.id);
+    chip.textContent = src.name;
+    chip.title = src.desc || src.name;
+    chip.onclick = function() { toggleSource(this); };
+    chips.appendChild(chip);
+  });
 }
 
 function doSearch() {
@@ -425,6 +521,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (mount) { var sb = buildSidebar('/research/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
   try { savedRuns = JSON.parse(localStorage.getItem('prism-research-runs') || '[]'); } catch(e) { savedRuns = []; }
   renderSavedRuns();
+  renderSourceChips('all');
   var prefill = '';
   try { prefill = sessionStorage.getItem('prism-research-prefill') || ''; sessionStorage.removeItem('prism-research-prefill'); } catch(e) {}
   if (prefill) { var input = document.getElementById('search-input'); if (input) { input.value = prefill; doSearch(); } }

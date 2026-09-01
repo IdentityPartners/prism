@@ -441,6 +441,106 @@ async function searchPerplexity(env, query) {
   return [{title:'Perplexity Web Search: '+query, url:'https://perplexity.ai', content:content, _type:'synthesis'}];
 }
 
+
+async function searchArXiv(env, query) {
+  var resp = await fetch('https://export.arxiv.org/api/query?search_query=all:'+encodeURIComponent(query)+'&max_results=8&sortBy=relevance');
+  if (!resp.ok) throw new Error('arXiv: '+resp.status);
+  var text = await resp.text();
+  var results = [];
+  var entries = text.match(/<entry>([\s\S]*?)<\/entry>/g) || [];
+  entries.forEach(function(entry) {
+    var title = (entry.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
+    var summary = (entry.match(/<summary>([\s\S]*?)<\/summary>/) || [])[1] || '';
+    var id = (entry.match(/<id>([\s\S]*?)<\/id>/) || [])[1] || '';
+    var published = (entry.match(/<published>([\s\S]*?)<\/published>/) || [])[1] || '';
+    results.push({title:title.trim(),url:id.trim(),content:summary.trim().substring(0,400),year:published.substring(0,4),_type:'preprint'});
+  });
+  return results;
+}
+
+async function searchEuropePMC(env, query) {
+  var resp = await fetch('https://www.ebi.ac.uk/europepmc/webservices/rest/search?query='+encodeURIComponent(query)+'&format=json&pageSize=8&resultType=core');
+  if (!resp.ok) throw new Error('Europe PMC: '+resp.status);
+  var data = await resp.json();
+  return ((data.resultList&&data.resultList.result)||[]).map(function(r){return {
+    title:r.title||'',url:'https://europepmc.org/article/'+r.source+'/'+r.id,
+    content:(r.abstractText||'').substring(0,400),authors:r.authorString||'',year:r.pubYear,_type:'academic'
+  };});
+}
+
+async function searchZenodo(env, query) {
+  var resp = await fetch('https://zenodo.org/api/records?q='+encodeURIComponent(query)+'&size=8&sort=mostrecent');
+  if (!resp.ok) throw new Error('Zenodo: '+resp.status);
+  var data = await resp.json();
+  return ((data.hits&&data.hits.hits)||[]).map(function(r){return {
+    title:(r.metadata&&r.metadata.title)||'',
+    url:'https://zenodo.org/record/'+r.id,
+    content:(r.metadata&&r.metadata.description||'').replace(/<[^>]+>/g,'').substring(0,400),
+    year:r.metadata&&r.metadata.publication_date&&r.metadata.publication_date.substring(0,4),
+    _type:'data'
+  };});
+}
+
+async function searchWorldBank(env, query) {
+  var resp = await fetch('https://search.worldbank.org/api/v2/wds?qterm='+encodeURIComponent(query)+'&rows=8&format=json');
+  if (!resp.ok) throw new Error('World Bank: '+resp.status);
+  var data = await resp.json();
+  return ((data.documents&&Object.values(data.documents))||[]).filter(function(d){return d.display_title;}).slice(0,8).map(function(d){return {
+    title:d.display_title||'',url:d.url||'',content:(d.abstract||'').substring(0,400),year:d.docdt&&d.docdt.substring(0,4),_type:'data'
+  };});
+}
+
+async function searchONS(env, query) {
+  var resp = await fetch('https://api.beta.ons.gov.uk/v1/search?q='+encodeURIComponent(query)+'&limit=8');
+  if (!resp.ok) throw new Error('ONS: '+resp.status);
+  var data = await resp.json();
+  return ((data.items)||[]).map(function(r){return {
+    title:r.description&&r.description.title||r.uri||'',
+    url:'https://www.ons.gov.uk'+r.uri,
+    content:(r.description&&r.description.summary||'').substring(0,400),
+    _type:'data',_source:'ons'
+  };});
+}
+
+async function searchDataGovUK(env, query) {
+  var resp = await fetch('https://data.gov.uk/api/3/action/package_search?q='+encodeURIComponent(query)+'&rows=8');
+  if (!resp.ok) throw new Error('data.gov.uk: '+resp.status);
+  var data = await resp.json();
+  return ((data.result&&data.result.results)||[]).map(function(r){return {
+    title:r.title||'',url:'https://data.gov.uk/dataset/'+r.name,
+    content:(r.notes||'').substring(0,400),_type:'data',_source:'data.gov.uk'
+  };});
+}
+
+async function searchSSRN(env, query) {
+  // SSRN via Exa (neural search for SSRN papers)
+  var key = env.EXA_API_KEY || env.exa_api_key;
+  if (!key) throw new Error('No Exa key for SSRN');
+  var resp = await fetch('https://api.exa.ai/search', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':key},
+    body:JSON.stringify({query:query+' site:ssrn.com',numResults:6,useAutoprompt:false,contents:{text:{maxCharacters:400}}})
+  });
+  if (!resp.ok) throw new Error('SSRN via Exa: '+resp.status);
+  var data = await resp.json();
+  return (data.results||[]).map(function(r){return {title:r.title,url:r.url,content:r.text||'',_type:'preprint',_source:'ssrn'};});
+}
+
+async function searchOurWorldInData(env, query) {
+  var resp = await fetch('https://ourworldindata.org/search?q='+encodeURIComponent(query));
+  // OWID doesn't have a public API — use Exa to search it
+  var key = env.EXA_API_KEY || env.exa_api_key;
+  if (!key) throw new Error('No Exa key for OWID');
+  var exaResp = await fetch('https://api.exa.ai/search', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':key},
+    body:JSON.stringify({query:query+' site:ourworldindata.org',numResults:5,contents:{text:{maxCharacters:400}}})
+  });
+  if (!exaResp.ok) throw new Error('OWID: '+exaResp.status);
+  var data = await exaResp.json();
+  return (data.results||[]).map(function(r){return {title:r.title,url:r.url,content:r.text||'',_type:'data',_source:'ourworldindata'};});
+}
+
 // ── Routing philosophy ────────────────────────────────────────────────────────
 // Primary: Cerebras Gemma4 (fastest, free, multimodal)
 // Secondary: NVIDIA Nemotron, DeepSeek, Groq Gemma2/Llama
@@ -943,6 +1043,30 @@ export default {
         }
         if (sources.includes('perplexity')) {
           promises.push(searchPerplexity(env, query).then(function(r){results.perplexity=r;}).catch(function(e){errors.perplexity=e.message;}));
+        }
+        if (sources.includes('arxiv')) {
+          promises.push(searchArXiv(env, query).then(function(r){results.arxiv=r;}).catch(function(e){errors.arxiv=e.message;}));
+        }
+        if (sources.includes('europe_pmc')) {
+          promises.push(searchEuropePMC(env, query).then(function(r){results.europe_pmc=r;}).catch(function(e){errors.europe_pmc=e.message;}));
+        }
+        if (sources.includes('zenodo')) {
+          promises.push(searchZenodo(env, query).then(function(r){results.zenodo=r;}).catch(function(e){errors.zenodo=e.message;}));
+        }
+        if (sources.includes('world_bank')) {
+          promises.push(searchWorldBank(env, query).then(function(r){results.world_bank=r;}).catch(function(e){errors.world_bank=e.message;}));
+        }
+        if (sources.includes('ons')) {
+          promises.push(searchONS(env, query).then(function(r){results.ons=r;}).catch(function(e){errors.ons=e.message;}));
+        }
+        if (sources.includes('data_gov_uk')) {
+          promises.push(searchDataGovUK(env, query).then(function(r){results.data_gov_uk=r;}).catch(function(e){errors.data_gov_uk=e.message;}));
+        }
+        if (sources.includes('ssrn')) {
+          promises.push(searchSSRN(env, query).then(function(r){results.ssrn=r;}).catch(function(e){errors.ssrn=e.message;}));
+        }
+        if (sources.includes('our_world_in_data')) {
+          promises.push(searchOurWorldInData(env, query).then(function(r){results.our_world_in_data=r;}).catch(function(e){errors.our_world_in_data=e.message;}));
         }
 
         await Promise.all(promises);

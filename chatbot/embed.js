@@ -5,7 +5,7 @@
 //   data-type="booking"
 //   data-position="bottom-right"
 //   data-color="#0f3b3a"
-//   data-label="Book a Session">
+//   data-label="Book an Initial Consultation">
 // </script>
 
 (function() {
@@ -13,7 +13,7 @@
   var type = (script && script.getAttribute('data-type')) || 'booking';
   var position = (script && script.getAttribute('data-position')) || 'bottom-right';
   var color = (script && script.getAttribute('data-color')) || '#0f3b3a';
-  var label = (script && script.getAttribute('data-label')) || (type === 'booking' ? 'Book a Session' : 'Chat with us');
+  var label = (script && script.getAttribute('data-label')) || (type === 'booking' ? 'Book an Initial Consultation' : 'Chat with us');
   var baseUrl = 'https://prism.identitypartners.uk';
 
   // Inject styles

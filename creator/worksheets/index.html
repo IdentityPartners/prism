@@ -58,18 +58,18 @@
               <input class="input" id="ws-audience" type="text" value="Adults in recovery" placeholder="Who is this worksheet for?"></div>
             <div class="form-group"><label class="form-label">Additional Instructions</label>
               <textarea class="textarea" id="ws-instructions" placeholder="Any specific elements to include, avoid, or emphasise…" rows="3"></textarea></div>
-            <button class="btn btn-primary" style="width:100%;" onclick="generateWorksheet()" title="Generate worksheet">✨ Generate Worksheet</button>
+            <button class="btn btn-primary" id="ws-generate-btn" style="width:100%;" onclick="doGenerateWorksheet()" title="Generate worksheet">✨ Generate Worksheet</button>
           </div>
 
           <div class="card">
             <div class="card-header"><span class="card-title">Quick Templates</span></div>
             <div style="display:flex;flex-direction:column;gap:6px;">
-              <button class="btn btn-secondary btn-sm" onclick="quickTemplate('triggers')" title="Trigger identification worksheet">🎯 Trigger Identification</button>
-              <button class="btn btn-secondary btn-sm" onclick="quickTemplate('values')" title="Values clarification worksheet">💎 Values Clarification</button>
-              <button class="btn btn-secondary btn-sm" onclick="quickTemplate('coping')" title="Coping strategies worksheet">🛡 Coping Strategies</button>
-              <button class="btn btn-secondary btn-sm" onclick="quickTemplate('goals')" title="Recovery goals worksheet">🎯 Recovery Goals</button>
-              <button class="btn btn-secondary btn-sm" onclick="quickTemplate('gratitude')" title="Gratitude practice worksheet">🙏 Gratitude Practice</button>
-              <button class="btn btn-secondary btn-sm" onclick="quickTemplate('relapse')" title="Relapse prevention plan">🛡 Relapse Prevention Plan</button>
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ws-topic').value='Identifying and understanding personal triggers in addiction recovery';document.getElementById('ws-type').value='reflection';doGenerateWorksheet();" title="Trigger identification worksheet">🎯 Trigger Identification</button>
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ws-topic').value='Clarifying personal values to guide recovery and life decisions';document.getElementById('ws-type').value='reflection';doGenerateWorksheet();" title="Values clarification worksheet">💎 Values Clarification</button>
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ws-topic').value='Building a personalised toolkit of healthy coping strategies';document.getElementById('ws-type').value='planning';doGenerateWorksheet();" title="Coping strategies worksheet">🛡 Coping Strategies</button>
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ws-topic').value='Setting meaningful, achievable recovery goals using SMART framework';document.getElementById('ws-type').value='planning';doGenerateWorksheet();" title="Recovery goals worksheet">🎯 Recovery Goals</button>
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ws-topic').value='Daily gratitude practice to support wellbeing and recovery';document.getElementById('ws-type').value='journal';doGenerateWorksheet();" title="Gratitude practice worksheet">🙏 Gratitude Practice</button>
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ws-topic').value='Creating a personalised relapse prevention plan';document.getElementById('ws-type').value='planning';doGenerateWorksheet();" title="Relapse prevention plan">🛡 Relapse Prevention Plan</button>
             </div>
           </div>
         </div>
@@ -168,6 +168,65 @@ function exportWorksheet() {
   var blob = new Blob([currentWorksheet], {type:'text/markdown'});
   var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = topic.replace(/[^a-z0-9]/gi,'-').toLowerCase() + '.md'; a.click();
+}
+
+// Self-contained generate function — no dependency on shared library
+function doGenerateWorksheet() {
+  var topic = document.getElementById('ws-topic');
+  var type = document.getElementById('ws-type');
+  var sections = document.getElementById('ws-sections');
+  var audience = document.getElementById('ws-audience');
+  var instructions = document.getElementById('ws-instructions');
+  var container = document.getElementById('ws-preview-container');
+  var btn = document.getElementById('ws-generate-btn');
+
+  if (!topic || !topic.value.trim()) { alert('Please enter a topic for the worksheet.'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating…'; }
+  if (container) container.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div><div style="margin-top:10px;font-size:13px;color:var(--fg-muted);">Generating worksheet…</div></div>';
+
+  var systemPrompt = 'You are a clinical worksheet designer for Identity Partners, specialising in addiction, trauma, and mental health. Create professional, evidence-based worksheets in British English. Format using Markdown with clear sections, reflection questions, and practical exercises. Include space indicators like [Write here...] for fill-in areas. The tone is warm, non-judgmental, and empowering.';
+  var userPrompt = 'Create a ' + (type ? type.value : 'reflection') + ' worksheet with ' + (sections ? sections.value : '4') + ' sections.
+
+Topic: ' + topic.value.trim() + '
+Audience: ' + (audience ? audience.value : 'Adults in recovery') + (instructions && instructions.value.trim() ? '
+
+Additional instructions: ' + instructions.value.trim() : '') + '
+
+Include: title, brief introduction, clearly labelled sections with questions/exercises, and a closing reflection. Add an Identity Partners footer.';
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', 'https://prism-api.identitypartners.workers.dev/api/chat', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.timeout = 60000;
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    if (btn) { btn.disabled = false; btn.textContent = '✨ Generate Worksheet'; }
+    try {
+      var r = JSON.parse(xhr.responseText);
+      currentWorksheet = r.content || '';
+      if (container && currentWorksheet) {
+        var div = document.createElement('div');
+        div.className = 'ws-preview md-content';
+        div.innerHTML = Markdown.render(currentWorksheet);
+        container.innerHTML = '';
+        container.appendChild(div);
+      } else if (container) {
+        container.innerHTML = '<div style="color:var(--danger);padding:20px;">Generation failed. Please try again.</div>';
+      }
+    } catch(e) {
+      if (container) container.innerHTML = '<div style="color:var(--danger);padding:20px;">Error: ' + e.message + '</div>';
+      if (btn) { btn.disabled = false; btn.textContent = '✨ Generate Worksheet'; }
+    }
+  };
+  xhr.ontimeout = function() {
+    if (btn) { btn.disabled = false; btn.textContent = '✨ Generate Worksheet'; }
+    if (container) container.innerHTML = '<div style="color:var(--danger);padding:20px;">Request timed out. Please try again.</div>';
+  };
+  xhr.onerror = function() {
+    if (btn) { btn.disabled = false; btn.textContent = '✨ Generate Worksheet'; }
+    if (container) container.innerHTML = '<div style="color:var(--danger);padding:20px;">Network error. Check your connection.</div>';
+  };
+  xhr.send(JSON.stringify({messages:[{role:'system',content:systemPrompt},{role:'user',content:userPrompt}],profile:'balanced'}));
 }
 
 document.addEventListener('DOMContentLoaded', function() {
