@@ -5,31 +5,640 @@
 <title>Zoho CRM — Prism</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<style>
+.zcrm-layout { display:grid; grid-template-columns:280px 1fr 320px; height:calc(100vh - var(--topbar-h)); overflow:hidden; }
+@media(max-width:1200px){ .zcrm-layout{ grid-template-columns:240px 1fr; } .zcrm-detail{ display:none; } }
+@media(max-width:800px){ .zcrm-layout{ grid-template-columns:1fr; } .zcrm-list{ display:none; } }
+.zcrm-list { border-right:1px solid var(--border); background:var(--bg-surface); display:flex; flex-direction:column; overflow:hidden; }
+.zcrm-main { overflow-y:auto; }
+.zcrm-detail { border-left:1px solid var(--border); background:var(--bg-elevated); overflow-y:auto; padding:16px; }
+.zcrm-list-header { padding:12px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.zcrm-search { padding:8px 10px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.zcrm-search input { width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; outline:none; background:var(--bg-elevated); color:var(--fg-primary); }
+.zcrm-search input:focus { border-color:var(--accent); }
+.contacts-list { flex:1; overflow-y:auto; }
+.contact-item { padding:11px 14px; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.15s; display:flex; align-items:center; gap:10px; }
+.contact-item:hover { background:var(--accent-light); }
+.contact-item.active { background:var(--accent-light); border-left:3px solid var(--accent); }
+.contact-avatar { width:36px; height:36px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; flex-shrink:0; }
+.contact-info { flex:1; min-width:0; }
+.contact-name { font-size:13px; font-weight:500; color:var(--fg-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.contact-sub { font-size:11px; color:var(--fg-muted); }
+.status-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.dot-lead { background:#c4925a; }
+.dot-contact { background:#5a7a4f; }
+.dot-client { background:var(--accent); }
+.dot-inactive { background:var(--fg-muted); }
+.crm-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; padding:20px; border-bottom:1px solid var(--border); }
+.crm-stat { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px; text-align:center; }
+.crm-stat-num { font-size:24px; font-weight:700; color:var(--accent); font-family:var(--font-heading); }
+.crm-stat-lbl { font-size:11px; color:var(--fg-muted); margin-top:2px; }
+.pipeline-section { padding:20px; border-bottom:1px solid var(--border); }
+.pipeline-title { font-size:13px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; }
+.pipeline-stages { display:flex; gap:10px; overflow-x:auto; padding-bottom:4px; }
+.pipeline-stage { min-width:160px; background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px; flex-shrink:0; }
+.stage-name { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--fg-muted); margin-bottom:8px; }
+.stage-count { font-size:20px; font-weight:700; color:var(--accent); }
+.stage-value { font-size:11px; color:var(--fg-muted); }
+.stage-items { margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+.stage-item { background:var(--bg-surface); border-radius:4px; padding:5px 8px; font-size:11.5px; color:var(--fg-secondary); cursor:pointer; }
+.stage-item:hover { background:var(--accent-light); color:var(--accent); }
+.activities-section { padding:20px; }
+.activity-item { display:flex; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); }
+.activity-item:last-child { border-bottom:none; }
+.activity-icon { width:32px; height:32px; border-radius:50%; background:var(--accent-light); display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+.activity-content { flex:1; }
+.activity-title { font-size:13px; font-weight:500; color:var(--fg-primary); }
+.activity-meta { font-size:11px; color:var(--fg-muted); margin-top:2px; }
+.detail-header { display:flex; align-items:center; gap:14px; margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--border); }
+.detail-avatar { width:52px; height:52px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:600; flex-shrink:0; }
+.detail-name { font-family:var(--font-heading); font-size:17px; font-weight:600; }
+.detail-sub { font-size:12.5px; color:var(--fg-muted); }
+.detail-field { display:flex; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); font-size:12.5px; }
+.detail-field:last-child { border-bottom:none; }
+.detail-label { color:var(--fg-muted); width:90px; flex-shrink:0; }
+.detail-value { color:var(--fg-primary); flex:1; }
+.note-item { padding:10px; background:var(--bg-surface); border-radius:6px; margin-bottom:8px; font-size:12.5px; line-height:1.5; }
+.note-meta { font-size:10.5px; color:var(--fg-muted); margin-top:4px; }
+.add-note-ta { width:100%; min-height:60px; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; font-family:var(--font-ui); resize:none; outline:none; background:var(--bg-primary); color:var(--fg-primary); }
+.add-note-ta:focus { border-color:var(--accent); }
+.connect-banner { background:var(--accent-light); border:1px solid var(--accent); border-radius:var(--radius-sm); padding:12px 16px; margin:16px; display:flex; align-items:center; gap:10px; font-size:13px; }
+.modal-overlay { position:fixed; inset:0; background:rgba(92,45,63,0.3); backdrop-filter:blur(2px); z-index:500; display:flex; align-items:center; justify-content:center; padding:20px; }
+.modal { background:var(--bg-elevated); border-radius:var(--radius); box-shadow:var(--shadow-lg); width:100%; max-width:520px; max-height:90vh; overflow-y:auto; }
+.modal-header { padding:18px 22px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.modal-title { font-family:var(--font-heading); font-size:16px; font-weight:600; }
+.modal-body { padding:18px 22px; }
+.modal-footer { padding:14px 22px; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; }
+</style>
 </head>
 <body>
 <div class="prism-shell">
   <div id="sidebar-mount"></div>
   <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Zoho CRM</div><div class="topbar-actions"><a href="/oauth/zoho/crm" class="btn btn-sm btn-secondary" title="Connect Zoho CRM">🔑 Connect Zoho</a></div></div>
-    <div class="page-content">
+    <div class="topbar">
+      <div class="topbar-title">Zoho CRM</div>
+      <div class="topbar-actions">
+        <button class="btn btn-sm btn-secondary" onclick="syncZohoCRM()" title="Sync with Zoho CRM">↺ Sync Zoho</button>
+        <button class="btn btn-sm btn-secondary" onclick="openAddContact()" title="Add new contact">＋ Contact</button>
+        <a href="/oauth/zoho/crm" class="btn btn-sm btn-secondary" title="Connect Zoho CRM">🔑 Connect Zoho</a>
+        <button class="btn btn-sm btn-primary" onclick="openAddDeal()" title="Add new deal">＋ Deal</button>
+      </div>
+    </div>
+    <div class="zcrm-layout">
+      <!-- Contacts list -->
+      <div class="zcrm-list">
+        <div class="zcrm-list-header">
+          <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--fg-muted);">Contacts</span>
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="openAddContact()" title="Add contact">＋</button>
+        </div>
+        <div class="zcrm-search">
+          <input type="text" id="crm-search" placeholder="Search contacts…" oninput="filterContacts(this.value)">
+        </div>
+        <!-- Filter tabs -->
+        <div style="display:flex;border-bottom:1px solid var(--border);flex-shrink:0;">
+          <div class="tab active" style="flex:1;padding:7px;font-size:11.5px;text-align:center;cursor:pointer;" onclick="filterByType(this,'all')">All</div>
+          <div class="tab" style="flex:1;padding:7px;font-size:11.5px;text-align:center;cursor:pointer;" onclick="filterByType(this,'client')">Clients</div>
+          <div class="tab" style="flex:1;padding:7px;font-size:11.5px;text-align:center;cursor:pointer;" onclick="filterByType(this,'lead')">Leads</div>
+        </div>
+        <div class="contacts-list" id="contacts-list">
+          <div style="padding:20px;text-align:center;color:var(--fg-muted);font-size:12.5px;">Loading…</div>
+        </div>
+      </div>
 
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:48px;margin-bottom:16px;">👥</div>
-        <div style="font-family:var(--font-heading);font-size:20px;font-weight:600;margin-bottom:10px;">Zoho CRM</div>
-        <p style="font-size:13.5px;color:var(--fg-muted);max-width:400px;margin:0 auto 20px;">Connect Zoho CRM to sync contacts, leads, and deals with the Prism CRM module.</p>
-        <a href="/oauth/zoho/crm" class="btn btn-primary" title="Connect Zoho CRM">Connect Zoho CRM</a>
+      <!-- Main area -->
+      <div class="zcrm-main">
+        <!-- Connection banner -->
+        <div class="connect-banner" id="crm-connect-banner">
+          <span style="font-size:20px;">🔗</span>
+          <div style="flex:1;">Connect Zoho CRM to sync contacts, leads, and deals automatically.</div>
+          <a href="/oauth/zoho/crm" class="btn btn-primary btn-sm" title="Connect Zoho CRM">Connect →</a>
+        </div>
+
+        <!-- Stats -->
+        <div class="crm-stats">
+          <div class="crm-stat"><div class="crm-stat-num" id="s-total">—</div><div class="crm-stat-lbl">Total Contacts</div></div>
+          <div class="crm-stat"><div class="crm-stat-num" id="s-clients">—</div><div class="crm-stat-lbl">Active Clients</div></div>
+          <div class="crm-stat"><div class="crm-stat-num" id="s-leads">—</div><div class="crm-stat-lbl">Leads</div></div>
+          <div class="crm-stat"><div class="crm-stat-num" id="s-revenue">—</div><div class="crm-stat-lbl">Pipeline Value</div></div>
+        </div>
+
+        <!-- Pipeline -->
+        <div class="pipeline-section">
+          <div class="pipeline-title">
+            <span>Sales Pipeline</span>
+            <button class="btn btn-ghost btn-sm" onclick="openAddDeal()" title="Add deal">＋ Add Deal</button>
+          </div>
+          <div class="pipeline-stages" id="pipeline-stages"></div>
+        </div>
+
+        <!-- Recent activity -->
+        <div class="activities-section">
+          <div style="font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+            Recent Activity
+            <button class="btn btn-ghost btn-sm" onclick="loadActivities()" title="Refresh activities">↺</button>
+          </div>
+          <div id="activities-list">
+            <div style="font-size:12.5px;color:var(--fg-muted);">Loading activities…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detail panel -->
+      <div class="zcrm-detail" id="crm-detail">
+        <div style="text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">Select a contact to view details.</div>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Add Contact Modal -->
+<div class="modal-overlay hidden" id="add-contact-modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Add Contact</span><button class="btn btn-ghost btn-sm" onclick="closeModal('add-contact-modal')">✕</button></div>
+    <div class="modal-body">
+      <div class="grid-2" style="gap:12px;">
+        <div class="form-group"><label class="form-label">First Name *</label><input class="input" id="nc-first" type="text" placeholder="Jane"></div>
+        <div class="form-group"><label class="form-label">Last Name *</label><input class="input" id="nc-last" type="text" placeholder="Smith"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Email</label><input class="input" id="nc-email" type="email" placeholder="jane@example.com"></div>
+      <div class="form-group"><label class="form-label">Phone</label><input class="input" id="nc-phone" type="tel" placeholder="+44 7700 000000"></div>
+      <div class="form-group"><label class="form-label">Organisation</label><input class="input" id="nc-org" type="text" placeholder="Organisation name"></div>
+      <div class="form-group"><label class="form-label">Type</label>
+        <select class="select" id="nc-type" title="Contact type">
+          <option value="lead">Lead</option>
+          <option value="contact">Contact</option>
+          <option value="client">Active Client</option>
+          <option value="referral">Referral</option>
+          <option value="partner">Partner</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Programme / Service</label>
+        <select class="select" id="nc-programme" title="Programme or service">
+          <option value="">Not specified</option>
+          <option value="consultation">Free Consultation</option>
+          <option value="individual">Individual Therapy</option>
+          <option value="group">Group Programme</option>
+          <option value="intensive">Intensive Programme</option>
+          <option value="family">Family Support</option>
+          <option value="corporate">Corporate Wellbeing</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Source</label>
+        <select class="select" id="nc-source" title="How did they find you?">
+          <option value="">Unknown</option>
+          <option value="website">Website</option>
+          <option value="referral">Referral</option>
+          <option value="social">Social Media</option>
+          <option value="bluesky">Bluesky</option>
+          <option value="linkedin">LinkedIn</option>
+          <option value="google">Google</option>
+          <option value="nhs">NHS Referral</option>
+          <option value="charity">Charity/VCSE</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Notes</label><textarea class="textarea" id="nc-notes" rows="3" placeholder="Initial notes…"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('add-contact-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveContact()" title="Save contact">Save Contact</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Deal Modal -->
+<div class="modal-overlay hidden" id="add-deal-modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Add Deal</span><button class="btn btn-ghost btn-sm" onclick="closeModal('add-deal-modal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Deal Name *</label><input class="input" id="nd-name" type="text" placeholder="e.g. Jane Smith — Individual Therapy"></div>
+      <div class="form-group"><label class="form-label">Contact</label><input class="input" id="nd-contact" type="text" placeholder="Contact name"></div>
+      <div class="form-group"><label class="form-label">Value (£)</label><input class="input" id="nd-value" type="number" placeholder="0" min="0"></div>
+      <div class="form-group"><label class="form-label">Stage</label>
+        <select class="select" id="nd-stage" title="Deal stage">
+          <option value="enquiry">Enquiry</option>
+          <option value="consultation">Consultation Booked</option>
+          <option value="proposal">Proposal Sent</option>
+          <option value="negotiation">Negotiation</option>
+          <option value="won">Won</option>
+          <option value="lost">Lost</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Close Date</label><input class="input" id="nd-close" type="date"></div>
+      <div class="form-group"><label class="form-label">Notes</label><textarea class="textarea" id="nd-notes" rows="2" placeholder="Notes…"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('add-deal-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDeal()" title="Save deal">Save Deal</button>
+    </div>
+  </div>
+</div>
+
 <script src="/shared/prism.js"></script>
 <script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var allContacts = [];
+var allDeals = [];
+var selectedContact = null;
+var currentTypeFilter = 'all';
+
+var PIPELINE_STAGES = [
+  {id:'enquiry',    name:'Enquiry',              color:'#a88792'},
+  {id:'consultation',name:'Consultation Booked', color:'#c4925a'},
+  {id:'proposal',   name:'Proposal Sent',        color:'#0f3b3a'},
+  {id:'negotiation',name:'Negotiation',           color:'#5c2d3f'},
+  {id:'won',        name:'Won',                   color:'#5a7a4f'},
+  {id:'lost',       name:'Lost',                  color:'#8b3a3a'},
+];
+
+// ── Load data ─────────────────────────────────────────────────────────────────
+function loadAll() {
+  loadContacts();
+  loadDeals();
+  loadActivities();
+}
+
+function loadContacts() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', WORKER + '/api/crm/contacts', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      allContacts = r.contacts || [];
+      updateStats();
+      renderContactsList(allContacts);
+    } catch(e) { renderContactsList([]); }
+  };
+  xhr.onerror = function() { renderContactsList([]); };
+  xhr.send();
+}
+
+function loadDeals() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', WORKER + '/api/crm/deals', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      allDeals = r.deals || [];
+      renderPipeline();
+      updateStats();
+    } catch(e) { renderPipeline(); }
+  };
+  xhr.onerror = function() { renderPipeline(); };
+  xhr.send();
+}
+
+function loadActivities() {
+  var el = document.getElementById('activities-list');
+  // Combine recent contacts and deals as activities
+  var activities = [];
+  allContacts.slice(0,5).forEach(function(c) {
+    activities.push({icon:'👤', title:'Contact added: ' + (c.name||c.first_name+' '+c.last_name||'Unknown'), meta:c.created ? new Date(c.created).toLocaleString('en-GB') : '', type:'contact'});
+  });
+  allDeals.slice(0,5).forEach(function(d) {
+    activities.push({icon:'💼', title:'Deal: ' + d.name + ' — ' + d.stage, meta:'£'+(d.value||0)+' · '+(d.created?new Date(d.created).toLocaleString('en-GB'):''), type:'deal'});
+  });
+  activities.sort(function(a,b){return new Date(b.meta)-new Date(a.meta);});
+  if (!el) return;
+  if (activities.length === 0) { el.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">No recent activity.</div>'; return; }
+  el.innerHTML = '';
+  activities.slice(0,8).forEach(function(act) {
+    var item = document.createElement('div');
+    item.className = 'activity-item';
+    var icon = document.createElement('div');
+    icon.className = 'activity-icon';
+    icon.textContent = act.icon;
+    var content = document.createElement('div');
+    content.className = 'activity-content';
+    var title = document.createElement('div');
+    title.className = 'activity-title';
+    title.textContent = act.title;
+    var meta = document.createElement('div');
+    meta.className = 'activity-meta';
+    meta.textContent = act.meta;
+    content.appendChild(title); content.appendChild(meta);
+    item.appendChild(icon); item.appendChild(content);
+    el.appendChild(item);
+  });
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function updateStats() {
+  var s = function(id,v){var e=document.getElementById(id);if(e)e.textContent=v;};
+  var clients = allContacts.filter(function(c){return c.status==='client'||c.type==='client';}).length;
+  var leads = allContacts.filter(function(c){return c.status==='lead'||c.type==='lead';}).length;
+  var pipeline = allDeals.filter(function(d){return d.stage!=='won'&&d.stage!=='lost';}).reduce(function(sum,d){return sum+(parseInt(d.value)||0);},0);
+  s('s-total', allContacts.length);
+  s('s-clients', clients);
+  s('s-leads', leads);
+  s('s-revenue', pipeline > 0 ? '£'+pipeline.toLocaleString() : '—');
+}
+
+// ── Pipeline ──────────────────────────────────────────────────────────────────
+function renderPipeline() {
+  var el = document.getElementById('pipeline-stages');
+  if (!el) return;
+  el.innerHTML = '';
+  PIPELINE_STAGES.forEach(function(stage) {
+    var stageDeals = allDeals.filter(function(d){return d.stage===stage.id;});
+    var value = stageDeals.reduce(function(sum,d){return sum+(parseInt(d.value)||0);},0);
+    var card = document.createElement('div');
+    card.className = 'pipeline-stage';
+    card.style.borderTop = '3px solid ' + stage.color;
+    var name = document.createElement('div');
+    name.className = 'stage-name';
+    name.textContent = stage.name;
+    var count = document.createElement('div');
+    count.className = 'stage-count';
+    count.style.color = stage.color;
+    count.textContent = stageDeals.length;
+    var val = document.createElement('div');
+    val.className = 'stage-value';
+    val.textContent = value > 0 ? '£'+value.toLocaleString() : 'No value';
+    var items = document.createElement('div');
+    items.className = 'stage-items';
+    stageDeals.slice(0,3).forEach(function(deal) {
+      var item = document.createElement('div');
+      item.className = 'stage-item';
+      item.textContent = deal.name || deal.contact || 'Deal';
+      item.title = '£'+(deal.value||0);
+      items.appendChild(item);
+    });
+    card.appendChild(name); card.appendChild(count); card.appendChild(val); card.appendChild(items);
+    el.appendChild(card);
+  });
+}
+
+// ── Contacts list ─────────────────────────────────────────────────────────────
+function getInitials(contact) {
+  var name = contact.name || ((contact.first_name||'') + ' ' + (contact.last_name||'')).trim() || '?';
+  var parts = name.trim().split(' ');
+  return (parts[0][0] + (parts[1]?parts[1][0]:'')).toUpperCase();
+}
+
+function getContactName(contact) {
+  return contact.name || ((contact.first_name||'') + ' ' + (contact.last_name||'')).trim() || 'Unknown';
+}
+
+function filterContacts(q) {
+  var filtered = allContacts;
+  if (currentTypeFilter !== 'all') filtered = filtered.filter(function(c){return (c.type||c.status||'') === currentTypeFilter;});
+  if (q) { var ql=q.toLowerCase(); filtered=filtered.filter(function(c){return getContactName(c).toLowerCase().indexOf(ql)>=0||(c.email||'').toLowerCase().indexOf(ql)>=0; }); }
+  renderContactsList(filtered);
+}
+
+function filterByType(el, type) {
+  currentTypeFilter = type;
+  var tabs = document.querySelectorAll('.zcrm-list .tab');
+  for (var i=0;i<tabs.length;i++) tabs[i].classList.remove('active');
+  el.classList.add('active');
+  filterContacts(document.getElementById('crm-search').value);
+}
+
+function renderContactsList(contacts) {
+  var list = document.getElementById('contacts-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!contacts || contacts.length === 0) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);font-size:12.5px;">No contacts. Add your first contact.</div>';
+    return;
+  }
+  contacts.forEach(function(contact) {
+    (function(c) {
+      var item = document.createElement('div');
+      item.className = 'contact-item' + (selectedContact && selectedContact.id===c.id ? ' active' : '');
+      var avatar = document.createElement('div');
+      avatar.className = 'contact-avatar';
+      avatar.textContent = getInitials(c);
+      var info = document.createElement('div');
+      info.className = 'contact-info';
+      var name = document.createElement('div');
+      name.className = 'contact-name';
+      name.textContent = getContactName(c);
+      var sub = document.createElement('div');
+      sub.className = 'contact-sub';
+      sub.textContent = (c.programme||c.role||c.email||'');
+      info.appendChild(name); info.appendChild(sub);
+      var dot = document.createElement('div');
+      dot.className = 'status-dot dot-' + (c.type||c.status||'contact');
+      item.appendChild(avatar); item.appendChild(info); item.appendChild(dot);
+      item.onclick = function() { selectedContact=c; renderContactsList(contacts); showContactDetail(c); };
+      list.appendChild(item);
+    })(contact);
+  });
+}
+
+// ── Contact detail ────────────────────────────────────────────────────────────
+function showContactDetail(contact) {
+  var detail = document.getElementById('crm-detail');
+  if (!detail) return;
+  detail.innerHTML = '';
+  var name = getContactName(contact);
+  var header = document.createElement('div');
+  header.className = 'detail-header';
+  var avatar = document.createElement('div');
+  avatar.className = 'detail-avatar';
+  avatar.textContent = getInitials(contact);
+  var info = document.createElement('div');
+  var dname = document.createElement('div');
+  dname.className = 'detail-name';
+  dname.textContent = name;
+  var dsub = document.createElement('div');
+  dsub.className = 'detail-sub';
+  dsub.textContent = (contact.type||contact.status||'Contact') + (contact.programme ? ' · ' + contact.programme : '');
+  info.appendChild(dname); info.appendChild(dsub);
+  header.appendChild(avatar); header.appendChild(info);
+  detail.appendChild(header);
+
+  // Fields
+  var fields = [
+    {label:'Email', value:contact.email||'—'},
+    {label:'Phone', value:contact.phone||'—'},
+    {label:'Organisation', value:contact.org||contact.organisation||'—'},
+    {label:'Source', value:contact.source||'—'},
+    {label:'Added', value:contact.created?new Date(contact.created).toLocaleDateString('en-GB'):'—'},
+  ];
+  var fieldsDiv = document.createElement('div');
+  fieldsDiv.style.marginBottom = '16px';
+  fields.forEach(function(f) {
+    var row = document.createElement('div');
+    row.className = 'detail-field';
+    var lbl = document.createElement('span');
+    lbl.className = 'detail-label';
+    lbl.textContent = f.label;
+    var val = document.createElement('span');
+    val.className = 'detail-value';
+    val.textContent = f.value;
+    row.appendChild(lbl); row.appendChild(val);
+    fieldsDiv.appendChild(row);
+  });
+  detail.appendChild(fieldsDiv);
+
+  // Actions
+  var actDiv = document.createElement('div');
+  actDiv.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-bottom:16px;';
+  var actions = [
+    {label:'📧 Send Email', fn:function(){window.open('/comms/email/?to='+encodeURIComponent(contact.email||''),'_blank');}},
+    {label:'📅 Book Session', fn:function(){window.open('/comms/zoho-calendar/','_blank');}},
+    {label:'💬 Chat about this contact', fn:function(){try{sessionStorage.setItem('prism-chat-prefill','Tell me about my contact '+name+'. Type: '+(contact.type||'contact')+'. Programme: '+(contact.programme||'unknown')+'.');}catch(e){}window.location.href='/chat/';}},
+    {label:'⚡ Atomise their case', fn:function(){try{sessionStorage.setItem('prism-atomise',contact.notes||'Contact: '+name);}catch(e){}window.location.href='/atomise/';}},
+    {label:'➕ Add Deal', fn:function(){document.getElementById('nd-contact').value=name;openAddDeal();}},
+  ];
+  actions.forEach(function(act) {
+    var btn = document.createElement('button');
+    btn.className = 'btn btn-sm btn-secondary';
+    btn.textContent = act.label;
+    btn.onclick = act.fn;
+    actDiv.appendChild(btn);
+  });
+  detail.appendChild(actDiv);
+
+  // Notes
+  var notesTitle = document.createElement('div');
+  notesTitle.style.cssText = 'font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:8px;';
+  notesTitle.textContent = 'Notes';
+  detail.appendChild(notesTitle);
+  if (contact.notes) {
+    var noteEl = document.createElement('div');
+    noteEl.className = 'note-item';
+    noteEl.textContent = contact.notes;
+    var noteMeta = document.createElement('div');
+    noteMeta.className = 'note-meta';
+    noteMeta.textContent = 'Added ' + (contact.created?new Date(contact.created).toLocaleDateString('en-GB'):'');
+    noteEl.appendChild(noteMeta);
+    detail.appendChild(noteEl);
+  }
+  var addNoteArea = document.createElement('div');
+  addNoteArea.style.marginTop = '8px';
+  var noteTA = document.createElement('textarea');
+  noteTA.className = 'add-note-ta';
+  noteTA.placeholder = 'Add a session note or observation…';
+  var addNoteBtn = document.createElement('button');
+  addNoteBtn.className = 'btn btn-sm btn-primary';
+  addNoteBtn.style.marginTop = '6px';
+  addNoteBtn.textContent = '＋ Add Note';
+  addNoteBtn.onclick = function() {
+    var text = noteTA.value.trim();
+    if (!text) return;
+    var noteEl2 = document.createElement('div');
+    noteEl2.className = 'note-item';
+    noteEl2.textContent = text;
+    var meta2 = document.createElement('div');
+    meta2.className = 'note-meta';
+    meta2.textContent = 'Added ' + new Date().toLocaleDateString('en-GB');
+    noteEl2.appendChild(meta2);
+    detail.insertBefore(noteEl2, addNoteArea);
+    noteTA.value = '';
+    // Save note to KV
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', WORKER + '/api/crm/notes', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.send(JSON.stringify({contactId:contact.id, note:text, created:new Date().toISOString()}));
+    Toast.success('Note saved');
+  };
+  addNoteArea.appendChild(noteTA); addNoteArea.appendChild(addNoteBtn);
+  detail.appendChild(addNoteArea);
+}
+
+// ── Add contact ───────────────────────────────────────────────────────────────
+function openAddContact() { document.getElementById('add-contact-modal').classList.remove('hidden'); }
+function openAddDeal() { document.getElementById('add-deal-modal').classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+function saveContact() {
+  var first = document.getElementById('nc-first').value.trim();
+  var last = document.getElementById('nc-last').value.trim();
+  if (!first) { Toast.warning('First name is required'); return; }
+  var contact = {
+    name: first + ' ' + last,
+    first_name: first, last_name: last,
+    email: document.getElementById('nc-email').value.trim(),
+    phone: document.getElementById('nc-phone').value.trim(),
+    org: document.getElementById('nc-org').value.trim(),
+    type: document.getElementById('nc-type').value,
+    programme: document.getElementById('nc-programme').value,
+    source: document.getElementById('nc-source').value,
+    notes: document.getElementById('nc-notes').value.trim(),
+  };
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/crm/contacts', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      if (r.success) {
+        Toast.success('Contact saved');
+        closeModal('add-contact-modal');
+        ['nc-first','nc-last','nc-email','nc-phone','nc-org','nc-notes'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+        loadContacts();
+      }
+    } catch(e) { Toast.error('Save failed'); }
+  };
+  xhr.onerror = function() { Toast.error('Network error'); };
+  xhr.send(JSON.stringify(contact));
+}
+
+function saveDeal() {
+  var name = document.getElementById('nd-name').value.trim();
+  if (!name) { Toast.warning('Deal name is required'); return; }
+  var deal = {
+    name: name,
+    contact: document.getElementById('nd-contact').value.trim(),
+    value: document.getElementById('nd-value').value,
+    stage: document.getElementById('nd-stage').value,
+    closeDate: document.getElementById('nd-close').value,
+    notes: document.getElementById('nd-notes').value.trim(),
+  };
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/crm/deals', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      if (r.success) {
+        Toast.success('Deal saved');
+        closeModal('add-deal-modal');
+        loadDeals();
+      }
+    } catch(e) { Toast.error('Save failed'); }
+  };
+  xhr.onerror = function() { Toast.error('Network error'); };
+  xhr.send(JSON.stringify(deal));
+}
+
+// ── Zoho CRM sync ─────────────────────────────────────────────────────────────
+function syncZohoCRM() {
+  Toast.info('Syncing with Zoho CRM…');
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', WORKER + '/api/zoho/crm/contacts', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      if (r.contacts && r.contacts.length > 0) {
+        allContacts = r.contacts;
+        updateStats();
+        renderContactsList(allContacts);
+        Toast.success('Synced ' + r.contacts.length + ' contacts from Zoho CRM');
+        var banner = document.getElementById('crm-connect-banner');
+        if (banner) banner.style.display = 'none';
+      } else if (r.error && r.error.indexOf('not connected') >= 0) {
+        Toast.warning('Connect Zoho CRM first — click Connect Zoho above');
+      }
+    } catch(e) { Toast.error('Sync failed: ' + e.message); }
+  };
+  xhr.onerror = function() { Toast.error('Network error'); };
+  xhr.send();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
-  if (mount) { var sb = buildSidebar('/comms/zoho-crm/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  
+  if (mount) { var sb=buildSidebar('/comms/zoho-crm/'); mount.parentNode.insertBefore(sb,mount); mount.parentNode.removeChild(mount); }
+  loadAll();
 });
-
 </script>
 </body>
 </html>

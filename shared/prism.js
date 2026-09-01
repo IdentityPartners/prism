@@ -345,15 +345,19 @@ var PrismAPI = (function() {
 // to prevent focus loss from the target textarea and prevent native keyboard popup.
 var OSK = (function() {
   var ROWS = [
-    ['1','2','3','4','5','6','7','8','9','0','-','=','⌫'],
-    ['q','w','e','r','t','y','u','i','o','p'],
-    ['a','s','d','f','g','h','j','k','l',"'"],
-    ['z','x','c','v','b','n','m',',','.','?','!'],
-    ['Space','–','(',')',':',';','@','#','£','$','%','&','↵','Send']
+    ['Esc','F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12'],
+    ['`','1','2','3','4','5','6','7','8','9','0','-','=','⌫'],
+    ['Tab','q','w','e','r','t','y','u','i','o','p','[',']','\\'],
+    ['Caps','a','s','d','f','g','h','j','k','l',';',"'",'↵'],
+    ['Shift','z','x','c','v','b','n','m',',','.','/',  'Shift'],
+    ['Ctrl','Win','Alt','Space','Alt','Ctrl','←','↑','↓','→','Send']
   ];
 
   var currentTarget = null;
   var shiftOn = false;
+  var capsOn = false;
+  var ctrlOn = false;
+  var altOn = false;
 
   function setTarget(el) { currentTarget = el; }
 
@@ -401,8 +405,47 @@ var OSK = (function() {
       return;
     } else if (key === 'Space') {
       insertAtCursor(target, ' ');
+    } else if (key === 'Shift') {
+      shiftOn = !shiftOn; updateShift(); return;
+    } else if (key === 'Caps') {
+      capsOn = !capsOn; updateCaps(); return;
+    } else if (key === 'Ctrl') {
+      ctrlOn = !ctrlOn; updateMod('ctrl', ctrlOn); return;
+    } else if (key === 'Alt') {
+      altOn = !altOn; updateMod('alt', altOn); return;
+    } else if (key === 'Win') {
+      Toast.info('Windows key'); return;
+    } else if (key === 'Tab') {
+      insertAtCursor(target, '\t');
+    } else if (key === 'Esc') {
+      target.blur(); return;
+    } else if (key === 'Caps' || key === 'F1' || key === 'F2' || key === 'F3' || key === 'F4' || key === 'F5' || key === 'F6' || key === 'F7' || key === 'F8' || key === 'F9' || key === 'F10' || key === 'F11' || key === 'F12') {
+      return; // function keys — no-op in textarea context
+    } else if (key === '←') {
+      var pos = target.selectionStart;
+      if (pos > 0) { target.selectionStart = target.selectionEnd = pos - 1; }
+      return;
+    } else if (key === '→') {
+      var pos = target.selectionStart;
+      target.selectionStart = target.selectionEnd = pos + 1;
+      return;
+    } else if (key === '↑' || key === '↓') {
+      return; // line navigation — browser handles
+    } else if (ctrlOn) {
+      // Ctrl combinations
+      if (key === 'a') { target.select(); }
+      else if (key === 'c') { if (navigator.clipboard) navigator.clipboard.writeText(target.value.substring(target.selectionStart, target.selectionEnd)); }
+      else if (key === 'v') { navigator.clipboard && navigator.clipboard.readText().then(function(t){insertAtCursor(target,t);}); }
+      else if (key === 'x') {
+        var s=target.selectionStart,e=target.selectionEnd;
+        if(navigator.clipboard) navigator.clipboard.writeText(target.value.substring(s,e));
+        target.value=target.value.substring(0,s)+target.value.substring(e);
+        target.selectionStart=target.selectionEnd=s;
+      }
+      else if (key === 'z') { /* undo — browser handles */ }
+      ctrlOn = false; updateMod('ctrl', false);
     } else {
-      var ch = shiftOn ? key.toUpperCase() : key;
+      var ch = (shiftOn || capsOn) ? key.toUpperCase() : key;
       insertAtCursor(target, ch);
       if (shiftOn) { shiftOn = false; updateShift(); }
     }
@@ -411,8 +454,26 @@ var OSK = (function() {
   }
 
   function updateShift() {
-    var shiftBtn = document.getElementById('osk-shift-btn');
-    if (shiftBtn) shiftBtn.style.background = shiftOn ? 'var(--accent-light)' : '';
+    var btns = document.querySelectorAll('.osk-key');
+    for (var i=0;i<btns.length;i++) {
+      if (btns[i].textContent === 'Shift') btns[i].style.background = shiftOn ? 'var(--accent)' : '';
+      if (btns[i].style.background === 'var(--accent)' && btns[i].textContent !== 'Shift' && btns[i].textContent !== 'Send') btns[i].style.background = '';
+    }
+  }
+  function updateCaps() {
+    var btns = document.querySelectorAll('.osk-key');
+    for (var i=0;i<btns.length;i++) {
+      if (btns[i].textContent === 'Caps') btns[i].style.background = capsOn ? 'var(--accent)' : '';
+    }
+  }
+  function updateMod(mod, on) {
+    var btns = document.querySelectorAll('.osk-key');
+    for (var i=0;i<btns.length;i++) {
+      if (btns[i].textContent === mod.charAt(0).toUpperCase()+mod.slice(1) || btns[i].textContent.toLowerCase() === mod) {
+        btns[i].style.background = on ? 'var(--warning)' : '';
+        btns[i].style.color = on ? '#fff' : '';
+      }
+    }
   }
 
   function build(containerId, targetId) {
@@ -443,9 +504,12 @@ var OSK = (function() {
 
           if (key === 'Space') btn.className += ' space';
           else if (key === 'Send') btn.className += ' send';
-          else if (key === '⌫' || key === '↵') btn.className += ' wide';
+          else if (key === '⌫' || key === '↵' || key === 'Shift' || key === 'Caps' || key === 'Tab') btn.className += ' wide';
+          else if (key === 'Ctrl' || key === 'Alt' || key === 'Win') btn.className += ' wider';
+          else if (key === 'Esc' || key === 'F1' || key === 'F2' || key === 'F3' || key === 'F4' || key === 'F5' || key === 'F6' || key === 'F7' || key === 'F8' || key === 'F9' || key === 'F10' || key === 'F11' || key === 'F12') btn.className += ' fn-key';
 
-          btn.title = key === 'Send' ? 'Send message' : key === '⌫' ? 'Backspace' : key === '↵' ? 'Enter / New line' : key === 'Space' ? 'Space' : key;
+          var keyTitles = {'Send':'Send message','⌫':'Backspace','↵':'Enter / New line','Space':'Space bar','Shift':'Shift (toggle)','Caps':'Caps Lock (toggle)','Ctrl':'Ctrl (modifier)','Alt':'Alt (modifier)','Win':'Windows key','Tab':'Tab','Esc':'Escape','←':'Left arrow','→':'Right arrow','↑':'Up arrow','↓':'Down arrow'};
+          btn.title = keyTitles[key] || ('Type: ' + key);
 
           // CRITICAL: use mousedown + preventDefault to prevent focus loss
           // and prevent native keyboard from appearing

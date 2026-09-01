@@ -533,6 +533,8 @@ input, textarea, select { font-family: var(--font-ui); }
 .osk-key.wider { min-width: 80px; }
 .osk-key.space { min-width: 160px; }
 .osk-key.send { background: var(--accent); color: #fff; border-color: var(--accent); min-width: 56px; }
+.osk-key.fn-key { min-width: 36px; font-size: 10px; padding: 0 3px; color: var(--fg-muted); }
+.osk-key.fn-key:hover { background: var(--accent-light); color: var(--accent); }
 .osk-key.send:hover { background: var(--accent-hover); }
 .osk-key.enter { background: var(--bg-surface); min-width: 56px; }
 

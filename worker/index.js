@@ -1345,6 +1345,144 @@ export default {
       } catch(e) { return json({posts:'—',followers:'—',impressions:'—',engagement:'—',clicks:'—',visits:'—',error:e.message}, 200, origin); }
     }
 
+
+    // ── CRM Deals ─────────────────────────────────────────────────────────────
+    if (path === '/api/crm/deals' && request.method === 'GET') {
+      if (!env.PRISM_KV) return json({deals:[]}, 200, origin);
+      var list = await env.PRISM_KV.list({prefix:'crm:deal:'});
+      var deals = [];
+      for (var i=0;i<list.keys.length;i++) {
+        var val = await env.PRISM_KV.get(list.keys[i].name);
+        if (val) deals.push(JSON.parse(val));
+      }
+      return json({deals: deals.sort(function(a,b){return new Date(b.created)-new Date(a.created);})}, 200, origin);
+    }
+
+    if (path === '/api/crm/deals' && request.method === 'POST') {
+      var body = await request.json();
+      var id = 'crm:deal:' + Date.now();
+      var deal = Object.assign({id:id, created:new Date().toISOString()}, body);
+      if (env.PRISM_KV) await env.PRISM_KV.put(id, JSON.stringify(deal));
+      return json({success:true, id:id, deal:deal}, 200, origin);
+    }
+
+    if (path.startsWith('/api/crm/deals/') && request.method === 'PUT') {
+      var dealId = path.slice(15);
+      var body = await request.json();
+      if (env.PRISM_KV) {
+        var existing = await env.PRISM_KV.get('crm:deal:' + dealId);
+        var deal = existing ? Object.assign(JSON.parse(existing), body) : body;
+        deal.updated = new Date().toISOString();
+        await env.PRISM_KV.put('crm:deal:' + dealId, JSON.stringify(deal));
+      }
+      return json({success:true}, 200, origin);
+    }
+
+    if (path.startsWith('/api/crm/deals/') && request.method === 'DELETE') {
+      var dealId = path.slice(15);
+      if (env.PRISM_KV) await env.PRISM_KV.delete('crm:deal:' + dealId);
+      return json({success:true}, 200, origin);
+    }
+
+    // ── CRM Notes ─────────────────────────────────────────────────────────────
+    if (path === '/api/crm/notes' && request.method === 'POST') {
+      var body = await request.json();
+      var id = 'crm:note:' + Date.now();
+      var note = Object.assign({id:id, created:new Date().toISOString()}, body);
+      if (env.PRISM_KV) await env.PRISM_KV.put(id, JSON.stringify(note));
+      return json({success:true, id:id}, 200, origin);
+    }
+
+    if (path === '/api/crm/notes' && request.method === 'GET') {
+      var contactId = url.searchParams.get('contactId');
+      if (!env.PRISM_KV) return json({notes:[]}, 200, origin);
+      var list = await env.PRISM_KV.list({prefix:'crm:note:'});
+      var notes = [];
+      for (var i=0;i<list.keys.length;i++) {
+        var val = await env.PRISM_KV.get(list.keys[i].name);
+        if (val) {
+          var note = JSON.parse(val);
+          if (!contactId || note.contactId === contactId) notes.push(note);
+        }
+      }
+      return json({notes: notes.sort(function(a,b){return new Date(b.created)-new Date(a.created);})}, 200, origin);
+    }
+
+    // ── Zoho CRM sync ─────────────────────────────────────────────────────────
+    if (path === '/api/zoho/crm/contacts' && request.method === 'GET') {
+      try {
+        var zohoTokens = null;
+        if (env.PRISM_KV) { var zt = await env.PRISM_KV.get('zoho:tokens:crm'); if (zt) zohoTokens = JSON.parse(zt); }
+        if (!zohoTokens || !zohoTokens.access_token) {
+          return json({contacts:[], error:'Zoho CRM not connected — visit /oauth/zoho/crm'}, 200, origin);
+        }
+        var crmResp = await fetch('https://www.zohoapis.com/crm/v3/Contacts?fields=First_Name,Last_Name,Email,Phone,Account_Name,Lead_Source&per_page=200', {
+          headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token}
+        });
+        if (!crmResp.ok) return json({contacts:[], error:'Zoho CRM API error: ' + crmResp.status}, 200, origin);
+        var crmData = await crmResp.json();
+        var contacts = (crmData.data || []).map(function(c) {
+          return {
+            id: c.id,
+            name: (c.First_Name||'') + ' ' + (c.Last_Name||''),
+            first_name: c.First_Name || '',
+            last_name: c.Last_Name || '',
+            email: c.Email || '',
+            phone: c.Phone || '',
+            org: c.Account_Name || '',
+            source: c.Lead_Source || '',
+            type: 'contact',
+            created: c.Created_Time || new Date().toISOString()
+          };
+        });
+        // Cache in KV
+        if (env.PRISM_KV) {
+          for (var i=0;i<contacts.length;i++) {
+            await env.PRISM_KV.put('crm:contact:zoho:'+contacts[i].id, JSON.stringify(contacts[i]));
+          }
+        }
+        return json({contacts: contacts, source:'zoho'}, 200, origin);
+      } catch(e) {
+        return json({contacts:[], error:e.message}, 200, origin);
+      }
+    }
+
+    if (path === '/api/zoho/crm/leads' && request.method === 'GET') {
+      try {
+        var zohoTokens = null;
+        if (env.PRISM_KV) { var zt = await env.PRISM_KV.get('zoho:tokens:crm'); if (zt) zohoTokens = JSON.parse(zt); }
+        if (!zohoTokens || !zohoTokens.access_token) return json({leads:[], error:'not connected'}, 200, origin);
+        var leadsResp = await fetch('https://www.zohoapis.com/crm/v3/Leads?fields=First_Name,Last_Name,Email,Phone,Lead_Source,Lead_Status&per_page=200', {
+          headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token}
+        });
+        if (!leadsResp.ok) return json({leads:[], error:'API error'}, 200, origin);
+        var leadsData = await leadsResp.json();
+        var leads = (leadsData.data || []).map(function(l) {
+          return {id:l.id, name:(l.First_Name||'')+' '+(l.Last_Name||''), email:l.Email||'', phone:l.Phone||'', source:l.Lead_Source||'', status:l.Lead_Status||'', type:'lead'};
+        });
+        return json({leads: leads, source:'zoho'}, 200, origin);
+      } catch(e) { return json({leads:[], error:e.message}, 200, origin); }
+    }
+
+    // Push new contact to Zoho CRM
+    if (path === '/api/zoho/crm/contacts' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var zohoTokens = null;
+        if (env.PRISM_KV) { var zt = await env.PRISM_KV.get('zoho:tokens:crm'); if (zt) zohoTokens = JSON.parse(zt); }
+        if (zohoTokens && zohoTokens.access_token) {
+          var pushResp = await fetch('https://www.zohoapis.com/crm/v3/Contacts', {
+            method: 'POST',
+            headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token, 'Content-Type': 'application/json'},
+            body: JSON.stringify({data:[{First_Name:body.first_name||'', Last_Name:body.last_name||body.name||'', Email:body.email||'', Phone:body.phone||'', Lead_Source:body.source||'Website'}]})
+          });
+          var pushData = await pushResp.json();
+          return json({success:true, zoho:pushData}, 200, origin);
+        }
+        return json({success:false, error:'Zoho CRM not connected'}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
     return json({error:'Not found', path:path}, 404, origin);
   }
 };
