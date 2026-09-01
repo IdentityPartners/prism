@@ -43,7 +43,7 @@ async function callCerebras(env, messages, model) {
   var resp = await fetch('https://api.cerebras.ai/v1/chat/completions', {
     method: 'POST',
     headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'llama-4-scout-17b-16e-instruct', messages: messages, max_tokens: 4096})
+    body: JSON.stringify({model: model||'gemma-4-9b-it', messages: messages, max_tokens: 4096})
   });
   var data = await resp.json();
   if (!resp.ok) throw new Error('Cerebras: '+(data.error&&data.error.message||resp.status));
@@ -57,7 +57,7 @@ async function callGroq(env, messages, model) {
   var resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'llama-3.3-70b-versatile', messages: messages, max_tokens: 4096})
+    body: JSON.stringify({model: model||'gemma2-9b-it', messages: messages, max_tokens: 4096})
   });
   var data = await resp.json();
   if (!resp.ok) throw new Error('Groq: '+(data.error&&data.error.message||resp.status));
@@ -296,74 +296,92 @@ async function callImageRouter(env, messages, model) {
 }
 
 // ─── ROUTING PROFILES ─────────────────────────────────────────────────────────
+// ── Routing philosophy ────────────────────────────────────────────────────────
+// Primary: Cerebras Gemma4 (fastest, free, multimodal)
+// Secondary: NVIDIA Nemotron, DeepSeek, Groq Gemma2/Llama
+// Long-context reasoning only: Gemini
+// OpenRouter: only for free access to models not otherwise available
+// Llama Scout 4: fallback only — only beats Gemma4 on encyclopaedic long-context
+// ─────────────────────────────────────────────────────────────────────────────
 var FALLBACK_CHAINS = {
-  'local':         [['ollama','phi4:latest'],['ollama','gemma4:12b'],['ollama','qwen2.5:7b']],
-  'free':          [
-    ['cerebras','llama-4-scout-17b-16e-instruct'],
-    ['groq','llama-3.3-70b-versatile'],
-    ['sambanova',null],
-    ['together','meta-llama/Llama-3.3-70B-Instruct-Turbo-Free'],
-    ['chutes','deepseek-ai/DeepSeek-V3-0324'],
-    ['openrouter','google/gemma-3-27b-it:free'],
-    ['openrouter','meta-llama/llama-3.3-70b-instruct:free'],
-    ['huggingface','google/gemma-2-9b-it'],
-    ['nebius',null],
-    ['kimi',null],
-    ['ollama','gemma4:12b']
+  'local': [
+    ['ollama','gemma4:12b'],
+    ['ollama','gemma4:e4b'],
+    ['ollama','phi4:latest'],
+    ['ollama','qwen2.5:7b'],
+    ['ollama','deepseek-r1:7b']
   ],
-  'balanced':      [
-    ['cerebras','llama-4-scout-17b-16e-instruct'],
-    ['groq','llama-3.3-70b-versatile'],
-    ['deepseek','deepseek-chat'],
-    ['sambanova',null],
+  'free': [
+    ['cerebras','gemma-4-9b-it'],          // Gemma4 on Cerebras — fastest free
+    ['cerebras','gemma-4-27b-it'],          // Gemma4 27B on Cerebras
+    ['groq','gemma2-9b-it'],               // Gemma2 on Groq
+    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'], // NVIDIA free tier
+    ['deepseek','deepseek-chat'],           // DeepSeek V3
+    ['groq','llama-3.3-70b-versatile'],    // Groq Llama fallback
     ['chutes','deepseek-ai/DeepSeek-V3-0324'],
-    ['openrouter','google/gemma-3-27b-it:free'],
-    ['zhipu','glm-4-flash'],
-    ['nebius',null],
+    ['sambanova',null],
+    ['ollama','gemma4:12b']                // Local last resort
+  ],
+  'balanced': [
+    ['cerebras','gemma-4-9b-it'],          // Gemma4 on Cerebras — primary
+    ['cerebras','gemma-4-27b-it'],          // Gemma4 27B
+    ['deepseek','deepseek-chat'],           // DeepSeek V3 for quality
+    ['groq','gemma2-9b-it'],               // Gemma2 on Groq
+    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
+    ['groq','llama-3.3-70b-versatile'],
+    ['chutes','deepseek-ai/DeepSeek-V3-0324'],
     ['ollama','gemma4:12b']
   ],
   'frontier-free': [
-    ['gemini','gemini-2.0-flash'],
+    ['cerebras','gemma-4-27b-it'],          // Gemma4 27B on Cerebras
     ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
-    ['openrouter','google/gemma-3-27b-it:free'],
-    ['openrouter','deepseek/deepseek-chat-v3-0324:free'],
     ['deepseek','deepseek-chat'],
-    ['huggingface','google/gemma-2-27b-it'],
+    ['groq','gemma2-9b-it'],
+    ['gemini','gemini-2.0-flash'],          // Gemini for long-context only
     ['ollama','gemma4:e4b']
   ],
-  'frontier':      [
-    ['deepseek','deepseek-reasoner'],
-    ['gemini','gemini-2.0-flash'],
-    ['openrouter','deepseek/deepseek-r1'],
+  'frontier': [
+    ['deepseek','deepseek-reasoner'],       // DeepSeek R1 for deep reasoning
     ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
+    ['cerebras','gemma-4-27b-it'],
+    ['gemini','gemini-2.0-flash'],          // Long-context reasoning
     ['deepseek','deepseek-chat'],
     ['ollama','gemma4:12b']
   ],
-  'coding':        [
-    ['zhipu','glm-4-flash'],
-    ['cerebras','llama-4-scout-17b-16e-instruct'],
-    ['deepseek','deepseek-chat'],
-    ['groq','llama-3.3-70b-versatile'],
-    ['openrouter','google/gemma-3-27b-it:free']
-  ],
-  'reasoning':     [
+  'coding': [
+    ['cerebras','gemma-4-9b-it'],          // Gemma4 excellent at code
+    ['deepseek','deepseek-chat'],           // DeepSeek strong on code
+    ['groq','gemma2-9b-it'],
     ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
-    ['deepseek','deepseek-reasoner'],
+    ['groq','llama-3.3-70b-versatile'],
+    ['ollama','gemma4:12b']
+  ],
+  'reasoning': [
+    ['deepseek','deepseek-reasoner'],       // DeepSeek R1 — best reasoning
+    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
     ['groq','deepseek-r1-distill-llama-70b'],
-    ['openrouter','deepseek/deepseek-r1:free'],
-    ['perplexity','llama-3.1-sonar-large-128k-online']
+    ['gemini','gemini-2.0-flash'],          // Long-context reasoning
+    ['cerebras','gemma-4-27b-it'],
+    ['ollama','deepseek-r1:7b']
   ],
-  'fast':          [
-    ['cerebras','llama-4-scout-17b-16e-instruct'],
-    ['groq','llama-3.1-8b-instant'],
-    ['zhipu','glm-4-flash'],
-    ['chutes',null]
+  'fast': [
+    ['cerebras','gemma-4-9b-it'],          // Gemma4 9B — fastest option
+    ['groq','gemma2-9b-it'],               // Gemma2 on Groq — very fast
+    ['groq','llama-3.1-8b-instant'],       // Groq 8B instant
+    ['cerebras','llama-4-scout-17b-16e-instruct'] // Scout only as fast fallback
   ],
-  'research':      [
-    ['perplexity','llama-3.1-sonar-large-128k-online'],
-    ['gemini','gemini-2.0-flash'],
-    ['openrouter','google/gemma-3-27b-it:free'],
-    ['deepseek','deepseek-chat']
+  'research': [
+    ['perplexity','llama-3.1-sonar-large-128k-online'], // Web-search augmented
+    ['cerebras','gemma-4-27b-it'],
+    ['deepseek','deepseek-chat'],
+    ['gemini','gemini-2.0-flash'],          // Long-context for research synthesis
+    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1']
+  ],
+  'multimodal': [
+    ['cerebras','gemma-4-27b-it'],          // Gemma4 is multimodal on Cerebras
+    ['gemini','gemini-2.0-flash'],          // Gemini multimodal
+    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
+    ['ollama','gemma4:12b']
   ],
 };
 
@@ -392,8 +410,10 @@ var PROVIDER_FNS = {
 // ─── ORCHESTRATOR ─────────────────────────────────────────────────────────────
 async function orchestrate(env, messages, profile, intent, threadId) {
   var chain = (FALLBACK_CHAINS[profile] || FALLBACK_CHAINS['balanced']).slice();
-  if (intent === 'coding') chain = FALLBACK_CHAINS['coding'].concat(chain);
-  if (intent === 'reasoning') chain = FALLBACK_CHAINS['reasoning'].concat(chain);
+  if (intent === 'coding') chain = FALLBACK_CHAINS['coding'].slice();
+  else if (intent === 'reasoning') chain = FALLBACK_CHAINS['reasoning'].slice();
+  else if (intent === 'research') chain = FALLBACK_CHAINS['research'].slice();
+  else if (intent === 'multimodal' || intent === 'image_gen') chain = FALLBACK_CHAINS['multimodal'].slice();
 
   var lastError = null;
   var routingLog = [];
