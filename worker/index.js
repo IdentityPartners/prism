@@ -1291,13 +1291,7 @@ export default {
         events.push({id: bookingId, title: body.clientName + ' — ' + body.sessionType, date: body.date, time: body.time, type: 'booking', clientEmail: body.clientEmail, notes: body.notes});
         if (env.PRISM_KV) await env.PRISM_KV.put('calendar:events', JSON.stringify(events));
         // Send confirmation via Telegram
-        var confirmMsg = '📅 New Booking!
-
-Client: ' + body.clientName + '
-Email: ' + body.clientEmail + '
-Date: ' + body.date + ' at ' + body.time + '
-Type: ' + body.sessionType + (body.notes ? '
-Notes: ' + body.notes : '');
+        var confirmMsg = 'New Booking! Client: ' + body.clientName + ' | Email: ' + body.clientEmail + ' | Date: ' + body.date + ' at ' + body.time + ' | Type: ' + body.sessionType + (body.notes ? ' | Notes: ' + body.notes : '');
         await sendTelegram(env, confirmMsg);
         return json({success: true, bookingId: bookingId}, 200, origin);
       } catch(e) { return json({error: e.message}, 500, origin); }
