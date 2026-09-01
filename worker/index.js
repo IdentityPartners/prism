@@ -1942,6 +1942,33 @@ export default {
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── Zoho credential diagnostic ────────────────────────────────────────────
+    if (path === '/api/zoho/test' && request.method === 'GET') {
+      var clientId = env.ZOHO_CLIENT_ID || env.Zoho_Client_ID;
+      var clientSecret = env.ZOHO_CLIENT_SECRET || env.Zoho_Client_Secret;
+      var hasTokens = {};
+      if (env.PRISM_KV) {
+        for (var svc of ['mail','calendar','crm','social']) {
+          var t = await env.PRISM_KV.get('zoho:tokens:'+svc);
+          hasTokens[svc] = t ? 'stored' : 'not connected';
+        }
+      }
+      return json({
+        clientId: clientId ? clientId.substring(0,20)+'...' : 'MISSING',
+        clientSecret: clientSecret ? 'present ('+clientSecret.length+' chars)' : 'MISSING',
+        redirectUris: {
+          mail: 'https://prism.identitypartners.uk/oauth/zoho/mail',
+          calendar: 'https://prism.identitypartners.uk/oauth/zoho/calendar',
+          crm: 'https://prism.identitypartners.uk/oauth/zoho/crm',
+          social: 'https://prism.identitypartners.uk/oauth/zoho/social',
+        },
+        authEndpoint: 'https://accounts.zoho.eu/oauth/v2/auth',
+        tokenEndpoint: 'https://accounts.zoho.eu/oauth/v2/token',
+        tokens: hasTokens
+      }, 200, origin);
+    }
+
     return json({error:'Not found', path:path}, 404, origin);
   }
 };
