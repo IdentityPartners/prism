@@ -296,6 +296,151 @@ async function callImageRouter(env, messages, model) {
 }
 
 // ─── ROUTING PROFILES ─────────────────────────────────────────────────────────
+
+async function searchExa(env, query) {
+  var key = env.EXA_API_KEY || env.exa_api_key;
+  if (!key) throw new Error('No Exa key');
+  var resp = await fetch('https://api.exa.ai/search', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','x-api-key':key},
+    body: JSON.stringify({query:query, numResults:8, useAutoprompt:true, type:'neural', contents:{text:{maxCharacters:500}}})
+  });
+  if (!resp.ok) throw new Error('Exa: '+resp.status);
+  var data = await resp.json();
+  return (data.results||[]).map(function(r){return {title:r.title,url:r.url,content:r.text||r.snippet||'',score:r.score};});
+}
+
+async function searchSemanticScholar(env, query) {
+  var key = env.SEMANTIC_SCHOLAR_API_KEY || env.semantic_scholar_api_key;
+  var headers = {'Content-Type':'application/json'};
+  if (key) headers['x-api-key'] = key;
+  var resp = await fetch('https://api.semanticscholar.org/graph/v1/paper/search?query='+encodeURIComponent(query)+'&limit=8&fields=title,abstract,url,year,authors,citationCount,openAccessPdf', {headers:headers});
+  if (!resp.ok) throw new Error('Semantic Scholar: '+resp.status);
+  var data = await resp.json();
+  return (data.data||[]).map(function(p){return {
+    title:p.title,
+    url:(p.openAccessPdf&&p.openAccessPdf.url)||('https://www.semanticscholar.org/paper/'+p.paperId),
+    content:(p.abstract||'').substring(0,400),
+    year:p.year,
+    authors:(p.authors||[]).map(function(a){return a.name;}).join(', '),
+    citations:p.citationCount,
+    _type:'academic'
+  };});
+}
+
+async function searchPubMed(env, query) {
+  var key = env.NCBI_API_KEY || env.ncbi_api_key;
+  var apiKey = key ? '&api_key='+key : '';
+  // Search for IDs
+  var searchResp = await fetch('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term='+encodeURIComponent(query)+'&retmax=8&retmode=json'+apiKey);
+  if (!searchResp.ok) throw new Error('PubMed search: '+searchResp.status);
+  var searchData = await searchResp.json();
+  var ids = (searchData.esearchresult&&searchData.esearchresult.idlist)||[];
+  if (ids.length === 0) return [];
+  // Fetch summaries
+  var summaryResp = await fetch('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id='+ids.join(',')+'&retmode=json'+apiKey);
+  if (!summaryResp.ok) return [];
+  var summaryData = await summaryResp.json();
+  var result = summaryData.result || {};
+  return ids.map(function(id){
+    var item = result[id]||{};
+    return {
+      title:item.title||'',
+      url:'https://pubmed.ncbi.nlm.nih.gov/'+id+'/',
+      content:(item.source||'')+' '+(item.pubdate||''),
+      authors:(item.authors||[]).map(function(a){return a.name;}).join(', '),
+      year:item.pubdate,
+      _type:'academic',
+      _source:'pubmed'
+    };
+  }).filter(function(r){return r.title;});
+}
+
+async function searchCrossref(env, query) {
+  var resp = await fetch('https://api.crossref.org/works?query='+encodeURIComponent(query)+'&rows=8&select=title,URL,abstract,author,published,container-title&mailto=hello@identitypartners.uk');
+  if (!resp.ok) throw new Error('Crossref: '+resp.status);
+  var data = await resp.json();
+  return ((data.message&&data.message.items)||[]).map(function(item){
+    var authors = (item.author||[]).map(function(a){return (a.given||'')+' '+(a.family||'');}).join(', ');
+    var year = item.published&&item.published['date-parts']&&item.published['date-parts'][0]&&item.published['date-parts'][0][0];
+    return {
+      title:(item.title&&item.title[0])||'',
+      url:item.URL||'',
+      content:(item.abstract||'').replace(/<[^>]+>/g,'').substring(0,400),
+      authors:authors,
+      year:year,
+      journal:(item['container-title']&&item['container-title'][0])||'',
+      _type:'academic'
+    };
+  }).filter(function(r){return r.title;});
+}
+
+async function searchOpenAlex(env, query) {
+  var resp = await fetch('https://api.openalex.org/works?search='+encodeURIComponent(query)+'&per-page=8&select=title,doi,abstract_inverted_index,authorships,publication_year,primary_location&mailto=hello@identitypartners.uk');
+  if (!resp.ok) throw new Error('OpenAlex: '+resp.status);
+  var data = await resp.json();
+  return ((data.results)||[]).map(function(item){
+    var authors = (item.authorships||[]).slice(0,3).map(function(a){return a.author&&a.author.display_name||'';}).join(', ');
+    var url = item.doi ? 'https://doi.org/'+item.doi.replace('https://doi.org/','') : '';
+    return {
+      title:item.title||'',
+      url:url,
+      content:'',
+      authors:authors,
+      year:item.publication_year,
+      _type:'academic'
+    };
+  }).filter(function(r){return r.title;});
+}
+
+async function searchCORE(env, query) {
+  // CORE API v3 — free, no key needed for basic search
+  var resp = await fetch('https://api.core.ac.uk/v3/search/works?q='+encodeURIComponent(query)+'&limit=8', {
+    headers: {'Content-Type':'application/json'}
+  });
+  if (!resp.ok) throw new Error('CORE: '+resp.status);
+  var data = await resp.json();
+  return ((data.results)||[]).map(function(item){
+    return {
+      title:item.title||'',
+      url:item.downloadUrl||item.sourceFulltextUrls&&item.sourceFulltextUrls[0]||'https://core.ac.uk/works/'+item.id,
+      content:(item.abstract||'').substring(0,400),
+      authors:(item.authors||[]).map(function(a){return a.name||'';}).join(', '),
+      year:item.yearPublished,
+      _type:'academic',
+      openAccess:true
+    };
+  }).filter(function(r){return r.title;});
+}
+
+async function searchFirecrawl(env, query) {
+  var key = env.FIRECRAWL_API_KEY || env.firecrawl_api_key;
+  if (!key) throw new Error('No Firecrawl key');
+  var resp = await fetch('https://api.firecrawl.dev/v1/search', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
+    body: JSON.stringify({query:query, limit:5, scrapeOptions:{formats:['markdown']}})
+  });
+  if (!resp.ok) throw new Error('Firecrawl: '+resp.status);
+  var data = await resp.json();
+  return (data.data||[]).map(function(r){return {title:r.metadata&&r.metadata.title||r.url,url:r.url,content:(r.markdown||'').substring(0,400)};});
+}
+
+async function searchPerplexity(env, query) {
+  var key = env.PERPLEXITY_API_KEY || env.perplexity;
+  if (!key) throw new Error('No Perplexity key');
+  var resp = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
+    body: JSON.stringify({model:'llama-3.1-sonar-small-128k-online', messages:[{role:'user',content:'Search for: '+query+'. Return the top 5 most relevant results with title, URL, and brief summary.'}], max_tokens:1000})
+  });
+  if (!resp.ok) throw new Error('Perplexity: '+resp.status);
+  var data = await resp.json();
+  var content = data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content||'';
+  // Return as a single synthesised result
+  return [{title:'Perplexity Web Search: '+query, url:'https://perplexity.ai', content:content, _type:'synthesis'}];
+}
+
 // ── Routing philosophy ────────────────────────────────────────────────────────
 // Primary: Cerebras Gemma4 (fastest, free, multimodal)
 // Secondary: NVIDIA Nemotron, DeepSeek, Groq Gemma2/Llama
@@ -757,14 +902,71 @@ export default {
       } catch(e) { return json({models:['flux','turbo','gptimage']}, 200, origin); }
     }
 
-    // Search
+    // Search — comprehensive multi-source
     if (path === '/api/search' && request.method === 'POST') {
       try {
         var body = await request.json();
+        var query = body.query || '';
+        var sources = body.sources || ['tavily','brave'];
         var results = {};
-        if (!body.sources || body.sources.includes('tavily')) results.tavily = await searchTavily(env, body.query);
-        if (body.sources && body.sources.includes('brave')) results.brave = await searchBrave(env, body.query);
-        return json({results: results, query: body.query}, 200, origin);
+        var errors = {};
+
+        // Run all requested sources in parallel
+        var promises = [];
+
+        if (sources.includes('tavily')) {
+          promises.push(searchTavily(env, query).then(function(r){results.tavily=r;}).catch(function(e){errors.tavily=e.message;}));
+        }
+        if (sources.includes('brave')) {
+          promises.push(searchBrave(env, query).then(function(r){results.brave=r;}).catch(function(e){errors.brave=e.message;}));
+        }
+        if (sources.includes('exa') || sources.includes('exa_api')) {
+          promises.push(searchExa(env, query).then(function(r){results.exa=r;}).catch(function(e){errors.exa=e.message;}));
+        }
+        if (sources.includes('semantic_scholar') || sources.includes('semanticscholar')) {
+          promises.push(searchSemanticScholar(env, query).then(function(r){results.semantic_scholar=r;}).catch(function(e){errors.semantic_scholar=e.message;}));
+        }
+        if (sources.includes('pubmed') || sources.includes('ncbi')) {
+          promises.push(searchPubMed(env, query).then(function(r){results.pubmed=r;}).catch(function(e){errors.pubmed=e.message;}));
+        }
+        if (sources.includes('crossref')) {
+          promises.push(searchCrossref(env, query).then(function(r){results.crossref=r;}).catch(function(e){errors.crossref=e.message;}));
+        }
+        if (sources.includes('openalex')) {
+          promises.push(searchOpenAlex(env, query).then(function(r){results.openalex=r;}).catch(function(e){errors.openalex=e.message;}));
+        }
+        if (sources.includes('core')) {
+          promises.push(searchCORE(env, query).then(function(r){results.core=r;}).catch(function(e){errors.core=e.message;}));
+        }
+        if (sources.includes('firecrawl')) {
+          promises.push(searchFirecrawl(env, query).then(function(r){results.firecrawl=r;}).catch(function(e){errors.firecrawl=e.message;}));
+        }
+        if (sources.includes('perplexity')) {
+          promises.push(searchPerplexity(env, query).then(function(r){results.perplexity=r;}).catch(function(e){errors.perplexity=e.message;}));
+        }
+
+        await Promise.all(promises);
+
+        // Flatten and deduplicate results
+        var allResults = [];
+        Object.keys(results).forEach(function(source) {
+          var sourceResults = results[source] || [];
+          sourceResults.forEach(function(r) {
+            r._source = source;
+            allResults.push(r);
+          });
+        });
+
+        // Deduplicate by URL
+        var seen = {};
+        allResults = allResults.filter(function(r) {
+          var url = r.url || r.link || '';
+          if (seen[url]) return false;
+          seen[url] = true;
+          return true;
+        });
+
+        return json({results: results, allResults: allResults, query: query, errors: errors, sourceCount: Object.keys(results).length}, 200, origin);
       } catch(e) { return json({error: e.message}, 500, origin); }
     }
 
@@ -1480,6 +1682,139 @@ export default {
           return json({success:true, zoho:pushData}, 200, origin);
         }
         return json({success:false, error:'Zoho CRM not connected'}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+
+    // ── Headless platform posting (via Cloudflare Browser Rendering) ──────────
+    if (path === '/api/headless/post' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var platform = body.platform;
+        var text = body.text || '';
+        var credentials = null;
+
+        // Load stored credentials from KV
+        if (env.PRISM_KV) {
+          var creds = await env.PRISM_KV.get('platform:creds:' + platform);
+          if (creds) credentials = JSON.parse(creds);
+        }
+
+        if (!credentials) {
+          return json({success:false, error:'No credentials stored for ' + platform + '. Complete signup first via Platform Manager.'}, 200, origin);
+        }
+
+        // Route to platform-specific poster
+        var result = null;
+        if (platform === 'bluesky') {
+          result = await postToBluesky(env, text);
+        } else if (platform === 'x' || platform === 'twitter') {
+          var xTokens = null;
+          if (env.PRISM_KV) { var xt = await env.PRISM_KV.get('oauth:x:tokens'); if (xt) xTokens = JSON.parse(xt); }
+          if (xTokens && xTokens.access_token) {
+            var xr = await fetch('https://api.twitter.com/2/tweets', {method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+xTokens.access_token},body:JSON.stringify({text:text.substring(0,280)})});
+            result = await xr.json();
+          } else { return json({success:false, error:'X not connected. Visit /oauth/x/'}, 200, origin); }
+        } else if (platform === 'linkedin') {
+          var liTokens = null;
+          if (env.PRISM_KV) { var lt = await env.PRISM_KV.get('oauth:linkedin:tokens'); if (lt) liTokens = JSON.parse(lt); }
+          if (liTokens && liTokens.access_token) {
+            var meR = await fetch('https://api.linkedin.com/v2/userinfo',{headers:{'Authorization':'Bearer '+liTokens.access_token}});
+            var meD = await meR.json();
+            var liR = await fetch('https://api.linkedin.com/v2/ugcPosts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+liTokens.access_token,'X-Restli-Protocol-Version':'2.0.0'},body:JSON.stringify({author:'urn:li:person:'+meD.sub,lifecycleState:'PUBLISHED',specificContent:{'com.linkedin.ugc.ShareContent':{shareCommentary:{text:text},shareMediaCategory:'NONE'}},visibility:{'com.linkedin.ugc.MemberNetworkVisibility':'PUBLIC'}})});
+            result = await liR.json();
+          } else { return json({success:false, error:'LinkedIn not connected. Visit /oauth/linkedin/'}, 200, origin); }
+        } else {
+          return json({success:false, error:'Platform ' + platform + ' not yet supported for direct posting. Use the Social Queue to schedule.'}, 200, origin);
+        }
+
+        return json({success:true, platform:platform, result:result}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Platform credential storage ───────────────────────────────────────────
+    if (path === '/api/platform/credentials' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var platform = body.platform;
+        var credentials = body.credentials;
+        if (!platform || !credentials) return json({error:'platform and credentials required'}, 400, origin);
+        if (env.PRISM_KV) await env.PRISM_KV.put('platform:creds:' + platform, JSON.stringify({...credentials, stored: new Date().toISOString()}));
+        return json({success:true, platform:platform}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    if (path === '/api/platform/credentials' && request.method === 'GET') {
+      try {
+        if (!env.PRISM_KV) return json({platforms:[]}, 200, origin);
+        var list = await env.PRISM_KV.list({prefix:'platform:creds:'});
+        var platforms = list.keys.map(function(k){return k.name.replace('platform:creds:','');});
+        return json({platforms:platforms}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Bulk social post (post same content to all connected platforms) ────────
+    if (path === '/api/social/broadcast' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var text = body.text || '';
+        var platforms = body.platforms || ['bluesky'];
+        var results = {};
+        var errors = {};
+
+        var kvRaw = null;
+        try { kvRaw = await env.PRISM_KV.get('__secrets__'); } catch(e) {}
+        var kvSecrets = {};
+        if (kvRaw) { try { kvSecrets = JSON.parse(kvRaw); } catch(e) {} }
+        var envPlus = new Proxy(env, {
+          get: function(target, prop) {
+            if (target[prop] !== undefined) return target[prop];
+            if (kvSecrets[prop] !== undefined) return kvSecrets[prop];
+            if (kvSecrets[prop.toUpperCase()] !== undefined) return kvSecrets[prop.toUpperCase()];
+            if (kvSecrets[prop.toLowerCase()] !== undefined) return kvSecrets[prop.toLowerCase()];
+            return undefined;
+          }
+        });
+
+        for (var pi = 0; pi < platforms.length; pi++) {
+          var platform = platforms[pi];
+          try {
+            if (platform === 'bluesky') {
+              var bskyText = text.length > 300 ? text.substring(0,297)+'...' : text;
+              results.bluesky = await postToBluesky(envPlus, bskyText);
+            } else if (platform === 'x') {
+              var xTokens = null;
+              if (env.PRISM_KV) { var xt = await env.PRISM_KV.get('oauth:x:tokens'); if (xt) xTokens = JSON.parse(xt); }
+              if (xTokens && xTokens.access_token) {
+                var xText = text.length > 280 ? text.substring(0,277)+'...' : text;
+                var xr = await fetch('https://api.twitter.com/2/tweets',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+xTokens.access_token},body:JSON.stringify({text:xText})});
+                results.x = await xr.json();
+              } else { errors.x = 'Not connected'; }
+            } else if (platform === 'linkedin') {
+              var liTokens = null;
+              if (env.PRISM_KV) { var lt = await env.PRISM_KV.get('oauth:linkedin:tokens'); if (lt) liTokens = JSON.parse(lt); }
+              if (liTokens && liTokens.access_token) {
+                var meR = await fetch('https://api.linkedin.com/v2/userinfo',{headers:{'Authorization':'Bearer '+liTokens.access_token}});
+                var meD = await meR.json();
+                var liR = await fetch('https://api.linkedin.com/v2/ugcPosts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+liTokens.access_token,'X-Restli-Protocol-Version':'2.0.0'},body:JSON.stringify({author:'urn:li:person:'+meD.sub,lifecycleState:'PUBLISHED',specificContent:{'com.linkedin.ugc.ShareContent':{shareCommentary:{text:text},shareMediaCategory:'NONE'}},visibility:{'com.linkedin.ugc.MemberNetworkVisibility':'PUBLIC'}})});
+                results.linkedin = await liR.json();
+              } else { errors.linkedin = 'Not connected'; }
+            } else {
+              errors[platform] = 'Not yet supported';
+            }
+          } catch(pe) { errors[platform] = pe.message; }
+        }
+
+        // Log to queue as posted
+        var queueId = 'queue:broadcast:' + Date.now();
+        if (env.PRISM_KV) await env.PRISM_KV.put(queueId, JSON.stringify({
+          id: queueId, content: text, platforms: platforms,
+          results: results, errors: errors,
+          status: Object.keys(errors).length === 0 ? 'posted' : 'partial',
+          created: new Date().toISOString()
+        }));
+
+        return json({success:true, results:results, errors:errors, posted:Object.keys(results).length, failed:Object.keys(errors).length}, 200, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 

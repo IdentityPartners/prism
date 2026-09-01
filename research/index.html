@@ -104,7 +104,7 @@
 <script src="/shared/prism.js"></script>
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
-var activeSources = ['tavily','brave'];
+var activeSources = ['tavily','brave','exa','semantic_scholar','pubmed','crossref','openalex','core'];
 var allResults = [];
 var savedRuns = [];
 var currentQuery = '';
@@ -143,18 +143,30 @@ function switchSourceTab(tab) {
   var chips = document.getElementById('source-chips');
   if (!chips) return;
   var sets = {
-    api: ['Tavily','Brave','Exa','Semantic Scholar','PubMed','Firecrawl'],
-    scholarly: ['Semantic Scholar','PubMed','CORE','OpenAlex','Crossref'],
-    news: ['The Guardian','BBC News','Sky News','The Independent','NYT'],
-    social: ['Bluesky','Reddit','Twitter/X'],
+    api: [
+      {name:'Tavily',id:'tavily'},{name:'Brave',id:'brave'},{name:'Exa',id:'exa'},
+      {name:'Perplexity',id:'perplexity'},{name:'Firecrawl',id:'firecrawl'}
+    ],
+    scholarly: [
+      {name:'Semantic Scholar',id:'semantic_scholar'},{name:'PubMed',id:'pubmed'},
+      {name:'Crossref',id:'crossref'},{name:'OpenAlex',id:'openalex'},{name:'CORE',id:'core'}
+    ],
+    news: [
+      {name:'The Guardian',id:'guardian'},{name:'BBC News',id:'bbc'},
+      {name:'Sky News',id:'sky'},{name:'The Independent',id:'independent'}
+    ],
+    social: [
+      {name:'Bluesky',id:'bluesky'},{name:'Reddit',id:'reddit'}
+    ],
   };
   chips.innerHTML = '';
   var sources = sets[tab] || sets['api'];
   for (var i = 0; i < sources.length; i++) {
     var chip = document.createElement('span');
-    chip.className = 'source-chip';
-    chip.setAttribute('data-source', sources[i].toLowerCase().replace(/[^a-z0-9]/g,'_'));
-    chip.textContent = sources[i];
+    var src = typeof sources[i] === 'object' ? sources[i] : {name:sources[i], id:sources[i].toLowerCase().replace(/[^a-z0-9]/g,'_')};
+    chip.className = 'source-chip' + (activeSources.indexOf(src.id) >= 0 ? ' active' : '');
+    chip.setAttribute('data-source', src.id);
+    chip.textContent = src.name;
     chip.onclick = function() { toggleSource(this); };
     chips.appendChild(chip);
   }
@@ -184,10 +196,28 @@ function doSearch() {
     if (xhr.readyState !== 4) return;
     try {
       var data = JSON.parse(xhr.responseText);
-      allResults = [];
-      if (data.results) {
-        if (data.results.tavily) allResults = allResults.concat(data.results.tavily.map(function(r) { r._source = 'Tavily'; return r; }));
-        if (data.results.brave) allResults = allResults.concat(data.results.brave.map(function(r) { r._source = 'Brave'; return r; }));
+      // Use flat allResults if available, otherwise flatten manually
+      if (data.allResults && data.allResults.length > 0) {
+        allResults = data.allResults;
+      } else {
+        allResults = [];
+        if (data.results) {
+          Object.keys(data.results).forEach(function(source) {
+            var sourceResults = data.results[source] || [];
+            sourceResults.forEach(function(r) { r._source = r._source || source; allResults.push(r); });
+          });
+        }
+      }
+      // Show source count
+      var sourceCount = data.sourceCount || Object.keys(data.results||{}).length;
+      var errors = data.errors || {};
+      var errorKeys = Object.keys(errors);
+      if (errorKeys.length > 0) {
+        var errDiv = document.createElement('div');
+        errDiv.style.cssText = 'font-size:11px;color:var(--fg-muted);margin-bottom:8px;padding:6px 10px;background:var(--bg-surface);border-radius:6px;';
+        errDiv.textContent = 'Note: ' + errorKeys.length + ' source(s) unavailable: ' + errorKeys.join(', ');
+        var list = document.getElementById('results-list');
+        if (list) list.appendChild(errDiv);
       }
       renderResults(allResults);
     } catch(e) {
@@ -210,7 +240,8 @@ function renderResults(results) {
   }
   var countEl = document.createElement('div');
   countEl.style.cssText = 'font-size:12px;color:var(--fg-muted);margin-bottom:10px;';
-  countEl.textContent = results.length + ' results for "' + currentQuery + '"';
+  var academic = results.filter(function(r){return r._type==='academic';}).length;
+  countEl.textContent = results.length + ' results for "' + currentQuery + '"' + (academic > 0 ? ' (' + academic + ' academic)' : '');
   list.appendChild(countEl);
   for (var i = 0; i < results.length; i++) {
     (function(result) {
@@ -230,6 +261,19 @@ function renderResults(results) {
       var badge = document.createElement('span');
       badge.className = 'result-source-badge';
       badge.textContent = result._source || 'Web';
+      if (result._type === 'academic') {
+        var acadBadge = document.createElement('span');
+        acadBadge.className = 'result-source-badge';
+        acadBadge.style.cssText = 'background:#e8f4f4;color:#0f3b3a;margin-left:4px;';
+        acadBadge.textContent = '📚 Academic' + (result.year ? ' · ' + result.year : '') + (result.citations ? ' · ' + result.citations + ' citations' : '');
+        meta.appendChild(acadBadge);
+      }
+      if (result.authors) {
+        var authSpan = document.createElement('span');
+        authSpan.style.cssText = 'font-size:11px;color:var(--fg-muted);';
+        authSpan.textContent = result.authors.substring(0, 60) + (result.authors.length > 60 ? '…' : '');
+        meta.appendChild(authSpan);
+      }
       var openBtn = document.createElement('a');
       openBtn.href = result.url || result.link || '#';
       openBtn.target = '_blank';
