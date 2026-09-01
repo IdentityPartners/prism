@@ -1969,6 +1969,85 @@ export default {
       }, 200, origin);
     }
 
+
+    // ── Zoho Mail send ────────────────────────────────────────────────────────
+    if (path === '/api/zoho/mail/send' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var tokens = null;
+        if (env.PRISM_KV) { var t = await env.PRISM_KV.get('zoho:tokens:mail'); if (t) tokens = JSON.parse(t); }
+        if (!tokens || !tokens.access_token) return json({success:false, error:'Zoho Mail not connected. Visit /oauth/zoho/mail to connect.'}, 200, origin);
+
+        // Get account ID first
+        var accountsResp = await fetch('https://mail.zoho.eu/api/accounts', {
+          headers: {'Authorization': 'Zoho-oauthtoken ' + tokens.access_token}
+        });
+        if (!accountsResp.ok) return json({success:false, error:'Could not fetch Zoho Mail accounts: ' + accountsResp.status}, 200, origin);
+        var accountsData = await accountsResp.json();
+        var accountId = accountsData.data && accountsData.data[0] && accountsData.data[0].accountId;
+        if (!accountId) return json({success:false, error:'No Zoho Mail account found'}, 200, origin);
+
+        // Send email
+        var sendResp = await fetch('https://mail.zoho.eu/api/accounts/' + accountId + '/messages', {
+          method: 'POST',
+          headers: {'Authorization': 'Zoho-oauthtoken ' + tokens.access_token, 'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            fromAddress: body.from || 'simon@identitypartners.uk',
+            toAddress: body.to,
+            subject: body.subject,
+            content: body.body,
+            mailFormat: 'plaintext'
+          })
+        });
+        var sendData = await sendResp.json();
+        if (!sendResp.ok) return json({success:false, error:'Send failed: ' + JSON.stringify(sendData)}, 200, origin);
+        return json({success:true, messageId: sendData.data && sendData.data.messageId}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Zoho Mail inbox ───────────────────────────────────────────────────────
+    if (path === '/api/zoho/mail/inbox' && request.method === 'GET') {
+      try {
+        var tokens = null;
+        if (env.PRISM_KV) { var t = await env.PRISM_KV.get('zoho:tokens:mail'); if (t) tokens = JSON.parse(t); }
+        if (!tokens || !tokens.access_token) return json({messages:[], error:'not connected'}, 200, origin);
+        var accountsResp = await fetch('https://mail.zoho.eu/api/accounts', {headers:{'Authorization':'Zoho-oauthtoken '+tokens.access_token}});
+        if (!accountsResp.ok) return json({messages:[], error:'accounts fetch failed'}, 200, origin);
+        var accountsData = await accountsResp.json();
+        var accountId = accountsData.data && accountsData.data[0] && accountsData.data[0].accountId;
+        if (!accountId) return json({messages:[], error:'no account'}, 200, origin);
+        var inboxResp = await fetch('https://mail.zoho.eu/api/accounts/'+accountId+'/messages/view?limit=20&sortorder=false', {headers:{'Authorization':'Zoho-oauthtoken '+tokens.access_token}});
+        if (!inboxResp.ok) return json({messages:[], error:'inbox fetch failed'}, 200, origin);
+        var inboxData = await inboxResp.json();
+        return json({messages: inboxData.data || [], accountId: accountId}, 200, origin);
+      } catch(e) { return json({messages:[], error:e.message}, 200, origin); }
+    }
+
+    // ── Zoho token refresh ────────────────────────────────────────────────────
+    if (path === '/api/zoho/refresh' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var service = body.service;
+        var tokens = null;
+        if (env.PRISM_KV) { var t = await env.PRISM_KV.get('zoho:tokens:'+service); if (t) tokens = JSON.parse(t); }
+        if (!tokens || !tokens.refresh_token) return json({success:false, error:'No refresh token for '+service}, 200, origin);
+        var clientId = env.ZOHO_CLIENT_ID || env.Zoho_Client_ID;
+        var clientSecret = env.ZOHO_CLIENT_SECRET || env.Zoho_Client_Secret;
+        var refreshResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {
+          method: 'POST',
+          headers: {'Content-Type':'application/x-www-form-urlencoded'},
+          body: 'grant_type=refresh_token&client_id='+encodeURIComponent(clientId)+'&client_secret='+encodeURIComponent(clientSecret)+'&refresh_token='+encodeURIComponent(tokens.refresh_token)
+        });
+        var newTokens = await refreshResp.json();
+        if (newTokens.access_token) {
+          newTokens.refresh_token = newTokens.refresh_token || tokens.refresh_token;
+          if (env.PRISM_KV) await env.PRISM_KV.put('zoho:tokens:'+service, JSON.stringify(newTokens));
+          return json({success:true, expires_in:newTokens.expires_in}, 200, origin);
+        }
+        return json({success:false, error:newTokens.error||'Refresh failed'}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
     return json({error:'Not found', path:path}, 404, origin);
   }
 };

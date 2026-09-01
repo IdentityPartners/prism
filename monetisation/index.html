@@ -39,7 +39,31 @@
         </div>
         <div class="card"><div class="card-header"><span class="card-title">Programmes</span></div>
           <div style="font-size:13px;color:var(--fg-muted);margin-bottom:12px;">Track programme enrolments and revenue.</div>
-          <button class="btn btn-sm btn-primary" style="width:100%;" onclick="Toast.info('Programme tracking coming soon')" title="Add programme">＋ Add Programme</button>
+          <button class="btn btn-sm btn-primary" style="width:100%;" onclick="openAddProgramme()" title="Add programme">＋ Add Programme</button>
+<div id="programmes-list" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;"></div>
+
+<!-- Add Programme Modal -->
+<div id="add-programme-modal" style="display:none;position:fixed;inset:0;background:rgba(92,45,63,0.3);z-index:500;display:none;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:12px;padding:24px;max-width:480px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
+    <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:16px;">Add Programme</div>
+    <div class="form-group"><label class="form-label">Programme Name *</label><input class="input" id="prog-name" type="text" placeholder="e.g. 12-Week Recovery Programme"></div>
+    <div class="form-group"><label class="form-label">Type</label>
+      <select class="select" id="prog-type">
+        <option value="individual">Individual Therapy</option>
+        <option value="group">Group Programme</option>
+        <option value="intensive">Intensive Programme</option>
+        <option value="online">Online Course</option>
+        <option value="corporate">Corporate Wellbeing</option>
+      </select></div>
+    <div class="form-group"><label class="form-label">Price (£)</label><input class="input" id="prog-price" type="number" placeholder="0" min="0"></div>
+    <div class="form-group"><label class="form-label">Duration</label><input class="input" id="prog-duration" type="text" placeholder="e.g. 12 weeks, 6 sessions"></div>
+    <div class="form-group"><label class="form-label">Description</label><textarea class="textarea" id="prog-desc" rows="2" placeholder="Brief description…"></textarea></div>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="saveProgramme()">Save Programme</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('add-programme-modal').style.display='none'">Cancel</button>
+    </div>
+  </div>
+</div>
         </div>
       </div>
     </div>

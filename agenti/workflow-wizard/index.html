@@ -20,7 +20,8 @@
           <div class="card" style="margin-bottom:14px;padding:12px;">
             <div style="font-size:12px;font-weight:600;color:var(--fg-muted);margin-bottom:8px;">STEPS</div>
             <div id="wf-steps" style="font-size:12.5px;color:var(--fg-muted);">No steps yet. Add steps below.</div>
-            <button class="btn btn-sm btn-secondary" style="margin-top:8px;" onclick="Toast.info('Step builder coming soon')" title="Add step">＋ Add Step</button>
+            <div id="wf-steps-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+<button class="btn btn-sm btn-secondary" style="margin-top:4px;" onclick="addWorkflowStep()" title="Add a step to this workflow">＋ Add Step</button>
           </div>
           <button class="btn btn-primary" onclick="saveWorkflow()" title="Save workflow">Save Workflow</button>
         </div>
@@ -53,9 +54,52 @@ function saveWorkflows() { try { localStorage.setItem('prism-workflows', JSON.st
 function saveWorkflow() {
   var name = document.getElementById('wf-name').value.trim();
   if (!name) { Toast.warning('Enter a workflow name'); return; }
-  var wf = {id:'wf-'+Date.now(), name:name, description:document.getElementById('wf-desc').value, steps:[], created:new Date().toISOString()};
+  var wf = {id:'wf-'+Date.now(), name:name, description:document.getElementById('wf-desc').value, steps:currentSteps.slice(), created:new Date().toISOString()}; currentSteps = []; renderCurrentSteps();
   workflows.push(wf); saveWorkflows(); renderWorkflows(); Toast.success('Workflow saved: ' + name);
 }
+var currentSteps = [];
+var STEP_TYPES = [
+  {id:'chat',name:'AI Chat',desc:'Send a prompt to an AI model'},
+  {id:'search',name:'Web Search',desc:'Search the web for information'},
+  {id:'atomise',name:'Atomise',desc:'Generate social media assets'},
+  {id:'post',name:'Social Post',desc:'Post to social media'},
+  {id:'email',name:'Send Email',desc:'Send an email via Zoho'},
+  {id:'crm',name:'CRM Action',desc:'Create or update a CRM contact'},
+  {id:'memory',name:'Save Memory',desc:'Save something to memory'},
+  {id:'notify',name:'Telegram Notify',desc:'Send a Telegram notification'},
+];
+
+function addWorkflowStep() {
+  var type = prompt('Step type (chat/search/atomise/post/email/crm/memory/notify):') || 'chat';
+  var prompt_text = prompt('Step prompt or instruction:') || '';
+  if (!prompt_text) return;
+  currentSteps.push({type:type, prompt:prompt_text, id:'step-'+Date.now()});
+  renderCurrentSteps();
+}
+
+function renderCurrentSteps() {
+  var el = document.getElementById('wf-steps-list');
+  if (!el) return;
+  el.innerHTML = '';
+  if (currentSteps.length === 0) { el.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);">No steps yet.</div>'; return; }
+  currentSteps.forEach(function(step, i) {
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg-surface);border-radius:6px;font-size:12.5px;';
+    var num = document.createElement('span');
+    num.style.cssText = 'color:var(--accent);font-weight:600;flex-shrink:0;';
+    num.textContent = (i+1)+'.';
+    var info = document.createElement('span');
+    info.style.flex = '1';
+    info.textContent = '['+step.type+'] '+step.prompt.substring(0,50)+(step.prompt.length>50?'…':'');
+    var del = document.createElement('button');
+    del.className = 'btn btn-ghost btn-sm';
+    del.textContent = '✕';
+    del.onclick = function() { currentSteps.splice(i,1); renderCurrentSteps(); };
+    row.appendChild(num); row.appendChild(info); row.appendChild(del);
+    el.appendChild(row);
+  });
+}
+
 function renderWorkflows() {
   var list = document.getElementById('workflows-list');
   if (!list) return;

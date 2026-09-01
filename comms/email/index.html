@@ -52,7 +52,27 @@ function sendEmail() {
   var subject = document.getElementById('email-subject').value.trim();
   var body = document.getElementById('email-body').value.trim();
   if (!to || !subject || !body) { Toast.warning('Please fill in all fields'); return; }
-  Toast.info('Email sending requires Zoho Mail OAuth connection. Connect via Settings.');
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', 'https://prism-api.identitypartners.workers.dev/api/zoho/mail/send', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      if (r.success) {
+        Toast.success('Email sent to ' + to);
+        document.getElementById('email-to').value = '';
+        document.getElementById('email-subject').value = '';
+        document.getElementById('email-body').value = '';
+      } else if (r.error && r.error.indexOf('not connected') >= 0) {
+        Toast.warning('Connect Zoho Mail first — click Connect Zoho above');
+      } else {
+        Toast.error('Send failed: ' + (r.error || 'Unknown error'));
+      }
+    } catch(e) { Toast.error('Send failed'); }
+  };
+  xhr.onerror = function() { Toast.error('Network error'); };
+  xhr.send(JSON.stringify({to:to, subject:subject, body:body, from:'simon@identitypartners.uk'}));
 }
 function aiDraftEmail() {
   var subject = document.getElementById('email-subject').value.trim();
