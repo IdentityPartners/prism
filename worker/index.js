@@ -240,34 +240,153 @@ async function callOllama(env, messages, model) {
   return data.message.content;
 }
 
+
+async function callAnyAPI(env, messages, model) {
+  var key = env.ANYAPI_KEY || env.anyapi_key || env.ANY_API_KEY;
+  if (!key) throw new Error('No AnyAPI key');
+  var resp = await fetch('https://api.anyapi.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
+    body: JSON.stringify({model: model||'gpt-4o-mini', messages: messages, max_tokens: 4096})
+  });
+  var data = await resp.json();
+  if (!resp.ok) throw new Error('AnyAPI: '+(data.error&&data.error.message||resp.status));
+  return data.choices[0].message.content;
+}
+
+async function callPerplexity(env, messages, model) {
+  var key = env.PERPLEXITY_API_KEY || env.perplexity;
+  if (!key) throw new Error('No Perplexity key');
+  var resp = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
+    body: JSON.stringify({model: model||'llama-3.1-sonar-small-128k-online', messages: messages, max_tokens: 4096})
+  });
+  var data = await resp.json();
+  if (!resp.ok) throw new Error('Perplexity: '+(data.error&&data.error.message||resp.status));
+  return data.choices[0].message.content;
+}
+
+async function callHuggingFace(env, messages, model) {
+  var key = env.HUGGINGFACE_API_KEY || env.huggingface_api_key;
+  if (!key) throw new Error('No HuggingFace key');
+  // Use HF Inference API with Gemma4
+  var mdl = model || 'google/gemma-2-9b-it';
+  var resp = await fetch('https://api-inference.huggingface.co/models/' + mdl + '/v1/chat/completions', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
+    body: JSON.stringify({model: mdl, messages: messages, max_tokens: 2048, stream: false})
+  });
+  var data = await resp.json();
+  if (!resp.ok) throw new Error('HuggingFace: '+(data.error||resp.status));
+  return data.choices[0].message.content;
+}
+
+async function callImageRouter(env, messages, model) {
+  var key = env.IMAGEROUTER_API_KEY || env.imagerouter_api_key;
+  if (!key) throw new Error('No ImageRouter key');
+  var resp = await fetch('https://ir.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
+    body: JSON.stringify({model: model||'google/gemma-3-27b-it:free', messages: messages, max_tokens: 4096})
+  });
+  var data = await resp.json();
+  if (!resp.ok) throw new Error('ImageRouter: '+(data.error&&data.error.message||resp.status));
+  return data.choices[0].message.content;
+}
+
 // ─── ROUTING PROFILES ─────────────────────────────────────────────────────────
 var FALLBACK_CHAINS = {
-  'local':         [['ollama','phi4:latest']],
-  'free':          [['cerebras',null],['groq',null],['sambanova',null],['together',null],['chutes',null],['openrouter',null],['ollama',null]],
-  'balanced':      [['cerebras',null],['groq',null],['deepseek','deepseek-chat'],['sambanova',null],['chutes',null],['openrouter',null],['ollama',null]],
-  'frontier-free': [['gemini',null],['nvidia',null],['deepseek','deepseek-chat'],['openrouter',null],['ollama',null]],
-  'frontier':      [['deepseek','deepseek-reasoner'],['gemini','gemini-2.0-flash'],['openrouter','deepseek/deepseek-r1'],['deepseek','deepseek-chat'],['ollama',null]],
-  'coding':        [['zhipu','glm-4-flash'],['cerebras',null],['deepseek','deepseek-chat'],['groq',null]],
-  'reasoning':     [['nvidia',null],['deepseek','deepseek-reasoner'],['groq','deepseek-r1-distill-llama-70b'],['openrouter',null]],
-  'fast':          [['cerebras',null],['groq',null],['zhipu','glm-4-flash']],
+  'local':         [['ollama','phi4:latest'],['ollama','gemma4:12b'],['ollama','qwen2.5:7b']],
+  'free':          [
+    ['cerebras','llama-4-scout-17b-16e-instruct'],
+    ['groq','llama-3.3-70b-versatile'],
+    ['sambanova',null],
+    ['together','meta-llama/Llama-3.3-70B-Instruct-Turbo-Free'],
+    ['chutes','deepseek-ai/DeepSeek-V3-0324'],
+    ['openrouter','google/gemma-3-27b-it:free'],
+    ['openrouter','meta-llama/llama-3.3-70b-instruct:free'],
+    ['huggingface','google/gemma-2-9b-it'],
+    ['nebius',null],
+    ['kimi',null],
+    ['ollama','gemma4:12b']
+  ],
+  'balanced':      [
+    ['cerebras','llama-4-scout-17b-16e-instruct'],
+    ['groq','llama-3.3-70b-versatile'],
+    ['deepseek','deepseek-chat'],
+    ['sambanova',null],
+    ['chutes','deepseek-ai/DeepSeek-V3-0324'],
+    ['openrouter','google/gemma-3-27b-it:free'],
+    ['zhipu','glm-4-flash'],
+    ['nebius',null],
+    ['ollama','gemma4:12b']
+  ],
+  'frontier-free': [
+    ['gemini','gemini-2.0-flash'],
+    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
+    ['openrouter','google/gemma-3-27b-it:free'],
+    ['openrouter','deepseek/deepseek-chat-v3-0324:free'],
+    ['deepseek','deepseek-chat'],
+    ['huggingface','google/gemma-2-27b-it'],
+    ['ollama','gemma4:e4b']
+  ],
+  'frontier':      [
+    ['deepseek','deepseek-reasoner'],
+    ['gemini','gemini-2.0-flash'],
+    ['openrouter','deepseek/deepseek-r1'],
+    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
+    ['deepseek','deepseek-chat'],
+    ['ollama','gemma4:12b']
+  ],
+  'coding':        [
+    ['zhipu','glm-4-flash'],
+    ['cerebras','llama-4-scout-17b-16e-instruct'],
+    ['deepseek','deepseek-chat'],
+    ['groq','llama-3.3-70b-versatile'],
+    ['openrouter','google/gemma-3-27b-it:free']
+  ],
+  'reasoning':     [
+    ['nvidia','nvidia/llama-3.3-nemotron-super-49b-v1'],
+    ['deepseek','deepseek-reasoner'],
+    ['groq','deepseek-r1-distill-llama-70b'],
+    ['openrouter','deepseek/deepseek-r1:free'],
+    ['perplexity','llama-3.1-sonar-large-128k-online']
+  ],
+  'fast':          [
+    ['cerebras','llama-4-scout-17b-16e-instruct'],
+    ['groq','llama-3.1-8b-instant'],
+    ['zhipu','glm-4-flash'],
+    ['chutes',null]
+  ],
+  'research':      [
+    ['perplexity','llama-3.1-sonar-large-128k-online'],
+    ['gemini','gemini-2.0-flash'],
+    ['openrouter','google/gemma-3-27b-it:free'],
+    ['deepseek','deepseek-chat']
+  ],
 };
 
 var PROVIDER_FNS = {
-  'cerebras':  callCerebras,
-  'groq':      callGroq,
-  'deepseek':  callDeepSeek,
-  'gemini':    callGemini,
-  'openrouter':callOpenRouter,
-  'sambanova': callSambaNova,
-  'nvidia':    callNvidia,
-  'mistral':   callMistral,
-  'together':  callTogether,
-  'fireworks': callFireworks,
-  'zhipu':     callZhipu,
-  'chutes':    callChutes,
-  'nebius':    callNebius,
-  'kimi':      callKimi,
-  'ollama':    callOllama,
+  'cerebras':    callCerebras,
+  'groq':        callGroq,
+  'deepseek':    callDeepSeek,
+  'gemini':      callGemini,
+  'openrouter':  callOpenRouter,
+  'sambanova':   callSambaNova,
+  'nvidia':      callNvidia,
+  'mistral':     callMistral,
+  'together':    callTogether,
+  'fireworks':   callFireworks,
+  'zhipu':       callZhipu,
+  'chutes':      callChutes,
+  'nebius':      callNebius,
+  'kimi':        callKimi,
+  'ollama':      callOllama,
+  'huggingface': callHuggingFace,
+  'perplexity':  callPerplexity,
+  'anyapi':      callAnyAPI,
+  'imagerouter': callImageRouter,
 };
 
 // ─── ORCHESTRATOR ─────────────────────────────────────────────────────────────
