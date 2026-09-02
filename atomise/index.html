@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atomise — Prism</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<style>
+.atomise-shell{display:grid;grid-template-columns:360px 1fr;height:calc(100vh - var(--topbar-h));overflow:hidden;}
+@media(max-width:900px){.atomise-shell{grid-template-columns:1fr;}.atomise-input-col{display:none;}}
+.atomise-input-col{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:var(--bg-surface);}
+.atomise-output-col{overflow-y:auto;background:var(--bg-primary);}
+.input-header{padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg-elevated);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;}
+.word-counter{font-size:11.5px;color:var(--fg-muted);}
+.word-counter.over{color:var(--danger);}
+.atomise-ta{flex:1;padding:14px 16px;border:none;outline:none;font-size:13.5px;font-family:var(--font-ui);line-height:1.7;color:var(--fg-primary);background:var(--bg-primary);resize:none;}
+.atomise-controls{padding:12px 16px;border-top:1px solid var(--border);background:var(--bg-elevated);flex-shrink:0;}
+.plt-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;}
+.plt-chip{padding:4px 9px;border:1px solid var(--border);border-radius:12px;font-size:11.5px;cursor:pointer;color:var(--fg-secondary);background:var(--bg-surface);transition:all 0.15s;user-select:none;}
+.plt-chip.active{border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
+.atomise-btn{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-ui);}
+.atomise-btn:disabled{opacity:0.5;cursor:not-allowed;}
+.prog-wrap{margin-top:10px;display:none;}
+.prog-bar{width:100%;height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
+.prog-fill{height:100%;background:var(--accent);border-radius:3px;transition:width 0.4s ease;}
+.prog-label{font-size:11.5px;color:var(--fg-muted);margin-top:4px;}
+.out-header{padding:12px 20px;border-bottom:1px solid var(--border);background:var(--bg-elevated);position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;}
+.assets-wrap{padding:16px 20px;display:flex;flex-direction:column;gap:14px;}
+.title-card{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;display:flex;align-items:center;gap:12px;border-left:4px solid var(--accent);}
+.asset-group{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.asset-header{padding:9px 14px;background:var(--bg-surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.asset-platform{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--accent);display:flex;align-items:center;gap:5px;}
+.asset-format{font-size:10.5px;color:var(--fg-muted);}
+.asset-body{padding:14px;font-size:13.5px;line-height:1.65;color:var(--fg-primary);white-space:pre-wrap;}
+.asset-body.editable{outline:1px solid var(--accent);background:var(--bg-primary);}
+.asset-actions{padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap;}
+.aa{padding:4px 9px;border:1px solid var(--border);border-radius:5px;font-size:11.5px;background:var(--bg-surface);color:var(--fg-muted);cursor:pointer;transition:all 0.15s;}
+.aa:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
+.aa.approved{background:var(--accent-light);border-color:var(--accent);color:var(--accent);font-weight:500;}
+.post-item{padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:8px;}
+.post-item:last-child{border-bottom:none;}
+.post-num{font-size:10px;font-weight:600;color:var(--fg-muted);flex-shrink:0;width:20px;}
+.slide-item{padding:10px 14px;border-bottom:1px solid var(--border);}
+.slide-item:last-child{border-bottom:none;}
+.slide-num{font-size:10px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px;}
+.slide-title{font-size:13.5px;font-weight:600;color:var(--fg-primary);margin-bottom:3px;}
+.slide-body{font-size:12.5px;color:var(--fg-secondary);line-height:1.5;}
+.canvas-preview{width:100%;max-width:300px;border-radius:8px;border:1px solid var(--border);display:block;margin-top:8px;}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;gap:14px;color:var(--fg-muted);padding:40px;text-align:center;}
+.queue-bar{position:sticky;bottom:0;background:var(--bg-elevated);border-top:1px solid var(--border);padding:12px 20px;display:flex;gap:8px;align-items:center;}
+</style>
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar">
+      <div class="topbar-title">Atomise</div>
+      <div class="topbar-actions">
+        <button class="btn btn-sm btn-ghost" onclick="clearAll()" title="Clear everything">Clear</button>
+        <button class="btn btn-sm btn-secondary" onclick="queueApproved()" title="Queue approved assets">Queue Approved</button>
+        <a href="/social-queue/" class="btn btn-sm btn-secondary">Social Calendar</a>
+      </div>
+    </div>
+    <div class="atomise-shell">
+      <div class="atomise-input-col">
+        <div class="input-header">
+          <span style="font-size:13px;font-weight:600;color:var(--fg-secondary);">Source Text</span>
+          <span class="word-counter" id="wc">0 / 1,500 words</span>
+        </div>
+        <textarea class="atomise-ta" id="atomise-input" placeholder="Paste your text here. The number of assets generated scales with word count — 250 words generates a core set, 1,500 words generates the full set with articles, long-form, and multiple variations per platform." oninput="updateWC()"></textarea>
+        <div class="atomise-controls">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:8px;">Platforms</div>
+          <div class="plt-row" id="plt-row">
+            <div class="plt-chip active" data-p="bluesky" onclick="toggleP(this)" title="Bluesky posts">Bluesky</div>
+            <div class="plt-chip active" data-p="twitter" onclick="toggleP(this)" title="X/Twitter posts">X</div>
+            <div class="plt-chip active" data-p="linkedin_post" onclick="toggleP(this)" title="LinkedIn post">LinkedIn Post</div>
+            <div class="plt-chip" data-p="linkedin_article" onclick="toggleP(this)" title="LinkedIn article (600-800w, rich content only)">LinkedIn Article</div>
+            <div class="plt-chip active" data-p="linkedin_carousel" onclick="toggleP(this)" title="LinkedIn carousel slides">LinkedIn Carousel</div>
+            <div class="plt-chip active" data-p="instagram" onclick="toggleP(this)" title="Instagram — same text as Bluesky/X, auto-rendered on canvas">Instagram</div>
+            <div class="plt-chip" data-p="facebook" onclick="toggleP(this)" title="Facebook post">Facebook</div>
+            <div class="plt-chip" data-p="threads" onclick="toggleP(this)" title="Threads notes">Threads</div>
+            <div class="plt-chip" data-p="substack_note" onclick="toggleP(this)" title="Substack Notes">Substack Note</div>
+            <div class="plt-chip" data-p="substack_article" onclick="toggleP(this)" title="Substack article (rich content only)">Substack Article</div>
+            <div class="plt-chip" data-p="tumblr" onclick="toggleP(this)" title="Tumblr post">Tumblr</div>
+            <div class="plt-chip active" data-p="quotes" onclick="toggleP(this)" title="Quote cards for canvas">Quote Cards</div>
+            <div class="plt-chip" data-p="email" onclick="toggleP(this)" title="Email newsletter snippet">Email</div>
+            <div class="plt-chip" data-p="pinterest" onclick="toggleP(this)" title="Pinterest description">Pinterest</div>
+            <div class="plt-chip" data-p="reddit" onclick="toggleP(this)" title="Reddit post (rich content only)">Reddit</div>
+            <div class="plt-chip" data-p="broadcast" onclick="toggleP(this)" title="WhatsApp/Telegram broadcast">Broadcast</div>
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:10px;">
+            <button class="btn btn-ghost btn-sm" onclick="selAll()" title="Select all">All</button>
+            <button class="btn btn-ghost btn-sm" onclick="clrAll()" title="Clear all">None</button>
+          </div>
+          <button class="atomise-btn" id="atomise-btn" onclick="doAtomise()" title="Generate platform-native content">Atomise</button>
+          <div class="prog-wrap" id="prog-wrap">
+            <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+            <div class="prog-label" id="prog-label">Generating...</div>
+          </div>
+        </div>
+      </div>
+      <div class="atomise-output-col" id="out-col">
+        <div class="empty-state" id="empty-state">
+          <div style="font-size:48px;">&#x26A1;</div>
+          <div style="font-size:16px;font-weight:600;color:var(--fg-secondary);">Platform-native content generation</div>
+          <div style="font-size:13.5px;max-width:420px;line-height:1.7;">Paste your text and click Atomise. Asset count scales with word count — more words, more variations per platform. Instagram uses the same text as Bluesky/X, auto-rendered on a branded canvas.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/prism.js"></script>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var activePlatforms = ['bluesky','twitter','linkedin_post','linkedin_carousel','instagram','quotes'];
+var generatedAssets = {};
+var approvedAssets = [];
+
+var META = {
+  quotes:           {label:'Quote Cards',       icon:'&#x275D;', fmt:'scaled with word count'},
+  bluesky:          {label:'Bluesky',           icon:'&#x1F98B;', fmt:'posts scaled with word count'},
+  twitter:          {label:'X / Twitter',       icon:'&#x1D54F;', fmt:'posts scaled with word count'},
+  linkedin_post:    {label:'LinkedIn Post',     icon:'&#x1F4BC;', fmt:'150-200 words'},
+  linkedin_article: {label:'LinkedIn Article',  icon:'&#x1F4BC;', fmt:'600-800 words'},
+  linkedin_carousel:{label:'LinkedIn Carousel', icon:'&#x1F4BC;', fmt:'slides scaled with word count'},
+  instagram:        {label:'Instagram',         icon:'&#x1F4F8;', fmt:'same text as Bluesky, on canvas'},
+  facebook:         {label:'Facebook',          icon:'&#x1F465;', fmt:'100-150 words'},
+  threads:          {label:'Threads',           icon:'&#x1F9F5;', fmt:'notes scaled with word count'},
+  substack_note:    {label:'Substack Note',     icon:'&#x1F4E7;', fmt:'notes scaled with word count'},
+  substack_article: {label:'Substack Article',  icon:'&#x1F4E7;', fmt:'400-600 words'},
+  tumblr:           {label:'Tumblr',            icon:'&#x1F4DD;', fmt:'200-300 words'},
+  email:            {label:'Email',             icon:'&#x1F4E7;', fmt:'100-150 words'},
+  pinterest:        {label:'Pinterest',         icon:'&#x1F4CC;', fmt:'keyword-rich description'},
+  reddit:           {label:'Reddit',            icon:'&#x1F916;', fmt:'community-first post'},
+  broadcast:        {label:'Broadcast',         icon:'&#x1F4F1;', fmt:'WhatsApp/Telegram'},
+};
+
+// Canvas layouts for Instagram/quote cards
+// Parchment background (#f7f3e9) with teal text (#0f3b3a) — correct brand direction
+var CANVAS_LAYOUTS = [
+  {bg:'#f7f3e9', textColor:'#0f3b3a', accentColor:'#5c2d3f', font:'Playfair Display', style:'editorial'},
+  {bg:'#0f3b3a', textColor:'#f7f3e9', accentColor:'#ddd0c8', font:'Inter', style:'bold'},
+  {bg:'#5c2d3f', textColor:'#f7f3e9', accentColor:'#ddd0c8', font:'Merriweather', style:'warm'},
+  {bg:'#f0e9e0', textColor:'#0f3b3a', accentColor:'#5c2d3f', font:'Inter', style:'minimal'},
+  {bg:'#1a5550', textColor:'#f7f3e9', accentColor:'#ddd0c8', font:'Playfair Display', style:'rich'},
+];
+
+function toggleP(el) {
+  el.classList.toggle('active');
+  var p = el.getAttribute('data-p');
+  if (el.classList.contains('active')) { if (activePlatforms.indexOf(p)<0) activePlatforms.push(p); }
+  else activePlatforms = activePlatforms.filter(function(x){return x!==p;});
+}
+function selAll() { activePlatforms=[]; document.querySelectorAll('.plt-chip').forEach(function(c){c.classList.add('active');activePlatforms.push(c.getAttribute('data-p'));}); }
+function clrAll() { activePlatforms=[]; document.querySelectorAll('.plt-chip').forEach(function(c){c.classList.remove('active');}); }
+
+function updateWC() {
+  var text = document.getElementById('atomise-input').value;
+  var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  var el = document.getElementById('wc');
+  if (el) { el.textContent = words.toLocaleString() + ' / 1,500 words'; el.className = 'word-counter' + (words>1500?' over':''); }
+}
+
+function doAtomise() {
+  var text = document.getElementById('atomise-input').value.trim();
+  if (!text) { Toast.warning('Paste some text first'); return; }
+  var words = text.trim().split(/\s+/).length;
+  if (words > 1500) { Toast.error('Please keep text under 1,500 words'); return; }
+  if (activePlatforms.length === 0) { Toast.warning('Select at least one platform'); return; }
+
+  var btn = document.getElementById('atomise-btn');
+  var pw = document.getElementById('prog-wrap');
+  var pf = document.getElementById('prog-fill');
+  var pl = document.getElementById('prog-label');
+  var outCol = document.getElementById('out-col');
+
+  if (btn) btn.disabled = true;
+  if (pw) pw.style.display = 'block';
+  generatedAssets = {}; approvedAssets = [];
+
+  // Show loading state
+  outCol.innerHTML = '<div class="empty-state"><div class="spinner"></div><div style="margin-top:12px;font-size:13px;color:var(--fg-muted);">Generating platform-native content...</div></div>';
+
+  var prog = 0;
+  var pi = setInterval(function(){prog=Math.min(prog+2,88);if(pf)pf.style.width=prog+'%';},400);
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER + '/api/atomise', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.timeout = 180000;
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    clearInterval(pi);
+    if (pf) pf.style.width = '100%';
+    setTimeout(function(){if(pw)pw.style.display='none';if(pf)pf.style.width='0%';},600);
+    if (btn) btn.disabled = false;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      if (r.assets) {
+        generatedAssets = r.assets;
+        renderAssets(r.assets, words);
+        Toast.success('Generated ' + Object.keys(r.assets).filter(function(k){return k!=='title';}).length + ' asset groups');
+      } else {
+        outCol.innerHTML = '<div class="empty-state"><div style="color:var(--danger);">Generation failed: ' + (r.error||'Unknown error') + '</div></div>';
+      }
+    } catch(e) {
+      outCol.innerHTML = '<div class="empty-state"><div style="color:var(--danger);">Error: ' + e.message + '</div></div>';
+    }
+  };
+  xhr.ontimeout = function(){clearInterval(pi);if(btn)btn.disabled=false;if(pw)pw.style.display='none';Toast.error('Timed out. Try fewer platforms.');};
+  xhr.onerror = function(){clearInterval(pi);if(btn)btn.disabled=false;if(pw)pw.style.display='none';Toast.error('Network error');};
+  xhr.send(JSON.stringify({text:text, profile:'balanced'}));
+}
+
+function renderAssets(assets, wordCount) {
+  var outCol = document.getElementById('out-col');
+  outCol.innerHTML = '';
+
+  // Header
+  var hdr = document.createElement('div');
+  hdr.className = 'out-header';
+  var assetCount = Object.keys(assets).filter(function(k){return k!=='title';}).length;
+  var richness = wordCount > 600 ? 'full set' : wordCount > 200 ? 'standard set' : 'core set';
+  hdr.innerHTML = '<span style="font-size:13px;font-weight:600;color:var(--fg-secondary);">' + assetCount + ' asset groups (' + richness + ')</span><button class="btn btn-sm btn-primary" onclick="queueApproved()">Queue Approved</button>';
+  outCol.appendChild(hdr);
+
+  var wrap = document.createElement('div');
+  wrap.className = 'assets-wrap';
+
+  // Title card
+  if (assets.title) {
+    var tc = document.createElement('div');
+    tc.className = 'title-card';
+    tc.innerHTML = '<span style="font-size:22px;">&#x1F4CC;</span><div><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);">Series</div><div style="font-family:var(--font-heading);font-size:17px;font-weight:600;color:var(--fg-primary);margin-top:2px;">' + assets.title + '</div><div style="font-size:11.5px;color:var(--fg-muted);margin-top:2px;">' + wordCount + ' words &rarr; ' + richness + '</div></div>';
+    wrap.appendChild(tc);
+  }
+
+  var order = ['quotes','bluesky','twitter','instagram','threads','substack_note','linkedin_post','linkedin_carousel','linkedin_article','facebook','substack_article','tumblr','email','pinterest','reddit','broadcast'];
+
+  order.forEach(function(key) {
+    if (!assets[key]) return;
+    var meta = META[key] || {label:key, icon:'', fmt:''};
+    var group = document.createElement('div');
+    group.className = 'asset-group';
+
+    var hd = document.createElement('div');
+    hd.className = 'asset-header';
+    hd.innerHTML = '<span class="asset-platform">' + meta.icon + ' ' + meta.label + '</span><span class="asset-format">' + meta.fmt + '</span>';
+
+    var body = document.createElement('div');
+    body.className = 'asset-body';
+    body.id = 'ab-' + key;
+
+    if (key === 'instagram') {
+      // Instagram: use Bluesky text rendered on canvas
+      var igPosts = assets.bluesky || assets.twitter || [];
+      if (Array.isArray(igPosts) && igPosts.length > 0) {
+        igPosts.forEach(function(post, i) {
+          var layout = CANVAS_LAYOUTS[i % CANVAS_LAYOUTS.length];
+          var canvas = renderCanvasPreview(post, layout, 400, 400);
+          body.appendChild(canvas);
+        });
+        body.style.display = 'flex';
+        body.style.flexWrap = 'wrap';
+        body.style.gap = '8px';
+        body.style.padding = '12px';
+      } else {
+        body.textContent = 'No Bluesky/X posts to render. Select Bluesky or X first.';
+      }
+    } else if (key === 'quotes' && Array.isArray(assets[key])) {
+      // Quote cards: render each on canvas with different layouts
+      assets[key].forEach(function(q, i) {
+        var layout = CANVAS_LAYOUTS[i % CANVAS_LAYOUTS.length];
+        var canvas = renderCanvasPreview('\u201c' + q + '\u201d', layout, 400, 400);
+        body.appendChild(canvas);
+      });
+      body.style.display = 'flex';
+      body.style.flexWrap = 'wrap';
+      body.style.gap = '8px';
+      body.style.padding = '12px';
+    } else if (key === 'linkedin_carousel' && Array.isArray(assets[key])) {
+      assets[key].forEach(function(slide, i) {
+        var s = document.createElement('div');
+        s.className = 'slide-item';
+        s.innerHTML = '<div class="slide-num">Slide ' + (i+1) + ' / ' + assets[key].length + '</div><div class="slide-title">' + (slide.title||'') + '</div><div class="slide-body">' + (slide.body||'') + '</div>';
+        body.appendChild(s);
+      });
+    } else if (Array.isArray(assets[key])) {
+      assets[key].forEach(function(post, i) {
+        var p = document.createElement('div');
+        p.className = 'post-item';
+        var num = document.createElement('span');
+        num.className = 'post-num';
+        num.textContent = (i+1) + '.';
+        var txt = document.createElement('span');
+        txt.textContent = post;
+        p.appendChild(num); p.appendChild(txt);
+        body.appendChild(p);
+      });
+    } else {
+      body.textContent = typeof assets[key] === 'string' ? assets[key] : JSON.stringify(assets[key]);
+    }
+
+    // Actions
+    var acts = document.createElement('div');
+    acts.className = 'asset-actions';
+    var approved = false;
+
+    var appBtn = document.createElement('button');
+    appBtn.className = 'aa';
+    appBtn.textContent = 'Approve';
+    appBtn.onclick = function() {
+      approved = !approved;
+      appBtn.className = 'aa' + (approved?' approved':'');
+      appBtn.textContent = approved ? 'Approved' : 'Approve';
+      var cnt = getContent(assets[key]);
+      if (approved) approvedAssets.push({platform:key, content:cnt, label:meta.label});
+      else approvedAssets = approvedAssets.filter(function(a){return a.platform!==key;});
+    };
+
+    var cpBtn = document.createElement('button');
+    cpBtn.className = 'aa';
+    cpBtn.textContent = 'Copy';
+    cpBtn.onclick = function() {
+      if (navigator.clipboard) navigator.clipboard.writeText(getContent(assets[key])).then(function(){Toast.success('Copied');});
+    };
+
+    var edBtn = document.createElement('button');
+    edBtn.className = 'aa';
+    edBtn.textContent = 'Edit';
+    edBtn.onclick = function() {
+      body.contentEditable = body.contentEditable==='true'?'false':'true';
+      body.classList.toggle('editable');
+      edBtn.textContent = body.contentEditable==='true'?'Done':'Edit';
+    };
+
+    var dlBtn = document.createElement('button');
+    dlBtn.className = 'aa';
+    dlBtn.textContent = 'Download';
+    dlBtn.title = 'Download canvas images';
+    dlBtn.onclick = function() {
+      var canvases = body.querySelectorAll('canvas');
+      canvases.forEach(function(c, i) {
+        var a = document.createElement('a');
+        a.download = key + '-' + (i+1) + '.png';
+        a.href = c.toDataURL('image/png', 0.95);
+        a.click();
+      });
+      if (!canvases.length) Toast.info('No canvas images to download');
+    };
+
+    if (key === 'bluesky') {
+      var postBtn = document.createElement('button');
+      postBtn.className = 'aa';
+      postBtn.textContent = 'Post to Bluesky';
+      postBtn.onclick = function() {
+        var posts = Array.isArray(assets[key]) ? assets[key] : [assets[key]];
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', WORKER + '/api/social/post', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState!==4) return;
+          try{var r=JSON.parse(xhr.responseText);if(r.success)Toast.success('Posted to Bluesky!');else Toast.error('Failed: '+(r.error||'unknown'));}catch(e){Toast.error('Failed');}
+        };
+        xhr.send(JSON.stringify({text:posts[0], platforms:['bluesky']}));
+      };
+      acts.appendChild(postBtn);
+    }
+
+    acts.appendChild(appBtn);
+    acts.appendChild(cpBtn);
+    acts.appendChild(edBtn);
+    if (key === 'quotes' || key === 'instagram') acts.appendChild(dlBtn);
+
+    group.appendChild(hd); group.appendChild(body); group.appendChild(acts);
+    wrap.appendChild(group);
+  });
+
+  outCol.appendChild(wrap);
+
+  // Queue bar
+  var qb = document.createElement('div');
+  qb.className = 'queue-bar';
+  qb.innerHTML = '<span style="font-size:12.5px;color:var(--fg-muted);flex:1;">Approve assets, then queue to Social Calendar.</span>';
+  var qBtn = document.createElement('button');
+  qBtn.className = 'btn btn-primary';
+  qBtn.textContent = 'Queue All Approved';
+  qBtn.onclick = queueApproved;
+  qb.appendChild(qBtn);
+  outCol.appendChild(qb);
+}
+
+// Render a canvas preview with correct brand direction
+// Parchment bg + teal text = default (light theme)
+// Teal bg + parchment text = dark variant
+function renderCanvasPreview(text, layout, w, h) {
+  var canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.style.cssText = 'width:180px;height:180px;border-radius:8px;border:1px solid var(--border);cursor:pointer;';
+  canvas.title = 'Click to open in Canvas editor';
+  canvas.onclick = function() {
+    try { sessionStorage.setItem('prism-canvas-text', text); } catch(e) {}
+    window.open('/creator/canvas/', '_blank');
+  };
+  var ctx = canvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = layout.bg;
+  ctx.fillRect(0, 0, w, h);
+
+  // Accent bar at top
+  ctx.fillStyle = layout.accentColor;
+  ctx.fillRect(0, 0, w, 8);
+
+  // Accent bar at bottom
+  ctx.fillRect(0, h-8, w, 8);
+
+  // Text
+  ctx.fillStyle = layout.textColor;
+  ctx.font = 'italic ' + (w > 300 ? '22' : '16') + 'px ' + layout.font + ', serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Word wrap
+  var maxW = w - 60;
+  var words = text.split(' ');
+  var lines = [];
+  var line = '';
+  words.forEach(function(word) {
+    var test = line + (line ? ' ' : '') + word;
+    if (ctx.measureText(test).width > maxW && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = test;
+    }
+  });
+  if (line) lines.push(line);
+
+  var lineH = w > 300 ? 30 : 22;
+  var totalH = lines.length * lineH;
+  var startY = (h - totalH) / 2;
+  lines.forEach(function(l, i) {
+    ctx.fillText(l, w/2, startY + i * lineH + lineH/2);
+  });
+
+  // IP wordmark at bottom
+  ctx.font = '500 ' + (w > 300 ? '11' : '9') + 'px Inter, sans-serif';
+  ctx.fillStyle = layout.accentColor;
+  ctx.fillText('identitypartners.uk', w/2, h - 20);
+
+  return canvas;
+}
+
+function getContent(val) {
+  if (typeof val === 'string') return val;
+  if (Array.isArray(val)) return val.join('\n\n');
+  return JSON.stringify(val);
+}
+
+function queueApproved() {
+  if (approvedAssets.length === 0) { Toast.warning('Approve at least one asset first'); return; }
+  var queued = 0;
+  approvedAssets.forEach(function(asset, i) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', WORKER + '/api/social/queue', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState!==4) return;
+      queued++;
+      if (queued===approvedAssets.length) Toast.success(queued + ' assets queued!');
+    };
+    xhr.send(JSON.stringify({platform:asset.platform, content:asset.content, type:asset.label, status:'pending', scheduledAt:new Date(Date.now()+(i+1)*3600000).toISOString()}));
+  });
+}
+
+function clearAll() {
+  document.getElementById('atomise-input').value = '';
+  updateWC();
+  generatedAssets = {}; approvedAssets = [];
+  var outCol = document.getElementById('out-col');
+  outCol.innerHTML = '<div class="empty-state"><div style="font-size:48px;">&#x26A1;</div><div style="font-size:16px;font-weight:600;color:var(--fg-secondary);">Platform-native content generation</div></div>';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb=buildSidebar('/atomise/'); mount.parentNode.insertBefore(sb,mount); mount.parentNode.removeChild(mount); }
+  var prefill = '';
+  try { prefill = sessionStorage.getItem('prism-atomise')||''; sessionStorage.removeItem('prism-atomise'); } catch(e) {}
+  if (prefill) { var inp=document.getElementById('atomise-input'); if(inp){inp.value=prefill;updateWC();} }
+});
+</script>
+</body>
+</html>
