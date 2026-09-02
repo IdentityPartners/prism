@@ -1,385 +1,472 @@
 <!DOCTYPE html>
-
 <html lang="en-GB">
 <head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Atomise — Prism</title>
-<link href="/shared/prism.css" rel="stylesheet"/>
-<link href="/shared/themes.css" rel="stylesheet"/>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
 <style>
-.atomise-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 0; height: calc(100vh - var(--topbar-h)); overflow: hidden; }
-@media(max-width:900px){ .atomise-layout{ grid-template-columns: 1fr; } }
-.atomise-input-pane { border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-.atomise-output-pane { overflow-y: auto; background: var(--bg-surface); }
-.input-header { padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-.input-header-title { font-size: 13px; font-weight: 600; color: var(--fg-secondary); }
-.word-counter { font-size: 11.5px; color: var(--fg-muted); }
-.word-counter.over { color: var(--danger); }
-.atomise-textarea { flex: 1; padding: 16px; border: none; outline: none; font-size: 13.5px; font-family: var(--font-ui); line-height: 1.7; color: var(--fg-primary); background: var(--bg-primary); resize: none; }
-.atomise-controls { padding: 12px 16px; border-top: 1px solid var(--border); background: var(--bg-elevated); flex-shrink: 0; }
-.profile-row { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
-.profile-chip { padding: 4px 10px; border: 1px solid var(--border); border-radius: 20px; font-size: 11.5px; cursor: pointer; color: var(--fg-secondary); background: var(--bg-surface); transition: all 0.15s; }
-.profile-chip.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
-.atomise-btn { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
-.atomise-btn:hover { background: var(--accent-hover); }
-.atomise-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.progress-bar { width: 100%; height: 4px; background: var(--border); border-radius: 2px; margin-top: 10px; overflow: hidden; }
-.progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s ease; }
-.output-header { padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
-.output-header-title { font-size: 13px; font-weight: 600; color: var(--fg-secondary); }
-.assets-grid { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-.asset-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-.asset-card-header { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg-surface); }
-.asset-type-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--accent); }
-.asset-card-actions { display: flex; gap: 6px; }
-.asset-action { padding: 3px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px; background: var(--bg-elevated); color: var(--fg-muted); cursor: pointer; transition: all 0.15s; }
-.asset-action:hover { border-color: var(--accent); color: var(--accent); }
-.asset-action.approved { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
-.asset-content { padding: 14px; font-size: 13.5px; line-height: 1.65; color: var(--fg-primary); white-space: pre-wrap; }
-.asset-content.editable { outline: 1px solid var(--accent); background: var(--bg-primary); }
-.carousel-slide { padding: 10px 14px; border-bottom: 1px solid var(--border); }
-.carousel-slide:last-child { border-bottom: none; }
-.carousel-slide-num { font-size: 10px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
-.carousel-slide-title { font-size: 13.5px; font-weight: 600; color: var(--fg-primary); margin-bottom: 4px; }
-.carousel-slide-body { font-size: 12.5px; color: var(--fg-secondary); line-height: 1.5; }
-.queue-all-btn { width: calc(100% - 32px); margin: 0 16px 16px; padding: 12px; background: var(--rose); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
-.queue-all-btn:hover { background: #7a3a50; }
-.empty-output { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 12px; color: var(--fg-muted); padding: 40px; text-align: center; }
-.empty-icon { font-size: 48px; }
+.atomise-shell { display:grid; grid-template-columns:380px 1fr; height:calc(100vh - var(--topbar-h)); overflow:hidden; }
+@media(max-width:900px){ .atomise-shell{ grid-template-columns:1fr; } .atomise-input-col{ display:none; } }
+.atomise-input-col { border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; background:var(--bg-surface); }
+.atomise-output-col { overflow-y:auto; background:var(--bg-primary); }
+.input-header { padding:14px 16px; border-bottom:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; }
+.input-header-title { font-size:13px; font-weight:600; color:var(--fg-secondary); margin-bottom:4px; }
+.word-counter { font-size:11.5px; color:var(--fg-muted); }
+.word-counter.over { color:var(--danger); }
+.atomise-ta { flex:1; padding:14px 16px; border:none; outline:none; font-size:13.5px; font-family:var(--font-ui); line-height:1.7; color:var(--fg-primary); background:var(--bg-primary); resize:none; }
+.atomise-controls { padding:12px 16px; border-top:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; }
+.platform-select { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px; }
+.plt-chip { padding:4px 9px; border:1px solid var(--border); border-radius:12px; font-size:11.5px; cursor:pointer; color:var(--fg-secondary); background:var(--bg-surface); transition:all 0.15s; user-select:none; }
+.plt-chip.active { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
+.atomise-btn { width:100%; padding:12px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; transition:background 0.15s; font-family:var(--font-ui); }
+.atomise-btn:hover { background:var(--accent-hover); }
+.atomise-btn:disabled { opacity:0.5; cursor:not-allowed; }
+.progress-wrap { margin-top:10px; }
+.progress-bar { width:100%; height:5px; background:var(--border); border-radius:3px; overflow:hidden; }
+.progress-fill { height:100%; background:var(--accent); border-radius:3px; transition:width 0.4s ease; }
+.progress-label { font-size:11.5px; color:var(--fg-muted); margin-top:4px; }
+
+/* Output */
+.output-header { padding:14px 20px; border-bottom:1px solid var(--border); background:var(--bg-elevated); position:sticky; top:0; z-index:10; display:flex; align-items:center; justify-content:space-between; }
+.output-title { font-size:13px; font-weight:600; color:var(--fg-secondary); }
+.assets-container { padding:16px 20px; display:flex; flex-direction:column; gap:14px; }
+.asset-group { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.asset-group-header { padding:10px 14px; background:var(--bg-surface); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.asset-platform { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.07em; color:var(--accent); display:flex; align-items:center; gap:6px; }
+.asset-format { font-size:10.5px; color:var(--fg-muted); }
+.asset-body { padding:14px; font-size:13.5px; line-height:1.65; color:var(--fg-primary); white-space:pre-wrap; }
+.asset-body.editable { outline:1px solid var(--accent); background:var(--bg-primary); }
+.asset-actions { padding:8px 14px; border-top:1px solid var(--border); display:flex; gap:6px; flex-wrap:wrap; }
+.asset-action { padding:4px 9px; border:1px solid var(--border); border-radius:5px; font-size:11.5px; background:var(--bg-surface); color:var(--fg-muted); cursor:pointer; transition:all 0.15s; }
+.asset-action:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
+.asset-action.approved { background:var(--accent-light); border-color:var(--accent); color:var(--accent); font-weight:500; }
+.carousel-slides { display:flex; flex-direction:column; gap:0; }
+.carousel-slide { padding:10px 14px; border-bottom:1px solid var(--border); }
+.carousel-slide:last-child { border-bottom:none; }
+.slide-num { font-size:10px; font-weight:600; color:var(--fg-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:3px; }
+.slide-title { font-size:13.5px; font-weight:600; color:var(--fg-primary); margin-bottom:3px; }
+.slide-body { font-size:12.5px; color:var(--fg-secondary); line-height:1.5; }
+.empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:14px; color:var(--fg-muted); padding:40px; text-align:center; min-height:400px; }
+.empty-icon { font-size:52px; }
+.queue-all-bar { position:sticky; bottom:0; background:var(--bg-elevated); border-top:1px solid var(--border); padding:12px 20px; display:flex; gap:8px; align-items:center; }
 </style>
 </head>
 <body>
 <div class="prism-shell">
-<div id="sidebar-mount"></div>
-<div class="main-content" id="main-content">
-<div class="topbar">
-<div class="topbar-title">Atomise</div>
-<div class="topbar-actions">
-<button class="btn btn-sm btn-ghost" onclick="clearAll()" title="Clear everything">✕ Clear</button>
-<a class="btn btn-sm btn-secondary" href="/social-queue/" title="View Social Queue">📅 View Queue</a>
-</div>
-</div>
-<div class="atomise-layout">
-<!-- Input pane -->
-<div class="atomise-input-pane">
-<div class="input-header">
-<span class="input-header-title">Source Text</span>
-<span class="word-counter" id="word-counter">0 / 1,500 words</span>
-</div>
-<textarea class="atomise-textarea" id="atomise-input" placeholder="Paste your text here — a programme description, session note, research synthesis, or any content about Identity Partners.
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar">
+      <div class="topbar-title">Atomise</div>
+      <div class="topbar-actions">
+        <button class="btn btn-sm btn-ghost" onclick="clearAll()" title="Clear everything">✕ Clear</button>
+        <button class="btn btn-sm btn-secondary" onclick="queueApproved()" title="Queue all approved assets">📅 Queue Approved</button>
+        <a href="/social-queue/" class="btn btn-sm btn-secondary" title="View Social Calendar">📅 Social Calendar</a>
+      </div>
+    </div>
+    <div class="atomise-shell">
+      <!-- Input -->
+      <div class="atomise-input-col">
+        <div class="input-header">
+          <div class="input-header-title">Source Text</div>
+          <div class="word-counter" id="word-counter">0 / 1,500 words</div>
+        </div>
+        <textarea class="atomise-ta" id="atomise-input" placeholder="Paste your text here — About page copy, programme description, session note, research synthesis, or any content about Identity Partners.&#10;&#10;Prism generates platform-native content for each selected platform — not the same text repurposed, but genuinely different formats: articles, notes, posts, carousels, threads, and more." oninput="updateWordCount()"></textarea>
+        <div class="atomise-controls">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:8px;">Select platforms</div>
+          <div class="platform-select" id="platform-select">
+            <div class="plt-chip active" data-p="bluesky" onclick="togglePlt(this)" data-tooltip="5 standalone posts, under 280 chars each">🦋 Bluesky</div>
+            <div class="plt-chip active" data-p="twitter" onclick="togglePlt(this)" data-tooltip="5 posts, under 280 chars, with hashtags">𝕏 X</div>
+            <div class="plt-chip active" data-p="linkedin_post" onclick="togglePlt(this)" data-tooltip="150-200 word professional post">💼 LinkedIn Post</div>
+            <div class="plt-chip" data-p="linkedin_article" onclick="togglePlt(this)" data-tooltip="600-800 word long-form article">💼 LinkedIn Article</div>
+            <div class="plt-chip active" data-p="linkedin_carousel" onclick="togglePlt(this)" data-tooltip="5-slide carousel with title + body">💼 LinkedIn Carousel</div>
+            <div class="plt-chip" data-p="instagram" onclick="togglePlt(this)" data-tooltip="Caption with 10 hashtags">📸 Instagram</div>
+            <div class="plt-chip" data-p="facebook" onclick="togglePlt(this)" data-tooltip="Community-focused post with question">👥 Facebook</div>
+            <div class="plt-chip" data-p="threads" onclick="togglePlt(this)" data-tooltip="Casual note, under 500 chars">🧵 Threads Note</div>
+            <div class="plt-chip" data-p="substack_note" onclick="togglePlt(this)" data-tooltip="Teaser note, under 300 chars">📧 Substack Note</div>
+            <div class="plt-chip" data-p="substack_article" onclick="togglePlt(this)" data-tooltip="400-600 word newsletter article">📧 Substack Article</div>
+            <div class="plt-chip" data-p="tumblr" onclick="togglePlt(this)" data-tooltip="200-300 word creative post with tags">📝 Tumblr</div>
+            <div class="plt-chip" data-p="email" onclick="togglePlt(this)" data-tooltip="100-150 word email newsletter snippet">📧 Email</div>
+            <div class="plt-chip" data-p="pinterest" onclick="togglePlt(this)" data-tooltip="Keyword-rich pin description">📌 Pinterest</div>
+            <div class="plt-chip" data-p="reddit" onclick="togglePlt(this)" data-tooltip="Community-first post for r/mentalhealth">🤖 Reddit</div>
+            <div class="plt-chip" data-p="quotes" onclick="togglePlt(this)" data-tooltip="3 quote cards for visual assets">❝ Quote Cards</div>
+            <div class="plt-chip" data-p="broadcast" onclick="togglePlt(this)" data-tooltip="WhatsApp/Telegram broadcast message">📱 Broadcast</div>
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:10px;">
+            <button class="btn btn-ghost btn-sm" onclick="selectAllPlt()" title="Select all platforms">Select All</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearPlt()" title="Clear all platforms">Clear</button>
+          </div>
+          <button class="atomise-btn" id="atomise-btn" onclick="doAtomise()" title="Generate platform-native content for all selected platforms">⚡ Atomise</button>
+          <div class="progress-wrap hidden" id="progress-wrap">
+            <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+            <div class="progress-label" id="progress-label">Generating…</div>
+          </div>
+        </div>
+      </div>
 
-The system will generate: 3 quote cards, 1 LinkedIn post, 1 Bluesky thread, 1 email snippet, and a 5-slide carousel."></textarea>
-<div class="atomise-controls">
-<div class="profile-row">
-<span class="profile-chip active" onclick="setProfile(this,'balanced')">⚖ Balanced</span>
-<span class="profile-chip" onclick="setProfile(this,'free')">🆓 Free</span>
-<span class="profile-chip" onclick="setProfile(this,'frontier')">💎 Frontier</span>
+      <!-- Output -->
+      <div class="atomise-output-col" id="output-col">
+        <div class="empty-state" id="empty-state">
+          <div class="empty-icon">⚡</div>
+          <div style="font-size:16px;font-weight:600;color:var(--fg-secondary);">Platform-native content generation</div>
+          <div style="font-size:13.5px;max-width:400px;line-height:1.7;">Paste your text, select platforms, click Atomise. Each platform gets genuinely different content — not the same text repurposed. LinkedIn gets an article. Substack gets a newsletter. Threads gets a note. X gets punchy posts.</div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
-<button class="atomise-btn" id="atomise-btn" onclick="doAtomise()" title="Generate social media assets">⚡ Create Assets</button>
-<div class="progress-bar hidden" id="progress-bar">
-<div class="progress-fill" id="progress-fill" style="width:0%"></div>
-</div>
-</div>
-</div>
-<!-- Output pane -->
-<div class="atomise-output-pane" id="output-pane">
-<div class="empty-output" id="empty-output">
-<div class="empty-icon">⚡</div>
-<div style="font-size:15px;font-weight:600;color:var(--fg-secondary);">Paste text and click Create Assets</div>
-<div style="font-size:13px;">The system generates 7 asset types in under 60 seconds.</div>
-</div>
-</div>
-</div>
-</div>
-</div>
+
 <script src="/shared/prism.js"></script>
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
-var currentProfile = 'balanced';
+var activePlatforms = ['bluesky','twitter','linkedin_post','linkedin_carousel','quotes'];
+var generatedAssets = {};
 var approvedAssets = [];
-var generatedAssets = null;
 
-function setProfile(el, profile) {
-  currentProfile = profile;
-  var chips = document.querySelectorAll('.profile-chip');
-  for (var i = 0; i < chips.length; i++) chips[i].classList.remove('active');
-  el.classList.add('active');
+var PLATFORM_META = {
+  bluesky:          {label:'Bluesky',          icon:'🦋', format:'5 posts · 280 chars each'},
+  twitter:          {label:'X / Twitter',       icon:'𝕏',  format:'5 posts · 280 chars · hashtags'},
+  linkedin_post:    {label:'LinkedIn Post',     icon:'💼', format:'150-200 words · professional'},
+  linkedin_article: {label:'LinkedIn Article',  icon:'💼', format:'600-800 words · long-form'},
+  linkedin_carousel:{label:'LinkedIn Carousel', icon:'💼', format:'5 slides · title + body'},
+  instagram:        {label:'Instagram',         icon:'📸', format:'Caption · 10 hashtags'},
+  facebook:         {label:'Facebook',          icon:'👥', format:'100-150 words · community'},
+  threads:          {label:'Threads Note',      icon:'🧵', format:'Under 500 chars · casual'},
+  substack_note:    {label:'Substack Note',     icon:'📧', format:'Under 300 chars · teaser'},
+  substack_article: {label:'Substack Article',  icon:'📧', format:'400-600 words · newsletter'},
+  tumblr:           {label:'Tumblr',            icon:'📝', format:'200-300 words · creative'},
+  email:            {label:'Email Newsletter',  icon:'📧', format:'100-150 words · snippet'},
+  pinterest:        {label:'Pinterest',         icon:'📌', format:'Keyword-rich description'},
+  reddit:           {label:'Reddit',            icon:'🤖', format:'Community post · no promo'},
+  quotes:           {label:'Quote Cards',       icon:'❝',  format:'3 quotes · 15-25 words each'},
+  broadcast:        {label:'Broadcast',         icon:'📱', format:'WhatsApp/Telegram · 200 words'},
+};
+
+function togglePlt(el) {
+  el.classList.toggle('active');
+  var p = el.getAttribute('data-p');
+  if (el.classList.contains('active')) { if (activePlatforms.indexOf(p)<0) activePlatforms.push(p); }
+  else activePlatforms = activePlatforms.filter(function(x){return x!==p;});
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-  var input = document.getElementById('atomise-input');
-  if (input) {
-    input.addEventListener('input', function() {
-      var words = this.value.trim() ? this.value.trim().split(/\s+/).length : 0;
-      var counter = document.getElementById('word-counter');
-      if (counter) {
-        counter.textContent = words.toLocaleString() + ' / 1,500 words';
-        counter.className = 'word-counter' + (words > 1500 ? ' over' : '');
-      }
-    });
-  }
-  var mount = document.getElementById('sidebar-mount');
-  if (mount) { var sb = buildSidebar('/atomise/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  var prefill = '';
-  try { prefill = sessionStorage.getItem('prism-atomise') || ''; sessionStorage.removeItem('prism-atomise'); } catch(e) {}
-  if (prefill && input) { input.value = prefill; input.dispatchEvent(new Event('input')); }
-});
+function selectAllPlt() {
+  activePlatforms = [];
+  var chips = document.querySelectorAll('.plt-chip');
+  for (var i=0;i<chips.length;i++) { chips[i].classList.add('active'); activePlatforms.push(chips[i].getAttribute('data-p')); }
+}
+
+function clearPlt() {
+  activePlatforms = [];
+  var chips = document.querySelectorAll('.plt-chip');
+  for (var i=0;i<chips.length;i++) chips[i].classList.remove('active');
+}
+
+function updateWordCount() {
+  var text = document.getElementById('atomise-input').value;
+  var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  var el = document.getElementById('word-counter');
+  if (el) { el.textContent = words.toLocaleString() + ' / 1,500 words'; el.className = 'word-counter' + (words > 1500 ? ' over' : ''); }
+}
 
 function doAtomise() {
-  var input = document.getElementById('atomise-input');
-  if (!input || !input.value.trim()) { Toast.warning('Please paste some text first'); return; }
-  var words = input.value.trim().split(/\s+/).length;
-  if (words > 1500) { Toast.error('Please keep text under 1,500 words'); return; }
+  var text = document.getElementById('atomise-input').value.trim();
+  if (!text) { Toast.warning('Paste some text first'); return; }
+  if (text.split(/\s+/).length > 1500) { Toast.error('Please keep text under 1,500 words'); return; }
+  if (activePlatforms.length === 0) { Toast.warning('Select at least one platform'); return; }
 
   var btn = document.getElementById('atomise-btn');
-  var progressBar = document.getElementById('progress-bar');
+  var progressWrap = document.getElementById('progress-wrap');
   var progressFill = document.getElementById('progress-fill');
-  var outputPane = document.getElementById('output-pane');
-  var emptyOutput = document.getElementById('empty-output');
+  var progressLabel = document.getElementById('progress-label');
+  var outputCol = document.getElementById('output-col');
+  var emptyState = document.getElementById('empty-state');
 
   if (btn) btn.disabled = true;
-  if (progressBar) progressBar.classList.remove('hidden');
-  if (emptyOutput) emptyOutput.style.display = 'none';
+  if (progressWrap) progressWrap.classList.remove('hidden');
+  if (emptyState) emptyState.style.display = 'none';
+  generatedAssets = {};
   approvedAssets = [];
 
-  var progress = 0;
-  var progressInterval = setInterval(function() {
-    progress = Math.min(progress + 6, 88);
-    if (progressFill) progressFill.style.width = progress + '%';
-  }, 500);
+  // Show loading placeholders for each selected platform
+  outputCol.innerHTML = '';
+  var header = document.createElement('div');
+  header.className = 'output-header';
+  header.innerHTML = '<span class="output-title">Generating ' + activePlatforms.length + ' platform-native assets…</span>';
+  outputCol.appendChild(header);
+  var container = document.createElement('div');
+  container.className = 'assets-container';
+  container.id = 'assets-container';
+  outputCol.appendChild(container);
+
+  activePlatforms.forEach(function(p) {
+    var meta = PLATFORM_META[p] || {label:p, icon:'📝', format:''};
+    var placeholder = document.createElement('div');
+    placeholder.className = 'asset-group';
+    placeholder.id = 'asset-' + p;
+    placeholder.innerHTML = '<div class="asset-group-header"><span class="asset-platform">' + meta.icon + ' ' + meta.label + '</span><span class="asset-format">' + meta.format + '</span></div><div class="asset-body" style="color:var(--fg-muted);font-style:italic;"><div class="spinner" style="display:inline-block;margin-right:8px;"></div>Generating…</div>';
+    container.appendChild(placeholder);
+  });
+
+  // Animate progress
+  var prog = 0;
+  var progInterval = setInterval(function() {
+    prog = Math.min(prog + 3, 90);
+    if (progressFill) progressFill.style.width = prog + '%';
+    if (progressLabel) progressLabel.textContent = 'Generating ' + activePlatforms.length + ' platform-native assets…';
+  }, 600);
 
   var xhr = new XMLHttpRequest();
   xhr.open('POST', WORKER + '/api/atomise', true);
   xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.timeout = 120000;
   xhr.onreadystatechange = function() {
     if (xhr.readyState !== 4) return;
-    clearInterval(progressInterval);
+    clearInterval(progInterval);
     if (progressFill) progressFill.style.width = '100%';
-    setTimeout(function() { if (progressBar) progressBar.classList.add('hidden'); if (progressFill) progressFill.style.width = '0%'; }, 600);
+    setTimeout(function() { if (progressWrap) progressWrap.classList.add('hidden'); }, 600);
     if (btn) btn.disabled = false;
     try {
-      var result = JSON.parse(xhr.responseText);
-      if (result.assets) {
-        generatedAssets = result.assets;
-        renderAssets(result.assets);
-        Toast.success('Assets created! Review and approve below.');
+      var r = JSON.parse(xhr.responseText);
+      if (r.assets) {
+        generatedAssets = r.assets;
+        renderAssets(r.assets);
+        Toast.success('Generated ' + Object.keys(r.assets).length + ' platform-native assets');
       } else {
-        Toast.error('Error: ' + (result.error || 'Failed'));
-        if (emptyOutput) emptyOutput.style.display = '';
+        Toast.error('Generation failed: ' + (r.error || 'Unknown error'));
+        if (emptyState) emptyState.style.display = '';
       }
     } catch(e) {
-      Toast.error('Failed to parse response');
-      if (emptyOutput) emptyOutput.style.display = '';
+      Toast.error('Parse error: ' + e.message);
+      if (emptyState) emptyState.style.display = '';
     }
   };
-  xhr.onerror = function() {
-    clearInterval(progressInterval);
+  xhr.ontimeout = function() {
+    clearInterval(progInterval);
     if (btn) btn.disabled = false;
-    if (progressBar) progressBar.classList.add('hidden');
-    Toast.error('Network error');
-    if (emptyOutput) emptyOutput.style.display = '';
+    Toast.error('Timed out. Try fewer platforms or shorter text.');
   };
-  xhr.send(JSON.stringify({text: input.value, profile: currentProfile}));
+  xhr.onerror = function() {
+    clearInterval(progInterval);
+    if (btn) btn.disabled = false;
+    Toast.error('Network error');
+  };
+  xhr.send(JSON.stringify({text:text, profile:'balanced'}));
 }
 
 function renderAssets(assets) {
-  var pane = document.getElementById('output-pane');
-  if (!pane) return;
-  pane.innerHTML = '';
+  var outputCol = document.getElementById('output-col');
+  outputCol.innerHTML = '';
 
   var header = document.createElement('div');
   header.className = 'output-header';
   var title = document.createElement('span');
-  title.className = 'output-header-title';
-  title.textContent = 'Generated Assets';
-  var queueAllBtn = document.createElement('button');
-  queueAllBtn.className = 'btn btn-sm btn-rose';
-  queueAllBtn.textContent = '📅 Queue Approved';
-  queueAllBtn.title = 'Queue all approved assets to Social Queue';
-  queueAllBtn.onclick = queueApproved;
-  header.appendChild(title);
-  header.appendChild(queueAllBtn);
-  pane.appendChild(header);
-
-  var grid = document.createElement('div');
-  grid.className = 'assets-grid';
-
-  if (assets.linkedin) grid.appendChild(makeAssetCard('LinkedIn Post', assets.linkedin, 'linkedin'));
-  if (assets.email) grid.appendChild(makeAssetCard('Email Snippet', assets.email, 'email'));
-  if (assets.quotes && assets.quotes.length) {
-    for (var i = 0; i < assets.quotes.length; i++) {
-      grid.appendChild(makeAssetCard('Quote Card ' + (i+1), assets.quotes[i], 'quote-' + i));
-    }
-  }
-  if (assets.bluesky && assets.bluesky.length) {
-    grid.appendChild(makeAssetCard('Bluesky Thread', assets.bluesky.join('\n\n'), 'bluesky'));
-  }
-  if (assets.carousel && assets.carousel.length) {
-    grid.appendChild(makeCarouselCard(assets.carousel));
-  }
-
-  pane.appendChild(grid);
-
+  title.className = 'output-title';
+  title.textContent = Object.keys(assets).length + ' assets generated';
   var queueBtn = document.createElement('button');
-  queueBtn.className = 'queue-all-btn';
-  queueBtn.textContent = '📅 Queue All Approved Assets';
+  queueBtn.className = 'btn btn-sm btn-primary';
+  queueBtn.textContent = '📅 Queue All Approved';
   queueBtn.onclick = queueApproved;
-  pane.appendChild(queueBtn);
-}
+  header.appendChild(title); header.appendChild(queueBtn);
+  outputCol.appendChild(header);
 
-function makeAssetCard(type, content, id) {
-  var card = document.createElement('div');
-  card.className = 'asset-card';
-  card.id = 'card-' + id;
+  var container = document.createElement('div');
+  container.className = 'assets-container';
 
-  var header = document.createElement('div');
-  header.className = 'asset-card-header';
-  var label = document.createElement('span');
-  label.className = 'asset-type-label';
-  label.textContent = type;
-  var actions = document.createElement('div');
-  actions.className = 'asset-card-actions';
+  // Render in a sensible order
+  var order = ['quotes','bluesky','twitter','threads','substack_note','linkedin_post','linkedin_carousel','linkedin_article','instagram','facebook','substack_article','tumblr','email','pinterest','reddit','broadcast'];
 
-  var approved = false;
-  var approveBtn = document.createElement('button');
-  approveBtn.className = 'asset-action';
-  approveBtn.textContent = '✓ Approve';
-  approveBtn.title = 'Approve for queuing';
-  approveBtn.onclick = function() {
-    approved = !approved;
-    approveBtn.className = 'asset-action' + (approved ? ' approved' : '');
-    approveBtn.textContent = approved ? '✓ Approved' : '✓ Approve';
-    if (approved) approvedAssets.push({type: type, content: content, id: id});
-    else approvedAssets = approvedAssets.filter(function(a) { return a.id !== id; });
-  };
+  order.forEach(function(key) {
+    if (!assets[key] || !activePlatforms.includes(key)) return;
+    var meta = PLATFORM_META[key] || {label:key, icon:'📝', format:''};
+    var group = document.createElement('div');
+    group.className = 'asset-group';
 
-  var editBtn = document.createElement('button');
-  editBtn.className = 'asset-action';
-  editBtn.textContent = '✏ Edit';
-  editBtn.title = 'Edit this asset';
-  editBtn.onclick = function() {
-    var contentEl = card.querySelector('.asset-content');
-    if (!contentEl) return;
-    contentEl.contentEditable = contentEl.contentEditable === 'true' ? 'false' : 'true';
-    contentEl.classList.toggle('editable');
-    editBtn.textContent = contentEl.contentEditable === 'true' ? '✓ Done' : '✏ Edit';
-  };
+    var groupHeader = document.createElement('div');
+    groupHeader.className = 'asset-group-header';
+    var platform = document.createElement('span');
+    platform.className = 'asset-platform';
+    platform.textContent = meta.icon + ' ' + meta.label;
+    var format = document.createElement('span');
+    format.className = 'asset-format';
+    format.textContent = meta.format;
+    groupHeader.appendChild(platform); groupHeader.appendChild(format);
 
-  var copyBtn = document.createElement('button');
-  copyBtn.className = 'asset-action';
-  copyBtn.textContent = '📋 Copy';
-  copyBtn.title = 'Copy to clipboard';
-  copyBtn.onclick = function() {
-    if (navigator.clipboard) navigator.clipboard.writeText(content).then(function() { Toast.success('Copied'); });
-  };
-
-  var postBtn = document.createElement('button');
-  postBtn.className = 'asset-action';
-  postBtn.textContent = '🚀 Post';
-  postBtn.title = 'Post directly to Bluesky';
-  if (id === 'bluesky') {
-    postBtn.onclick = function() { postToBluesky(content); };
-    actions.appendChild(postBtn);
-  }
-
-  actions.appendChild(approveBtn);
-  actions.appendChild(editBtn);
-  actions.appendChild(copyBtn);
-  header.appendChild(label);
-  header.appendChild(actions);
-
-  var contentEl = document.createElement('div');
-  contentEl.className = 'asset-content';
-  contentEl.textContent = content;
-
-  card.appendChild(header);
-  card.appendChild(contentEl);
-  return card;
-}
-
-function makeCarouselCard(slides) {
-  var card = document.createElement('div');
-  card.className = 'asset-card';
-  var header = document.createElement('div');
-  header.className = 'asset-card-header';
-  var label = document.createElement('span');
-  label.className = 'asset-type-label';
-  label.textContent = 'LinkedIn Carousel (5 slides)';
-  header.appendChild(label);
-  card.appendChild(header);
-  for (var i = 0; i < slides.length; i++) {
-    var slide = document.createElement('div');
-    slide.className = 'carousel-slide';
-    var num = document.createElement('div');
-    num.className = 'carousel-slide-num';
-    num.textContent = 'Slide ' + (i+1) + ' of ' + slides.length;
-    var title = document.createElement('div');
-    title.className = 'carousel-slide-title';
-    title.textContent = slides[i].title || '';
     var body = document.createElement('div');
-    body.className = 'carousel-slide-body';
-    body.textContent = slides[i].body || '';
-    slide.appendChild(num);
-    slide.appendChild(title);
-    slide.appendChild(body);
-    card.appendChild(slide);
-  }
-  return card;
+    body.className = 'asset-body';
+    body.id = 'body-' + key;
+
+    // Render based on type
+    if (key === 'quotes' && Array.isArray(assets[key])) {
+      assets[key].forEach(function(q, i) {
+        var qDiv = document.createElement('div');
+        qDiv.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--border);font-style:italic;';
+        qDiv.textContent = '“' + q + '”';
+        body.appendChild(qDiv);
+      });
+    } else if (key === 'linkedin_carousel' && Array.isArray(assets[key])) {
+      var slides = document.createElement('div');
+      slides.className = 'carousel-slides';
+      assets[key].forEach(function(slide, i) {
+        var s = document.createElement('div');
+        s.className = 'carousel-slide';
+        var num = document.createElement('div'); num.className = 'slide-num'; num.textContent = 'Slide ' + (i+1) + ' of ' + assets[key].length;
+        var t = document.createElement('div'); t.className = 'slide-title'; t.textContent = slide.title || '';
+        var b = document.createElement('div'); b.className = 'slide-body'; b.textContent = slide.body || '';
+        s.appendChild(num); s.appendChild(t); s.appendChild(b);
+        slides.appendChild(s);
+      });
+      body.appendChild(slides);
+    } else if (key === 'bluesky' || key === 'twitter') {
+      var arr = Array.isArray(assets[key]) ? assets[key] : [assets[key]];
+      arr.forEach(function(post, i) {
+        var p = document.createElement('div');
+        p.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--border);';
+        var num = document.createElement('span');
+        num.style.cssText = 'font-size:10px;font-weight:600;color:var(--fg-muted);margin-right:6px;';
+        num.textContent = (i+1) + '.';
+        var txt = document.createElement('span');
+        txt.textContent = post;
+        p.appendChild(num); p.appendChild(txt);
+        body.appendChild(p);
+      });
+    } else {
+      body.textContent = typeof assets[key] === 'string' ? assets[key] : JSON.stringify(assets[key]);
+    }
+
+    // Actions
+    var actions = document.createElement('div');
+    actions.className = 'asset-actions';
+    var approved = false;
+
+    var approveBtn = document.createElement('button');
+    approveBtn.className = 'asset-action';
+    approveBtn.textContent = '✓ Approve';
+    approveBtn.title = 'Approve for queuing';
+    approveBtn.onclick = function() {
+      approved = !approved;
+      approveBtn.className = 'asset-action' + (approved ? ' approved' : '');
+      approveBtn.textContent = approved ? '✓ Approved' : '✓ Approve';
+      var content = typeof assets[key] === 'string' ? assets[key] : JSON.stringify(assets[key]);
+      if (approved) approvedAssets.push({platform:key, content:content, meta:meta});
+      else approvedAssets = approvedAssets.filter(function(a){return a.platform!==key;});
+    };
+
+    var copyBtn = document.createElement('button');
+    copyBtn.className = 'asset-action';
+    copyBtn.textContent = '📋 Copy';
+    copyBtn.title = 'Copy to clipboard';
+    copyBtn.onclick = function() {
+      var text = typeof assets[key] === 'string' ? assets[key] : (Array.isArray(assets[key]) ? assets[key].join('
+
+') : JSON.stringify(assets[key]));
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(function(){Toast.success('Copied');});
+    };
+
+    var editBtn = document.createElement('button');
+    editBtn.className = 'asset-action';
+    editBtn.textContent = '✏ Edit';
+    editBtn.title = 'Edit this asset';
+    editBtn.onclick = function() {
+      body.contentEditable = body.contentEditable === 'true' ? 'false' : 'true';
+      body.classList.toggle('editable');
+      editBtn.textContent = body.contentEditable === 'true' ? '✓ Done' : '✏ Edit';
+    };
+
+    var canvasBtn = document.createElement('button');
+    canvasBtn.className = 'asset-action';
+    canvasBtn.textContent = '🎨 Canvas';
+    canvasBtn.title = 'Open in Canvas to create visual asset';
+    canvasBtn.onclick = function() {
+      var text = typeof assets[key] === 'string' ? assets[key] : (Array.isArray(assets[key]) ? assets[key][0] : '');
+      try { sessionStorage.setItem('prism-canvas-text', text); } catch(e) {}
+      window.open('/creator/canvas/', '_blank');
+    };
+
+    actions.appendChild(approveBtn);
+    actions.appendChild(copyBtn);
+    actions.appendChild(editBtn);
+    if (['quotes','bluesky','twitter','linkedin_post','threads','substack_note'].includes(key)) {
+      actions.appendChild(canvasBtn);
+    }
+
+    // Post now button for connected platforms
+    if (key === 'bluesky') {
+      var postBtn = document.createElement('button');
+      postBtn.className = 'asset-action';
+      postBtn.textContent = '🚀 Post Now';
+      postBtn.title = 'Post first item to Bluesky now';
+      postBtn.onclick = function() {
+        var text = Array.isArray(assets[key]) ? assets[key][0] : assets[key];
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', WORKER + '/api/social/post', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4) return;
+          try { var r=JSON.parse(xhr.responseText); if(r.success) Toast.success('Posted to Bluesky!'); else Toast.error('Failed: '+(r.error||'unknown')); } catch(e) { Toast.error('Failed'); }
+        };
+        xhr.send(JSON.stringify({text:text, platforms:['bluesky']}));
+      };
+      actions.appendChild(postBtn);
+    }
+
+    group.appendChild(groupHeader);
+    group.appendChild(body);
+    group.appendChild(actions);
+    container.appendChild(group);
+  });
+
+  outputCol.appendChild(container);
+
+  // Queue all bar
+  var queueBar = document.createElement('div');
+  queueBar.className = 'queue-all-bar';
+  queueBar.innerHTML = '<span style="font-size:12.5px;color:var(--fg-muted);">Approve assets above, then queue them to the Social Calendar.</span>';
+  var queueAllBtn = document.createElement('button');
+  queueAllBtn.className = 'btn btn-primary';
+  queueAllBtn.textContent = '📅 Queue All Approved';
+  queueAllBtn.onclick = queueApproved;
+  queueBar.appendChild(queueAllBtn);
+  outputCol.appendChild(queueBar);
 }
 
 function queueApproved() {
   if (approvedAssets.length === 0) { Toast.warning('Approve at least one asset first'); return; }
   var queued = 0;
-  for (var i = 0; i < approvedAssets.length; i++) {
-    (function(asset) {
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', WORKER + '/api/social/queue', true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState !== 4) return;
-        queued++;
-        if (queued === approvedAssets.length) Toast.success(queued + ' asset' + (queued > 1 ? 's' : '') + ' queued!');
-      };
-      xhr.send(JSON.stringify({type: asset.type, content: asset.content, status: 'pending', scheduledAt: new Date(Date.now() + 86400000).toISOString()}));
-    })(approvedAssets[i]);
-  }
-}
-
-function postToBluesky(text) {
-  var posts = text.split('\n\n');
-  var first = posts[0] || text;
-  if (first.length > 300) { Toast.warning('First post exceeds 300 characters. Edit before posting.'); return; }
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/social/post', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      var result = JSON.parse(xhr.responseText);
-      if (result.success) Toast.success('Posted to Bluesky!');
-      else Toast.error('Post failed: ' + (result.error || 'Unknown error'));
-    } catch(e) { Toast.error('Post failed'); }
-  };
-  xhr.onerror = function() { Toast.error('Network error'); };
-  xhr.send(JSON.stringify({text: first, platforms: ['bluesky']}));
+  approvedAssets.forEach(function(asset, i) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', WORKER + '/api/social/queue', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4) return;
+      queued++;
+      if (queued === approvedAssets.length) Toast.success(queued + ' assets queued to Social Calendar!');
+    };
+    xhr.send(JSON.stringify({
+      platform: asset.platform,
+      content: asset.content,
+      type: asset.meta.label,
+      status: 'pending',
+      scheduledAt: new Date(Date.now() + (i+1) * 3600000).toISOString()
+    }));
+  });
 }
 
 function clearAll() {
-  var input = document.getElementById('atomise-input');
-  if (input) input.value = '';
-  var pane = document.getElementById('output-pane');
-  if (pane) {
-    pane.innerHTML = '';
-    var empty = document.createElement('div');
-    empty.className = 'empty-output';
-    empty.id = 'empty-output';
-    empty.innerHTML = '<div class="empty-icon">⚡</div><div style="font-size:15px;font-weight:600;color:var(--fg-secondary);">Paste text and click Create Assets</div><div style="font-size:13px;">The system generates 7 asset types in under 60 seconds.</div>';
-    pane.appendChild(empty);
-  }
+  document.getElementById('atomise-input').value = '';
+  updateWordCount();
+  generatedAssets = {};
   approvedAssets = [];
-  generatedAssets = null;
+  var outputCol = document.getElementById('output-col');
+  outputCol.innerHTML = '<div class="empty-state" id="empty-state"><div class="empty-icon">⚡</div><div style="font-size:16px;font-weight:600;color:var(--fg-secondary);">Platform-native content generation</div><div style="font-size:13.5px;max-width:400px;line-height:1.7;">Paste your text, select platforms, click Atomise.</div></div>';
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb=buildSidebar('/atomise/'); mount.parentNode.insertBefore(sb,mount); mount.parentNode.removeChild(mount); }
+  var prefill = '';
+  try { prefill = sessionStorage.getItem('prism-atomise') || ''; sessionStorage.removeItem('prism-atomise'); } catch(e) {}
+  if (prefill) { var input = document.getElementById('atomise-input'); if (input) { input.value = prefill; updateWordCount(); } }
+});
 </script>
 </body>
 </html>
