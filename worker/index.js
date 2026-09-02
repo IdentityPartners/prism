@@ -1925,6 +1925,40 @@ export default {
     }
 
 
+
+    // ── Zoho token exchange (CRITICAL — called by OAuth callback pages) ───────
+    if (path === '/api/zoho/token' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var service = body.service;
+        var code = body.code;
+        var redirectUri = body.redirectUri;
+        var clientId = env.ZOHO_CLIENT_ID || env.Zoho_Client_ID;
+        var clientSecret = env.ZOHO_CLIENT_SECRET || env.Zoho_Client_Secret;
+        if (!clientId) return json({success:false,error:'ZOHO_CLIENT_ID not set in Worker secrets'}, 200, origin);
+        if (!clientSecret) return json({success:false,error:'ZOHO_CLIENT_SECRET not set in Worker secrets'}, 200, origin);
+        if (!code) return json({success:false,error:'No code provided'}, 200, origin);
+        if (!redirectUri) redirectUri = 'https://prism.identitypartners.uk/oauth/zoho/' + service;
+        var tokenResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {
+          method: 'POST',
+          headers: {'Content-Type':'application/x-www-form-urlencoded'},
+          body: [
+            'grant_type=authorization_code',
+            'client_id=' + encodeURIComponent(clientId),
+            'client_secret=' + encodeURIComponent(clientSecret),
+            'redirect_uri=' + encodeURIComponent(redirectUri),
+            'code=' + encodeURIComponent(code),
+            'access_type=offline'
+          ].join('&')
+        });
+        var tokens = await tokenResp.json();
+        if (tokens.error) return json({success:false,error:tokens.error+': '+(tokens.error_description||'')}, 200, origin);
+        if (!tokens.access_token) return json({success:false,error:'No access_token in response: '+JSON.stringify(tokens)}, 200, origin);
+        if (env.PRISM_KV) await env.PRISM_KV.put('zoho:tokens:'+service, JSON.stringify(tokens));
+        return json({success:true,service:service,expires_in:tokens.expires_in}, 200, origin);
+      } catch(e) { return json({success:false,error:e.message}, 500, origin); }
+    }
+
     // ── Zoho credential diagnostic ────────────────────────────────────────────
     if (path === '/api/zoho/test' && request.method === 'GET') {
       var clientId = env.ZOHO_CLIENT_ID || env.Zoho_Client_ID;
