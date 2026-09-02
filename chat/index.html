@@ -432,7 +432,8 @@
 <span id="persona-name">Prism</span>
 <span style="color:var(--fg-muted);font-size:10px;">▾</span>
 </div>
-<button class="btn btn-sm btn-ghost" onclick="exportThread()" title="Export thread as Markdown">⬇ Export</button>
+<button class="btn btn-sm btn-ghost" onclick="Guide.startGuide('chat')" data-tooltip="Guided tour of Chat" title="Show guide">? Guide</button>
+        <button class="btn btn-sm btn-ghost" onclick="exportThread()" title="Export thread as Markdown">⬇ Export</button>
 <button class="btn btn-sm btn-ghost" onclick="clearThread()" title="Clear this thread">✕ Clear</button>
 </div>
 <!-- Messages -->
@@ -450,8 +451,8 @@
 <!-- Input area -->
 <div class="chat-input-area">
 <div class="chat-chips">
-<span class="chat-chip" onclick="insertChip('Research: ')" title="Start a research query">🔍 Research</span>
-<span class="chat-chip" onclick="insertChip('Atomise this: ')" title="Send to atomise pipeline">⚡ Atomise</span>
+<span class="chat-chip" onclick="insertChip('Research: ')" data-tooltip="Search 80+ sources and synthesise results" title="Start a research query">🔍 Research</span>
+<span class="chat-chip" onclick="insertChip('Atomise this: ')" data-tooltip="Generate 7 social media assets from your text" title="Send to atomise pipeline">⚡ Atomise</span>
 <span class="chat-chip" onclick="insertChip('Draft a ')" title="Start a drafting task">✍ Draft</span>
 <span class="chat-chip" onclick="insertChip('Generate an image of ')" title="Generate an image">🖼 Image</span>
 <span class="chat-chip" onclick="insertChip('/roundtable ')" title="Start a round table">🪑 Round Table</span>

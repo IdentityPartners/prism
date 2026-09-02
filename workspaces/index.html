@@ -214,14 +214,16 @@ Key focus areas: addiction recovery, trauma, mental health, community wellbeing.
 // ── Load / save ───────────────────────────────────────────────────────────────
 function loadWorkspaces() {
   try {
-    var saved = localStorage.getItem('prism-workspaces-v2');
+    // Try both keys for backwards compatibility
+    var saved = localStorage.getItem('prism-workspaces-v2') || localStorage.getItem('prism-workspaces');
     if (saved) {
-      workspaces = JSON.parse(saved);
+      var parsed = JSON.parse(saved);
+      workspaces = (parsed && parsed.length > 0) ? parsed : DEFAULT_WORKSPACES;
     } else {
       workspaces = DEFAULT_WORKSPACES;
-      saveWorkspaces();
     }
   } catch(e) { workspaces = DEFAULT_WORKSPACES; }
+  saveWorkspaces();
   renderList();
 }
 

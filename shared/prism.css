@@ -618,3 +618,127 @@ input, textarea, select { font-family: var(--font-ui); }
 .font-heading { font-family: var(--font-heading); }
 .hidden { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+/* ── Enhanced Tooltip System ────────────────────────────────────────────────── */
+[data-tooltip] {
+  position: relative;
+}
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--fg-primary);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 400;
+  padding: 6px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  max-width: 240px;
+  white-space: normal;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s, transform 0.15s;
+  transform: translateX(-50%) translateY(4px);
+  z-index: 9999;
+  line-height: 1.4;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+[data-tooltip]::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--fg-primary);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 9999;
+}
+[data-tooltip]:hover::after,
+[data-tooltip]:hover::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+[data-tooltip-bottom]::after {
+  bottom: auto;
+  top: calc(100% + 8px);
+  transform: translateX(-50%) translateY(-4px);
+}
+[data-tooltip-bottom]:hover::after {
+  transform: translateX(-50%) translateY(0);
+}
+[data-tooltip-bottom]::before {
+  bottom: auto;
+  top: calc(100% + 2px);
+  border-top-color: transparent;
+  border-bottom-color: var(--fg-primary);
+}
+
+/* ── Guide/Wizard overlay ───────────────────────────────────────────────────── */
+.guide-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 8000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.guide-card {
+  background: var(--bg-elevated);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: var(--shadow-lg);
+  position: relative;
+}
+.guide-step-indicator {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+.guide-step-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.2s;
+}
+.guide-step-dot.active { background: var(--accent); }
+.guide-step-dot.done { background: var(--success); }
+.guide-title { font-family: var(--font-heading); font-size: 20px; font-weight: 600; margin-bottom: 10px; color: var(--fg-primary); }
+.guide-body { font-size: 14px; line-height: 1.7; color: var(--fg-secondary); margin-bottom: 20px; }
+.guide-highlight {
+  position: fixed;
+  border: 3px solid var(--accent);
+  border-radius: 8px;
+  box-shadow: 0 0 0 4000px rgba(0,0,0,0.4);
+  z-index: 7999;
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+.guide-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ── Help button ────────────────────────────────────────────────────────────── */
+.help-btn {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  border: none;
+  font-family: var(--font-ui);
+  transition: background 0.15s;
+}
+.help-btn:hover { background: var(--accent); }

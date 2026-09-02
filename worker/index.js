@@ -2287,6 +2287,190 @@ export default {
       return json({queue:queue.sort(function(a,b){return new Date(b.created)-new Date(a.created);})}, 200, origin);
     }
 
+
+    // ── Browserless.io headless browser posting ───────────────────────────────
+    if (path === '/api/browserless/post' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var platform = body.platform;
+        var postText = body.text || '';
+        var browserlessKey = env['BROWSERLESS.IO'] || env.BROWSERLESS_IO || env.BROWSERLESS_KEY;
+        if (!browserlessKey) return json({success:false, error:'BROWSERLESS.IO key not configured'}, 200, origin);
+
+        // Platform-specific posting scripts
+        var scripts = {
+          'tumblr': async function() {
+            // Tumblr has an API — use it directly
+            var tKey = env.TUMBLR_API_KEY || env.tumblr_api_key;
+            var tSecret = env.TUMBLR_API_SECRET || env.tumblr_api_secret;
+            var tToken = env.TUMBLR_TOKEN || env.tumblr_token;
+            var tTokenSecret = env.TUMBLR_TOKEN_SECRET || env.tumblr_token_secret;
+            var blogName = env.TUMBLR_BLOG || 'identitypartners';
+            if (!tToken) return {success:false, error:'Tumblr not connected. Add TUMBLR_TOKEN via ingester.'};
+            // Tumblr OAuth 1.0a is complex — queue for now
+            return {success:false, error:'Tumblr OAuth 1.0a — use Buffer or Twitterflow for X/Tumblr cross-posting'};
+          },
+          'reddit': async function() {
+            var rToken = env.REDDIT_ACCESS_TOKEN || env.reddit_access_token;
+            var subreddit = body.subreddit || 'mentalhealth';
+            if (!rToken) return {success:false, error:'Reddit not connected. Add REDDIT_ACCESS_TOKEN via ingester.'};
+            var resp = await fetch('https://oauth.reddit.com/api/submit', {
+              method:'POST',
+              headers:{'Authorization':'Bearer '+rToken,'Content-Type':'application/x-www-form-urlencoded','User-Agent':'Prism/1.0'},
+              body:'sr='+subreddit+'&kind=self&title='+encodeURIComponent(postText.substring(0,300))+'&text='+encodeURIComponent(postText)+'&resubmit=true'
+            });
+            var data = await resp.json();
+            return {success:resp.ok, data:data};
+          },
+          'discord': async function() {
+            var webhookUrl = env.DISCORD_WEBHOOK || env.discord_webhook;
+            if (!webhookUrl) return {success:false, error:'Discord webhook not configured. Add DISCORD_WEBHOOK via ingester.'};
+            var resp = await fetch(webhookUrl, {
+              method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({content:postText, username:'Identity Partners'})
+            });
+            return {success:resp.ok, status:resp.status};
+          },
+          'whop': async function() {
+            var whopKey = env.WHOP_API_KEY || env.whop_api_key;
+            var whopCompany = env.WHOP_COMPANY_ID || env.whop_company_id;
+            if (!whopKey) return {success:false, error:'Whop not connected. Add WHOP_API_KEY via ingester.'};
+            var resp = await fetch('https://api.whop.com/api/v2/posts', {
+              method:'POST',
+              headers:{'Authorization':'Bearer '+whopKey,'Content-Type':'application/json'},
+              body:JSON.stringify({company_id:whopCompany, body:postText, visibility:'public'})
+            });
+            var data = await resp.json();
+            return {success:resp.ok, data:data};
+          },
+        };
+
+        // For platforms needing headless browser (no API)
+        var headlessPlatforms = ['pinterest','tiktok','quora','buymeacoffee','academia','researchgate'];
+        if (headlessPlatforms.includes(platform)) {
+          // Use Browserless.io to automate posting
+          var browserlessResp = await fetch('https://chrome.browserless.io/function?token='+browserlessKey, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+              code: `
+                module.exports = async ({ page }) => {
+                  // Platform-specific automation would go here
+                  // For now, return the post URL for manual completion
+                  return { platform: '${platform}', text: ${JSON.stringify(postText.substring(0,500))}, status: 'queued' };
+                };
+              `,
+              context: {platform:platform, text:postText}
+            })
+          });
+          if (browserlessResp.ok) {
+            var bData = await browserlessResp.json();
+            // Store in queue
+            if (env.PRISM_KV) await env.PRISM_KV.put('headless:queue:'+Date.now(), JSON.stringify({
+              platform:platform, content:postText, status:'queued_browserless', created:new Date().toISOString()
+            }));
+            return json({success:true, platform:platform, status:'queued', data:bData}, 200, origin);
+          }
+          return json({success:false, error:'Browserless failed: '+browserlessResp.status}, 200, origin);
+        }
+
+        // API-based platforms
+        var scriptFn = scripts[platform];
+        if (scriptFn) {
+          var result = await scriptFn();
+          return json(result, 200, origin);
+        }
+
+        return json({success:false, error:'Platform not supported: '+platform}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Tumblr OAuth ──────────────────────────────────────────────────────────
+    if (path === '/api/tumblr/post' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        // Tumblr v2 API with Bearer token
+        var token = env.TUMBLR_TOKEN || env.tumblr_token;
+        var blog = env.TUMBLR_BLOG || 'identitypartners';
+        if (!token) return json({success:false, error:'Add TUMBLR_TOKEN via ingester. Get it at tumblr.com/oauth/apps'}, 200, origin);
+        var resp = await fetch('https://api.tumblr.com/v2/blog/'+blog+'/posts', {
+          method:'POST',
+          headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+          body:JSON.stringify({content:[{type:'text',text:body.text}],state:'published'})
+        });
+        var data = await resp.json();
+        return json({success:resp.ok, data:data}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Discord webhook post ──────────────────────────────────────────────────
+    if (path === '/api/discord/post' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var webhookUrl = env.DISCORD_WEBHOOK || env.discord_webhook;
+        if (!webhookUrl) return json({success:false, error:'Add DISCORD_WEBHOOK via ingester. Create a webhook in your Discord server settings.'}, 200, origin);
+        var resp = await fetch(webhookUrl, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({content:body.text, username:'Identity Partners', avatar_url:'https://prism.identitypartners.uk/shared/logo.png'})
+        });
+        return json({success:resp.ok, status:resp.status}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Whop post ─────────────────────────────────────────────────────────────
+    if (path === '/api/whop/post' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var key = env.WHOP_API_KEY || env.whop_api_key;
+        var companyId = env.WHOP_COMPANY_ID || env.whop_company_id;
+        if (!key) return json({success:false, error:'Add WHOP_API_KEY via ingester. Get it at whop.com/settings/developer'}, 200, origin);
+        var resp = await fetch('https://api.whop.com/api/v2/posts', {
+          method:'POST',
+          headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
+          body:JSON.stringify({company_id:companyId, body:body.text, visibility:'public'})
+        });
+        var data = await resp.json();
+        return json({success:resp.ok, data:data}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Reddit post ───────────────────────────────────────────────────────────
+    if (path === '/api/reddit/post' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var token = env.REDDIT_ACCESS_TOKEN || env.reddit_access_token;
+        if (!token) return json({success:false, error:'Add REDDIT_ACCESS_TOKEN via ingester. Create app at reddit.com/prefs/apps'}, 200, origin);
+        var subreddit = body.subreddit || 'mentalhealth';
+        var resp = await fetch('https://oauth.reddit.com/api/submit', {
+          method:'POST',
+          headers:{'Authorization':'Bearer '+token,'Content-Type':'application/x-www-form-urlencoded','User-Agent':'Prism/1.0 by IdentityPartners'},
+          body:'sr='+encodeURIComponent(subreddit)+'&kind=self&title='+encodeURIComponent((body.title||body.text).substring(0,300))+'&text='+encodeURIComponent(body.text)+'&resubmit=true&nsfw=false&spoiler=false'
+        });
+        var data = await resp.json();
+        return json({success:resp.ok, data:data}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Browserless screenshot/scrape ─────────────────────────────────────────
+    if (path === '/api/browserless/screenshot' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var key = env['BROWSERLESS.IO'] || env.BROWSERLESS_IO;
+        if (!key) return json({error:'BROWSERLESS.IO key not configured'}, 400, origin);
+        var resp = await fetch('https://chrome.browserless.io/screenshot?token='+key, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({url:body.url, options:{fullPage:true,type:'png'}})
+        });
+        if (!resp.ok) return json({error:'Screenshot failed: '+resp.status}, 500, origin);
+        var buf = await resp.arrayBuffer();
+        var b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+        return json({success:true, screenshot:'data:image/png;base64,'+b64}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
     return json({error:'Not found', path:path}, 404, origin);
   }
 };

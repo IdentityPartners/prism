@@ -112,6 +112,45 @@
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
 var currentWS = '';
 
+// Inline markdown renderer — does not depend on shared prism.js loading order
+function renderMD(text) {
+  if (!text) return '';
+  var t = text;
+  t = t.replace(/```[\s\S]*?```/g, function(m) {
+    var code = m.replace(/```\w*
+?/, '').replace(/```$/, '');
+    return '<pre style="background:#f0e9e0;padding:12px;border-radius:6px;overflow-x:auto;font-family:monospace;font-size:12px;"><code>' + code.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</code></pre>';
+  });
+  t = t.replace(/`([^`]+)`/g, '<code style="background:#f0e9e0;padding:2px 5px;border-radius:3px;font-family:monospace;font-size:12px;">$1</code>');
+  t = t.replace(/^### (.+)$/gm, '<h3 style="font-size:14px;font-weight:600;margin:14px 0 6px;color:#0f3b3a;">$1</h3>');
+  t = t.replace(/^## (.+)$/gm, '<h2 style="font-family:'Playfair Display',serif;font-size:17px;font-weight:600;margin:18px 0 8px;color:#5c2d3f;">$1</h2>');
+  t = t.replace(/^# (.+)$/gm, '<h1 style="font-family:'Playfair Display',serif;font-size:22px;font-weight:600;margin:20px 0 10px;color:#0f3b3a;">$1</h1>');
+  t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  t = t.replace(/^> (.+)$/gm, '<blockquote style="border-left:3px solid #0f3b3a;padding:8px 16px;background:#e8f4f4;margin:10px 0;font-style:italic;color:#0f3b3a;">$1</blockquote>');
+  t = t.replace(/^---$/gm, '<hr style="border:none;border-top:1px solid #ddd;margin:16px 0;">');
+  t = t.replace(/^\* (.+)$/gm, '<li style="margin-bottom:4px;line-height:1.6;">$1</li>');
+  t = t.replace(/^- (.+)$/gm, '<li style="margin-bottom:4px;line-height:1.6;">$1</li>');
+  t = t.replace(/(<li[^>]*>[\s\S]*?<\/li>)/g, '<ul style="margin:6px 0 10px 20px;">$1</ul>');
+  t = t.replace(/^\d+\. (.+)$/gm, '<li style="margin-bottom:4px;line-height:1.6;">$1</li>');
+  t = t.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#0f3b3a;">$1</a>');
+  t = t.replace(/
+
+/g, '</p><p style="margin-bottom:10px;line-height:1.7;color:#555;">');
+  t = '<p style="margin-bottom:10px;line-height:1.7;color:#555;">' + t + '</p>';
+  t = t.replace(/<p[^>]*>\s*(<h[1-6])/g, '$1');
+  t = t.replace(/(<\/h[1-6]>)\s*<\/p>/g, '$1');
+  t = t.replace(/<p[^>]*>\s*(<ul)/g, '$1');
+  t = t.replace(/(<\/ul>)\s*<\/p>/g, '$1');
+  t = t.replace(/<p[^>]*>\s*(<blockquote)/g, '$1');
+  t = t.replace(/(<\/blockquote>)\s*<\/p>/g, '$1');
+  t = t.replace(/<p[^>]*>\s*(<hr)/g, '$1');
+  t = t.replace(/<p[^>]*>\s*(<pre)/g, '$1');
+  t = t.replace(/(<\/pre>)\s*<\/p>/g, '$1');
+  t = t.replace(/<p[^>]*>\s*<\/p>/g, '');
+  return t;
+}
+
 function generateWS() {
   var topic = document.getElementById('ws-topic').value.trim();
   if (!topic) { Toast.warning('Please enter a topic for the worksheet.'); return; }
@@ -152,8 +191,9 @@ Include: title, brief introduction, ' + sections + ' clearly labelled sections w
       if (r.content) {
         currentWS = r.content;
         var div = document.createElement('div');
-        div.className = 'ws-preview md-content';
-        div.innerHTML = Markdown.render(currentWS);
+        div.className = 'ws-preview';
+        div.style.cssText = 'background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:32px;';
+        div.innerHTML = renderMD(currentWS);
         if (container) { container.innerHTML = ''; container.appendChild(div); }
         var titleEl = document.getElementById('ws-preview-title');
         if (titleEl) titleEl.textContent = topic.substring(0, 40) + (topic.length > 40 ? '…' : '');
@@ -197,7 +237,7 @@ function printWS() {
   if (!currentWS) { Toast.warning('Generate a worksheet first'); return; }
   var win = window.open('', '_blank');
   win.document.write('<!DOCTYPE html><html><head><title>Worksheet</title><style>body{font-family:Inter,sans-serif;max-width:700px;margin:40px auto;padding:20px;color:#333;}h1,h2,h3{font-family:"Playfair Display",serif;}h1{color:#0f3b3a;}h2{color:#5c2d3f;}p,li{line-height:1.7;}hr{border-color:#ddd;}</style></head><body>');
-  win.document.write(Markdown.render(currentWS));
+  win.document.write(renderMD(currentWS));
   win.document.write('</body></html>');
   win.document.close();
   setTimeout(function() { win.print(); }, 500);

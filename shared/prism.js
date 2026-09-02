@@ -670,6 +670,156 @@ function buildSidebar(activePage) {
   return sidebar;
 }
 
+
+// ── Guide / Wizard System ─────────────────────────────────────────────────────
+var Guide = (function() {
+  var currentGuide = null;
+  var currentStep = 0;
+  var overlay = null;
+  var highlight = null;
+
+  function show(steps, title) {
+    currentGuide = steps;
+    currentStep = 0;
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'guide-overlay';
+      overlay.onclick = function(e) { if (e.target === overlay) hide(); };
+      document.body.appendChild(overlay);
+    }
+    if (!highlight) {
+      highlight = document.createElement('div');
+      highlight.className = 'guide-highlight';
+      document.body.appendChild(highlight);
+    }
+    overlay.style.display = 'flex';
+    renderStep();
+  }
+
+  function renderStep() {
+    if (!currentGuide || currentStep >= currentGuide.length) { hide(); return; }
+    var step = currentGuide[currentStep];
+    overlay.innerHTML = '';
+    var card = document.createElement('div');
+    card.className = 'guide-card';
+
+    // Step dots
+    var dots = document.createElement('div');
+    dots.className = 'guide-step-indicator';
+    for (var i = 0; i < currentGuide.length; i++) {
+      var dot = document.createElement('div');
+      dot.className = 'guide-step-dot' + (i === currentStep ? ' active' : i < currentStep ? ' done' : '');
+      dots.appendChild(dot);
+    }
+
+    var titleEl = document.createElement('div');
+    titleEl.className = 'guide-title';
+    titleEl.textContent = step.title || ('Step ' + (currentStep + 1));
+
+    var body = document.createElement('div');
+    body.className = 'guide-body';
+    body.innerHTML = step.body || '';
+
+    var actions = document.createElement('div');
+    actions.className = 'guide-actions';
+
+    if (currentStep > 0) {
+      var prevBtn = document.createElement('button');
+      prevBtn.className = 'btn btn-secondary btn-sm';
+      prevBtn.textContent = '← Back';
+      prevBtn.onclick = function() { currentStep--; renderStep(); };
+      actions.appendChild(prevBtn);
+    }
+
+    var skipBtn = document.createElement('button');
+    skipBtn.className = 'btn btn-ghost btn-sm';
+    skipBtn.textContent = 'Skip guide';
+    skipBtn.onclick = hide;
+    actions.appendChild(skipBtn);
+
+    var nextBtn = document.createElement('button');
+    nextBtn.className = 'btn btn-primary btn-sm';
+    nextBtn.textContent = currentStep === currentGuide.length - 1 ? 'Done ✓' : 'Next →';
+    nextBtn.onclick = function() {
+      if (step.action) step.action();
+      currentStep++;
+      renderStep();
+    };
+    actions.appendChild(nextBtn);
+
+    card.appendChild(dots);
+    card.appendChild(titleEl);
+    card.appendChild(body);
+    card.appendChild(actions);
+    overlay.appendChild(card);
+
+    // Highlight target element
+    if (step.target) {
+      var el = document.querySelector(step.target);
+      if (el && highlight) {
+        var rect = el.getBoundingClientRect();
+        highlight.style.cssText = 'position:fixed;border:3px solid #0f3b3a;border-radius:8px;box-shadow:0 0 0 4000px rgba(0,0,0,0.4);z-index:7999;pointer-events:none;top:'+(rect.top-4)+'px;left:'+(rect.left-4)+'px;width:'+(rect.width+8)+'px;height:'+(rect.height+8)+'px;';
+        highlight.style.display = 'block';
+      } else if (highlight) {
+        highlight.style.display = 'none';
+      }
+    } else if (highlight) {
+      highlight.style.display = 'none';
+    }
+  }
+
+  function hide() {
+    if (overlay) overlay.style.display = 'none';
+    if (highlight) highlight.style.display = 'none';
+    currentGuide = null;
+    currentStep = 0;
+  }
+
+  // Pre-built guides
+  var GUIDES = {
+    chat: [
+      {title:'Welcome to Chat', body:'Chat is your primary interface with Prism. Every message goes through the Orchestrator, which routes to the best available AI model automatically.', target:'.chat-messages'},
+      {title:'The On-Screen Keyboard', body:'The keyboard below the input is always visible. It's designed for your Surface Slim Pen 2 — write directly into any key to insert text. Shift, Ctrl, Alt, and Caps Lock all work.', target:'#osk-container'},
+      {title:'Routing Profiles', body:'Choose how Prism routes your messages. <strong>Balanced</strong> uses free providers first. <strong>Full Frontier</strong> uses the best available model regardless of cost.', target:'#profile-selector'},
+      {title:'Personas', body:'Switch between personas to change how Prism responds. The Sardonic Butler is particularly useful when you need blunt feedback.', target:'.persona-selector'},
+      {title:'Action Chips', body:'Use these chips to quickly route your message to Research, Atomise, or Drafting — or to generate an image inline.', target:'.chat-chips'},
+    ],
+    research: [
+      {title:'Research Hub', body:'Search across 80+ sources simultaneously — web search, academic databases, preprint servers, government data, and more.'},
+      {title:'Select Your Sources', body:'Toggle individual sources on and off. Use <strong>Recommended</strong> for a balanced set, or <strong>Select All</strong> for maximum coverage.', target:'#source-chips'},
+      {title:'Synthesise', body:'After searching, click <strong>Synthesise</strong> to have Nemotron Ultra 253B produce a single authoritative summary of all results.', target:'.topbar-actions'},
+    ],
+    workspaces: [
+      {title:'Workspaces', body:'Each workspace is a visual super-folder for a project or client. Everything related to that project lives here — threads, documents, images, events, tasks, and notes.'},
+      {title:'Sections', body:'Each workspace has 7 sections: Folders, Threads, Images, Events, Whiteboards, To-Do, and Notes. Click any folder or thread to open it directly.'},
+      {title:'Create a Workspace', body:'Click <strong>+ New Workspace</strong> to create a workspace for a new project, client, or campaign.', target:'#ws-grid'},
+    ],
+    atomise: [
+      {title:'Atomise', body:'Paste up to 1,500 words of any text — a programme description, session note, research synthesis — and Prism generates 7 social media asset types in under 60 seconds.'},
+      {title:'Approve and Queue', body:'Review each generated asset. Click <strong>Approve</strong> on the ones you want, then <strong>Queue All Approved</strong> to send them to the Social Calendar.'},
+    ],
+  };
+
+  function startGuide(name) {
+    var guide = GUIDES[name];
+    if (guide) show(guide);
+    else Toast.warning('No guide available for: ' + name);
+  }
+
+  return { show: show, hide: hide, startGuide: startGuide };
+})();
+
+// ── Help button builder ───────────────────────────────────────────────────────
+function makeHelpBtn(guideName, tooltip) {
+  var btn = document.createElement('button');
+  btn.className = 'help-btn';
+  btn.textContent = '?';
+  btn.title = tooltip || 'Show guide';
+  btn.setAttribute('data-tooltip', tooltip || 'Click for a guided tour');
+  btn.onclick = function() { Guide.startGuide(guideName); };
+  return btn;
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
   ThemeSystem.init();
