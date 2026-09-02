@@ -568,6 +568,7 @@ var OSK = (function() {
 // ── Sidebar HTML Builder ──────────────────────────────────────────────────────
 function buildSidebar(activePage) {
   var nav = [
+    {label: 'Workspaces', icon: '🗂', href: '/workspaces/'},
     {label: 'Home', icon: '⌂', href: '/home/'},
     {label: 'Chat', icon: '💬', href: '/chat/'},
     {label: 'Research', icon: '🔍', href: '/research/'},
@@ -600,7 +601,6 @@ function buildSidebar(activePage) {
     {label: 'Orchestrator', icon: '⚙', href: '/orchestrator/'},
     {type: 'section', label: 'System'},
     {label: 'My Profile', icon: '👤', href: '/profile/'},
-    {label: 'Workspaces', icon: '🗂', href: '/workspaces/'},
     {label: 'Memory', icon: '🧠', href: '/memory/'},
     {label: 'Whiteboard', icon: '🖊', href: '/whiteboard/'},
     {label: 'Handwriting', icon: '✒', href: '/handwriting/'},

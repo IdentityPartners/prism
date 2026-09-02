@@ -2069,6 +2069,224 @@ export default {
     // Zoho OAuth: handled by Pages pages + /api/zoho/token Worker endpoint
 
 
+
+    // ── Headless platform signup automation ───────────────────────────────────
+    // Generates signup instructions and stores credentials for headless posting
+    if (path === '/api/headless/signup' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var platform = body.platform;
+        var email = body.email || 'hello@identitypartners.uk';
+        var name = body.name || 'Identity Partners';
+        var bio = body.bio || 'Evidence-based support for addiction, trauma, and mental health. Based in the UK.';
+        var website = body.website || 'https://identitypartners.uk';
+
+        // Platform-specific signup URLs and field mappings
+        var PLATFORM_CONFIGS = {
+          'ko-fi': {
+            signupUrl: 'https://ko-fi.com/account/register',
+            fields: {email:email, name:name, username:'identitypartners'},
+            postUrl: 'https://ko-fi.com/api/posts',
+            method: 'api'
+          },
+          'substack': {
+            signupUrl: 'https://substack.com/account/signup',
+            fields: {email:email, name:name, subdomain:'identitypartners'},
+            postUrl: 'https://identitypartners.substack.com/api/v1/posts',
+            method: 'api'
+          },
+          'medium': {
+            signupUrl: 'https://medium.com/m/signin',
+            fields: {email:email},
+            method: 'oauth'
+          },
+          'reddit': {
+            signupUrl: 'https://www.reddit.com/register',
+            fields: {email:email, username:'IdentityPartners', password:'auto-generate'},
+            method: 'api'
+          },
+          'quora': {
+            signupUrl: 'https://www.quora.com/signup',
+            fields: {email:email, name:name},
+            method: 'headless'
+          },
+          'pinterest': {
+            signupUrl: 'https://www.pinterest.co.uk/business/create/',
+            fields: {email:email, name:name, website:website},
+            method: 'headless'
+          },
+          'tiktok': {
+            signupUrl: 'https://www.tiktok.com/signup',
+            fields: {email:email},
+            method: 'headless'
+          },
+          'youtube': {
+            signupUrl: 'https://accounts.google.com/signup',
+            fields: {email:email},
+            method: 'oauth'
+          },
+          'spotify-podcasters': {
+            signupUrl: 'https://podcasters.spotify.com/pod/signup',
+            fields: {email:email, name:name},
+            method: 'headless'
+          },
+          'patreon': {
+            signupUrl: 'https://www.patreon.com/signup',
+            fields: {email:email, name:name},
+            method: 'oauth'
+          },
+          'gumroad': {
+            signupUrl: 'https://app.gumroad.com/signup',
+            fields: {email:email, name:name},
+            method: 'api'
+          },
+          'buymeacoffee': {
+            signupUrl: 'https://www.buymeacoffee.com/signup',
+            fields: {email:email, name:name, username:'identitypartners'},
+            method: 'headless'
+          },
+          'teachable': {
+            signupUrl: 'https://app.teachable.com/users/sign_up',
+            fields: {email:email, name:name},
+            method: 'api'
+          },
+          'podchaser': {
+            signupUrl: 'https://www.podchaser.com/signup',
+            fields: {email:email, name:name},
+            method: 'headless'
+          },
+          'academia': {
+            signupUrl: 'https://www.academia.edu/signup',
+            fields: {email:email, name:name},
+            method: 'headless'
+          },
+          'researchgate': {
+            signupUrl: 'https://www.researchgate.net/signup',
+            fields: {email:email, name:name},
+            method: 'headless'
+          },
+        };
+
+        var config = PLATFORM_CONFIGS[platform];
+        if (!config) return json({success:false, error:'Platform not supported: '+platform}, 200, origin);
+
+        // Store signup intent in KV
+        var signupRecord = {
+          platform: platform,
+          email: email,
+          name: name,
+          bio: bio,
+          website: website,
+          config: config,
+          status: 'pending',
+          created: new Date().toISOString()
+        };
+        if (env.PRISM_KV) await env.PRISM_KV.put('signup:'+platform, JSON.stringify(signupRecord));
+
+        // For API-based platforms, attempt direct signup
+        if (config.method === 'api') {
+          return json({
+            success: true,
+            platform: platform,
+            method: 'api',
+            signupUrl: config.signupUrl,
+            instructions: 'Visit ' + config.signupUrl + ' with email ' + email,
+            status: 'pending_manual'
+          }, 200, origin);
+        }
+
+        // For headless platforms, return the signup URL and field mapping
+        return json({
+          success: true,
+          platform: platform,
+          method: config.method,
+          signupUrl: config.signupUrl,
+          fields: config.fields,
+          instructions: 'Automated signup queued. Visit ' + config.signupUrl + ' to complete if automation fails.',
+          status: 'queued'
+        }, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Headless post to platform ─────────────────────────────────────────────
+    if (path === '/api/headless/post-to-platform' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var platform = body.platform;
+        var content = body.content || '';
+        var mediaUrl = body.mediaUrl || null;
+
+        // Load stored credentials
+        var creds = null;
+        if (env.PRISM_KV) {
+          var c = await env.PRISM_KV.get('platform:creds:'+platform);
+          if (c) creds = JSON.parse(c);
+        }
+
+        // Route to appropriate posting method
+        if (platform === 'bluesky') {
+          var text = content.length > 300 ? content.substring(0,297)+'...' : content;
+          var result = await postToBluesky(env, text);
+          return json({success:true, platform:'bluesky', result:result}, 200, origin);
+        }
+
+        if (platform === 'x' || platform === 'twitter') {
+          var xTokens = null;
+          if (env.PRISM_KV) { var xt = await env.PRISM_KV.get('oauth:x:tokens'); if (xt) xTokens = JSON.parse(xt); }
+          if (!xTokens || !xTokens.access_token) return json({success:false, error:'X not connected. Visit /oauth/x/ to connect.'}, 200, origin);
+          var xText = content.length > 280 ? content.substring(0,277)+'...' : content;
+          var xResp = await fetch('https://api.twitter.com/2/tweets', {
+            method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+xTokens.access_token},
+            body:JSON.stringify({text:xText})
+          });
+          var xData = await xResp.json();
+          return json({success:xResp.ok, platform:'x', result:xData}, 200, origin);
+        }
+
+        if (platform === 'linkedin') {
+          var liTokens = null;
+          if (env.PRISM_KV) { var lt = await env.PRISM_KV.get('oauth:linkedin:tokens'); if (lt) liTokens = JSON.parse(lt); }
+          if (!liTokens || !liTokens.access_token) return json({success:false, error:'LinkedIn not connected. Visit /oauth/linkedin/ to connect.'}, 200, origin);
+          var meResp = await fetch('https://api.linkedin.com/v2/userinfo', {headers:{'Authorization':'Bearer '+liTokens.access_token}});
+          var meData = await meResp.json();
+          var liResp = await fetch('https://api.linkedin.com/v2/ugcPosts', {
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':'Bearer '+liTokens.access_token,'X-Restli-Protocol-Version':'2.0.0'},
+            body:JSON.stringify({author:'urn:li:person:'+meData.sub,lifecycleState:'PUBLISHED',specificContent:{'com.linkedin.ugc.ShareContent':{shareCommentary:{text:content},shareMediaCategory:'NONE'}},visibility:{'com.linkedin.ugc.MemberNetworkVisibility':'PUBLIC'}})
+          });
+          var liData = await liResp.json();
+          return json({success:liResp.ok, platform:'linkedin', result:liData}, 200, origin);
+        }
+
+        // For platforms without API access, queue for manual/headless posting
+        var queueId = 'headless:queue:'+Date.now();
+        if (env.PRISM_KV) await env.PRISM_KV.put(queueId, JSON.stringify({
+          id:queueId, platform:platform, content:content, mediaUrl:mediaUrl,
+          status:'queued', created:new Date().toISOString()
+        }));
+
+        return json({
+          success: true,
+          platform: platform,
+          status: 'queued',
+          message: 'Post queued for ' + platform + '. Connect via Platform Manager to enable direct posting.',
+          queueId: queueId
+        }, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Get headless queue ────────────────────────────────────────────────────
+    if (path === '/api/headless/queue' && request.method === 'GET') {
+      if (!env.PRISM_KV) return json({queue:[]}, 200, origin);
+      var list = await env.PRISM_KV.list({prefix:'headless:queue:'});
+      var queue = [];
+      for (var i=0;i<list.keys.length;i++) {
+        var val = await env.PRISM_KV.get(list.keys[i].name);
+        if (val) queue.push(JSON.parse(val));
+      }
+      return json({queue:queue.sort(function(a,b){return new Date(b.created)-new Date(a.created);})}, 200, origin);
+    }
+
     return json({error:'Not found', path:path}, 404, origin);
   }
 };

@@ -1,47 +1,636 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Workspaces — Prism</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<style>
+/* Workspace list view */
+.ws-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:20px; padding:20px; }
+.ws-card {
+  background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius);
+  cursor:pointer; transition:all 0.18s; overflow:hidden; position:relative;
+}
+.ws-card:hover { border-color:var(--accent); box-shadow:var(--shadow-lg); transform:translateY(-2px); }
+.ws-card-header { padding:16px 18px 12px; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--border); }
+.ws-icon { width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
+.ws-name { font-family:var(--font-heading); font-size:16px; font-weight:600; color:var(--fg-primary); }
+.ws-desc { font-size:12px; color:var(--fg-muted); margin-top:2px; }
+.ws-card-body { padding:12px 18px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.ws-stat { font-size:11.5px; color:var(--fg-secondary); display:flex; align-items:center; gap:5px; }
+.ws-stat-num { font-weight:600; color:var(--accent); }
+.ws-card-footer { padding:10px 18px; border-top:1px solid var(--border); display:flex; gap:6px; background:var(--bg-surface); }
+.ws-new-btn { border:2px dashed var(--border); border-radius:var(--radius); padding:32px; text-align:center; cursor:pointer; transition:all 0.18s; color:var(--fg-muted); font-size:14px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.ws-new-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
+
+/* Workspace detail view */
+.ws-detail { display:none; }
+.ws-detail.active { display:block; }
+.ws-detail-header { background:var(--bg-elevated); border-bottom:1px solid var(--border); padding:16px 24px; display:flex; align-items:center; gap:14px; }
+.ws-detail-icon { width:52px; height:52px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:26px; flex-shrink:0; }
+.ws-detail-title { font-family:var(--font-heading); font-size:22px; font-weight:600; }
+.ws-detail-desc { font-size:13px; color:var(--fg-muted); margin-top:2px; }
+.ws-detail-body { padding:20px 24px; }
+.ws-sections { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@media(max-width:900px){ .ws-sections{ grid-template-columns:1fr; } }
+.ws-section { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.ws-section-header { padding:10px 14px; background:var(--bg-surface); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.ws-section-title { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.07em; color:var(--fg-muted); display:flex; align-items:center; gap:6px; }
+.ws-section-body { padding:10px 14px; min-height:80px; max-height:280px; overflow-y:auto; }
+.ws-item { display:flex; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); font-size:13px; color:var(--fg-secondary); }
+.ws-item:last-child { border-bottom:none; }
+.ws-item-icon { font-size:14px; flex-shrink:0; margin-top:1px; }
+.ws-item-text { flex:1; line-height:1.4; }
+.ws-item-del { color:var(--fg-muted); cursor:pointer; font-size:12px; flex-shrink:0; opacity:0; transition:opacity 0.15s; }
+.ws-item:hover .ws-item-del { opacity:1; }
+.ws-add-row { display:flex; gap:6px; padding:8px 14px; border-top:1px solid var(--border); background:var(--bg-surface); }
+.ws-add-input { flex:1; padding:5px 8px; border:1px solid var(--border); border-radius:5px; font-size:12.5px; outline:none; background:var(--bg-primary); color:var(--fg-primary); font-family:var(--font-ui); }
+.ws-add-input:focus { border-color:var(--accent); }
+.ws-add-btn { padding:5px 10px; background:var(--accent); color:#fff; border:none; border-radius:5px; font-size:12px; cursor:pointer; font-family:var(--font-ui); }
+.ws-add-btn:hover { background:var(--accent-hover); }
+
+/* Todo items */
+.todo-item { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.todo-item:last-child { border-bottom:none; }
+.todo-check { width:16px; height:16px; border:1.5px solid var(--border); border-radius:3px; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; transition:all 0.15s; }
+.todo-check.done { background:var(--accent); border-color:var(--accent); color:#fff; }
+.todo-text { flex:1; color:var(--fg-secondary); }
+.todo-text.done { text-decoration:line-through; color:var(--fg-muted); }
+
+/* Notes */
+.ws-notes-ta { width:100%; min-height:120px; padding:8px 10px; border:none; outline:none; font-size:13px; font-family:var(--font-ui); resize:none; background:transparent; color:var(--fg-primary); line-height:1.7; }
+
+/* Events */
+.event-item { padding:7px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.event-item:last-child { border-bottom:none; }
+.event-date { font-size:11px; font-weight:600; color:var(--accent); margin-bottom:2px; }
+.event-title { color:var(--fg-primary); }
+
+/* Images grid */
+.img-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.img-thumb { aspect-ratio:1; border-radius:6px; object-fit:cover; border:1px solid var(--border); cursor:pointer; background:var(--bg-surface); display:flex; align-items:center; justify-content:center; font-size:20px; }
+
+/* Colour picker for workspace */
+.colour-options { display:flex; gap:6px; flex-wrap:wrap; }
+.colour-opt { width:28px; height:28px; border-radius:6px; cursor:pointer; border:2px solid transparent; transition:border-color 0.15s; }
+.colour-opt.selected { border-color:var(--fg-primary); }
+
+/* Modal */
+.ws-modal { position:fixed; inset:0; background:rgba(92,45,63,0.3); backdrop-filter:blur(2px); z-index:500; display:flex; align-items:center; justify-content:center; padding:20px; }
+.ws-modal-card { background:var(--bg-elevated); border-radius:var(--radius); box-shadow:var(--shadow-lg); width:100%; max-width:480px; padding:24px; }
+.ws-modal-title { font-family:var(--font-heading); font-size:18px; font-weight:600; margin-bottom:16px; }
+</style>
 </head>
 <body>
 <div class="prism-shell">
   <div id="sidebar-mount"></div>
   <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Workspaces</div><div class="topbar-actions"><button class="btn btn-sm btn-primary" onclick="createWorkspace()" title="Create new workspace">＋ New Workspace</button></div></div>
-    <div class="page-content">
+    <div class="topbar" id="main-topbar">
+      <div class="topbar-title">Workspaces</div>
+      <div class="topbar-actions">
+        <button class="btn btn-sm btn-secondary" onclick="showNewModal()" title="Create new workspace">＋ New Workspace</button>
+      </div>
+    </div>
 
-      <p style="font-size:13px;color:var(--fg-muted);margin-bottom:20px;">Workspaces group related threads, documents, and research runs. Each workspace has its own context and memory.</p>
-      <div class="grid-3" id="workspaces-grid"></div>
+    <!-- Workspace list -->
+    <div id="ws-list-view">
+      <div class="ws-grid" id="ws-grid"></div>
+    </div>
+
+    <!-- Workspace detail -->
+    <div id="ws-detail-view" style="display:none;">
+      <div class="ws-detail-header">
+        <div class="ws-detail-icon" id="detail-icon"></div>
+        <div>
+          <div class="ws-detail-title" id="detail-title"></div>
+          <div class="ws-detail-desc" id="detail-desc"></div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button class="btn btn-sm btn-secondary" onclick="editWorkspace()" title="Edit workspace">✏ Edit</button>
+          <button class="btn btn-sm btn-ghost" onclick="backToList()" title="Back to all workspaces">← All Workspaces</button>
+        </div>
+      </div>
+      <div class="ws-detail-body">
+        <div class="ws-sections" id="ws-sections-grid"></div>
+      </div>
     </div>
   </div>
 </div>
+
+<!-- New workspace modal -->
+<div class="ws-modal hidden" id="new-ws-modal">
+  <div class="ws-modal-card">
+    <div class="ws-modal-title">New Workspace</div>
+    <div class="form-group"><label class="form-label">Name *</label><input class="input" id="new-ws-name" type="text" placeholder="e.g. IAMSUPER Programme"></div>
+    <div class="form-group"><label class="form-label">Description</label><input class="input" id="new-ws-desc" type="text" placeholder="What is this workspace for?"></div>
+    <div class="form-group"><label class="form-label">Icon (emoji)</label><input class="input" id="new-ws-icon" type="text" placeholder="📁" maxlength="4" value="📁"></div>
+    <div class="form-group">
+      <label class="form-label">Colour</label>
+      <div class="colour-options" id="colour-options">
+        <div class="colour-opt selected" style="background:#0f3b3a;" data-c="#0f3b3a" onclick="selectColour(this)"></div>
+        <div class="colour-opt" style="background:#5c2d3f;" data-c="#5c2d3f" onclick="selectColour(this)"></div>
+        <div class="colour-opt" style="background:#c4925a;" data-c="#c4925a" onclick="selectColour(this)"></div>
+        <div class="colour-opt" style="background:#5a7a4f;" data-c="#5a7a4f" onclick="selectColour(this)"></div>
+        <div class="colour-opt" style="background:#2d4a6e;" data-c="#2d4a6e" onclick="selectColour(this)"></div>
+        <div class="colour-opt" style="background:#6a2a9a;" data-c="#6a2a9a" onclick="selectColour(this)"></div>
+        <div class="colour-opt" style="background:#8b3a3a;" data-c="#8b3a3a" onclick="selectColour(this)"></div>
+        <div class="colour-opt" style="background:#1a5550;" data-c="#1a5550" onclick="selectColour(this)"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="createWorkspace()" title="Create workspace">Create Workspace</button>
+      <button class="btn btn-secondary" onclick="hideNewModal()" title="Cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script src="/shared/prism.js"></script>
 <script>
+var workspaces = [];
+var currentWS = null;
+var selectedColour = '#0f3b3a';
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+
+// ── Default workspaces ────────────────────────────────────────────────────────
+var DEFAULT_WORKSPACES = [
+  {
+    id:'ws-ip-main', name:'Identity Partners', icon:'🏢', colour:'#0f3b3a',
+    desc:'Main workspace — all IP work',
+    folders:['LinkedIn / Substack articles','New programmes','Former client re-engagement'],
+    threads:['Social media scheduling','Glimmers launch strategy'],
+    images:[],
+    events:[
+      {date:'11 Sep 2026', title:'IAMSUPER Cohort C — Week 9'},
+      {date:'Sep 2026', title:'Identity in Young Adulthood (webinar w/ Dr. Lil Jedinak)'},
+    ],
+    whiteboards:['Content','Programmes','Collabs?'],
+    notes:'Identity Partners — Understand your past · Appreciate the present · Define your future
+
+Key focus areas: addiction recovery, trauma, mental health, community wellbeing.',
+    todos:[
+      {text:'Complete Zoho OAuth setup', done:false},
+      {text:'Push 250 social posts to queue', done:false},
+      {text:'Set up Ko-fi and Patreon', done:false},
+      {text:'Record first podcast episode', done:false},
+      {text:'Launch booking page on public site', done:false},
+    ],
+    created:'2026-09-01T00:00:00Z'
+  },
+  {
+    id:'ws-research', name:'Research', icon:'🔬', colour:'#5c2d3f',
+    desc:'Research runs, academic sources, synthesis',
+    folders:['Addiction & recovery literature','Trauma-informed practice','Mental health policy UK'],
+    threads:['Music & dopamine research','Trauma responses in addiction'],
+    images:[],
+    events:[],
+    whiteboards:['Research methodology','Source map'],
+    notes:'Focus: addiction, trauma, mental health, social policy, VCSE sector.',
+    todos:[
+      {text:'Run PubMed search on trauma-informed care', done:false},
+      {text:'Synthesise OpenAlex results on addiction recovery', done:false},
+    ],
+    created:'2026-09-01T00:00:00Z'
+  },
+  {
+    id:'ws-content', name:'Content', icon:'✍', colour:'#c4925a',
+    desc:'Social media, newsletters, podcasts, worksheets',
+    folders:['Bluesky posts','LinkedIn articles','Newsletter drafts','Podcast scripts'],
+    threads:['Glimmers campaign','Recovery awareness month'],
+    images:[],
+    events:[],
+    whiteboards:['Content calendar','Campaign ideas'],
+    notes:'Content pillars: recovery stories, evidence-based tips, awareness, community.',
+    todos:[
+      {text:'Generate 250 social posts via Atomise', done:false},
+      {text:'Write first Substack newsletter', done:false},
+      {text:'Create 5 worksheets for website', done:false},
+    ],
+    created:'2026-09-01T00:00:00Z'
+  },
+];
+
+// ── Load / save ───────────────────────────────────────────────────────────────
+function loadWorkspaces() {
+  try {
+    var saved = localStorage.getItem('prism-workspaces-v2');
+    if (saved) {
+      workspaces = JSON.parse(saved);
+    } else {
+      workspaces = DEFAULT_WORKSPACES;
+      saveWorkspaces();
+    }
+  } catch(e) { workspaces = DEFAULT_WORKSPACES; }
+  renderList();
+}
+
+function saveWorkspaces() {
+  try { localStorage.setItem('prism-workspaces-v2', JSON.stringify(workspaces)); } catch(e) {}
+}
+
+function getWS(id) { return workspaces.find(function(w){return w.id===id;}); }
+
+// ── List view ─────────────────────────────────────────────────────────────────
+function renderList() {
+  var grid = document.getElementById('ws-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  workspaces.forEach(function(ws) {
+    var card = document.createElement('div');
+    card.className = 'ws-card';
+    card.onclick = function() { openWorkspace(ws.id); };
+
+    var header = document.createElement('div');
+    header.className = 'ws-card-header';
+    var icon = document.createElement('div');
+    icon.className = 'ws-icon';
+    icon.style.background = ws.colour + '22';
+    icon.textContent = ws.icon;
+    var info = document.createElement('div');
+    var name = document.createElement('div');
+    name.className = 'ws-name';
+    name.textContent = ws.name;
+    var desc = document.createElement('div');
+    desc.className = 'ws-desc';
+    desc.textContent = ws.desc || '';
+    info.appendChild(name); info.appendChild(desc);
+    header.appendChild(icon); header.appendChild(info);
+
+    var body = document.createElement('div');
+    body.className = 'ws-card-body';
+    var stats = [
+      {icon:'📁', label:'Folders', val:(ws.folders||[]).length},
+      {icon:'💬', label:'Threads', val:(ws.threads||[]).length},
+      {icon:'✅', label:'Tasks', val:(ws.todos||[]).filter(function(t){return !t.done;}).length + ' open'},
+      {icon:'📅', label:'Events', val:(ws.events||[]).length},
+    ];
+    stats.forEach(function(s) {
+      var stat = document.createElement('div');
+      stat.className = 'ws-stat';
+      stat.innerHTML = s.icon + ' <span class="ws-stat-num">' + s.val + '</span> ' + s.label;
+      body.appendChild(stat);
+    });
+
+    var footer = document.createElement('div');
+    footer.className = 'ws-card-footer';
+    var openBtn = document.createElement('button');
+    openBtn.className = 'btn btn-sm btn-primary';
+    openBtn.textContent = 'Open';
+    openBtn.title = 'Open workspace';
+    openBtn.onclick = function(e) { e.stopPropagation(); openWorkspace(ws.id); };
+    var delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-sm btn-ghost';
+    delBtn.textContent = '🗑';
+    delBtn.title = 'Delete workspace';
+    delBtn.onclick = function(e) {
+      e.stopPropagation();
+      if (confirm('Delete "' + ws.name + '"? This cannot be undone.')) {
+        workspaces = workspaces.filter(function(w){return w.id!==ws.id;});
+        saveWorkspaces(); renderList();
+      }
+    };
+    footer.appendChild(openBtn); footer.appendChild(delBtn);
+
+    // Colour bar at top
+    var bar = document.createElement('div');
+    bar.style.cssText = 'height:4px;background:'+ws.colour+';';
+    card.appendChild(bar);
+    card.appendChild(header); card.appendChild(body); card.appendChild(footer);
+    grid.appendChild(card);
+  });
+
+  // New workspace button
+  var newBtn = document.createElement('div');
+  newBtn.className = 'ws-new-btn';
+  newBtn.onclick = showNewModal;
+  newBtn.innerHTML = '<span style="font-size:32px;">＋</span><span>New Workspace</span>';
+  grid.appendChild(newBtn);
+}
+
+// ── Detail view ───────────────────────────────────────────────────────────────
+function openWorkspace(id) {
+  currentWS = getWS(id);
+  if (!currentWS) return;
+  document.getElementById('ws-list-view').style.display = 'none';
+  document.getElementById('ws-detail-view').style.display = 'block';
+  var iconEl = document.getElementById('detail-icon');
+  iconEl.textContent = currentWS.icon;
+  iconEl.style.background = currentWS.colour + '22';
+  document.getElementById('detail-title').textContent = currentWS.name;
+  document.getElementById('detail-desc').textContent = currentWS.desc || '';
+  // Update topbar
+  var topbar = document.getElementById('main-topbar');
+  if (topbar) {
+    topbar.querySelector('.topbar-title').textContent = currentWS.name;
+  }
+  renderSections();
+}
+
+function backToList() {
+  currentWS = null;
+  document.getElementById('ws-list-view').style.display = 'block';
+  document.getElementById('ws-detail-view').style.display = 'none';
+  var topbar = document.getElementById('main-topbar');
+  if (topbar) topbar.querySelector('.topbar-title').textContent = 'Workspaces';
+  renderList();
+}
+
+function renderSections() {
+  var grid = document.getElementById('ws-sections-grid');
+  if (!grid || !currentWS) return;
+  grid.innerHTML = '';
+
+  var sections = [
+    {key:'folders',   title:'📁 Folders',            type:'list',   addPlaceholder:'Add folder…',   linkFn:function(item){return '/drafting/?folder='+encodeURIComponent(item);}},
+    {key:'threads',   title:'💬 Threads',             type:'list',   addPlaceholder:'Add thread…',   linkFn:function(item){return '/chat/?thread='+encodeURIComponent(item);}},
+    {key:'images',    title:'🖼 Images',              type:'images', addPlaceholder:'Image URL or description…'},
+    {key:'events',    title:'📅 Events & Appointments',type:'events', addPlaceholder:'Event title…'},
+    {key:'whiteboards',title:'🖊 Whiteboards',        type:'list',   addPlaceholder:'Whiteboard name…', linkFn:function(item){return '/whiteboard/?name='+encodeURIComponent(item);}},
+    {key:'todos',     title:'✅ To-Do',               type:'todos',  addPlaceholder:'Add task…'},
+    {key:'notes',     title:'📝 Notes',               type:'notes'},
+  ];
+
+  sections.forEach(function(sec) {
+    var section = document.createElement('div');
+    section.className = 'ws-section';
+    // Notes spans full width
+    if (sec.key === 'notes') section.style.gridColumn = '1 / -1';
+
+    var header = document.createElement('div');
+    header.className = 'ws-section-header';
+    var title = document.createElement('div');
+    title.className = 'ws-section-title';
+    title.textContent = sec.title;
+    var count = document.createElement('span');
+    count.className = 'badge badge-muted';
+    count.style.fontSize = '10px';
+    var data = currentWS[sec.key];
+    if (Array.isArray(data)) count.textContent = data.length;
+    header.appendChild(title); header.appendChild(count);
+
+    var body = document.createElement('div');
+    body.className = 'ws-section-body';
+    body.id = 'sec-body-' + sec.key;
+
+    if (sec.type === 'list') {
+      renderListSection(body, sec, count);
+    } else if (sec.type === 'todos') {
+      renderTodosSection(body, sec, count);
+    } else if (sec.type === 'notes') {
+      renderNotesSection(body, sec);
+    } else if (sec.type === 'events') {
+      renderEventsSection(body, sec, count);
+    } else if (sec.type === 'images') {
+      renderImagesSection(body, sec, count);
+    }
+
+    section.appendChild(header);
+    section.appendChild(body);
+
+    // Add row (not for notes)
+    if (sec.type !== 'notes') {
+      var addRow = document.createElement('div');
+      addRow.className = 'ws-add-row';
+      var input = document.createElement('input');
+      input.className = 'ws-add-input';
+      input.type = 'text';
+      input.placeholder = sec.addPlaceholder || 'Add…';
+      input.id = 'add-input-' + sec.key;
+      var addBtn = document.createElement('button');
+      addBtn.className = 'ws-add-btn';
+      addBtn.textContent = '＋';
+      addBtn.title = 'Add item';
+      (function(s, inp, b, cnt) {
+        addBtn.onclick = function() { addItem(s, inp, b, cnt); };
+        inp.onkeydown = function(e) { if (e.key === 'Enter') addItem(s, inp, b, cnt); };
+      })(sec, input, body, count);
+      addRow.appendChild(input); addRow.appendChild(addBtn);
+      section.appendChild(addRow);
+    }
+
+    grid.appendChild(section);
+  });
+}
+
+function renderListSection(body, sec, count) {
+  body.innerHTML = '';
+  var items = currentWS[sec.key] || [];
+  if (items.length === 0) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No items yet.</div>';
+    return;
+  }
+  items.forEach(function(item, i) {
+    var row = document.createElement('div');
+    row.className = 'ws-item';
+    var icon = document.createElement('span');
+    icon.className = 'ws-item-icon';
+    icon.textContent = sec.key === 'folders' ? '📁' : sec.key === 'threads' ? '💬' : '🖊';
+    var text = document.createElement('span');
+    text.className = 'ws-item-text';
+    if (sec.linkFn) {
+      var a = document.createElement('a');
+      a.href = sec.linkFn(item);
+      a.textContent = item;
+      a.style.color = 'var(--accent)';
+      text.appendChild(a);
+    } else {
+      text.textContent = item;
+    }
+    var del = document.createElement('span');
+    del.className = 'ws-item-del';
+    del.textContent = '✕';
+    del.title = 'Remove';
+    del.onclick = function() {
+      currentWS[sec.key].splice(i, 1);
+      saveWorkspaces();
+      renderListSection(body, sec, count);
+      if (count) count.textContent = currentWS[sec.key].length;
+    };
+    row.appendChild(icon); row.appendChild(text); row.appendChild(del);
+    body.appendChild(row);
+  });
+  if (count) count.textContent = items.length;
+}
+
+function addItem(sec, input, body, count) {
+  var val = input.value.trim();
+  if (!val) return;
+  if (!currentWS[sec.key]) currentWS[sec.key] = [];
+  if (sec.type === 'todos') {
+    currentWS[sec.key].push({text: val, done: false});
+    renderTodosSection(body, sec, count);
+  } else if (sec.type === 'events') {
+    currentWS[sec.key].push({date: new Date().toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}), title: val});
+    renderEventsSection(body, sec, count);
+  } else {
+    currentWS[sec.key].push(val);
+    renderListSection(body, sec, count);
+  }
+  saveWorkspaces();
+  input.value = '';
+  if (count) count.textContent = currentWS[sec.key].length;
+}
+
+function renderTodosSection(body, sec, count) {
+  body.innerHTML = '';
+  var todos = currentWS.todos || [];
+  if (todos.length === 0) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No tasks yet.</div>';
+    return;
+  }
+  todos.forEach(function(todo, i) {
+    var row = document.createElement('div');
+    row.className = 'todo-item';
+    var check = document.createElement('div');
+    check.className = 'todo-check' + (todo.done ? ' done' : '');
+    check.textContent = todo.done ? '✓' : '';
+    check.title = todo.done ? 'Mark incomplete' : 'Mark complete';
+    check.onclick = function() {
+      currentWS.todos[i].done = !currentWS.todos[i].done;
+      saveWorkspaces();
+      renderTodosSection(body, sec, count);
+    };
+    var text = document.createElement('span');
+    text.className = 'todo-text' + (todo.done ? ' done' : '');
+    text.textContent = todo.text;
+    var del = document.createElement('span');
+    del.className = 'ws-item-del';
+    del.textContent = '✕';
+    del.onclick = function() {
+      currentWS.todos.splice(i, 1);
+      saveWorkspaces();
+      renderTodosSection(body, sec, count);
+    };
+    row.appendChild(check); row.appendChild(text); row.appendChild(del);
+    body.appendChild(row);
+  });
+  var open = todos.filter(function(t){return !t.done;}).length;
+  if (count) count.textContent = open + ' open';
+}
+
+function renderNotesSection(body, sec) {
+  body.innerHTML = '';
+  var ta = document.createElement('textarea');
+  ta.className = 'ws-notes-ta';
+  ta.value = currentWS.notes || '';
+  ta.placeholder = 'Notes, ideas, context for this workspace…';
+  ta.oninput = function() {
+    currentWS.notes = ta.value;
+    saveWorkspaces();
+  };
+  body.appendChild(ta);
+}
+
+function renderEventsSection(body, sec, count) {
+  body.innerHTML = '';
+  var events = currentWS.events || [];
+  if (events.length === 0) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No events yet.</div>';
+    return;
+  }
+  events.forEach(function(ev, i) {
+    var item = document.createElement('div');
+    item.className = 'event-item';
+    var date = document.createElement('div');
+    date.className = 'event-date';
+    date.textContent = ev.date || '';
+    var title = document.createElement('div');
+    title.className = 'event-title';
+    title.textContent = ev.title || '';
+    var del = document.createElement('span');
+    del.className = 'ws-item-del';
+    del.textContent = '✕';
+    del.style.cssText = 'float:right;cursor:pointer;color:var(--fg-muted);font-size:12px;';
+    del.onclick = function() {
+      currentWS.events.splice(i, 1);
+      saveWorkspaces();
+      renderEventsSection(body, sec, count);
+    };
+    item.appendChild(del); item.appendChild(date); item.appendChild(title);
+    body.appendChild(item);
+  });
+  if (count) count.textContent = events.length;
+}
+
+function renderImagesSection(body, sec, count) {
+  body.innerHTML = '';
+  var images = currentWS.images || [];
+  if (images.length === 0) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No images yet. Add an image URL or generate one.</div>';
+    return;
+  }
+  var grid = document.createElement('div');
+  grid.className = 'img-grid';
+  images.forEach(function(img, i) {
+    var thumb = document.createElement('div');
+    thumb.className = 'img-thumb';
+    if (img.url) {
+      var imgEl = document.createElement('img');
+      imgEl.src = img.url; imgEl.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:6px;';
+      imgEl.alt = img.name || 'Image';
+      thumb.appendChild(imgEl);
+    } else {
+      thumb.textContent = '🖼';
+    }
+    thumb.title = img.name || img.url || 'Image';
+    grid.appendChild(thumb);
+  });
+  body.appendChild(grid);
+  if (count) count.textContent = images.length;
+}
+
+// ── Create workspace ──────────────────────────────────────────────────────────
+function showNewModal() { document.getElementById('new-ws-modal').classList.remove('hidden'); }
+function hideNewModal() { document.getElementById('new-ws-modal').classList.add('hidden'); }
+
+function selectColour(el) {
+  selectedColour = el.getAttribute('data-c');
+  var opts = document.querySelectorAll('.colour-opt');
+  for (var i=0;i<opts.length;i++) opts[i].classList.remove('selected');
+  el.classList.add('selected');
+}
+
+function createWorkspace() {
+  var name = document.getElementById('new-ws-name').value.trim();
+  if (!name) { Toast.warning('Enter a workspace name'); return; }
+  var ws = {
+    id: 'ws-' + Date.now(),
+    name: name,
+    icon: document.getElementById('new-ws-icon').value || '📁',
+    colour: selectedColour,
+    desc: document.getElementById('new-ws-desc').value.trim(),
+    folders: [], threads: [], images: [], events: [], whiteboards: [],
+    notes: '', todos: [],
+    created: new Date().toISOString()
+  };
+  workspaces.unshift(ws);
+  saveWorkspaces();
+  hideNewModal();
+  document.getElementById('new-ws-name').value = '';
+  document.getElementById('new-ws-desc').value = '';
+  renderList();
+  Toast.success('Workspace created: ' + name);
+  openWorkspace(ws.id);
+}
+
+function editWorkspace() {
+  if (!currentWS) return;
+  var name = prompt('Workspace name:', currentWS.name);
+  if (name) { currentWS.name = name; saveWorkspaces(); openWorkspace(currentWS.id); }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
   if (mount) { var sb = buildSidebar('/workspaces/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
   loadWorkspaces();
+  // Check if URL has a workspace ID to open directly
+  var params = new URLSearchParams(window.location.search);
+  var wsId = params.get('ws');
+  if (wsId) openWorkspace(wsId);
 });
-
-var workspaces=[];
-function loadWorkspaces(){try{workspaces=JSON.parse(localStorage.getItem('prism-workspaces')||'[]');}catch(e){workspaces=[];}
-if(workspaces.length===0){workspaces=[{id:'ws-1',name:'Identity Partners',icon:'🏢',color:'#0f3b3a',description:'Main workspace for Identity Partners work'},{id:'ws-2',name:'Research',icon:'🔬',color:'#5c2d3f',description:'Research runs and academic sources'},{id:'ws-3',name:'Content',icon:'✍',color:'#c4925a',description:'Social media, newsletters, and content creation'}];saveWorkspaces();}renderWorkspaces();}
-function saveWorkspaces(){try{localStorage.setItem('prism-workspaces',JSON.stringify(workspaces));}catch(e){}}
-function renderWorkspaces(){var grid=document.getElementById('workspaces-grid');if(!grid)return;grid.innerHTML='';
-for(var i=0;i<workspaces.length;i++){(function(ws){var card=document.createElement('div');card.className='card';card.style.cursor='pointer';
-var header=document.createElement('div');header.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:10px;';
-var icon=document.createElement('div');icon.style.cssText='width:40px;height:40px;border-radius:10px;background:'+ws.color+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;';icon.textContent=ws.icon;
-var info=document.createElement('div');var name=document.createElement('div');name.style.cssText='font-weight:600;font-size:14px;';name.textContent=ws.name;info.appendChild(name);header.appendChild(icon);header.appendChild(info);
-var desc=document.createElement('div');desc.style.cssText='font-size:12.5px;color:var(--fg-muted);margin-bottom:12px;';desc.textContent=ws.description;
-var actions=document.createElement('div');actions.style.cssText='display:flex;gap:6px;';
-var openBtn=document.createElement('button');openBtn.className='btn btn-sm btn-primary';openBtn.textContent='Open';openBtn.title='Open workspace';openBtn.onclick=function(){Toast.info('Workspace: '+ws.name);};
-var delBtn=document.createElement('button');delBtn.className='btn btn-sm btn-ghost';delBtn.textContent='🗑';delBtn.title='Delete workspace';delBtn.onclick=function(e){e.stopPropagation();workspaces=workspaces.filter(function(w){return w.id!==ws.id;});saveWorkspaces();renderWorkspaces();};
-actions.appendChild(openBtn);actions.appendChild(delBtn);card.appendChild(header);card.appendChild(desc);card.appendChild(actions);grid.appendChild(card);})(workspaces[i]);}}
-function createWorkspace(){var name=prompt('Workspace name:');if(!name)return;workspaces.push({id:'ws-'+Date.now(),name:name,icon:'📁',color:'#0f3b3a',description:''});saveWorkspaces();renderWorkspaces();}
-
 </script>
 </body>
 </html>
