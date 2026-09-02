@@ -791,8 +791,14 @@ async function atomise(env, text, profile) {
   var wordCount = text.trim().split(/\s+/).length;
   var isRich = wordCount > 600;
   var isMedium = wordCount > 200;
-  var qCount = isRich ? '5' : '3';
-  var postCount = isRich ? '7' : '5';
+  // Scale post count proportionally: ~1 post per 50 words, min 3, max 20
+  var postCount = String(Math.min(20, Math.max(3, Math.round(wordCount / 50))));
+  // Quote cards: ~1 per 100 words, min 3, max 10
+  var qCount = String(Math.min(10, Math.max(3, Math.round(wordCount / 100))));
+  // Carousel slides: ~1 per 150 words, min 3, max 10
+  var slideCount = String(Math.min(10, Math.max(3, Math.round(wordCount / 150))));
+  // Threads notes: ~1 per 100 words, min 2, max 8
+  var threadCount = String(Math.min(8, Math.max(2, Math.round(wordCount / 100))));
 
   // Detect topic for title card
   assets.title = text.split(/[.!?]/)[0].trim().substring(0, 80) || 'Identity Partners';
@@ -813,7 +819,7 @@ async function atomise(env, text, profile) {
     orchestrate(env, [sys, prompt('Write ' + postCount + ' standalone X/Twitter posts, each strictly under 280 characters, punchy, 1-2 hashtags per post. Return as JSON array of strings only.')], p, 'drafting', null)
       .then(function(r){ try{assets.twitter=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.twitter=[r.content];} }),
 
-    orchestrate(env, [sys, prompt('Write ' + (isRich ? '3' : '2') + ' Threads notes, each under 500 characters, casual and authentic, no hashtags. Return as JSON array of strings only.')], p, 'drafting', null)
+    orchestrate(env, [sys, prompt('Write ' + threadCount + ' Threads notes, each under 500 characters, casual and authentic, no hashtags. Return as JSON array of strings only.')], p, 'drafting', null)
       .then(function(r){ try{assets.threads=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.threads=[r.content];} }),
   ]);
 
@@ -822,7 +828,7 @@ async function atomise(env, text, profile) {
     orchestrate(env, [sys, prompt('Write a LinkedIn post, 150-200 words, professional, hook in first line, 3-5 hashtags at end, clear CTA.')], p, 'drafting', null)
       .then(function(r){ assets.linkedin_post = r.content; }),
 
-    orchestrate(env, [sys, prompt('Create a ' + (isRich ? '7' : '5') + '-slide LinkedIn carousel. Slide 1: hook/title. Middle slides: one key insight each (title max 8 words, body max 25 words). Last slide: CTA. Return as JSON array of {title,body} objects only.')], p, 'drafting', null)
+    orchestrate(env, [sys, prompt('Create a ' + slideCount + '-slide LinkedIn carousel. Slide 1: hook/title. Middle slides: one key insight each (title max 8 words, body max 25 words). Last slide: CTA. Return as JSON array of {title,body} objects only.')], p, 'drafting', null)
       .then(function(r){ try{assets.linkedin_carousel=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.linkedin_carousel=[{title:'Key Insight',body:r.content}];} }),
 
     orchestrate(env, [sys, prompt('Write an Instagram caption, 100-150 words, warm and engaging, end with 10 relevant hashtags on a new line, include CTA (link in bio).')], p, 'drafting', null)
@@ -835,7 +841,7 @@ async function atomise(env, text, profile) {
   // Batch 3: Medium-form (200+ words input)
   if (isMedium) {
     await Promise.allSettled([
-      orchestrate(env, [sys, prompt('Write ' + (isRich ? '3' : '2') + ' Substack Notes, each under 300 characters, teaser that makes people want to read more. Return as JSON array of strings only.')], p, 'drafting', null)
+      orchestrate(env, [sys, prompt('Write ' + threadCount + ' Substack Notes, each under 300 characters, teaser that makes people want to read more. Return as JSON array of strings only.')], p, 'drafting', null)
         .then(function(r){ try{assets.substack_note=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.substack_note=[r.content];} }),
 
       orchestrate(env, [sys, prompt('Write a Tumblr post, 200-300 words, creative and thoughtful, include relevant tags at end in format #tag1 #tag2.')], p, 'drafting', null)
