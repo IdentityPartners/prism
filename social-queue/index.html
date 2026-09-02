@@ -295,16 +295,7 @@ function bulkGenerate() {
       return p + ': under ' + limit + ' characters';
     }).join('; ');
 
-    var userPrompt = 'Generate exactly ' + thisBatchSize + ' social media posts about: ' + topic.substring(0, 500) + '
-
-Content types to use (rotate through): ' + types.join(', ') + '
-Platforms: ' + bulkPlatforms.join(', ') + '
-Platform requirements: ' + platformInstructions + '
-
-Return ONLY a JSON array. Each item: {"type":"quote|tip|fact|question|story","platforms":{"bluesky":"text","x":"text","linkedin":"text"},"hashtags":["tag1"]}
-
-Make each post unique. Vary the angle, tone, and format.';
-
+    var userPrompt = 'Generate exactly ' + thisBatchSize + ' social media posts about: ' + topic.substring(0, 500) + '\n\nContent types to use (rotate through): ' + types.join(', ') + '\nPlatforms: ' + bulkPlatforms.join(', ') + '\nPlatform requirements: ' + platformInstructions + (source ? '\n\nSource material:\n' + source.substring(0, 2000) : '') + '\n\nReturn ONLY a JSON array. Each item: {post_number, title, content_by_platform: {platform: text}, hashtags, best_time}. Return ONLY the JSON array, no other text.';
     var xhr = new XMLHttpRequest();
     xhr.open('POST', WORKER + '/api/chat', true);
     xhr.setRequestHeader('Content-Type', 'application/json');
@@ -501,8 +492,7 @@ function renderQueue(items) {
 
       var content = document.createElement('div');
       content.className = 'queue-item-content';
-      // Show first platform's content
-      var text = '';
+      // Show first platform's content\nvar text = '';
       if (item.platforms) { var keys = Object.keys(item.platforms); if (keys.length) text = item.platforms[keys[0]]; }
       if (!text) text = item.content || '';
       content.textContent = text.substring(0, 200) + (text.length > 200 ? '…' : '');
@@ -623,9 +613,7 @@ function aiHashtags() {
   xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.onreadystatechange = function() {
     if (xhr.readyState !== 4) return;
-    try { var r=JSON.parse(xhr.responseText); var el=document.getElementById('compose-text'); if(el&&r.content){el.value=text+'
-
-'+r.content;updateCharCount();} } catch(e) {}
+    try { var r=JSON.parse(xhr.responseText); var el=document.getElementById('compose-text'); if(el&&r.content){el.value=text+'\n\n'+r.content;updateCharCount();} } catch(e) {}
   };
   xhr.send(JSON.stringify({messages:[{role:'system',content:'Generate 5 relevant hashtags. Return only hashtags space-separated.'},{role:'user',content:text}],profile:'fast'}));
 }
@@ -642,9 +630,7 @@ function aiThread() {
       var r=JSON.parse(xhr.responseText);
       if (r.content) {
         // Add each thread post to queue
-        var posts = r.content.split(/
-
-+/).filter(function(p){return p.trim();});
+        var posts = r.content.split(/\n\n+/).filter(function(p){return p.trim();});
         posts.forEach(function(post,i) {
           var xhr2 = new XMLHttpRequest();
           xhr2.open('POST', WORKER + '/api/social/queue', true);
@@ -710,8 +696,7 @@ function exportQueue() {
       rows.push([item.id,item.type||'post',p,'"'+text.replace(/"/g,'""')+'"',item.status,item.scheduledAt||''].join(','));
     });
   });
-  var blob = new Blob([rows.join('
-')],{type:'text/csv'});
+  var blob = new Blob([rows.join('\n')],{type:'text/csv'});
   var a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='social-queue-'+Date.now()+'.csv'; a.click();
 }
 

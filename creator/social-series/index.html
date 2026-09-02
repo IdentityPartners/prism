@@ -106,19 +106,7 @@ function generateSeries() {
     if (p === 'Instagram') return 'Instagram: engaging caption, 5-10 hashtags, emoji-friendly';
     return p;
   }).join('; ');
-  var userPrompt = 'Create a ' + count + '-post ' + type + ' social media series.
-
-Topic: ' + topic + '
-Platforms: ' + platforms.join(', ') + '
-Schedule: ' + schedule + '
-
-Platform requirements: ' + platformInstructions + (source ? '
-
-Source material:
-' + source.substring(0, 2000) : '') + '
-
-Return as a JSON array of objects with: {post_number, title, content_by_platform: {platform: text}, hashtags, best_time}. Return ONLY the JSON array, no other text.';
-  var xhr = new XMLHttpRequest();
+  var userPrompt = 'Create a ' + count + '-post ' + type + ' social media series.\n\nTopic: ' + topic + '\nPlatforms: ' + platforms.join(', ') + '\nSchedule: ' + schedule + '\n\nPlatform requirements: ' + platformInstructions + (source ? '\n\nSource material:\n' + source.substring(0, 2000) : '') + '\n\nReturn ONLY a JSON array of objects with: {post_number, title, content_by_platform: {platform: text}, hashtags, best_time}. Return ONLY the JSON array, no other text.';  var xhr = new XMLHttpRequest();
   xhr.open('POST', WORKER + '/api/chat', true);
   xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.onreadystatechange = function() {

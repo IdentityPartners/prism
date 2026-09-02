@@ -134,16 +134,7 @@ function generateEpisode() {
   var output = document.getElementById('script-output');
   if (output) output.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div><div style="margin-top:10px;font-size:13px;color:var(--fg-muted);">Generating ' + duration + '-minute episode script…</div></div>';
   var systemPrompt = 'You are a podcast script writer for Identity Partners, a professional services firm focused on addiction, trauma, mental health, and community wellbeing. The host is Simon Johnson. Write in British English. The tone is ' + tone + '. No sycophancy. No AI tropes. Format the script with clear sections: INTRO, MAIN CONTENT (with subsections), and OUTRO. Include natural speech patterns, pauses [PAUSE], and emphasis *like this*. Include approximate timestamps.';
-  var userPrompt = 'Write a complete ' + duration + '-minute podcast script for a ' + type + ' episode.
-
-Topic: ' + topic + '
-Audience: ' + audience + (points ? '
-
-Key points to cover:
-' + points : '') + '
-
-Include: engaging intro hook, main content with clear structure, practical takeaways, call to action, and outro. Make it feel natural and conversational, not like a lecture.';
-  var xhr = new XMLHttpRequest();
+  var userPrompt = 'Write a complete ' + duration + '-minute podcast script for a ' + type + ' episode.\n\nTopic: ' + topic + '\nAudience: ' + audience + (points ? '\n\nKey points to cover:\n' + points : '') + '\n\nInclude: engaging intro hook, main content with clear structure, practical takeaways, call to action, and outro. Make it feel natural and conversational, not like a lecture.';  var xhr = new XMLHttpRequest();
   xhr.open('POST', WORKER + '/api/chat', true);
   xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.onreadystatechange = function() {
@@ -220,9 +211,7 @@ function generateShowNotes() {
   xhr.onerror = function() { if (output) output.textContent = 'Network error'; };
   xhr.send(JSON.stringify({messages:[
     {role:'system',content:'Generate podcast show notes in British English. Include: episode summary (2-3 sentences), key takeaways (bullet points), timestamps, and resources mentioned.'},
-    {role:'user',content:'Generate show notes for this podcast script:
-
-' + currentScript.substring(0, 3000)}
+    {role:'user',content:'Generate show notes for this podcast script:\n\n' + currentScript.substring(0, 3000)}
   ],profile:'balanced'}));
 }
 
@@ -243,9 +232,7 @@ function generateSocialCopy() {
   xhr.onerror = function() { if (output) output.textContent = 'Network error'; };
   xhr.send(JSON.stringify({messages:[
     {role:'system',content:'Generate social media copy for a podcast episode. British English. Include: LinkedIn post (150 words), Bluesky thread (5 posts under 300 chars each), and 3 quote cards. Format clearly with headers.'},
-    {role:'user',content:'Generate social media copy for this podcast episode:
-
-' + currentScript.substring(0, 2000)}
+    {role:'user',content:'Generate social media copy for this podcast episode:\n\n' + currentScript.substring(0, 2000)}
   ],profile:'balanced'}));
 }
 
