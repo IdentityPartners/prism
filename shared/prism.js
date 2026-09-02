@@ -779,7 +779,7 @@ var Guide = (function() {
   var GUIDES = {
     chat: [
       {title:'Welcome to Chat', body:'Chat is your primary interface with Prism. Every message goes through the Orchestrator, which routes to the best available AI model automatically.', target:'.chat-messages'},
-      {title:'The On-Screen Keyboard', body:'The keyboard below the input is always visible. It's designed for your Surface Slim Pen 2 — write directly into any key to insert text. Shift, Ctrl, Alt, and Caps Lock all work.', target:'#osk-container'},
+      {title:'The On-Screen Keyboard', body:'The keyboard below the input is always visible. It\'s designed for your Surface Slim Pen 2 — write directly into any key to insert text. Shift, Ctrl, Alt, and Caps Lock all work.', target:'#osk-container'},
       {title:'Routing Profiles', body:'Choose how Prism routes your messages. <strong>Balanced</strong> uses free providers first. <strong>Full Frontier</strong> uses the best available model regardless of cost.', target:'#profile-selector'},
       {title:'Personas', body:'Switch between personas to change how Prism responds. The Sardonic Butler is particularly useful when you need blunt feedback.', target:'.persona-selector'},
       {title:'Action Chips', body:'Use these chips to quickly route your message to Research, Atomise, or Drafting — or to generate an image inline.', target:'.chat-chips'},

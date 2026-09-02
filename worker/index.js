@@ -2471,6 +2471,79 @@ export default {
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── Buffer API — post to X, LinkedIn, Instagram, Facebook, Pinterest ──────
+    if (path === '/api/buffer/post' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var bufferKey = env.BUFFER_API_KEY || env.buffer_api_key || env.BUFFER_KEY;
+        if (!bufferKey) return json({success:false, error:'Add BUFFER_API_KEY via ingester. Get it at buffer.com/developers'}, 200, origin);
+
+        var text = body.text || '';
+        var profileIds = body.profile_ids || [];
+        var mediaUrl = body.media_url || null;
+        var scheduledAt = body.scheduled_at || null;
+
+        // If no profile IDs specified, get all connected profiles
+        if (profileIds.length === 0) {
+          var profilesResp = await fetch('https://api.bufferapp.com/1/profiles.json?access_token='+bufferKey);
+          if (profilesResp.ok) {
+            var profiles = await profilesResp.json();
+            profileIds = profiles.map(function(p){return p.id;});
+          }
+        }
+
+        if (profileIds.length === 0) return json({success:false, error:'No Buffer profiles connected. Connect your social accounts at buffer.com'}, 200, origin);
+
+        // Build update payload
+        var updateBody = 'text='+encodeURIComponent(text)+'&access_token='+bufferKey+'&now='+(scheduledAt?'false':'true');
+        profileIds.forEach(function(id) { updateBody += '&profile_ids[]='+id; });
+        if (scheduledAt) updateBody += '&scheduled_at='+encodeURIComponent(scheduledAt);
+        if (mediaUrl) updateBody += '&media[link]='+encodeURIComponent(mediaUrl);
+
+        var updateResp = await fetch('https://api.bufferapp.com/1/updates/create.json', {
+          method: 'POST',
+          headers: {'Content-Type':'application/x-www-form-urlencoded'},
+          body: updateBody
+        });
+        var updateData = await updateResp.json();
+        if (!updateResp.ok) return json({success:false, error:'Buffer error: '+JSON.stringify(updateData)}, 200, origin);
+        return json({success:true, updates:updateData.updates, profileCount:profileIds.length}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Buffer profiles list ──────────────────────────────────────────────────
+    if (path === '/api/buffer/profiles' && request.method === 'GET') {
+      try {
+        var bufferKey = env.BUFFER_API_KEY || env.buffer_api_key || env.BUFFER_KEY;
+        if (!bufferKey) return json({profiles:[], error:'BUFFER_API_KEY not configured'}, 200, origin);
+        var resp = await fetch('https://api.bufferapp.com/1/profiles.json?access_token='+bufferKey);
+        if (!resp.ok) return json({profiles:[], error:'Buffer API error: '+resp.status}, 200, origin);
+        var profiles = await resp.json();
+        return json({profiles: profiles.map(function(p){return {id:p.id, service:p.service, name:p.formatted_username, avatar:p.avatar_https};})}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Buffer schedule (add to queue, not post now) ──────────────────────────
+    if (path === '/api/buffer/schedule' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var bufferKey = env.BUFFER_API_KEY || env.buffer_api_key || env.BUFFER_KEY;
+        if (!bufferKey) return json({success:false, error:'BUFFER_API_KEY not configured'}, 200, origin);
+        var profileIds = body.profile_ids || [];
+        if (profileIds.length === 0) {
+          var pr = await fetch('https://api.bufferapp.com/1/profiles.json?access_token='+bufferKey);
+          if (pr.ok) { var prData = await pr.json(); profileIds = prData.map(function(p){return p.id;}); }
+        }
+        var updateBody = 'text='+encodeURIComponent(body.text||'')+'&access_token='+bufferKey+'&now=false';
+        profileIds.forEach(function(id){updateBody+='&profile_ids[]='+id;});
+        if (body.scheduled_at) updateBody += '&scheduled_at='+encodeURIComponent(body.scheduled_at);
+        var resp = await fetch('https://api.bufferapp.com/1/updates/create.json',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:updateBody});
+        var data = await resp.json();
+        return json({success:resp.ok, data:data}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
     return json({error:'Not found', path:path}, 404, origin);
   }
 };

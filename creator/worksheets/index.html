@@ -116,15 +116,9 @@ var currentWS = '';
 function renderMD(text) {
   if (!text) return '';
   var t = text;
-  t = t.replace(/```[\s\S]*?```/g, function(m) {
-    var code = m.replace(/```\w*
-?/, '').replace(/```$/, '');
-    return '<pre style="background:#f0e9e0;padding:12px;border-radius:6px;overflow-x:auto;font-family:monospace;font-size:12px;"><code>' + code.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</code></pre>';
-  });
-  t = t.replace(/`([^`]+)`/g, '<code style="background:#f0e9e0;padding:2px 5px;border-radius:3px;font-family:monospace;font-size:12px;">$1</code>');
   t = t.replace(/^### (.+)$/gm, '<h3 style="font-size:14px;font-weight:600;margin:14px 0 6px;color:#0f3b3a;">$1</h3>');
-  t = t.replace(/^## (.+)$/gm, '<h2 style="font-family:'Playfair Display',serif;font-size:17px;font-weight:600;margin:18px 0 8px;color:#5c2d3f;">$1</h2>');
-  t = t.replace(/^# (.+)$/gm, '<h1 style="font-family:'Playfair Display',serif;font-size:22px;font-weight:600;margin:20px 0 10px;color:#0f3b3a;">$1</h1>');
+  t = t.replace(/^## (.+)$/gm, '<h2 style="font-family:serif;font-size:17px;font-weight:600;margin:18px 0 8px;color:#5c2d3f;">$1</h2>');
+  t = t.replace(/^# (.+)$/gm, '<h1 style="font-family:serif;font-size:22px;font-weight:600;margin:20px 0 10px;color:#0f3b3a;">$1</h1>');
   t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   t = t.replace(/\*(.+?)\*/g, '<em>$1</em>');
   t = t.replace(/^> (.+)$/gm, '<blockquote style="border-left:3px solid #0f3b3a;padding:8px 16px;background:#e8f4f4;margin:10px 0;font-style:italic;color:#0f3b3a;">$1</blockquote>');
@@ -132,11 +126,9 @@ function renderMD(text) {
   t = t.replace(/^\* (.+)$/gm, '<li style="margin-bottom:4px;line-height:1.6;">$1</li>');
   t = t.replace(/^- (.+)$/gm, '<li style="margin-bottom:4px;line-height:1.6;">$1</li>');
   t = t.replace(/(<li[^>]*>[\s\S]*?<\/li>)/g, '<ul style="margin:6px 0 10px 20px;">$1</ul>');
-  t = t.replace(/^\d+\. (.+)$/gm, '<li style="margin-bottom:4px;line-height:1.6;">$1</li>');
   t = t.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#0f3b3a;">$1</a>');
-  t = t.replace(/
-
-/g, '</p><p style="margin-bottom:10px;line-height:1.7;color:#555;">');
+  var parts = t.split('\n\n');
+  t = parts.join('</p><p style="margin-bottom:10px;line-height:1.7;color:#555;">');
   t = '<p style="margin-bottom:10px;line-height:1.7;color:#555;">' + t + '</p>';
   t = t.replace(/<p[^>]*>\s*(<h[1-6])/g, '$1');
   t = t.replace(/(<\/h[1-6]>)\s*<\/p>/g, '$1');
@@ -145,8 +137,6 @@ function renderMD(text) {
   t = t.replace(/<p[^>]*>\s*(<blockquote)/g, '$1');
   t = t.replace(/(<\/blockquote>)\s*<\/p>/g, '$1');
   t = t.replace(/<p[^>]*>\s*(<hr)/g, '$1');
-  t = t.replace(/<p[^>]*>\s*(<pre)/g, '$1');
-  t = t.replace(/(<\/pre>)\s*<\/p>/g, '$1');
   t = t.replace(/<p[^>]*>\s*<\/p>/g, '');
   return t;
 }
@@ -168,14 +158,7 @@ function generateWS() {
   if (container) container.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div><div style="margin-top:12px;font-size:13px;color:var(--fg-muted);">Generating ' + sections + '-section ' + type + ' worksheet…</div></div>';
 
   var systemPrompt = 'You are a clinical worksheet designer for Identity Partners, specialising in addiction, trauma, and mental health. Create professional, evidence-based worksheets in British English. Format using Markdown with clear sections. Include reflection questions, practical exercises, and space indicators like [Write here...] for fill-in areas. Tone: warm, non-judgmental, empowering. End with an Identity Partners footer.';
-  var userPrompt = 'Create a ' + type + ' worksheet with ' + sections + ' sections.
-
-Topic: ' + topic + '
-Audience: ' + audience + (instructions ? '
-
-Additional instructions: ' + instructions : '') + '
-
-Include: title, brief introduction, ' + sections + ' clearly labelled sections with questions/exercises, closing reflection, and Identity Partners footer (identitypartners.uk | hello@identitypartners.uk).';
+  var userPrompt = 'Create a ' + type + ' worksheet with ' + sections + ' sections.\n\nTopic: ' + topic + '\nAudience: ' + audience + (instructions ? '\n\nAdditional instructions: ' + instructions : '') + '\n\nInclude: title, brief introduction, ' + sections + ' clearly labelled sections with questions/exercises, closing reflection, and Identity Partners footer (identitypartners.uk | hello@identitypartners.uk).';
 
   var xhr = new XMLHttpRequest();
   xhr.open('POST', WORKER + '/api/chat', true);

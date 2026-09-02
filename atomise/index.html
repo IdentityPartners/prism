@@ -356,9 +356,7 @@ function renderAssets(assets) {
     copyBtn.textContent = '📋 Copy';
     copyBtn.title = 'Copy to clipboard';
     copyBtn.onclick = function() {
-      var text = typeof assets[key] === 'string' ? assets[key] : (Array.isArray(assets[key]) ? assets[key].join('
-
-') : JSON.stringify(assets[key]));
+      var text = typeof assets[key] === 'string' ? assets[key] : (Array.isArray(assets[key]) ? assets[key].join(' | ') : JSON.stringify(assets[key]));
       if (navigator.clipboard) navigator.clipboard.writeText(text).then(function(){Toast.success('Copied');});
     };
 
