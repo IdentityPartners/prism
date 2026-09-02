@@ -785,28 +785,91 @@ async function searchBrave(env, query) {
 
 // ─── ATOMISE ──────────────────────────────────────────────────────────────────
 async function atomise(env, text, profile) {
-  var sys = {role:'system', content:'You are a social media content specialist for Identity Partners, a professional services firm focused on addiction, trauma, mental health, and community wellbeing. Write in British English. Be concise, professional, and engaging. No sycophancy.'};
+  var sys = {role:'system', content:'You are a content strategist for Identity Partners. Write in British English. Professional, warm, evidence-based. No sycophancy. Always include a CTA to identitypartners.uk or the booking page.'};
   var assets = {};
+  var p = profile || 'balanced';
+  var wordCount = text.trim().split(/\s+/).length;
+  var isRich = wordCount > 600;
+  var isMedium = wordCount > 200;
+  var qCount = isRich ? '5' : '3';
+  var postCount = isRich ? '7' : '5';
 
-  var quoteResp = await orchestrate(env, [sys, {role:'user', content:'Extract 3 powerful, standalone quotes from this text. Each 15-25 words, suitable for a quote card. Return as a JSON array of strings only.\n\n'+text}], profile||'balanced', 'drafting', null);
-  try { assets.quotes = JSON.parse(quoteResp.content.match(/\[[\s\S]*?\]/)[0]); } catch(e) { assets.quotes = [quoteResp.content]; }
+  // Detect topic for title card
+  assets.title = text.split(/[.!?]/)[0].trim().substring(0, 80) || 'Identity Partners';
 
-  var liResp = await orchestrate(env, [sys, {role:'user', content:'Write a LinkedIn post based on this text. 150-200 words. Professional tone. 3-5 hashtags at the end.\n\n'+text}], profile||'balanced', 'drafting', null);
-  assets.linkedin = liResp.content;
+  // Helper to build prompt without embedded newlines
+  function prompt(instruction) {
+    return {role:'user', content: instruction + ' Source text: ' + text.substring(0, 1500)};
+  }
 
-  var bskyResp = await orchestrate(env, [sys, {role:'user', content:'Write a Bluesky thread (5 posts, each under 300 characters). Number each 1/5, 2/5 etc. Return as JSON array of strings only.\n\n'+text}], profile||'balanced', 'drafting', null);
-  try { assets.bluesky = JSON.parse(bskyResp.content.match(/\[[\s\S]*?\]/)[0]); } catch(e) { assets.bluesky = [bskyResp.content]; }
+  // Batch 1: Short-form (always generated)
+  await Promise.allSettled([
+    orchestrate(env, [sys, prompt('Extract ' + qCount + ' powerful standalone quotes, each 15-25 words, suitable for a visual quote card, no hashtags. Return as JSON array of strings only.')], p, 'drafting', null)
+      .then(function(r){ try{assets.quotes=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.quotes=[r.content];} }),
 
-  var emailResp = await orchestrate(env, [sys, {role:'user', content:'Write a newsletter email snippet. 80-120 words. Warm but professional. Clear call to action at the end.\n\n'+text}], profile||'balanced', 'drafting', null);
-  assets.email = emailResp.content;
+    orchestrate(env, [sys, prompt('Write ' + postCount + ' standalone Bluesky posts, each under 280 characters, conversational, no hashtags in body, each works independently. Return as JSON array of strings only.')], p, 'drafting', null)
+      .then(function(r){ try{assets.bluesky=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.bluesky=[r.content];} }),
 
-  var carouselResp = await orchestrate(env, [sys, {role:'user', content:'Create a 5-slide LinkedIn carousel. Each slide: title (max 8 words) and body (max 30 words). Return as JSON array of {title,body} objects only.\n\n'+text}], profile||'balanced', 'drafting', null);
-  try { assets.carousel = JSON.parse(carouselResp.content.match(/\[[\s\S]*?\]/)[0]); } catch(e) { assets.carousel = [{title:'Key Insight', body: carouselResp.content}]; }
+    orchestrate(env, [sys, prompt('Write ' + postCount + ' standalone X/Twitter posts, each strictly under 280 characters, punchy, 1-2 hashtags per post. Return as JSON array of strings only.')], p, 'drafting', null)
+      .then(function(r){ try{assets.twitter=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.twitter=[r.content];} }),
+
+    orchestrate(env, [sys, prompt('Write ' + (isRich ? '3' : '2') + ' Threads notes, each under 500 characters, casual and authentic, no hashtags. Return as JSON array of strings only.')], p, 'drafting', null)
+      .then(function(r){ try{assets.threads=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.threads=[r.content];} }),
+  ]);
+
+  // Batch 2: LinkedIn + Instagram + Facebook
+  await Promise.allSettled([
+    orchestrate(env, [sys, prompt('Write a LinkedIn post, 150-200 words, professional, hook in first line, 3-5 hashtags at end, clear CTA.')], p, 'drafting', null)
+      .then(function(r){ assets.linkedin_post = r.content; }),
+
+    orchestrate(env, [sys, prompt('Create a ' + (isRich ? '7' : '5') + '-slide LinkedIn carousel. Slide 1: hook/title. Middle slides: one key insight each (title max 8 words, body max 25 words). Last slide: CTA. Return as JSON array of {title,body} objects only.')], p, 'drafting', null)
+      .then(function(r){ try{assets.linkedin_carousel=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.linkedin_carousel=[{title:'Key Insight',body:r.content}];} }),
+
+    orchestrate(env, [sys, prompt('Write an Instagram caption, 100-150 words, warm and engaging, end with 10 relevant hashtags on a new line, include CTA (link in bio).')], p, 'drafting', null)
+      .then(function(r){ assets.instagram = r.content; }),
+
+    orchestrate(env, [sys, prompt('Write a Facebook post, 100-150 words, conversational and community-focused, ask a question to encourage comments, include link to identitypartners.uk.')], p, 'drafting', null)
+      .then(function(r){ assets.facebook = r.content; }),
+  ]);
+
+  // Batch 3: Medium-form (200+ words input)
+  if (isMedium) {
+    await Promise.allSettled([
+      orchestrate(env, [sys, prompt('Write ' + (isRich ? '3' : '2') + ' Substack Notes, each under 300 characters, teaser that makes people want to read more. Return as JSON array of strings only.')], p, 'drafting', null)
+        .then(function(r){ try{assets.substack_note=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.substack_note=[r.content];} }),
+
+      orchestrate(env, [sys, prompt('Write a Tumblr post, 200-300 words, creative and thoughtful, include relevant tags at end in format #tag1 #tag2.')], p, 'drafting', null)
+        .then(function(r){ assets.tumblr = r.content; }),
+
+      orchestrate(env, [sys, prompt('Write an email newsletter snippet with subject line at top (Subject: ...), 100-150 words, warm tone, CTA at end.')], p, 'drafting', null)
+        .then(function(r){ assets.email = r.content; }),
+
+      orchestrate(env, [sys, prompt('Write a Pinterest pin description, 100-150 words, keyword-rich, helpful tone, CTA, end with 5 keywords.')], p, 'drafting', null)
+        .then(function(r){ assets.pinterest = r.content; }),
+    ]);
+  }
+
+  // Batch 4: Long-form articles (600+ words input only)
+  if (isRich) {
+    await Promise.allSettled([
+      orchestrate(env, [sys, prompt('Write a LinkedIn article, 600-800 words, professional and evidence-based, compelling headline, introduction, 3-4 subheadings, conclusion with CTA to identitypartners.uk.')], p, 'drafting', null)
+        .then(function(r){ assets.linkedin_article = r.content; }),
+
+      orchestrate(env, [sys, prompt('Write a Substack newsletter article, 400-600 words, warm and personal, subject line, personal opening, 2-3 sections, closing reflection, CTA to identitypartners.uk/book.')], p, 'drafting', null)
+        .then(function(r){ assets.substack_article = r.content; }),
+
+      orchestrate(env, [sys, prompt('Write a Reddit post for r/mentalhealth or r/addiction, 150-250 words, community-first not promotional, share insight or ask a question, suggest a subreddit.')], p, 'drafting', null)
+        .then(function(r){ assets.reddit = r.content; }),
+
+      orchestrate(env, [sys, prompt('Write a WhatsApp/Telegram broadcast message, under 200 words, personal and direct, warm tone, include link to identitypartners.uk/book.')], p, 'drafting', null)
+        .then(function(r){ assets.broadcast = r.content; }),
+    ]);
+  }
 
   return assets;
 }
 
-// ─── BLUESKY ──────────────────────────────────────────────────────────────────
+
 async function postToBluesky(env, text) {
   var handle = env.BLUESKY_HANDLE || 'identitypartners.bsky.social';
   var password = env.BLUESKY_APP_PASSWORD;
