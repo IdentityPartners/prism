@@ -2032,64 +2032,8 @@ export default {
 
 
     // ── Zoho OAuth — initiation and callback ─────────────────────────────────
-    if (path.startsWith('/oauth/zoho/') && !path.startsWith('/oauth/zoho/callback')) {
-      var service = path.replace('/oauth/zoho/','').replace(/\/$/,'');
-      var code = url.searchParams.get('code');
-      var clientId = env.ZOHO_CLIENT_ID || env.Zoho_Client_ID;
+    // Zoho OAuth: handled by Pages pages + /api/zoho/token Worker endpoint
 
-      if (!clientId) {
-        return new Response('<html><body style="font-family:sans-serif;padding:20px;"><h2>Zoho not configured</h2><p>Add ZOHO_CLIENT_ID to Worker secrets via the Secret Ingester.</p></body></html>', {headers:{'Content-Type':'text/html'}});
-      }
-
-      if (!code) {
-        // Initiate OAuth — redirect to Zoho EU
-        var scopeMap = {
-          mail: 'ZohoMail.messages.ALL,ZohoMail.folders.ALL,ZohoMail.accounts.READ',
-          calendar: 'ZohoCalendar.event.ALL,ZohoCalendar.calendar.ALL',
-          crm: 'ZohoCRM.modules.ALL,ZohoCRM.settings.ALL,ZohoCRM.users.READ',
-          social: 'ZohoSocial.profiles.ALL,ZohoSocial.posts.ALL'
-        };
-        var scope = scopeMap[service] || 'ZohoMail.messages.ALL';
-        var redirectUri = 'https://prism.identitypartners.uk/oauth/zoho/' + service;
-        var authUrl = 'https://accounts.zoho.eu/oauth/v2/auth?' + [
-          'response_type=code',
-          'client_id=' + encodeURIComponent(clientId),
-          'scope=' + encodeURIComponent(scope),
-          'redirect_uri=' + encodeURIComponent(redirectUri),
-          'access_type=offline',
-          'prompt=consent'
-        ].join('&');
-        return Response.redirect(authUrl, 302);
-      }
-
-      // Code received — exchange for tokens
-      var clientSecret = env.ZOHO_CLIENT_SECRET || env.Zoho_Client_Secret;
-      var redirectUri = 'https://prism.identitypartners.uk/oauth/zoho/' + service;
-      var tokenResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {
-        method: 'POST',
-        headers: {'Content-Type':'application/x-www-form-urlencoded'},
-        body: [
-          'grant_type=authorization_code',
-          'client_id=' + encodeURIComponent(clientId),
-          'client_secret=' + encodeURIComponent(clientSecret),
-          'redirect_uri=' + encodeURIComponent(redirectUri),
-          'code=' + encodeURIComponent(code),
-          'access_type=offline'
-        ].join('&')
-      });
-      var tokens = await tokenResp.json();
-      if (tokens.error) {
-        // Redirect back to Pages with error
-        return Response.redirect('https://prism.identitypartners.uk/oauth/zoho/' + service + '?error=' + encodeURIComponent(tokens.error + ': ' + (tokens.error_description||'')), 302);
-      }
-      if (!tokens.access_token) {
-        return Response.redirect('https://prism.identitypartners.uk/oauth/zoho/' + service + '?error=no_access_token', 302);
-      }
-      // Store tokens
-      if (env.PRISM_KV) await env.PRISM_KV.put('zoho:tokens:' + service, JSON.stringify(tokens));
-      // Redirect back to Pages with success
-      return Response.redirect('https://prism.identitypartners.uk/oauth/zoho/' + service + '?connected=1', 302);
-    }
 
     return json({error:'Not found', path:path}, 404, origin);
   }

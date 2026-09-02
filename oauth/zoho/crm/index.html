@@ -7,75 +7,106 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:Inter,system-ui,sans-serif;background:#f7f3e9;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}
-.card{background:#fff;border-radius:16px;padding:32px;max-width:500px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,0.1);text-align:center;}
+.card{background:#fff;border-radius:16px;padding:32px;max-width:480px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,0.1);text-align:center;}
 .icon{font-size:48px;margin-bottom:14px;}
 .title{font-size:22px;font-weight:600;color:#0f3b3a;margin-bottom:10px;}
-.msg{font-size:14px;color:#7a4254;line-height:1.6;margin-bottom:20px;}
-.info{background:#e8f4f4;border:1px solid #0f3b3a;border-radius:8px;padding:14px;margin:12px 0;font-size:13px;color:#0f3b3a;line-height:1.6;text-align:left;}
-.error{background:#fbeaea;border:1px solid #8b3a3a;border-radius:8px;padding:14px;margin:12px 0;font-size:13px;color:#8b3a3a;line-height:1.6;text-align:left;}
+.msg{font-size:14px;color:#7a4254;line-height:1.6;margin-bottom:16px;}
 .success{background:#edf5eb;border:1px solid #5a7a4f;border-radius:8px;padding:14px;margin:12px 0;font-size:13px;color:#3a5a2f;line-height:1.6;}
+.error{background:#fbeaea;border:1px solid #8b3a3a;border-radius:8px;padding:14px;margin:12px 0;font-size:13px;color:#8b3a3a;line-height:1.6;text-align:left;}
+.spinner{width:40px;height:40px;border:3px solid #ddd0c8;border-top-color:#0f3b3a;border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 16px;display:none;}
+@keyframes spin{to{transform:rotate(360deg);}}
 .btn{display:block;width:100%;padding:13px;background:#0f3b3a;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:none;margin-top:10px;}
 .btn:hover{background:#1a5550;color:#fff;text-decoration:none;}
 .btn-outline{background:#fff;color:#0f3b3a;border:1.5px solid #0f3b3a;}
 .btn-outline:hover{background:#e8f4f4;}
-.spinner{width:40px;height:40px;border:3px solid #ddd0c8;border-top-color:#0f3b3a;border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 16px;}
-@keyframes spin{to{transform:rotate(360deg);}}
-code{background:#f0e9e0;padding:6px 10px;border-radius:4px;font-family:monospace;font-size:12px;word-break:break-all;display:block;margin:8px 0;}
 </style>
 </head>
 <body>
-<div class="card" id="card">
+<div class="card">
   <div class="icon" id="icon">🔑</div>
   <div class="title" id="title">Zoho CRM</div>
-  <div class="msg" id="msg"></div>
+  <div class="msg" id="msg">Connecting to your Zoho account…</div>
+  <div class="spinner" id="spinner"></div>
   <div id="body"></div>
 </div>
 <script>
 (function(){
-  var params = new URLSearchParams(window.location.search);
-  var connected = params.get('connected');
-  var error = params.get('error');
   var WORKER = 'https://prism-api.identitypartners.workers.dev';
-  var service = 'crm';
+  var params = new URLSearchParams(window.location.search);
+  var code = params.get('code');
+  var error = params.get('error');
+  var connected = params.get('connected');
 
-  function render(icon, title, msg, bodyHtml){
+  function set(icon, title, msg, html, spin){
     document.getElementById('icon').textContent = icon;
     document.getElementById('title').textContent = title;
     document.getElementById('msg').textContent = msg;
-    document.getElementById('body').innerHTML = bodyHtml;
+    document.getElementById('spinner').style.display = spin ? 'block' : 'none';
+    document.getElementById('body').innerHTML = html;
   }
 
-  // SUCCESS — Worker exchanged token and redirected back with ?connected=1
+  // Already connected
   if (connected === '1') {
-    render('✅', 'Zoho CRM Connected!', 'Your Zoho CRM account is now connected to Prism.',
-      '<div class="success">Connection successful. Tokens stored securely in Cloudflare KV.</div>' +
+    set('✅','Zoho CRM Connected!','Your account is now connected to Prism.',
+      '<div class="success">Tokens stored securely. You can now use Zoho CRM within Prism.</div>' +
       '<a href="/comms/zoho-crm/" class="btn">Open CRM →</a>' +
-      '<a href="/settings/" class="btn btn-outline" style="margin-top:8px;">Back to Settings</a>'
-    );
+      '<a href="/settings/" class="btn btn-outline" style="margin-top:8px;">Back to Settings</a>',false);
     return;
   }
 
-  // ERROR — Zoho returned an error
+  // Error from Zoho
   if (error) {
-    render('✗', 'Connection Failed', '',
-      '<div class="error"><strong>Error:</strong> ' + decodeURIComponent(error) + '<br><br>' +
-      'Check that this redirect URI is registered in <a href="https://api-console.zoho.eu" target="_blank" style="color:#8b3a3a;font-weight:600;">api-console.zoho.eu</a>:<br>' +
-      '<code>https://prism.identitypartners.uk/oauth/zoho/crm</code></div>' +
-      '<a href="' + WORKER + '/oauth/zoho/crm" class="btn">Try Again</a>' +
-      '<a href="/settings/" class="btn btn-outline" style="margin-top:8px;">Back to Settings</a>'
-    );
+    set('✗','Connection Failed','',
+      '<div class="error"><strong>Zoho error:</strong> ' + decodeURIComponent(error) + '<br><br>' +
+      'Redirect URI must be registered in <a href="https://api-console.zoho.eu" target="_blank" style="color:#8b3a3a;">api-console.zoho.eu</a>:<br>' +
+      '<code style="background:#f0e9e0;padding:4px 8px;border-radius:4px;font-family:monospace;font-size:12px;display:block;margin:6px 0;word-break:break-all;">https://prism.identitypartners.uk/oauth/zoho/crm</code></div>' +
+      '<a href="/oauth/zoho/crm/" class="btn">Try Again</a>',false);
     return;
   }
 
-  // NO CODE — show connect button (initiates flow via Worker)
-  render('🔑', 'Connect Zoho CRM', 'Click below to authorise Prism to access your Zoho CRM account.',
-    '<div class="info">Before connecting, make sure this redirect URI is registered in ' +
-    '<a href="https://api-console.zoho.eu" target="_blank" style="color:#0f3b3a;font-weight:600;">api-console.zoho.eu</a> ' +
-    '→ Prism app → Edit → Redirect URIs:<br>' +
-    '<code>https://prism.identitypartners.uk/oauth/zoho/crm</code></div>' +
-    '<a href="' + WORKER + '/oauth/zoho/crm" class="btn">Connect Zoho CRM →</a>' +
-    '<a href="/settings/" class="btn btn-outline" style="margin-top:8px;">Back to Settings</a>'
-  );
+  // Code received from Zoho — exchange via Worker
+  if (code) {
+    set('🔄','Connecting…','Exchanging authorisation code…','',true);
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', WORKER + '/api/zoho/token', true);
+    xhr.setRequestHeader('Content-Type','application/json');
+    xhr.timeout = 30000;
+    xhr.onreadystatechange = function(){
+      if (xhr.readyState !== 4) return;
+      document.getElementById('spinner').style.display = 'none';
+      try {
+        var r = JSON.parse(xhr.responseText);
+        if (r.success) {
+          set('✅','Zoho CRM Connected!','',
+            '<div class="success">Connected successfully. Tokens stored securely.</div>' +
+            '<a href="/comms/zoho-crm/" class="btn">Open CRM →</a>' +
+            '<a href="/settings/" class="btn btn-outline" style="margin-top:8px;">Back to Settings</a>',false);
+        } else {
+          set('✗','Connection Failed','',
+            '<div class="error"><strong>Error:</strong> ' + (r.error||'Token exchange failed') + '</div>' +
+            '<a href="/oauth/zoho/crm/" class="btn">Try Again</a>',false);
+        }
+      } catch(e) {
+        set('✗','Error','',
+          '<div class="error">Unexpected error: ' + e.message + '</div>' +
+          '<a href="/oauth/zoho/crm/" class="btn">Try Again</a>',false);
+      }
+    };
+    xhr.ontimeout = function(){ set('✗','Timeout','','<div class="error">Request timed out.</div><a href="/oauth/zoho/crm/" class="btn">Try Again</a>',false); };
+    xhr.onerror = function(){ set('✗','Network Error','','<div class="error">Could not reach Prism API.</div><a href="/oauth/zoho/crm/" class="btn">Try Again</a>',false); };
+    xhr.send(JSON.stringify({
+      service: 'crm',
+      code: code,
+      redirectUri: 'https://prism.identitypartners.uk/oauth/zoho/crm'
+    }));
+    return;
+  }
+
+  // No code, no error — show connect button
+  // This page directly builds the Zoho auth URL (no Worker redirect needed)
+  set('🔑','Connect Zoho CRM','Click below to authorise Prism to access your Zoho CRM account.',
+    '<a href="https://accounts.zoho.eu/oauth/v2/auth?response_type=code&client_id=1000.3OLT0KYOJIGADEUPVTRPX4CCPWZHXY&scope=ZohoCRM.modules.ALL,ZohoCRM.settings.ALL,ZohoCRM.users.READ&redirect_uri=https://prism.identitypartners.uk/oauth/zoho/crm&access_type=offline&prompt=consent" class="btn">Connect Zoho CRM →</a>' +
+    '<a href="/settings/" class="btn btn-outline" style="margin-top:8px;">Back to Settings</a>',false);
 })();
 </script>
 </body>
