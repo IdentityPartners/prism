@@ -35,6 +35,22 @@
 <script src="/shared/prism.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // Check if Zoho Mail is connected
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'https://prism-api.identitypartners.workers.dev/api/zoho/status', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      if (r.status && r.status.mail && r.status.mail.connected) {
+        var banner = document.getElementById('inbox-list');
+        if (banner) banner.innerHTML = '<div style="padding:20px;text-align:center;color:var(--success);font-size:13px;">Zoho Mail connected. Loading inbox...</div>';
+        loadInbox();
+      }
+    } catch(e) {}
+  };
+  xhr.send();
+
   var mount = document.getElementById('sidebar-mount');
   if (mount) { var sb = buildSidebar('/comms/email/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
   checkEmailPrefill();
@@ -47,6 +63,35 @@ function checkEmailPrefill() {
   var to = params.get('to');
   if (to) { var el = document.getElementById('email-to'); if (el) el.value = to; }
 }
+function loadInbox() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'https://prism-api.identitypartners.workers.dev/api/zoho/mail/inbox', true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    try {
+      var r = JSON.parse(xhr.responseText);
+      var list = document.getElementById('inbox-list');
+      if (!list) return;
+      if (r.messages && r.messages.length > 0) {
+        list.innerHTML = '';
+        r.messages.forEach(function(msg) {
+          var item = document.createElement('div');
+          item.style.cssText = 'padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;';
+          item.innerHTML = '<div style="font-weight:500;font-size:13px;">' + (msg.fromAddress||msg.sender||'Unknown') + '</div>' +
+            '<div style="font-size:12.5px;color:var(--fg-secondary);">' + (msg.subject||'No subject') + '</div>' +
+            '<div style="font-size:11px;color:var(--fg-muted);">' + (msg.receivedTime||'') + '</div>';
+          list.appendChild(item);
+        });
+      } else if (r.error) {
+        if (list) list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);font-size:13px;">Could not load inbox: ' + r.error + '</div>';
+      } else {
+        if (list) list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);font-size:13px;">Inbox is empty.</div>';
+      }
+    } catch(e) {}
+  };
+  xhr.send();
+}
+
 function sendEmail() {
   var to = document.getElementById('email-to').value.trim();
   var subject = document.getElementById('email-subject').value.trim();

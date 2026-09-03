@@ -12,7 +12,7 @@ body{font-family:Inter,system-ui,sans-serif;background:#f7f3e9;display:flex;alig
 .msg{font-size:14px;color:#7a4254;line-height:1.6;margin-bottom:16px;}
 .ok{background:#edf5eb;border:1px solid #5a7a4f;border-radius:8px;padding:14px;margin:12px 0;font-size:13px;color:#3a5a2f;line-height:1.6;}
 .err{background:#fbeaea;border:1px solid #8b3a3a;border-radius:8px;padding:14px;margin:12px 0;font-size:13px;color:#8b3a3a;text-align:left;line-height:1.6;}
-.info{background:#e8f4f4;border:1px solid #0f3b3a;border-radius:8px;padding:12px;margin:10px 0;font-size:12.5px;color:#0f3b3a;text-align:left;}
+.info{background:#e8f4f4;border:1px solid #0f3b3a;border-radius:8px;padding:12px;margin:10px 0;font-size:12px;color:#0f3b3a;text-align:left;}
 .spin{width:40px;height:40px;border:3px solid #ddd0c8;border-top-color:#0f3b3a;border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 16px;display:none;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .btn{display:block;width:100%;padding:13px;background:#0f3b3a;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:none;margin-top:10px;}
@@ -20,7 +20,7 @@ body{font-family:Inter,system-ui,sans-serif;background:#f7f3e9;display:flex;alig
 .btn2{background:#fff;color:#0f3b3a;border:1.5px solid #0f3b3a;}
 .btn2:hover{background:#e8f4f4;}
 .log{background:#1a1a1a;color:#7ecf7e;border-radius:8px;padding:10px;font-family:monospace;font-size:11px;text-align:left;margin-top:10px;max-height:120px;overflow-y:auto;display:none;word-break:break-all;}
-code{background:#f0e9e0;padding:2px 6px;border-radius:3px;font-size:11px;word-break:break-all;}
+code{background:#f0e9e0;padding:2px 6px;border-radius:3px;font-size:11px;word-break:break-all;display:block;margin:4px 0;}
 </style>
 </head>
 <body>
@@ -53,77 +53,56 @@ code{background:#f0e9e0;padding:2px 6px;border-radius:3px;font-size:11px;word-br
     document.getElementById('body').innerHTML = html || '';
   }
 
-  // ERROR from Zoho
   if (error) {
-    set('✗', 'Authorisation Failed', '',
-      '<div class="err"><strong>Zoho error:</strong> ' + decodeURIComponent(error) +
-      (errorDesc ? '<br>' + decodeURIComponent(errorDesc) : '') +
-      '<br><br>Common causes:<br>' +
-      '&bull; Scope not registered in Zoho console<br>' +
-      '&bull; Redirect URI mismatch<br><br>' +
-      'Redirect URI needed in <a href="https://api-console.zoho.eu" target="_blank" style="color:#8b3a3a;">api-console.zoho.eu</a>:<br>' +
-      '<code>https://prism.identitypartners.uk/oauth/zoho/social</code></div>' +
+    var errMsg = decodeURIComponent(error);
+    var errDesc = decodeURIComponent(errorDesc);
+    set('✗', 'Connection Failed', '',
+      '<div class="err"><strong>Zoho error:</strong> ' + errMsg +
+      (errDesc ? '<br><em>' + errDesc + '</em>' : '') +
+      '<br><br>If you see "Invalid OAuth Scope", the scope needs to be added to your Zoho Social app in the Zoho API Console.<br><br>' +
+      'Scope being requested:<code>ZohoSocial.profiles.READ,ZohoSocial.connections.READ</code>' +
+      'Redirect URI:<code>https://prism.identitypartners.uk/oauth/zoho/social</code></div>' +
       '<a href="/oauth/zoho/social/" class="btn">Try Again</a>' +
-      '<a href="/settings/" class="btn btn2" style="margin-top:8px;">Back to Settings</a>');
+      '<a href="/social-queue/" class="btn btn2" style="margin-top:8px;">Use Social Calendar Instead</a>');
     return;
   }
 
-  // CODE received — exchange for tokens
   if (code) {
-    set('🔄', 'Connecting…', 'Exchanging authorisation code with Zoho…', '', true);
-    log('Code received: ' + code.substring(0, 20) + '...');
-    log('Calling /api/zoho/token...');
-
+    set('🔄', 'Connecting…', 'Exchanging authorisation code…', '', true);
+    log('Code: ' + code.substring(0, 20) + '...');
     var xhr = new XMLHttpRequest();
     xhr.open('POST', W + '/api/zoho/token', true);
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.timeout = 30000;
-
     xhr.onreadystatechange = function() {
       if (xhr.readyState !== 4) return;
       document.getElementById('spin').style.display = 'none';
-      log('HTTP ' + xhr.status + ': ' + xhr.responseText.substring(0, 150));
-
+      log('HTTP ' + xhr.status + ': ' + xhr.responseText.substring(0, 200));
       try {
         var r = JSON.parse(xhr.responseText);
         if (r.success) {
           set('✅', 'Zoho Social Connected!', '',
-            '<div class="ok">Connected successfully. Tokens stored in Prism.</div>' +
-            '<a href="/comms/zoho-social/" class="btn">Open Social →</a>' +
+            '<div class="ok">Connected. Tokens stored in Prism.</div>' +
+            '<a href="/social-queue/" class="btn">Open Social Calendar →</a>' +
             '<a href="/settings/" class="btn btn2" style="margin-top:8px;">Back to Settings</a>');
         } else {
-          set('✗', 'Connection Failed', '',
-            '<div class="err"><strong>Error:</strong> ' + (r.error || 'Token exchange failed') + '</div>' +
-            '<a href="/oauth/zoho/social/" class="btn">Try Again</a>');
+          set('✗', 'Failed', '', '<div class="err">' + (r.error || 'Token exchange failed') + '</div><a href="/oauth/zoho/social/" class="btn">Try Again</a>');
         }
       } catch(e) {
-        set('✗', 'Error', '', '<div class="err">Parse error: ' + e.message + '<br>Response: ' + xhr.responseText.substring(0, 200) + '</div><a href="/oauth/zoho/social/" class="btn">Try Again</a>');
+        set('✗', 'Error', '', '<div class="err">' + e.message + '</div><a href="/oauth/zoho/social/" class="btn">Try Again</a>');
       }
     };
-
-    xhr.ontimeout = function() {
-      set('✗', 'Timeout', '', '<div class="err">Request timed out after 30s.</div><a href="/oauth/zoho/social/" class="btn">Try Again</a>');
-    };
-
-    xhr.onerror = function() {
-      log('Network error');
-      set('✗', 'Network Error', '', '<div class="err">Could not reach Prism API. Check your connection.</div><a href="/oauth/zoho/social/" class="btn">Try Again</a>');
-    };
-
-    xhr.send(JSON.stringify({
-      service: 'social',
-      code: code,
-      redirectUri: 'https://prism.identitypartners.uk/oauth/zoho/social'
-    }));
+    xhr.ontimeout = function() { set('✗', 'Timeout', '', '<div class="err">Timed out.</div><a href="/oauth/zoho/social/" class="btn">Try Again</a>'); };
+    xhr.onerror = function() { set('✗', 'Network Error', '', '<div class="err">Could not reach Prism API.</div><a href="/oauth/zoho/social/" class="btn">Try Again</a>'); };
+    xhr.send(JSON.stringify({service:'social', code:code, redirectUri:'https://prism.identitypartners.uk/oauth/zoho/social'}));
     return;
   }
 
-  // NO CODE — show connect button (goes DIRECTLY to Zoho, not via Worker)
   set('🔑', 'Connect Zoho Social',
-    'Click below to authorise Prism to access your Zoho Social account.',
-    '<div class="info">Scope: <code>ZohoSocial.profiles.READ,ZohoSocial.connections.READ</code><br>Redirect URI: <code>https://prism.identitypartners.uk/oauth/zoho/social</code></div>' +
+    'Note: Zoho Social requires the scope to be registered in your Zoho API Console.',
+    '<div class="info">Scope being requested:<code>ZohoSocial.profiles.READ,ZohoSocial.connections.READ</code>Redirect URI:<code>https://prism.identitypartners.uk/oauth/zoho/social</code><br>If you get "Invalid OAuth Scope", add this scope in api-console.zoho.eu under your Prism app.</div>' +
     '<a href="https://accounts.zoho.eu/oauth/v2/auth?response_type=code&client_id=1000.3OLT0KYOJIGADEUPVTRPX4CCPWZHXY&scope=ZohoSocial.profiles.READ%2CZohoSocial.connections.READ&redirect_uri=https%3A//prism.identitypartners.uk/oauth/zoho/social&access_type=offline&prompt=consent" class="btn">Connect Zoho Social →</a>' +
-    '<a href="/settings/" class="btn btn2" style="margin-top:8px;">Back to Settings</a>');
+    '<a href="/social-queue/" class="btn btn2" style="margin-top:8px;">Skip - Use Social Calendar</a>');
 })();
 </script>
 </body>
