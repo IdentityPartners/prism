@@ -54,6 +54,7 @@
 <div class="topbar-title">Research Hub</div>
 <div class="topbar-actions">
 <button class="btn btn-sm btn-secondary" onclick="saveRun()" title="Save this research run">💾 Save Run</button>
+        <button class="btn btn-sm btn-secondary" onclick="openKeywordManager()" title="Manage weekly keyword scrapes">📅 Weekly Scrapes</button>
 <button class="btn btn-sm btn-primary" onclick="synthesise()" title="AI synthesis of all results">✨ Synthesise</button>
 </div>
 </div>
@@ -515,6 +516,89 @@ function clearResults() {
 document.addEventListener('keydown', function(e) {
   if (document.activeElement === document.getElementById('search-input') && e.key === 'Enter') doSearch();
 });
+
+// ── Weekly keyword scrape manager ─────────────────────────────────────────
+function openKeywordManager() {
+  var keywords = [];
+  try { keywords = JSON.parse(localStorage.getItem('prism-research-keywords') || '[]'); } catch(e) {}
+  var modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'keyword-modal';
+  var card = document.createElement('div');
+  card.className = 'modal';
+  card.style.maxWidth = '520px';
+  card.innerHTML = '<div class="modal-header"><span class="modal-title">Weekly Research Scrapes</span><button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'keyword-modal\').remove()">✕</button></div>' +
+    '<div class="modal-body">' +
+    '<p style="font-size:12.5px;color:var(--fg-muted);margin-bottom:12px;">Save keywords for weekly automated scrapes. Toby will search across Semantic Scholar, PubMed, Exa, Tavily and synthesise findings.</p>' +
+    '<div class="form-group"><label class="form-label">Keywords (one per line)</label>' +
+    '<textarea class="textarea" id="kw-input" rows="6" placeholder="addiction recovery\ntrauma-informed care\nmental health policy UK\nneurodivergent identity\npeer support outcomes">' + keywords.join('\n') + '</textarea></div>' +
+    '<div class="form-group"><label class="form-label">Schedule</label>' +
+    '<select class="select" id="kw-schedule"><option value="weekly">Weekly</option><option value="daily">Daily</option><option value="monthly">Monthly</option></select></div>' +
+    '</div>' +
+    '<div class="modal-footer">' +
+    '<button class="btn btn-secondary" onclick="document.getElementById(\'keyword-modal\').remove()">Cancel</button>' +
+    '<button class="btn btn-secondary" onclick="runKeywordScrape()">Run Now</button>' +
+    '<button class="btn btn-primary" onclick="saveKeywords()">Save Schedule</button>' +
+    '</div>';
+  modal.appendChild(card);
+  document.body.appendChild(modal);
+}
+
+function saveKeywords() {
+  var input = document.getElementById('kw-input');
+  var schedule = document.getElementById('kw-schedule');
+  if (!input) return;
+  var keywords = input.value.split('\n').map(function(k){return k.trim();}).filter(Boolean);
+  try { localStorage.setItem('prism-research-keywords', JSON.stringify(keywords)); } catch(e) {}
+  fetch('https://prism-api.identitypartners.workers.dev/api/research/keywords', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({keywords:keywords, schedule:schedule?schedule.value:'weekly'})
+  }).then(function(){Toast.success(keywords.length + ' keywords saved for ' + (schedule?schedule.value:'weekly') + ' scrapes');});
+  var modal = document.getElementById('keyword-modal');
+  if (modal) modal.remove();
+}
+
+function runKeywordScrape() {
+  var input = document.getElementById('kw-input');
+  if (!input) return;
+  var keywords = input.value.split('\n').map(function(k){return k.trim();}).filter(Boolean);
+  if (keywords.length === 0) { Toast.warning('Enter at least one keyword'); return; }
+  var modal = document.getElementById('keyword-modal');
+  if (modal) modal.remove();
+  Toast.info('Running research scrape for ' + keywords.length + ' keywords...');
+  var list = document.getElementById('results-list');
+  if (list) list.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div><div style="margin-top:10px;font-size:13px;color:var(--fg-muted);">Toby is searching ' + keywords.length + ' keywords across all sources...</div></div>';
+  fetch('https://prism-api.identitypartners.workers.dev/api/research/scheduled', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({keywords:keywords, sources:activeSources.length>0?activeSources:['tavily','semantic_scholar','pubmed','exa','crossref']})
+  })
+  .then(function(r){return r.json();})
+  .then(function(r){
+    if (r.results) {
+      allResults = r.results;
+      currentQuery = keywords.join(', ');
+      renderResults(allResults);
+      if (r.synthesis) {
+        var detail = document.getElementById('research-detail');
+        if (detail) {
+          detail.innerHTML = '';
+          var card = document.createElement('div');
+          card.className = 'synthesis-card';
+          var title = document.createElement('div');
+          title.className = 'synthesis-title';
+          title.textContent = '🍫 Toby\'s Synthesis — ' + keywords.join(', ');
+          var text = document.createElement('div');
+          text.className = 'synthesis-text md-content';
+          text.innerHTML = Markdown.render(r.synthesis);
+          card.appendChild(title); card.appendChild(text);
+          detail.appendChild(card);
+        }
+      }
+      Toast.success(r.resultCount + ' results from ' + r.optimisedQueries.length + ' optimised queries');
+    }
+  })
+  .catch(function(e){Toast.error('Scrape failed: '+e.message);});
+}
 
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');

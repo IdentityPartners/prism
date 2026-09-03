@@ -47,6 +47,20 @@
 .slide-body{font-size:12.5px;color:var(--fg-secondary);line-height:1.5;}
 .canvas-preview{width:100%;max-width:300px;border-radius:8px;border:1px solid var(--border);display:block;margin-top:8px;}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;gap:14px;color:var(--fg-muted);padding:40px;text-align:center;}
+.preview-card{border-radius:12px;padding:16px;margin-top:8px;font-size:13px;line-height:1.6;position:relative;overflow:hidden;}
+.preview-bluesky{background:#e8f0fe;border:1px solid #1a73e8;color:#1a1a1a;}
+.preview-x{background:#f0f0f0;border:1px solid #1a1a1a;color:#1a1a1a;}
+.preview-linkedin{background:#e8f4f4;border:1px solid #0f3b3a;color:#0f3b3a;}
+.preview-instagram{background:linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);color:#fff;border:none;}
+.preview-facebook{background:#e3f2fd;border:1px solid #1565c0;color:#1a1a1a;}
+.preview-threads{background:#f3e5f5;border:1px solid #6a1b9a;color:#1a1a1a;}
+.preview-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:11px;font-weight:600;opacity:0.7;}
+.preview-avatar{width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.preview-char-bar{height:3px;border-radius:2px;margin-top:8px;background:rgba(0,0,0,0.1);}
+.preview-char-fill{height:100%;border-radius:2px;background:rgba(0,0,0,0.3);transition:width 0.3s;}
+.char-ok{background:rgba(0,128,0,0.4);}
+.char-warn{background:rgba(255,165,0,0.6);}
+.char-over{background:rgba(255,0,0,0.6);}
 .queue-bar{position:sticky;bottom:0;background:var(--bg-elevated);border-top:1px solid var(--border);padding:12px 20px;display:flex;gap:8px;align-items:center;}
 </style>
 </head>
@@ -301,16 +315,47 @@ function renderAssets(assets, wordCount) {
       });
     } else if (Array.isArray(assets[key]) || typeof assets[key] === 'string') {
       var parsedArr = safeParseArray(assets[key]);
+      var previewPlatforms = ['bluesky','x','twitter','instagram','threads','facebook'];
+      var usePreview = previewPlatforms.indexOf(key) >= 0;
       parsedArr.forEach(function(post, i) {
-        var p = document.createElement('div');
-        p.className = 'post-item';
-        var num = document.createElement('span');
-        num.className = 'post-num';
-        num.textContent = (i+1) + '.';
-        var txt = document.createElement('span');
-        txt.textContent = typeof post === 'string' ? post : JSON.stringify(post);
-        p.appendChild(num); p.appendChild(txt);
-        body.appendChild(p);
+        var postText = typeof post === 'string' ? post : JSON.stringify(post);
+        if (usePreview) {
+          // Render as platform preview card
+          var card = document.createElement('div');
+          card.className = 'preview-card preview-' + (key === 'twitter' ? 'x' : key);
+          var header = document.createElement('div');
+          header.className = 'preview-header';
+          var avatar = document.createElement('div');
+          avatar.className = 'preview-avatar';
+          avatar.textContent = key === 'bluesky' ? '🦋' : key === 'x' || key === 'twitter' ? '𝕏' : key === 'instagram' ? '📸' : key === 'threads' ? '🧵' : '👥';
+          var handle = document.createElement('span');
+          handle.textContent = '@identitypartners' + (key === 'bluesky' ? '.bsky.social' : '');
+          header.appendChild(avatar); header.appendChild(handle);
+          var content = document.createElement('div');
+          content.textContent = postText;
+          var limit = key === 'bluesky' ? 300 : key === 'x' || key === 'twitter' ? 280 : key === 'threads' ? 500 : 2200;
+          var charBar = document.createElement('div');
+          charBar.className = 'preview-char-bar';
+          var charFill = document.createElement('div');
+          charFill.className = 'preview-char-fill ' + (postText.length > limit ? 'char-over' : postText.length > limit * 0.9 ? 'char-warn' : 'char-ok');
+          charFill.style.width = Math.min(100, (postText.length / limit) * 100) + '%';
+          charBar.appendChild(charFill);
+          var charCount = document.createElement('div');
+          charCount.style.cssText = 'font-size:10px;opacity:0.6;margin-top:3px;text-align:right;';
+          charCount.textContent = postText.length + ' / ' + limit;
+          card.appendChild(header); card.appendChild(content); card.appendChild(charBar); card.appendChild(charCount);
+          body.appendChild(card);
+        } else {
+          var p = document.createElement('div');
+          p.className = 'post-item';
+          var num = document.createElement('span');
+          num.className = 'post-num';
+          num.textContent = (i+1) + '.';
+          var txt = document.createElement('span');
+          txt.textContent = postText;
+          p.appendChild(num); p.appendChild(txt);
+          body.appendChild(p);
+        }
       });
     } else {
       body.textContent = typeof assets[key] === 'string' ? assets[key] : JSON.stringify(assets[key]);

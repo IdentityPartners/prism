@@ -26,7 +26,8 @@
       <div class="topbar-title">Worksheets</div>
       <div class="topbar-actions">
         <button class="btn btn-sm btn-secondary" id="print-btn" onclick="printWS()" title="Print worksheet">🖨 Print</button>
-        <button class="btn btn-sm btn-secondary" id="export-btn" onclick="exportWS()" title="Export as Markdown">⬇ Export</button>
+        <button class="btn btn-sm btn-secondary" id="export-btn" onclick="exportWS()" title="Export as Markdown">⬇ MD</button>
+        <button class="btn btn-sm btn-primary" id="pdf-btn" onclick="generatePDF()" title="Download as branded PDF">📄 PDF</button>
         <button class="btn btn-sm btn-primary" id="gen-btn" onclick="generateWS()" title="Generate worksheet">✨ Generate</button>
       </div>
     </div>
@@ -224,6 +225,36 @@ function printWS() {
   win.document.write('</body></html>');
   win.document.close();
   setTimeout(function() { win.print(); }, 500);
+}
+
+function generatePDF() {
+  if (!currentWS) { Toast.warning('Generate a worksheet first'); return; }
+  var topic = document.getElementById('ws-topic').value || 'worksheet';
+  var btn = document.getElementById('pdf-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating PDF...'; }
+  fetch('https://prism-api.identitypartners.workers.dev/api/worksheet/pdf', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content: currentWS, title: topic})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(r) {
+    if (btn) { btn.disabled = false; btn.textContent = '📄 PDF'; }
+    if (r.success && r.pdfBase64) {
+      var blob = new Blob([Uint8Array.from(atob(r.pdfBase64), function(c){return c.charCodeAt(0);})], {type:'application/pdf'});
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = topic.replace(/[^a-z0-9]/gi,'-').toLowerCase() + '.pdf';
+      a.click();
+      Toast.success('PDF downloaded!');
+    } else {
+      Toast.error(r.error || 'PDF generation failed');
+    }
+  })
+  .catch(function(e) {
+    if (btn) { btn.disabled = false; btn.textContent = '📄 PDF'; }
+    Toast.error('PDF failed: ' + e.message);
+  });
 }
 
 function exportWS() {

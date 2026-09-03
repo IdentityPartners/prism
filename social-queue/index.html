@@ -212,7 +212,12 @@ function renderQueue(items) {
     footer.className = 'q-footer';
     var time = document.createElement('span');
     time.className = 'q-time';
-    time.textContent = item.scheduledAt ? '📅 ' + new Date(item.scheduledAt).toLocaleString('en-GB', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : 'No schedule';
+    if (item.status === 'posted' && item.postedAt) {
+        time.textContent = '✓ Posted ' + new Date(item.postedAt).toLocaleString('en-GB', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) + (item.postedTo ? ' → ' + item.postedTo : '');
+        time.style.color = 'var(--success)';
+      } else {
+        time.textContent = item.scheduledAt ? '📅 ' + new Date(item.scheduledAt).toLocaleString('en-GB', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : 'No schedule';
+      }
     var actions = document.createElement('div');
     actions.className = 'q-actions';
     if (item.status !== 'posted') {
@@ -237,6 +242,9 @@ function postItem(item) {
   var text = item.content || '';
   var platform = item.platform || 'bluesky';
   log('info', 'Posting to ' + platform + '...');
+  // Immediate visual feedback
+  item.status = 'posting';
+  updateStats(); renderQueue(allQueue);
   fetch(WORKER + '/api/social/post', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -245,14 +253,34 @@ function postItem(item) {
   .then(function(r) { return r.json(); })
   .then(function(r) {
     var results = r.results || {};
+    var anyPosted = false;
     Object.keys(results).forEach(function(p) {
-      if (!results[p].error) { log('ok', p + ': posted'); item.status = 'posted'; }
-      else log('err', p + ': ' + results[p].error);
+      if (!results[p].error) {
+        log('ok', p + ': ✓ posted at ' + new Date().toLocaleTimeString('en-GB'));
+        item.status = 'posted';
+        item.postedAt = new Date().toISOString();
+        item.postedTo = p;
+        anyPosted = true;
+      } else {
+        log('err', p + ': ' + results[p].error);
+        item.status = 'failed';
+      }
+    });
+    // Update in KV
+    var cleanId = (item.id || '').replace('queue:', '');
+    fetch(WORKER + '/api/social/queue/' + cleanId, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({status: item.status, postedAt: item.postedAt, postedTo: item.postedTo})
     });
     updateStats(); renderQueue(allQueue);
-    if (r.success) Toast.success('Posted!');
+    if (anyPosted) Toast.success('Posted to ' + platform + ' ✓');
   })
-  .catch(function(e) { log('err', e.message); });
+  .catch(function(e) {
+    log('err', e.message);
+    item.status = 'pending';
+    updateStats(); renderQueue(allQueue);
+  });
 }
 
 function postAllPending() {

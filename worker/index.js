@@ -2230,9 +2230,170 @@ export default {
 
 
 
-    // ── Headless platform signup automation ───────────────────────────────────
-    // Generates signup instructions and stores credentials for headless posting
+    // ── Headless platform signup via Browserless.io ─────────────────────────
     if (path === '/api/headless/signup' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var platform = (body.platform || '').toLowerCase().replace(/[^a-z0-9]/g, '-');
+        var email = body.email || 'hello@identitypartners.uk';
+        var name = body.name || 'Identity Partners';
+        var bio = body.bio || 'Evidence-based support for addiction, trauma, and mental health. Non-clinical listening, coaching, mentoring and relational practice. www.identitypartners.uk';
+        var website = body.website || 'https://www.identitypartners.uk';
+        var browserlessKey = env['BROWSERLESS.IO'] || env.BROWSERLESS_IO;
+
+        // Platform-specific Puppeteer scripts
+        var SIGNUP_SCRIPTS = {
+          'fiverr': {
+            url: 'https://www.fiverr.com/join',
+            script: `
+              await page.goto('https://www.fiverr.com/join', {waitUntil:'networkidle2'});
+              await page.waitForSelector('input[name="email"]', {timeout:10000});
+              await page.type('input[name="email"]', '${email}');
+              const usernameField = await page.$('input[name="username"]');
+              if (usernameField) await page.type('input[name="username"]', 'identitypartners');
+              const passwordField = await page.$('input[name="password"]');
+              if (passwordField) await page.type('input[name="password"]', 'IPrism2026!Secure');
+              return {status:'form_filled', email:'${email}', platform:'fiverr', note:'Manual verification required'};
+            `
+          },
+          'substack': {
+            url: 'https://substack.com/account/signup',
+            script: `
+              await page.goto('https://substack.com/account/signup', {waitUntil:'networkidle2'});
+              await page.waitForSelector('input[type="email"]', {timeout:10000});
+              await page.type('input[type="email"]', '${email}');
+              const submitBtn = await page.$('button[type="submit"]');
+              if (submitBtn) await submitBtn.click();
+              await page.waitForTimeout(2000);
+              return {status:'email_submitted', email:'${email}', platform:'substack', note:'Check email for verification link'};
+            `
+          },
+          'ko-fi': {
+            url: 'https://ko-fi.com/account/register',
+            script: `
+              await page.goto('https://ko-fi.com/account/register', {waitUntil:'networkidle2'});
+              await page.waitForSelector('#email', {timeout:10000});
+              await page.type('#email', '${email}');
+              const displayName = await page.$('#displayName');
+              if (displayName) await page.type('#displayName', '${name}');
+              return {status:'form_filled', email:'${email}', platform:'ko-fi', note:'Complete signup manually'};
+            `
+          },
+          'topmate': {
+            url: 'https://topmate.io/signup',
+            script: `
+              await page.goto('https://topmate.io/signup', {waitUntil:'networkidle2'});
+              await page.waitForSelector('input[type="email"]', {timeout:10000});
+              await page.type('input[type="email"]', '${email}');
+              return {status:'email_entered', email:'${email}', platform:'topmate', note:'Check email for magic link'};
+            `
+          },
+          'noomii': {
+            url: 'https://www.noomii.com/coach-signup',
+            script: `
+              await page.goto('https://www.noomii.com/coach-signup', {waitUntil:'networkidle2'});
+              await page.waitForSelector('input[name="email"]', {timeout:10000});
+              await page.type('input[name="email"]', '${email}');
+              const firstName = await page.$('input[name="first_name"]');
+              if (firstName) await page.type('input[name="first_name"]', 'Simon');
+              const lastName = await page.$('input[name="last_name"]');
+              if (lastName) await page.type('input[name="last_name"]', 'Johnson');
+              return {status:'form_filled', email:'${email}', platform:'noomii'};
+            `
+          },
+          'paperbell': {
+            url: 'https://paperbell.com/signup',
+            script: `
+              await page.goto('https://paperbell.com/signup', {waitUntil:'networkidle2'});
+              await page.waitForSelector('input[type="email"]', {timeout:10000});
+              await page.type('input[type="email"]', '${email}');
+              return {status:'email_entered', email:'${email}', platform:'paperbell'};
+            `
+          },
+          'bark': {
+            url: 'https://www.bark.com/en/gb/register/',
+            script: `
+              await page.goto('https://www.bark.com/en/gb/register/', {waitUntil:'networkidle2'});
+              await page.waitForSelector('input[name="email"]', {timeout:10000});
+              await page.type('input[name="email"]', '${email}');
+              return {status:'email_entered', email:'${email}', platform:'bark'};
+            `
+          },
+          'peopleperhour': {
+            url: 'https://www.peopleperhour.com/register',
+            script: `
+              await page.goto('https://www.peopleperhour.com/register', {waitUntil:'networkidle2'});
+              await page.waitForSelector('input[name="email"]', {timeout:10000});
+              await page.type('input[name="email"]', '${email}');
+              return {status:'email_entered', email:'${email}', platform:'peopleperhour'};
+            `
+          },
+        };
+
+        var scriptConfig = SIGNUP_SCRIPTS[platform];
+        if (!scriptConfig) {
+          // Generic signup attempt
+          return json({
+            success: true,
+            platform: platform,
+            status: 'manual_required',
+            email: email,
+            instructions: 'Visit the platform website and sign up with ' + email + '. Use "Identity Partners" as the display name.',
+            signupUrl: 'https://' + platform + '.com/signup'
+          }, 200, origin);
+        }
+
+        if (!browserlessKey) {
+          // No Browserless key — return instructions
+          return json({
+            success: true,
+            platform: platform,
+            status: 'manual_required',
+            email: email,
+            signupUrl: scriptConfig.url,
+            instructions: 'Visit ' + scriptConfig.url + ' and sign up with ' + email
+          }, 200, origin);
+        }
+
+        // Run Puppeteer script via Browserless
+        var browserResp = await fetch('https://chrome.browserless.io/function?token=' + browserlessKey, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            code: 'module.exports = async ({ page }) => { ' + scriptConfig.script + ' }',
+            context: {email: email, name: name, bio: bio, website: website}
+          })
+        });
+
+        if (!browserResp.ok) {
+          return json({success:false, error:'Browserless error: ' + browserResp.status, platform:platform}, 200, origin);
+        }
+
+        var result = await browserResp.json();
+
+        // Store signup record in KV
+        if (env.PRISM_KV) {
+          await env.PRISM_KV.put('signup:' + platform, JSON.stringify({
+            platform: platform,
+            email: email,
+            status: result.status || 'attempted',
+            result: result,
+            created: new Date().toISOString()
+          }));
+        }
+
+        return json({
+          success: true,
+          platform: platform,
+          status: result.status || 'attempted',
+          result: result,
+          note: result.note || 'Check ' + email + ' for verification emails'
+        }, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── OLD headless signup (kept for compatibility) ───────────────────────────
+    if (path === '/api/headless/signup-old' && request.method === 'POST') {
       try {
         var body = await request.json();
         var platform = body.platform;
@@ -2790,6 +2951,246 @@ export default {
         }
         return json({success:true}, 200, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+
+    // ── Scheduled research scrape ─────────────────────────────────────────────
+    // Runs keyword-optimised searches across all sources
+    // Uses Phi4 (local) for parsing, Gemma4 for keyword optimisation
+    if (path === '/api/research/scheduled' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var keywords = body.keywords || [];
+        var sources = body.sources || ['tavily','semantic_scholar','pubmed','exa'];
+        var profile = body.profile || 'research';
+
+        if (keywords.length === 0) return json({error:'No keywords provided'}, 400, origin);
+
+        // Step 1: Optimise keywords using Gemma4
+        var kvRaw = null;
+        try { kvRaw = await env.PRISM_KV.get('__secrets__'); } catch(e) {}
+        var kvSecrets = {};
+        if (kvRaw) { try { kvSecrets = JSON.parse(kvRaw); } catch(e) {} }
+        var envPlus = new Proxy(env, {
+          get: function(target, prop) {
+            if (target[prop] !== undefined) return target[prop];
+            if (kvSecrets[prop] !== undefined) return kvSecrets[prop];
+            if (kvSecrets[prop.toUpperCase()] !== undefined) return kvSecrets[prop.toUpperCase()];
+            if (kvSecrets[prop.toLowerCase()] !== undefined) return kvSecrets[prop.toLowerCase()];
+            return undefined;
+          }
+        });
+
+        var keywordOptResult = await orchestrate(envPlus, [
+          {role:'system', content:'You are a research keyword optimiser. Given a list of research topics, generate an optimised set of search queries that will find the most relevant academic and professional sources. Include Boolean operators, synonyms, and related terms. Return as a JSON array of query strings only.'},
+          {role:'user', content:'Optimise these research keywords for academic search: ' + keywords.join(', ')}
+        ], 'fast', 'research', null);
+
+        var optimisedQueries = keywords; // fallback
+        try {
+          var m = keywordOptResult.content.match(/\[\s*[\s\S]*?\]/);
+          if (m) optimisedQueries = JSON.parse(m[0]);
+        } catch(e) {}
+
+        // Step 2: Run searches across all sources in parallel
+        var allResults = [];
+        var searchPromises = optimisedQueries.slice(0, 5).map(function(query) {
+          var promises = [];
+          if (sources.includes('tavily')) promises.push(searchTavily(envPlus, query).then(function(r){r.forEach(function(i){i._query=query;i._source='tavily';allResults.push(i);});}));
+          if (sources.includes('semantic_scholar')) promises.push(searchSemanticScholar(envPlus, query).then(function(r){r.forEach(function(i){i._query=query;allResults.push(i);});}));
+          if (sources.includes('pubmed')) promises.push(searchPubMed(envPlus, query).then(function(r){r.forEach(function(i){i._query=query;allResults.push(i);});}));
+          if (sources.includes('exa')) promises.push(searchExa(envPlus, query).then(function(r){r.forEach(function(i){i._query=query;allResults.push(i);});}));
+          if (sources.includes('crossref')) promises.push(searchCrossref(envPlus, query).then(function(r){r.forEach(function(i){i._query=query;allResults.push(i);});}));
+          return Promise.allSettled(promises);
+        });
+        await Promise.allSettled(searchPromises);
+
+        // Step 3: Deduplicate by URL
+        var seen = {};
+        allResults = allResults.filter(function(r) {
+          var url = r.url || r.link || '';
+          if (seen[url]) return false;
+          seen[url] = true;
+          return true;
+        });
+
+        // Step 4: Synthesise with Nemotron Ultra (128K context)
+        var synthesis = null;
+        if (allResults.length > 0) {
+          var context = allResults.slice(0, 20).map(function(r, i) {
+            return (i+1) + '. ' + (r.title||'') + '\n' + (r.url||'') + '\n' + (r.content||r.snippet||'').substring(0,300);
+          }).join('\n\n');
+          var synthResult = await orchestrate(envPlus, [
+            {role:'system', content:'You are Toby, a research associate specialising in addiction, trauma, mental health, and social policy. Synthesise these search results into a structured research brief. British English. Label inferences. Cite sources by number.'},
+            {role:'user', content:'Synthesise these results for the keywords: ' + keywords.join(', ') + '\n\n' + context}
+          ], 'reasoning', 'research', null);
+          synthesis = synthResult.content;
+        }
+
+        // Step 5: Save to KV as a research run
+        var runId = 'research:run:' + Date.now();
+        var run = {
+          id: runId,
+          keywords: keywords,
+          optimisedQueries: optimisedQueries,
+          sources: sources,
+          resultCount: allResults.length,
+          results: allResults.slice(0, 50),
+          synthesis: synthesis,
+          created: new Date().toISOString()
+        };
+        if (env.PRISM_KV) await env.PRISM_KV.put(runId, JSON.stringify(run));
+
+        return json({
+          success: true,
+          runId: runId,
+          keywords: keywords,
+          optimisedQueries: optimisedQueries,
+          resultCount: allResults.length,
+          synthesis: synthesis,
+          results: allResults.slice(0, 20)
+        }, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Get saved research runs ───────────────────────────────────────────────
+    if (path === '/api/research/runs' && request.method === 'GET') {
+      try {
+        if (!env.PRISM_KV) return json({runs:[]}, 200, origin);
+        var list = await env.PRISM_KV.list({prefix:'research:run:'});
+        var runs = [];
+        for (var i = 0; i < Math.min(list.keys.length, 20); i++) {
+          var val = await env.PRISM_KV.get(list.keys[i].name);
+          if (val) {
+            var run = JSON.parse(val);
+            runs.push({id:run.id, keywords:run.keywords, resultCount:run.resultCount, created:run.created});
+          }
+        }
+        return json({runs: runs.sort(function(a,b){return new Date(b.created)-new Date(a.created);})}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Save research keywords for weekly scrape ──────────────────────────────
+    if (path === '/api/research/keywords' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var keywords = body.keywords || [];
+        var schedule = body.schedule || 'weekly';
+        if (env.PRISM_KV) await env.PRISM_KV.put('research:keywords', JSON.stringify({keywords:keywords, schedule:schedule, updated:new Date().toISOString()}));
+        return json({success:true, keywords:keywords}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    if (path === '/api/research/keywords' && request.method === 'GET') {
+      try {
+        if (!env.PRISM_KV) return json({keywords:[]}, 200, origin);
+        var stored = await env.PRISM_KV.get('research:keywords');
+        return json(stored ? JSON.parse(stored) : {keywords:[]}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+
+    // ── Worksheet to branded PDF ──────────────────────────────────────────────
+    if (path === '/api/worksheet/pdf' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var content = body.content || '';
+        var title = body.title || 'Identity Partners Worksheet';
+        var browserlessKey = env['BROWSERLESS.IO'] || env.BROWSERLESS_IO;
+
+        if (!browserlessKey) {
+          return json({error:'Browserless.io key required for PDF generation. Add BROWSERLESS.IO via ingester.'}, 200, origin);
+        }
+
+        // Build branded HTML for PDF
+        var html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Inter:wght@300;400;500;600&family=Merriweather:wght@400;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; color: #1a1a1a; background: #fff; padding: 40px 50px; }
+  .header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 20px; border-bottom: 3px solid #0f3b3a; margin-bottom: 30px; }
+  .logo-area { display: flex; flex-direction: column; }
+  .logo-name { font-family: 'Playfair Display', serif; font-size: 22px; color: #0f3b3a; font-weight: 600; }
+  .logo-name span { color: #5c2d3f; }
+  .logo-tagline { font-size: 10px; color: #a88792; margin-top: 3px; letter-spacing: 0.05em; }
+  .contact-info { text-align: right; font-size: 11px; color: #7a4254; line-height: 1.6; }
+  .doc-title { font-family: 'Playfair Display', serif; font-size: 26px; color: #0f3b3a; margin-bottom: 8px; font-weight: 600; }
+  .doc-date { font-size: 11px; color: #a88792; margin-bottom: 30px; }
+  .content { font-size: 13px; line-height: 1.8; color: #333; }
+  .content h1 { font-family: 'Playfair Display', serif; font-size: 20px; color: #0f3b3a; margin: 24px 0 10px; font-weight: 600; }
+  .content h2 { font-family: 'Playfair Display', serif; font-size: 17px; color: #5c2d3f; margin: 20px 0 8px; font-weight: 600; }
+  .content h3 { font-size: 14px; font-weight: 600; margin: 16px 0 6px; color: #0f3b3a; }
+  .content p { margin-bottom: 10px; }
+  .content ul, .content ol { margin: 8px 0 12px 20px; }
+  .content li { margin-bottom: 5px; }
+  .content blockquote { border-left: 3px solid #0f3b3a; padding: 8px 16px; background: #e8f4f4; margin: 12px 0; font-style: italic; color: #0f3b3a; border-radius: 0 6px 6px 0; }
+  .write-here { border-bottom: 1px solid #ddd0c8; min-height: 36px; margin: 6px 0 12px; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 2px solid #0f3b3a; display: flex; justify-content: space-between; font-size: 10px; color: #a88792; }
+  .footer-logo { font-family: 'Playfair Display', serif; font-size: 12px; color: #0f3b3a; }
+  .footer-logo span { color: #5c2d3f; }
+  @media print { body { padding: 20px 30px; } }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo-area">
+      <div class="logo-name">Identity<span>Partners</span></div>
+      <div class="logo-tagline">Understand your past · Appreciate the present · Define your future</div>
+    </div>
+    <div class="contact-info">
+      www.identitypartners.uk<br>
+      hello@identitypartners.uk<br>
+      @identitypartners
+    </div>
+  </div>
+  <div class="doc-title">${title}</div>
+  <div class="doc-date">Date: _________________ &nbsp;&nbsp; Name: _________________</div>
+  <div class="content">${content.replace(/\[Write here\.\.\.\]/g, '<div class="write-here"></div>').replace(/\n\n/g, '</p><p>').replace(/^/, '<p>').replace(/$/, '</p>')}</div>
+  <div class="footer">
+    <div class="footer-logo">Identity<span>Partners</span></div>
+    <div>This worksheet is for personal reflection only. Not a clinical document.</div>
+    <div>www.identitypartners.uk</div>
+  </div>
+</body>
+</html>`;
+
+        // Use Browserless to generate PDF
+        var pdfResp = await fetch('https://chrome.browserless.io/pdf?token=' + browserlessKey, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            html: html,
+            options: {
+              format: 'A4',
+              margin: {top:'20mm', bottom:'20mm', left:'15mm', right:'15mm'},
+              printBackground: true
+            }
+          })
+        });
+
+        if (!pdfResp.ok) {
+          return json({error:'PDF generation failed: ' + pdfResp.status}, 200, origin);
+        }
+
+        var pdfBuffer = await pdfResp.arrayBuffer();
+        var pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfBuffer)));
+
+        // Store in R2 if available
+        var pdfKey = 'worksheet-' + Date.now() + '.pdf';
+        if (env.PRISM_ASSETS) {
+          await env.PRISM_ASSETS.put(pdfKey, pdfBuffer, {httpMetadata:{contentType:'application/pdf'}});
+        }
+
+        return json({
+          success: true,
+          pdfBase64: pdfBase64,
+          pdfKey: pdfKey,
+          size: pdfBuffer.byteLength
+        }, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
     }
 
     return json({error:'Not found', path:path}, 404, origin);
