@@ -154,35 +154,24 @@ function setNow(){var el=document.getElementById('sched-time');if(el)el.value=ne
 function loadQueue() {
   var list = document.getElementById('queue-list');
   if(list) list.innerHTML = '<div class="empty-state"><div class="spinner"></div><div style="margin-top:8px;">Loading...</div></div>';
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', WORKER + '/api/social/queue?limit=500', true);
-  xhr.timeout = 15000;
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      var text = xhr.responseText;
-      // Handle proxy responses that aren't JSON
-      if (!text || text.indexOf('{') < 0) {
-        if(list) list.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div><div>Queue is empty or unreachable.<br><small style="color:var(--fg-muted);">Status: ' + xhr.status + '</small></div></div>';
-        return;
-      }
-      var r = JSON.parse(text);
-      allQueue = r.queue || [];
-      updateStats();
-      renderQueue(allQueue);
-      renderPlatformStatus();
-    } catch(e) {
-      if(list) list.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠</div><div>Could not parse queue response.<br><small style="color:var(--fg-muted);">' + e.message + '</small></div></div>';
-    }
-  };
-  xhr.ontimeout = function() {
-    if(list) list.innerHTML = '<div class="empty-state"><div class="empty-icon">⏱</div><div>Queue request timed out.<br><button class="btn btn-sm btn-secondary" onclick="loadQueue()" style="margin-top:8px;">Retry</button></div></div>';
-  };
-  xhr.onerror = function() {
-    if(list) list.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠</div><div>Network error loading queue.<br><button class="btn btn-sm btn-secondary" onclick="loadQueue()" style="margin-top:8px;">Retry</button></div></div>';
-  };
-  xhr.send();
+
+  fetch(WORKER + '/api/social/queue?limit=500', {
+    method: 'GET',
+    headers: {'Content-Type': 'application/json'},
+    signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined
+  })
+  .then(function(resp) { return resp.json(); })
+  .then(function(r) {
+    allQueue = r.queue || [];
+    updateStats();
+    renderQueue(allQueue);
+    renderPlatformStatus();
+  })
+  .catch(function(e) {
+    if(list) list.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠</div><div>Could not load queue: ' + e.message + '<br><button class="btn btn-sm btn-secondary" onclick="loadQueue()" style="margin-top:8px;">Retry</button></div></div>';
+  });
 }
+
 
 function updateStats() {
   var s = function(id,v){var e=document.getElementById(id);if(e)e.textContent=v;};
