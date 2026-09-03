@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', function() {
   checkEmailPrefill();
 });
 
-var WORKER = ''; // Relative paths via _redirects proxy
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
 function openCompose() { document.getElementById('email-to').focus(); }
 function checkEmailPrefill() {
   var params = new URLSearchParams(window.location.search);

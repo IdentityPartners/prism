@@ -930,11 +930,28 @@ async function sendTelegram(env, message) {
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 function cors(origin) {
+  // Allow prism.identitypartners.uk and all subdomains, plus workers.dev for testing
+  var allowedOrigins = [
+    'https://prism.identitypartners.uk',
+    'https://prism-8ch.pages.dev',
+    'https://prism-api.identitypartners.workers.dev',
+  ];
+  var allowOrigin = '*';
+  if (origin) {
+    // Allow any prism-*.pages.dev subdomain and the main domain
+    if (origin.indexOf('identitypartners.uk') >= 0 || 
+        origin.indexOf('pages.dev') >= 0 ||
+        origin.indexOf('workers.dev') >= 0) {
+      allowOrigin = origin;
+    }
+  }
   return {
-    'Access-Control-Allow-Origin': origin || '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Thread-ID, X-Profile',
+    'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin',
   };
 }
 
