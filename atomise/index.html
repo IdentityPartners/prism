@@ -93,7 +93,17 @@
             <button class="btn btn-ghost btn-sm" onclick="selAll()" title="Select all">All</button>
             <button class="btn btn-ghost btn-sm" onclick="clrAll()" title="Clear all">None</button>
           </div>
-          <button class="atomise-btn" id="atomise-btn" onclick="doAtomise()" title="Generate platform-native content">Atomise</button>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label class="form-label" style="font-size:11px;">Variations per platform</label>
+            <select class="select" id="variation-count" style="font-size:12px;" title="How many variations to generate per platform">
+              <option value="1">1 — single set (quick)</option>
+              <option value="3" selected>3 — standard set</option>
+              <option value="5">5 — rich set</option>
+              <option value="10">10 — bulk set</option>
+              <option value="20">20 — maximum</option>
+            </select>
+          </div>
+          <button class="atomise-btn" id="atomise-btn" onclick="doAtomise()" title="Generate platform-native content">⚡ Atomise</button>
           <div class="prog-wrap" id="prog-wrap">
             <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
             <div class="prog-label" id="prog-label">Generating...</div>
@@ -211,7 +221,8 @@ function doAtomise() {
   };
   xhr.ontimeout = function(){clearInterval(pi);if(btn)btn.disabled=false;if(pw)pw.style.display='none';Toast.error('Timed out. Try fewer platforms.');};
   xhr.onerror = function(){clearInterval(pi);if(btn)btn.disabled=false;if(pw)pw.style.display='none';Toast.error('Network error');};
-  xhr.send(JSON.stringify({text:text, profile:'balanced'}));
+  var variations = parseInt(document.getElementById('variation-count').value) || 3;
+  xhr.send(JSON.stringify({text:text, profile:'balanced', variations:variations}));
 }
 
 function renderAssets(assets, wordCount) {

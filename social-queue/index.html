@@ -58,7 +58,7 @@
         <button class="btn btn-sm btn-secondary" onclick="loadQueue()" title="Refresh queue">↺ Refresh</button>
         <button class="btn btn-sm btn-secondary" onclick="postAllPending()" title="Post all pending items now">🚀 Post All Pending</button>
         <button class="btn btn-sm btn-secondary" onclick="clearPosted()" title="Clear posted items">🗑 Clear Posted</button>
-        <a href="/atomise/" class="btn btn-sm btn-primary" title="Generate assets via Atomise">⚡ Atomise</a>
+        <a href="/atomise/" class="btn btn-sm btn-primary" title="Generate content via Atomise">⚡ Generate Content</a>
       </div>
     </div>
     <div class="sq-layout">
@@ -71,47 +71,7 @@
           <div class="stat-box"><div class="stat-num" id="s-scheduled">—</div><div class="stat-lbl">Scheduled</div></div>
         </div>
 
-        <!-- Bulk generator -->
-        <div class="bulk-card">
-          <div class="bulk-title">⚡ Bulk Content Generator <span class="badge badge-accent" id="bulk-count-badge">250 posts</span></div>
-          <div class="form-group">
-            <textarea class="compose-ta" id="bulk-topic" rows="3" placeholder="Paste topic or source text (up to 1,500 words)..."></textarea>
-          </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
-            <div class="form-group" style="flex:1;min-width:100px;margin-bottom:0;">
-              <label class="form-label">Posts to generate</label>
-              <select class="select" id="bulk-count" onchange="document.getElementById('bulk-count-badge').textContent=this.value+' posts'">
-                <option value="30">30</option><option value="50">50</option><option value="100">100</option>
-                <option value="250" selected>250</option><option value="500">500</option>
-              </select>
-            </div>
-            <div class="form-group" style="flex:1;min-width:100px;margin-bottom:0;">
-              <label class="form-label">Frequency</label>
-              <select class="select" id="bulk-freq">
-                <option value="3x">3× daily</option><option value="2x" selected>2× daily</option>
-                <option value="daily">Daily</option><option value="weekdays">Weekdays</option>
-              </select>
-            </div>
-          </div>
-          <div class="plt-row" id="bulk-plts">
-            <div class="plt-tog active" data-p="bluesky" onclick="toggleBP(this)">🦋 Bluesky</div>
-            <div class="plt-tog active" data-p="x" onclick="toggleBP(this)">𝕏 X</div>
-            <div class="plt-tog active" data-p="linkedin" onclick="toggleBP(this)">💼 LinkedIn</div>
-            <div class="plt-tog" data-p="instagram" onclick="toggleBP(this)">📸 Instagram</div>
-            <div class="plt-tog" data-p="facebook" onclick="toggleBP(this)">👥 Facebook</div>
-            <div class="plt-tog" data-p="threads" onclick="toggleBP(this)">🧵 Threads</div>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:8px;">
-            <button class="btn btn-primary" id="bulk-btn" onclick="bulkGenerate()" title="Generate and queue posts">✨ Generate &amp; Queue</button>
-            <button class="btn btn-secondary" onclick="postAllPending()" title="Post all pending now">🚀 Post All Now</button>
-          </div>
-          <div id="bulk-prog" style="display:none;">
-            <div class="prog-bar"><div class="prog-fill" id="bulk-fill" style="width:0%"></div></div>
-            <div style="font-size:11.5px;color:var(--fg-muted);" id="bulk-lbl">Generating...</div>
-          </div>
-        </div>
-
-        <!-- Filters -->
+                <!-- Filters -->
         <div class="filters">
           <span class="fc active" onclick="filterQ(this,'all')">All</span>
           <span class="fc" onclick="filterQ(this,'pending')">Pending</span>
@@ -182,13 +142,10 @@ var WORKER = 'https://prism-api.identitypartners.workers.dev';
 var allQueue = [];
 var currentFilter = 'all';
 var composePlatforms = ['bluesky'];
-var bulkPlatforms = ['bluesky','x','linkedin'];
-var generatedBatch = [];
 
 var PLAT_ICONS = {bluesky:'🦋',x:'𝕏',linkedin:'💼',instagram:'📸',facebook:'👥',threads:'🧵'};
 var PLAT_LIMITS = {bluesky:300,x:280,linkedin:3000,instagram:2200,facebook:63206,threads:500};
 
-function toggleBP(el){el.classList.toggle('active');var p=el.getAttribute('data-p');if(el.classList.contains('active')){if(bulkPlatforms.indexOf(p)<0)bulkPlatforms.push(p);}else bulkPlatforms=bulkPlatforms.filter(function(x){return x!==p;});}
 function toggleCP(el){el.classList.toggle('active');var p=el.getAttribute('data-p');if(el.classList.contains('active')){if(composePlatforms.indexOf(p)<0)composePlatforms.push(p);}else composePlatforms=composePlatforms.filter(function(x){return x!==p;});}
 function updateCC(){var t=document.getElementById('compose-text').value;var el=document.getElementById('cc');if(el){el.textContent=t.length+' / 280';el.style.color=t.length>280?'var(--danger)':'';};}
 function setNow(){var el=document.getElementById('sched-time');if(el)el.value=new Date(Date.now()+3600000).toISOString().slice(0,16);}

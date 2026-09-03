@@ -784,7 +784,7 @@ async function searchBrave(env, query) {
 }
 
 // ─── ATOMISE ──────────────────────────────────────────────────────────────────
-async function atomise(env, text, profile) {
+async function atomise(env, text, profile, variations) {
   // Robust JSON array extractor — handles markdown code blocks, plain JSON, partial JSON
   function extractArray(raw) {
     if (!raw) return null;
@@ -811,7 +811,8 @@ async function atomise(env, text, profile) {
   var isRich = wordCount > 600;
   var isMedium = wordCount > 200;
   // Scale post count proportionally: ~1 post per 50 words, min 3, max 20
-  var postCount = String(Math.min(20, Math.max(3, Math.round(wordCount / 50))));
+  var variations = variations || 3;
+  var postCount = String(Math.min(20, Math.max(variations, Math.round(wordCount / 50) * variations)));
   // Quote cards: ~1 per 100 words, min 3, max 10
   var qCount = String(Math.min(10, Math.max(3, Math.round(wordCount / 100))));
   // Carousel slides: ~1 per 150 words, min 3, max 10
@@ -1217,7 +1218,7 @@ export default {
             return undefined;
           }
         });
-        var assets = await atomise(envPlus3, body.text, body.profile);
+        var assets = await atomise(envPlus3, body.text, body.profile, body.variations || 3);
         return json({assets: assets}, 200, origin);
       } catch(e) { return json({error: e.message}, 500, origin); }
     }
