@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function() {
   loadAgents();
 });
 
-var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var WORKER = ''; // Relative paths via _redirects proxy
 var agents = [];
 function loadAgents() { try { agents = JSON.parse(localStorage.getItem('prism-agents') || '[]'); } catch(e) { agents = []; } renderAgents(); }
 function saveAgents() { try { localStorage.setItem('prism-agents', JSON.stringify(agents)); } catch(e) {} }

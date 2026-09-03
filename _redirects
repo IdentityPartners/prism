@@ -1,1 +1,3 @@
 /api/* https://prism-api.identitypartners.workers.dev/api/:splat 200
+/health https://prism-api.identitypartners.workers.dev/health 200
+/oauth/* https://prism-api.identitypartners.workers.dev/oauth/:splat 200

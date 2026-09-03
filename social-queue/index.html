@@ -138,7 +138,7 @@
 
 <script src="/shared/prism.js"></script>
 <script>
-var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var WORKER = ''; // Use relative paths via _redirects proxy
 var allQueue = [];
 var currentFilter = 'all';
 var composePlatforms = ['bluesky'];
@@ -183,7 +183,7 @@ function loadQueue() {
 }
 
 function testWorker() {
-  fetch(WORKER + '/health')
+  fetch('https://prism-api.identitypartners.workers.dev/health')
   .then(function(r) { return r.json(); })
   .then(function(d) { Toast.success('Worker OK: ' + d.version); })
   .catch(function(e) { Toast.error('Worker unreachable: ' + e.message); });

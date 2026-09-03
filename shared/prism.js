@@ -1,7 +1,7 @@
 // Prism Shared Utilities — Identity Partners
 // Rules: var only at top level, no arrow functions, no innerHTML with mixed quotes
 
-var PRISM_WORKER = 'https://prism-api.identitypartners.workers.dev';
+var PRISM_WORKER = ''; // Relative paths via _redirects proxy
 var PRISM_VERSION = '1.0.0';
 
 // ── Theme System ──────────────────────────────────────────────────────────────
