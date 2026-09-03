@@ -1,4 +1,4 @@
-// Prism Shared Utilities — Identity Partners
+// Prism Shared Utilities v1788475099_1788475082 — Identity Partners
 // Rules: var only at top level, no arrow functions, no innerHTML with mixed quotes
 
 var PRISM_WORKER = 'https://prism-api.identitypartners.workers.dev';
@@ -583,7 +583,7 @@ function buildSidebar(activePage) {
       {label:'Social Series', href:'/creator/social-series/'},
       {label:'Brand Kit', href:'/creator/brand-kit/'},
     ]},
-    {type:'item', label:'Atomise', icon:'⚡', href:'/atomise/'},
+    {type:'item', label:'Refract', icon:'⚡', href:'/atomise/'},
     {type:'item', label:'Social Calendar', icon:'📅', href:'/social-queue/'},
     {type:'section', label:'Business'},
     {type:'item', label:'CRM', icon:'👥', href:'/crm/'},
