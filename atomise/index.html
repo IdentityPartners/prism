@@ -255,8 +255,8 @@ function renderAssets(assets, wordCount) {
 
     if (key === 'instagram') {
       // Instagram: use Bluesky text rendered on canvas
-      var igPosts = assets.bluesky || assets.twitter || [];
-      if (Array.isArray(igPosts) && igPosts.length > 0) {
+      var igPosts = safeParseArray(assets.bluesky || assets.twitter || []);
+      if (igPosts && igPosts.length > 0) {
         igPosts.forEach(function(post, i) {
           var layout = CANVAS_LAYOUTS[i % CANVAS_LAYOUTS.length];
           var canvas = renderCanvasPreview(post, layout, 400, 400);
@@ -269,9 +269,10 @@ function renderAssets(assets, wordCount) {
       } else {
         body.textContent = 'No Bluesky/X posts to render. Select Bluesky or X first.';
       }
-    } else if (key === 'quotes' && Array.isArray(assets[key])) {
+    } else if (key === 'quotes') {
       // Quote cards: render each on canvas with different layouts
-      assets[key].forEach(function(q, i) {
+      var parsedQuotes = safeParseArray(assets[key]);
+      parsedQuotes.forEach(function(q, i) {
         var layout = CANVAS_LAYOUTS[i % CANVAS_LAYOUTS.length];
         var canvas = renderCanvasPreview('\u201c' + q + '\u201d', layout, 400, 400);
         body.appendChild(canvas);
@@ -287,15 +288,16 @@ function renderAssets(assets, wordCount) {
         s.innerHTML = '<div class="slide-num">Slide ' + (i+1) + ' / ' + assets[key].length + '</div><div class="slide-title">' + (slide.title||'') + '</div><div class="slide-body">' + (slide.body||'') + '</div>';
         body.appendChild(s);
       });
-    } else if (Array.isArray(assets[key])) {
-      assets[key].forEach(function(post, i) {
+    } else if (Array.isArray(assets[key]) || typeof assets[key] === 'string') {
+      var parsedArr = safeParseArray(assets[key]);
+      parsedArr.forEach(function(post, i) {
         var p = document.createElement('div');
         p.className = 'post-item';
         var num = document.createElement('span');
         num.className = 'post-num';
         num.textContent = (i+1) + '.';
         var txt = document.createElement('span');
-        txt.textContent = post;
+        txt.textContent = typeof post === 'string' ? post : JSON.stringify(post);
         p.appendChild(num); p.appendChild(txt);
         body.appendChild(p);
       });
@@ -398,7 +400,7 @@ function renderAssets(assets, wordCount) {
 function renderCanvasPreview(text, layout, w, h) {
   var canvas = document.createElement('canvas');
   canvas.width = w; canvas.height = h;
-  canvas.style.cssText = 'width:180px;height:180px;border-radius:8px;border:1px solid var(--border);cursor:pointer;';
+  canvas.style.cssText = 'width:220px;height:220px;border-radius:10px;border:1px solid var(--border);cursor:pointer;flex-shrink:0;';
   canvas.title = 'Click to open in Canvas editor';
   canvas.onclick = function() {
     try { sessionStorage.setItem('prism-canvas-text', text); } catch(e) {}
@@ -410,48 +412,88 @@ function renderCanvasPreview(text, layout, w, h) {
   ctx.fillStyle = layout.bg;
   ctx.fillRect(0, 0, w, h);
 
-  // Accent bar at top
+  // Top accent bar
   ctx.fillStyle = layout.accentColor;
-  ctx.fillRect(0, 0, w, 8);
+  ctx.fillRect(0, 0, w, 12);
 
-  // Accent bar at bottom
-  ctx.fillRect(0, h-8, w, 8);
+  // Bottom accent bar
+  ctx.fillRect(0, h-12, w, 12);
 
-  // Text
+  // Clean the text — remove quotes for display
+  var displayText = text.replace(/^“|”$/g, '').trim();
+
+  // Calculate font size based on text length
+  var fontSize = displayText.length < 60 ? 28 : displayText.length < 120 ? 22 : displayText.length < 200 ? 18 : 15;
+  var lineH = fontSize * 1.45;
+  var maxW = w - 80;
+  var maxLines = Math.floor((h - 120) / lineH);
+
   ctx.fillStyle = layout.textColor;
-  ctx.font = 'italic ' + (w > 300 ? '22' : '16') + 'px ' + layout.font + ', serif';
+  ctx.font = 'italic ' + fontSize + 'px Georgia, serif';
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
+  ctx.textBaseline = 'top';
 
   // Word wrap
-  var maxW = w - 60;
-  var words = text.split(' ');
+  var words = displayText.split(' ');
   var lines = [];
   var line = '';
-  words.forEach(function(word) {
-    var test = line + (line ? ' ' : '') + word;
+  for (var i = 0; i < words.length; i++) {
+    var test = line + (line ? ' ' : '') + words[i];
     if (ctx.measureText(test).width > maxW && line) {
       lines.push(line);
-      line = word;
+      line = words[i];
+      if (lines.length >= maxLines) { lines[lines.length-1] += '...'; break; }
     } else {
       line = test;
     }
-  });
-  if (line) lines.push(line);
+  }
+  if (line && lines.length < maxLines) lines.push(line);
 
-  var lineH = w > 300 ? 30 : 22;
   var totalH = lines.length * lineH;
-  var startY = (h - totalH) / 2;
+  var startY = (h - totalH) / 2 - 10;
+
+  // Opening quote mark
+  ctx.font = 'bold ' + (fontSize * 2.5) + 'px Georgia, serif';
+  ctx.fillStyle = layout.accentColor;
+  ctx.globalAlpha = 0.3;
+  ctx.fillText('“', 30, startY - fontSize * 1.5);
+  ctx.globalAlpha = 1;
+
+  // Text lines
+  ctx.font = 'italic ' + fontSize + 'px Georgia, serif';
+  ctx.fillStyle = layout.textColor;
   lines.forEach(function(l, i) {
-    ctx.fillText(l, w/2, startY + i * lineH + lineH/2);
+    ctx.fillText(l, w/2, startY + i * lineH);
   });
 
-  // IP wordmark at bottom
-  ctx.font = '500 ' + (w > 300 ? '11' : '9') + 'px Inter, sans-serif';
+  // IP wordmark
+  ctx.font = '500 11px Inter, sans-serif';
   ctx.fillStyle = layout.accentColor;
-  ctx.fillText('identitypartners.uk', w/2, h - 20);
+  ctx.globalAlpha = 0.8;
+  ctx.fillText('identitypartners.uk', w/2, h - 28);
+  ctx.globalAlpha = 1;
 
   return canvas;
+}
+
+function safeParseArray(val) {
+  if (Array.isArray(val)) return val;
+  if (!val) return [];
+  var s = String(val);
+  // Strip markdown code blocks
+  s = s.replace(/```json/gi, '').replace(/```/g, '').trim();
+  // Try direct JSON parse
+  try { var p = JSON.parse(s); if (Array.isArray(p)) return p; } catch(e) {}
+  // Try to find [...] in text
+  var start = s.indexOf('[');
+  var end = s.lastIndexOf(']');
+  if (start >= 0 && end > start) {
+    try { var p2 = JSON.parse(s.slice(start, end+1)); if (Array.isArray(p2)) return p2; } catch(e) {}
+  }
+  // Split by newlines and clean
+  var parts = s.split('\n').map(function(l){ return l.replace(/^\d+\.\s*/, '').replace(/^["\']+|["\']+$/g, '').trim(); }).filter(function(l){ return l.length > 5; });
+  if (parts.length > 1) return parts;
+  return [s];
 }
 
 function getContent(val) {

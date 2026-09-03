@@ -785,7 +785,26 @@ async function searchBrave(env, query) {
 
 // ─── ATOMISE ──────────────────────────────────────────────────────────────────
 async function atomise(env, text, profile) {
-  var sys = {role:'system', content:'You are a content strategist for Identity Partners. Write in British English. Professional, warm, evidence-based. No sycophancy. Always include a CTA to identitypartners.uk or the booking page.'};
+  // Robust JSON array extractor — handles markdown code blocks, plain JSON, partial JSON
+  function extractArray(raw) {
+    if (!raw) return null;
+    // Strip markdown code blocks
+    var cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+    // Try direct parse
+    try { var p = JSON.parse(cleaned); if (Array.isArray(p)) return p; } catch(e) {}
+    // Try to find array in text
+    var m = cleaned.match(/\[\s*[\s\S]*?\]/);
+    if (m) { try { var p2 = JSON.parse(m[0]); if (Array.isArray(p2)) return p2; } catch(e) {} }
+    // Try to find array of objects
+    var m2 = cleaned.match(/\[\s*\{[\s\S]*?\}\s*\]/);
+    if (m2) { try { var p3 = JSON.parse(m2[0]); if (Array.isArray(p3)) return p3; } catch(e) {} }
+    // Fall back: split by numbered items or newlines
+    var lines = cleaned.split(/\n+/).filter(function(l){return l.trim() && !l.match(/^[\[\]{}]/);});
+    if (lines.length > 0) return lines.map(function(l){return l.replace(/^\d+\.\s*/, '').replace(/^["']|["']$/g,'').trim();}).filter(Boolean);
+    return [cleaned];
+  }
+
+  var sys = {role:'system', content:'You are a content strategist for Identity Partners. Write in British English. Professional, warm, evidence-based. No sycophancy. Always include a CTA to identitypartners.uk or the booking page. IMPORTANT: When asked to return JSON arrays, return ONLY the raw JSON array with no markdown formatting, no code blocks, no explanation.'};
   var assets = {};
   var p = profile || 'balanced';
   var wordCount = text.trim().split(/\s+/).length;
@@ -811,16 +830,16 @@ async function atomise(env, text, profile) {
   // Batch 1: Short-form (always generated)
   await Promise.allSettled([
     orchestrate(env, [sys, prompt('Extract ' + qCount + ' powerful standalone quotes, each 15-25 words, suitable for a visual quote card, no hashtags. Return as JSON array of strings only.')], p, 'drafting', null)
-      .then(function(r){ try{assets.quotes=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.quotes=[r.content];} }),
+      .then(function(r){ var _equotes=extractArray(r.content);assets.quotes=_equotes||[r.content]; }),
 
     orchestrate(env, [sys, prompt('Write ' + postCount + ' standalone Bluesky posts, each under 280 characters, conversational, no hashtags in body, each works independently. Return as JSON array of strings only.')], p, 'drafting', null)
-      .then(function(r){ try{assets.bluesky=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.bluesky=[r.content];} }),
+      .then(function(r){ var _ebluesky=extractArray(r.content);assets.bluesky=_ebluesky||[r.content]; }),
 
     orchestrate(env, [sys, prompt('Write ' + postCount + ' standalone X/Twitter posts, each strictly under 280 characters, punchy, 1-2 hashtags per post. Return as JSON array of strings only.')], p, 'drafting', null)
-      .then(function(r){ try{assets.twitter=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.twitter=[r.content];} }),
+      .then(function(r){ var _etwitter=extractArray(r.content);assets.twitter=_etwitter||[r.content]; }),
 
     orchestrate(env, [sys, prompt('Write ' + threadCount + ' Threads notes, each under 500 characters, casual and authentic, no hashtags. Return as JSON array of strings only.')], p, 'drafting', null)
-      .then(function(r){ try{assets.threads=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.threads=[r.content];} }),
+      .then(function(r){ var _ethreads=extractArray(r.content);assets.threads=_ethreads||[r.content]; }),
   ]);
 
   // Batch 2: LinkedIn + Instagram + Facebook
@@ -842,7 +861,7 @@ async function atomise(env, text, profile) {
   if (isMedium) {
     await Promise.allSettled([
       orchestrate(env, [sys, prompt('Write ' + threadCount + ' Substack Notes, each under 300 characters, teaser that makes people want to read more. Return as JSON array of strings only.')], p, 'drafting', null)
-        .then(function(r){ try{assets.substack_note=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.substack_note=[r.content];} }),
+        .then(function(r){ var _esubstack_note=extractArray(r.content);assets.substack_note=_esubstack_note||[r.content]; }),
 
       orchestrate(env, [sys, prompt('Write a Tumblr post, 200-300 words, creative and thoughtful, include relevant tags at end in format #tag1 #tag2.')], p, 'drafting', null)
         .then(function(r){ assets.tumblr = r.content; }),
