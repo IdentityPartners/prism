@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Connect Zoho Mail — Prism</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect Zoho Mail - Prism</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:Inter,system-ui,sans-serif;background:#f7f3e9;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}
@@ -11,102 +10,84 @@ body{font-family:Inter,system-ui,sans-serif;background:#f7f3e9;display:flex;alig
 .icon{font-size:48px;margin-bottom:14px;}
 .title{font-size:22px;font-weight:600;color:#0f3b3a;margin-bottom:10px;}
 .msg{font-size:14px;color:#7a4254;line-height:1.6;margin-bottom:16px;}
-.success{background:#edf5eb;border:1px solid #5a7a4f;border-radius:8px;padding:14px;margin:12px 0;font-size:13px;color:#3a5a2f;line-height:1.6;}
-.error{background:#fbeaea;border:1px solid #8b3a3a;border-radius:8px;padding:14px;margin:12px 0;font-size:13px;color:#8b3a3a;line-height:1.6;text-align:left;}
-.spinner{width:40px;height:40px;border:3px solid #ddd0c8;border-top-color:#0f3b3a;border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 16px;display:none;}
+.ok{background:#edf5eb;border:1px solid #5a7a4f;border-radius:8px;padding:14px;margin:12px 0;font-size:13px;color:#3a5a2f;}
+.err{background:#fbeaea;border:1px solid #8b3a3a;border-radius:8px;padding:14px;margin:12px 0;font-size:13px;color:#8b3a3a;text-align:left;}
+.spin{width:40px;height:40px;border:3px solid #ddd0c8;border-top-color:#0f3b3a;border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 16px;display:none;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .btn{display:block;width:100%;padding:13px;background:#0f3b3a;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:none;margin-top:10px;}
 .btn:hover{background:#1a5550;color:#fff;text-decoration:none;}
-.btn-outline{background:#fff;color:#0f3b3a;border:1.5px solid #0f3b3a;}
-.btn-outline:hover{background:#e8f4f4;}
+.btn2{background:#fff;color:#0f3b3a;border:1.5px solid #0f3b3a;}
+.btn2:hover{background:#e8f4f4;}
+.log{background:#1a1a1a;color:#7ecf7e;border-radius:8px;padding:10px;font-family:monospace;font-size:11px;text-align:left;margin-top:10px;max-height:100px;overflow-y:auto;display:none;}
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="icon" id="icon">🔑</div>
+  <div class="icon" id="icon">&#x1F511;</div>
   <div class="title" id="title">Zoho Mail</div>
-  <div class="msg" id="msg">Connecting to your Zoho account…</div>
-  <div class="spinner" id="spinner"></div>
+  <div class="spin" id="spin"></div>
+  <div class="msg" id="msg"></div>
   <div id="body"></div>
+  <div class="log" id="log"></div>
 </div>
 <script>
 (function(){
-  var WORKER = 'https://prism-api.identitypartners.workers.dev';
-  var params = new URLSearchParams(window.location.search);
-  var code = params.get('code');
-  var error = params.get('error');
-  var connected = params.get('connected');
+  var W='https://prism-api.identitypartners.workers.dev';
+  var p=new URLSearchParams(window.location.search);
+  var code=p.get('code'),error=p.get('error');
 
-  function set(icon, title, msg, html, spin){
-    document.getElementById('icon').textContent = icon;
-    document.getElementById('title').textContent = title;
-    document.getElementById('msg').textContent = msg;
-    document.getElementById('spinner').style.display = spin ? 'block' : 'none';
-    document.getElementById('body').innerHTML = html;
+  function log(m){var e=document.getElementById('log');if(e){e.style.display='block';e.textContent+=m+'\n';e.scrollTop=e.scrollHeight;}}
+  function set(i,t,m,h,s){
+    document.getElementById('icon').textContent=i;
+    document.getElementById('title').textContent=t;
+    document.getElementById('msg').textContent=m||'';
+    document.getElementById('spin').style.display=s?'block':'none';
+    document.getElementById('body').innerHTML=h||'';
   }
 
-  // Already connected
-  if (connected === '1') {
-    set('✅','Zoho Mail Connected!','Your account is now connected to Prism.',
-      '<div class="success">Tokens stored securely. You can now use Zoho Mail within Prism.</div>' +
-      '<a href="/comms/email/" class="btn">Open Mail →</a>' +
-      '<a href="/settings/" class="btn btn-outline" style="margin-top:8px;">Back to Settings</a>',false);
+  if(error){
+    set('&#x2717;','Connection Failed','',
+      '<div class="err"><strong>Zoho error:</strong> '+decodeURIComponent(error)+'<br><br>Check redirect URI in <a href="https://api-console.zoho.eu" target="_blank" style="color:#8b3a3a;">api-console.zoho.eu</a>:<br><code style="font-size:11px;background:#f0e9e0;padding:2px 5px;border-radius:3px;">https://prism.identitypartners.uk/oauth/zoho/mail</code></div>' +
+      '<a href="/oauth/zoho/mail/" class="btn">Try Again</a>','');
     return;
   }
 
-  // Error from Zoho
-  if (error) {
-    set('✗','Connection Failed','',
-      '<div class="error"><strong>Zoho error:</strong> ' + decodeURIComponent(error) + '<br><br>' +
-      'Redirect URI must be registered in <a href="https://api-console.zoho.eu" target="_blank" style="color:#8b3a3a;">api-console.zoho.eu</a>:<br>' +
-      '<code style="background:#f0e9e0;padding:4px 8px;border-radius:4px;font-family:monospace;font-size:12px;display:block;margin:6px 0;word-break:break-all;">https://prism.identitypartners.uk/oauth/zoho/mail</code></div>' +
-      '<a href="/oauth/zoho/mail/" class="btn">Try Again</a>',false);
-    return;
-  }
-
-  // Code received from Zoho — exchange via Worker
-  if (code) {
-    set('🔄','Connecting…','Exchanging authorisation code…','',true);
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', WORKER + '/api/zoho/token', true);
+  if(code){
+    set('&#x1F504;','Connecting...','Exchanging authorisation code...','',true);
+    log('Code: '+code.substring(0,20)+'...');
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST',W+'/api/zoho/token',true);
     xhr.setRequestHeader('Content-Type','application/json');
-    xhr.timeout = 30000;
-    xhr.onreadystatechange = function(){
-      if (xhr.readyState !== 4) return;
-      document.getElementById('spinner').style.display = 'none';
-      try {
-        var r = JSON.parse(xhr.responseText);
-        if (r.success) {
-          set('✅','Zoho Mail Connected!','',
-            '<div class="success">Connected successfully. Tokens stored securely.</div>' +
-            '<a href="/comms/email/" class="btn">Open Mail →</a>' +
-            '<a href="/settings/" class="btn btn-outline" style="margin-top:8px;">Back to Settings</a>',false);
-        } else {
-          set('✗','Connection Failed','',
-            '<div class="error"><strong>Error:</strong> ' + (r.error||'Token exchange failed') + '</div>' +
-            '<a href="/oauth/zoho/mail/" class="btn">Try Again</a>',false);
+    xhr.timeout=30000;
+    xhr.onreadystatechange=function(){
+      if(xhr.readyState!==4) return;
+      document.getElementById('spin').style.display='none';
+      log('Status: '+xhr.status+' Response: '+xhr.responseText.substring(0,100));
+      try{
+        var r=JSON.parse(xhr.responseText);
+        if(r.success){
+          set('&#x2705;','Zoho Mail Connected!','',
+            '<div class="ok">Connected. Tokens stored in Prism.</div>' +
+            '<a href="/comms/email/" class="btn">Open Mail &#x2192;</a>' +
+            '<a href="/settings/" class="btn btn2" style="margin-top:8px;">Back to Settings</a>','');
+        }else{
+          set('&#x2717;','Failed','',
+            '<div class="err"><strong>Error:</strong> '+(r.error||'Token exchange failed')+'</div>' +
+            '<a href="/oauth/zoho/mail/" class="btn">Try Again</a>','');
         }
-      } catch(e) {
-        set('✗','Error','',
-          '<div class="error">Unexpected error: ' + e.message + '</div>' +
-          '<a href="/oauth/zoho/mail/" class="btn">Try Again</a>',false);
+      }catch(e){
+        set('&#x2717;','Error','','<div class="err">'+e.message+'</div><a href="/oauth/zoho/mail/" class="btn">Try Again</a>','');
       }
     };
-    xhr.ontimeout = function(){ set('✗','Timeout','','<div class="error">Request timed out.</div><a href="/oauth/zoho/mail/" class="btn">Try Again</a>',false); };
-    xhr.onerror = function(){ set('✗','Network Error','','<div class="error">Could not reach Prism API.</div><a href="/oauth/zoho/mail/" class="btn">Try Again</a>',false); };
-    xhr.send(JSON.stringify({
-      service: 'mail',
-      code: code,
-      redirectUri: 'https://prism.identitypartners.uk/oauth/zoho/mail'
-    }));
+    xhr.ontimeout=function(){set('&#x2717;','Timeout','','<div class="err">Timed out.</div><a href="/oauth/zoho/mail/" class="btn">Try Again</a>','');};
+    xhr.onerror=function(){log('Network error');set('&#x2717;','Network Error','','<div class="err">Could not reach Prism API.</div><a href="/oauth/zoho/mail/" class="btn">Try Again</a>','');};
+    xhr.send(JSON.stringify({service:'mail',code:code,redirectUri:'https://prism.identitypartners.uk/oauth/zoho/mail'}));
     return;
   }
 
-  // No code, no error — show connect button
-  // This page directly builds the Zoho auth URL (no Worker redirect needed)
-  set('🔑','Connect Zoho Mail','Click below to authorise Prism to access your Zoho Mail account.',
-    '<a href="https://accounts.zoho.eu/oauth/v2/auth?response_type=code&client_id=1000.3OLT0KYOJIGADEUPVTRPX4CCPWZHXY&scope=ZohoMail.messages.ALL,ZohoMail.folders.ALL,ZohoMail.accounts.READ&redirect_uri=https://prism.identitypartners.uk/oauth/zoho/mail&access_type=offline&prompt=consent" class="btn">Connect Zoho Mail →</a>' +
-    '<a href="/settings/" class="btn btn-outline" style="margin-top:8px;">Back to Settings</a>',false);
+  set('&#x1F511;','Connect Zoho Mail','Click below to authorise Prism to access your Zoho Mail account.',
+    '<a href="https://accounts.zoho.eu/oauth/v2/auth?response_type=code&client_id=1000.3OLT0KYOJIGADEUPVTRPX4CCPWZHXY&scope=ZohoMail.messages.ALL%2CZohoMail.folders.ALL%2CZohoMail.accounts.READ&redirect_uri=https%3A//prism.identitypartners.uk/oauth/zoho/mail&access_type=offline&prompt=consent" class="btn">Connect Zoho Mail &#x2192;</a>' +
+    '<a href="/settings/" class="btn btn2" style="margin-top:8px;">Back to Settings</a>','');
 })();
 </script>
 </body>

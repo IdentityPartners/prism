@@ -1021,6 +1021,24 @@ export default {
             return undefined;
           }
         });
+
+        // ORCHESTRATOR: inject live search results for research queries
+        if (intent === 'research' || intent === 'chat') {
+          var lastMsg = body.messages[body.messages.length-1];
+          var msgText = lastMsg ? lastMsg.content : '';
+          var needsSearch = /\b(search|find|look up|what is|who is|latest|current|recent|news|today)\b/i.test(msgText);
+          if (needsSearch && msgText.length > 10) {
+            try {
+              var sr = await searchTavily(envPlus, msgText.substring(0,200));
+              if (sr && sr.length > 0) {
+                var sc = 'LIVE SEARCH RESULTS:\n\n' + sr.slice(0,3).map(function(r,i){return (i+1)+'. '+r.title+'\n'+(r.content||r.snippet||'').substring(0,300);}).join('\n\n');
+                var si = messages.findIndex(function(m){return m.role==='system';});
+                if (si>=0) messages[si]={role:'system',content:messages[si].content+'\n\n'+sc};
+                else messages.unshift({role:'system',content:sc});
+              }
+            } catch(e) {}
+          }
+        }
         var result = await orchestrate(envPlus, messages, profile, intent, threadId);
 
         // Save thread
@@ -2632,6 +2650,70 @@ export default {
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    if (path === '/api/zoho/status' && request.method === 'GET') {
+      var status = {};
+      if (env.PRISM_KV) {
+        for (var svc of ['mail','calendar','crm','social']) {
+          var t = await env.PRISM_KV.get('zoho:tokens:'+svc);
+          status[svc] = t ? {connected:true} : {connected:false};
+        }
+      }
+      return json({status:status}, 200, origin);
+    }
+
+    if (path === '/api/podcast/generate-audio' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        var script = body.script || '';
+        var voice = body.voice || 'rachel';
+        var provider = body.provider || 'elevenlabs';
+        if (!script) return json({error:'No script provided'}, 400, origin);
+        var chunk = script.substring(0, 4000);
+        if (provider === 'elevenlabs') {
+          var elKey = env.ELEVENLABS_API_KEY || env.elevenlabs_api_key;
+          if (!elKey) return json({error:'ElevenLabs API key not configured. Add ELEVENLABS_API_KEY via ingester.'}, 200, origin);
+          var voicesResp = await fetch('https://api.elevenlabs.io/v1/voices', {headers:{'xi-api-key':elKey}});
+          var voicesData = await voicesResp.json();
+          var voices = voicesData.voices || [];
+          var selectedVoice = voices.find(function(v){return v.name.toLowerCase()===voice.toLowerCase();}) || voices[0];
+          if (!selectedVoice) return json({error:'No voices available'}, 200, origin);
+          var ttsResp = await fetch('https://api.elevenlabs.io/v1/text-to-speech/'+selectedVoice.voice_id, {
+            method:'POST',
+            headers:{'xi-api-key':elKey,'Content-Type':'application/json','Accept':'audio/mpeg'},
+            body:JSON.stringify({text:chunk,model_id:'eleven_multilingual_v2',voice_settings:{stability:0.5,similarity_boost:0.75}})
+          });
+          if (!ttsResp.ok) return json({error:'ElevenLabs error: '+ttsResp.status}, 200, origin);
+          var buf = await ttsResp.arrayBuffer();
+          var b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+          return json({success:true,provider:'elevenlabs',voice:selectedVoice.name,audioBase64:b64,note:script.length>4000?'Script truncated to 4000 chars':'Full script generated'}, 200, origin);
+        }
+        if (provider === 'cartesia') {
+          var cartKey = env.CARTESIA_API_KEY || env.cartesia_api_key;
+          if (!cartKey) return json({error:'Cartesia API key not configured'}, 200, origin);
+          var cartResp = await fetch('https://api.cartesia.ai/tts/bytes', {
+            method:'POST',
+            headers:{'X-API-Key':cartKey,'Content-Type':'application/json','Cartesia-Version':'2024-06-10'},
+            body:JSON.stringify({transcript:chunk,model_id:'sonic-english',voice:{mode:'id',id:'a0e99841-438c-4a64-b679-ae501e7d6091'},output_format:{container:'mp3',encoding:'mp3',sample_rate:44100}})
+          });
+          if (!cartResp.ok) return json({error:'Cartesia error: '+cartResp.status}, 200, origin);
+          var cartBuf = await cartResp.arrayBuffer();
+          var cartB64 = btoa(String.fromCharCode(...new Uint8Array(cartBuf)));
+          return json({success:true,provider:'cartesia',audioBase64:cartB64}, 200, origin);
+        }
+        return json({error:'Unknown provider: '+provider}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    if (path === '/api/podcast/voices' && request.method === 'GET') {
+      try {
+        var elKey = env.ELEVENLABS_API_KEY || env.elevenlabs_api_key;
+        if (!elKey) return json({voices:[],error:'ElevenLabs not configured'}, 200, origin);
+        var resp = await fetch('https://api.elevenlabs.io/v1/voices', {headers:{'xi-api-key':elKey}});
+        var data = await resp.json();
+        return json({voices:(data.voices||[]).map(function(v){return {id:v.voice_id,name:v.name,category:v.category};})}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
     return json({error:'Not found', path:path}, 404, origin);
   }
 };

@@ -954,7 +954,12 @@ function openPersonaModal() {
   var list = document.getElementById('persona-list');
   if (!modal || !list) return;
   list.innerHTML = '';
-  for (var i = 0; i < PERSONAS.length; i++) {
+  var allPersonas = PERSONAS.slice();
+  try {
+    var saved = JSON.parse(localStorage.getItem('prism-personas') || '[]');
+    saved.forEach(function(p) { allPersonas.push({name:p.name, avatar:p.avatar||'🎭', systemPrompt:p.systemPrompt||'You are '+p.name+'. British English.'}); });
+  } catch(e) {}
+  for (var i = 0; i < allPersonas.length; i++) {
     (function(p) {
       var item = document.createElement('div');
       item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;margin-bottom:8px;transition:all 0.15s;';
@@ -972,7 +977,7 @@ function openPersonaModal() {
       item.appendChild(info);
       item.onclick = function() { selectPersona(p); closePersonaModal(); };
       list.appendChild(item);
-    })(PERSONAS[i]);
+    })(allPersonas[i]);
   }
   modal.classList.remove('hidden');
 }
@@ -1155,16 +1160,25 @@ function toggleDictation() {
   recognition.continuous = true;
   recognition.interimResults = true;
   recognition.lang = 'en-GB';
+  var dictationBase = '';
+  recognition.onstart = function() {
+    var input = document.getElementById('chat-input');
+    dictationBase = input ? input.value : '';
+  };
   recognition.onresult = function(event) {
     var input = document.getElementById('chat-input');
     if (!input) return;
-    var transcript = '';
+    var interim = '', final_text = '';
     for (var i = event.resultIndex; i < event.results.length; i++) {
-      transcript += event.results[i][0].transcript;
+      if (event.results[i].isFinal) final_text += event.results[i][0].transcript;
+      else interim += event.results[i][0].transcript;
     }
-    input.value = transcript;
+    if (final_text) dictationBase += (dictationBase ? ' ' : '') + final_text.trim();
+    input.value = dictationBase + (interim ? ' [' + interim + ']' : '');
   };
   recognition.onend = function() {
+    var input = document.getElementById('chat-input');
+    if (input) input.value = dictationBase;
     dictating = false;
     var chip = document.getElementById('dictate-chip');
     if (chip) chip.textContent = '🎤 Dictate';
