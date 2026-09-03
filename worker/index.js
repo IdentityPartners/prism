@@ -432,13 +432,24 @@ async function searchPerplexity(env, query) {
   var resp = await fetch('https://api.perplexity.ai/chat/completions', {
     method: 'POST',
     headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model:'llama-3.1-sonar-small-128k-online', messages:[{role:'user',content:'Search for: '+query+'. Return the top 5 most relevant results with title, URL, and brief summary.'}], max_tokens:1000})
+    body: JSON.stringify({
+      model: 'llama-3.1-sonar-large-128k-online',
+      messages: [{role:'user',content:'Search for academic and professional information about: '+query+'. Provide 5 specific results with titles, URLs, and summaries. Focus on evidence-based sources.'}],
+      max_tokens: 2000,
+      return_citations: true,
+      return_related_questions: false
+    })
   });
   if (!resp.ok) throw new Error('Perplexity: '+resp.status);
   var data = await resp.json();
   var content = data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content||'';
-  // Return as a single synthesised result
-  return [{title:'Perplexity Web Search: '+query, url:'https://perplexity.ai', content:content, _type:'synthesis'}];
+  var citations = data.citations || [];
+  // Return citations as individual results + synthesis
+  var results = citations.slice(0,5).map(function(url, i) {
+    return {title:'Source '+(i+1)+': '+url, url:url, content:'', _type:'web', _source:'perplexity'};
+  });
+  results.unshift({title:'Perplexity AI Synthesis: '+query, url:'https://perplexity.ai', content:content, _type:'synthesis', _source:'perplexity'});
+  return results;
 }
 
 
@@ -1057,7 +1068,20 @@ export default {
             } catch(e) {}
           }
         }
-        var result = await orchestrate(envPlus, messages, profile, intent, threadId);
+        // Handle vision/multimodal requests
+        var images = body.images || [];
+        if (images.length > 0) {
+          // Use Gemini for vision (supports base64 images)
+          try {
+            var visionResult = await callGemini(envPlus, messages, 'gemini-2.0-flash', images);
+            var result = {content: stripTropes(visionResult), provider: 'gemini', model: 'gemini-2.0-flash-vision', intent: intent};
+          } catch(ve) {
+            // Fall back to text-only
+            var result = await orchestrate(envPlus, messages, profile, intent, threadId);
+          }
+        } else {
+          var result = await orchestrate(envPlus, messages, profile, intent, threadId);
+        }
 
         // Save thread
         if (env.PRISM_KV) {

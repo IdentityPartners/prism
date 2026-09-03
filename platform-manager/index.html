@@ -6,37 +6,42 @@
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
 <style>
-.pm-layout { display:grid; grid-template-columns:1fr 340px; height:calc(100vh - var(--topbar-h)); overflow:hidden; }
-@media(max-width:1000px){ .pm-layout{ grid-template-columns:1fr; } .pm-right{ display:none; } }
-.pm-main { overflow-y:auto; padding:20px; }
-.pm-right { border-left:1px solid var(--border); background:var(--bg-surface); overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; }
-.platform-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
-.platform-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); padding:14px; transition:border-color 0.15s; }
-.platform-card:hover { border-color:var(--accent); }
-.platform-card-header { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
-.platform-icon { font-size:26px; }
-.platform-name { font-weight:600; font-size:13.5px; color:var(--fg-primary); }
-.platform-cat { font-size:11px; color:var(--fg-muted); }
-.platform-status-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-.platform-actions { display:flex; gap:5px; flex-wrap:wrap; }
-.cat-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:16px; overflow-x:auto; }
-.cat-tab { padding:8px 14px; font-size:12.5px; font-weight:500; color:var(--fg-muted); cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; transition:all 0.15s; }
-.cat-tab:hover { color:var(--fg-primary); }
-.cat-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
-.broadcast-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px; }
-.broadcast-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.07em; color:var(--fg-muted); margin-bottom:10px; }
-.broadcast-ta { width:100%; min-height:80px; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; font-family:var(--font-ui); resize:none; outline:none; background:var(--bg-primary); color:var(--fg-primary); line-height:1.6; }
-.broadcast-ta:focus { border-color:var(--accent); }
-.platform-toggles { display:flex; gap:5px; flex-wrap:wrap; margin:8px 0; }
-.plt-tog { padding:4px 10px; border:1px solid var(--border); border-radius:6px; font-size:11.5px; cursor:pointer; color:var(--fg-secondary); background:var(--bg-surface); transition:all 0.15s; }
-.plt-tog.active { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
-.post-log { background:var(--fg-primary); color:#f0e9e0; border-radius:8px; padding:10px 12px; font-family:var(--font-mono); font-size:11px; line-height:1.7; max-height:160px; overflow-y:auto; margin-top:8px; }
-.log-ok { color:#7ecf7e; }
-.log-err { color:#f08080; }
-.log-info { color:#a8d4f0; }
-.signup-modal-body { display:flex; flex-direction:column; gap:12px; }
-.signup-step { padding:12px; background:var(--bg-surface); border-radius:8px; font-size:13px; }
-.signup-step-num { font-weight:600; color:var(--accent); margin-bottom:4px; }
+.pm-layout{display:grid;grid-template-columns:1fr 320px;height:calc(100vh - var(--topbar-h));overflow:hidden;}
+@media(max-width:1000px){.pm-layout{grid-template-columns:1fr;}.pm-right{display:none;}}
+.pm-main{overflow-y:auto;padding:16px 20px;}
+.pm-right{border-left:1px solid var(--border);background:var(--bg-surface);overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;}
+.cat-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px;overflow-x:auto;flex-shrink:0;}
+.cat-tab{padding:7px 12px;font-size:12px;font-weight:500;color:var(--fg-muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all 0.15s;}
+.cat-tab:hover{color:var(--fg-primary);}
+.cat-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.platform-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
+.plt-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;transition:border-color 0.15s;}
+.plt-card:hover{border-color:var(--accent);}
+.plt-card.connected{border-color:var(--success);background:#edf5eb;}
+.plt-card.in-progress{border-color:var(--warning);background:#fdf3e7;}
+.plt-name{font-weight:600;font-size:13px;color:var(--fg-primary);margin-bottom:3px;}
+.plt-model{font-size:11px;color:var(--fg-muted);margin-bottom:6px;}
+.plt-status-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.plt-actions{display:flex;gap:4px;flex-wrap:wrap;}
+.status-flags{display:flex;gap:3px;flex-wrap:wrap;}
+.flag{font-size:9px;padding:1px 5px;border-radius:8px;font-weight:600;}
+.flag-D{background:#e8f4f4;color:#0f3b3a;}
+.flag-F{background:#f5e8ec;color:#5c2d3f;}
+.flag-V{background:#fdf3e7;color:#c4925a;}
+.flag-UK{background:#e8f0fe;color:#1a73e8;}
+.flag-P{background:#f3e5f5;color:#6a1b9a;}
+.flag-R{background:#fbeaea;color:#8b3a3a;}
+.flag-C{background:#fff3e0;color:#e65100;}
+.signup-panel{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;}
+.signup-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:10px;}
+.signup-steps{display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--fg-secondary);}
+.signup-step{padding:6px 8px;background:var(--bg-surface);border-radius:5px;display:flex;gap:6px;}
+.step-num{color:var(--accent);font-weight:600;flex-shrink:0;}
+.broadcast-panel{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;}
+.bucket-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px;}
+.bucket-item:last-child{border-bottom:none;}
+.bucket-check{width:16px;height:16px;border:1.5px solid var(--border);border-radius:3px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;}
+.bucket-check.checked{background:var(--accent);border-color:var(--accent);color:#fff;}
 </style>
 </head>
 <body>
@@ -46,333 +51,272 @@
     <div class="topbar">
       <div class="topbar-title">Platform Manager</div>
       <div class="topbar-actions">
-        <span style="font-size:12px;color:var(--fg-muted);" id="connected-count">Loading…</span>
+        <span style="font-size:12px;color:var(--fg-muted);" id="connected-count">Loading...</span>
         <button class="btn btn-sm btn-secondary" onclick="refreshStatus()" title="Refresh connection status">↺ Refresh</button>
+        <button class="btn btn-sm btn-primary" onclick="startHeadlessSignup()" title="Begin headless signup for selected platforms">🤖 Headless Signup</button>
       </div>
     </div>
     <div class="pm-layout">
       <div class="pm-main">
-        <div class="cat-tabs">
-          <div class="cat-tab active" onclick="filterCat(this,'all')">All Platforms</div>
-          <div class="cat-tab" onclick="filterCat(this,'social')">Social Media</div>
-          <div class="cat-tab" onclick="filterCat(this,'monetisation')">Monetisation</div>
-          <div class="cat-tab" onclick="filterCat(this,'podcast')">Podcasts</div>
-          <div class="cat-tab" onclick="filterCat(this,'newsletter')">Newsletters</div>
-          <div class="cat-tab" onclick="filterCat(this,'community')">Community</div>
-          <div class="cat-tab" onclick="filterCat(this,'video')">Video</div>
-          <div class="cat-tab" onclick="filterCat(this,'directory')">Directories</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+          <input class="input" id="plt-search" type="text" placeholder="Search 150 platforms..." oninput="filterPlatforms(this.value)" style="max-width:280px;">
+          <select class="select" id="tier-filter" onchange="filterPlatforms(document.getElementById('plt-search').value)" style="width:160px;font-size:12.5px;" title="Filter by tier">
+            <option value="">All tiers</option>
+            <option value="tier1">Tier 1 — Deploy now</option>
+            <option value="tier2">Tier 2 — Build recurring</option>
+            <option value="tier3">Tier 3 — Apply selectively</option>
+          </select>
+          <label style="font-size:12.5px;cursor:pointer;display:flex;align-items:center;gap:5px;">
+            <input type="checkbox" id="show-connected" onchange="filterPlatforms(document.getElementById('plt-search').value)"> Connected only
+          </label>
         </div>
-        <div style="margin-bottom:12px;">
-          <input class="input" id="platform-search" type="text" placeholder="Search platforms…" oninput="filterPlatforms(this.value)" style="max-width:300px;">
-        </div>
+        <div class="cat-tabs" id="cat-tabs"></div>
         <div class="platform-grid" id="platform-grid"></div>
       </div>
-
       <div class="pm-right">
-        <!-- Broadcast -->
-        <div class="broadcast-card">
-          <div class="broadcast-title">Broadcast to All Connected</div>
-          <textarea class="broadcast-ta" id="broadcast-text" placeholder="Write your post…"></textarea>
-          <div class="platform-toggles" id="broadcast-platforms">
-            <div class="plt-tog active" data-p="bluesky" onclick="toggleBroadcast(this)">🦋 Bluesky</div>
-            <div class="plt-tog" data-p="x" onclick="toggleBroadcast(this)">𝕏 X</div>
-            <div class="plt-tog" data-p="linkedin" onclick="toggleBroadcast(this)">💼 LinkedIn</div>
-            <div class="plt-tog" data-p="instagram" onclick="toggleBroadcast(this)">📸 Instagram</div>
-          </div>
-          <button class="btn btn-primary btn-sm" style="width:100%;margin-top:8px;" onclick="broadcast()" title="Post to all selected platforms">🚀 Broadcast Now</button>
-          <div class="post-log" id="broadcast-log"><span class="log-info">Ready to broadcast.</span></div>
+        <div class="signup-panel" id="signup-panel">
+          <div class="signup-title">Headless Signup</div>
+          <div style="font-size:12.5px;color:var(--fg-muted);margin-bottom:10px;">Select platforms and click "Headless Signup" to automate account creation using hello@identitypartners.uk.</div>
+          <div id="selected-platforms" style="font-size:12px;color:var(--fg-secondary);margin-bottom:8px;">No platforms selected.</div>
+          <button class="btn btn-primary btn-sm" style="width:100%;" onclick="startHeadlessSignup()" title="Start automated signup">🤖 Start Signup</button>
+          <div id="signup-log" style="margin-top:10px;background:#1a1a1a;color:#7ecf7e;border-radius:6px;padding:8px;font-family:monospace;font-size:11px;max-height:120px;overflow-y:auto;display:none;"></div>
         </div>
-
-        <!-- Connection guide -->
-        <div class="broadcast-card">
-          <div class="broadcast-title">Quick Connect Guide</div>
-          <div style="font-size:12.5px;color:var(--fg-secondary);line-height:1.8;">
-            <div><strong>Bluesky</strong> ✓ Active — posting enabled</div>
-            <div><strong>X / Twitter</strong> → <a href="/oauth/x/" style="color:var(--accent);">Connect via OAuth</a></div>
-            <div><strong>LinkedIn</strong> → <a href="/oauth/linkedin/" style="color:var(--accent);">Connect via OAuth</a></div>
-            <div><strong>Meta (FB/IG)</strong> → <a href="/oauth/meta/" style="color:var(--accent);">Connect via OAuth</a></div>
-            <div><strong>Zoho Social</strong> → <a href="/oauth/zoho/social" style="color:var(--accent);">Connect via OAuth</a></div>
-            <div style="margin-top:8px;font-size:11.5px;color:var(--fg-muted);">For platforms without APIs, use the signup flow below to create accounts with hello@identitypartners.uk</div>
-          </div>
+        <div class="broadcast-panel">
+          <div class="signup-title">Content Buckets</div>
+          <div style="font-size:12px;color:var(--fg-muted);margin-bottom:8px;">Group platforms to receive the same content simultaneously.</div>
+          <div id="bucket-list"></div>
+          <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:8px;" onclick="addBucket()" title="Add content bucket">+ Add Bucket</button>
         </div>
-
-        <!-- Signup helper -->
-        <div class="broadcast-card">
-          <div class="broadcast-title">Headless Signup Helper</div>
-          <p style="font-size:12px;color:var(--fg-muted);margin-bottom:10px;">For platforms without OAuth, Prism generates signup instructions and stores credentials.</p>
-          <select class="select" id="signup-platform" style="font-size:12.5px;margin-bottom:8px;" title="Platform to sign up for">
-            <option value="">Select platform…</option>
-            <option value="ko-fi">Ko-fi</option>
-            <option value="patreon">Patreon</option>
-            <option value="gumroad">Gumroad</option>
-            <option value="substack">Substack</option>
-            <option value="medium">Medium</option>
-            <option value="buymeacoffee">BuyMeACoffee</option>
-            <option value="teachable">Teachable</option>
-            <option value="podchaser">Podchaser</option>
-            <option value="spotify-podcasters">Spotify for Podcasters</option>
-          </select>
-          <button class="btn btn-sm btn-primary" style="width:100%;" onclick="startSignup()" title="Get signup instructions">Get Signup Instructions</button>
-          <div id="signup-instructions" style="margin-top:10px;font-size:12.5px;color:var(--fg-secondary);line-height:1.7;display:none;"></div>
+        <div class="signup-panel">
+          <div class="signup-title">Platform Status</div>
+          <div id="platform-status-list" style="font-size:12px;color:var(--fg-secondary);"></div>
         </div>
       </div>
     </div>
   </div>
 </div>
-
 <script src="/shared/prism.js"></script>
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
 var currentCat = 'all';
 var currentSearch = '';
-var broadcastPlatforms = ['bluesky'];
+var selectedForSignup = [];
 var connectedPlatforms = ['bluesky'];
+var platformStatuses = {};
 
-var PLATFORMS = [
-  // Social
-  {name:'Bluesky',icon:'🦋',cat:'social',method:'api',connectUrl:null,connected:true,note:'Active — posting enabled'},
-  {name:'X / Twitter',icon:'𝕏',cat:'social',method:'oauth',connectUrl:'/oauth/x/'},
-  {name:'LinkedIn',icon:'💼',cat:'social',method:'oauth',connectUrl:'/oauth/linkedin/'},
-  {name:'Instagram',icon:'📸',cat:'social',method:'oauth',connectUrl:'/oauth/meta/'},
-  {name:'Facebook',icon:'👥',cat:'social',method:'oauth',connectUrl:'/oauth/meta/'},
-  {name:'Threads',icon:'🧵',cat:'social',method:'oauth',connectUrl:'/oauth/meta/'},
-  {name:'Pinterest',icon:'📌',cat:'social',method:'oauth',connectUrl:null},
-  {name:'TikTok',icon:'🎵',cat:'social',method:'oauth',connectUrl:null},
-  {name:'Mastodon',icon:'🐘',cat:'social',method:'api',connectUrl:null},
-  {name:'Reddit',icon:'🤖',cat:'community',method:'oauth',connectUrl:null},
-  // Monetisation
-  {name:'Stripe',icon:'💳',cat:'monetisation',method:'api',connectUrl:null,note:'Add STRIPE_SECRET_KEY via ingester'},
-  {name:'PayPal',icon:'💰',cat:'monetisation',method:'api',connectUrl:null},
-  {name:'Ko-fi',icon:'☕',cat:'monetisation',method:'signup',connectUrl:'https://ko-fi.com/account/api'},
-  {name:'Patreon',icon:'🎁',cat:'monetisation',method:'oauth',connectUrl:null},
-  {name:'BuyMeACoffee',icon:'☕',cat:'monetisation',method:'signup',connectUrl:'https://www.buymeacoffee.com/'},
-  {name:'Gumroad',icon:'🛒',cat:'monetisation',method:'api',connectUrl:'https://app.gumroad.com/settings/advanced'},
-  {name:'Teachable',icon:'📚',cat:'monetisation',method:'signup',connectUrl:'https://teachable.com/'},
-  {name:'Thinkific',icon:'🎓',cat:'monetisation',method:'api',connectUrl:null},
-  // Podcasts
-  {name:'Spotify for Podcasters',icon:'🎙',cat:'podcast',method:'signup',connectUrl:'https://podcasters.spotify.com/'},
-  {name:'Apple Podcasts',icon:'🎧',cat:'podcast',method:'rss',connectUrl:'https://podcastsconnect.apple.com/'},
-  {name:'Amazon Music',icon:'🎶',cat:'podcast',method:'rss',connectUrl:'https://podcasters.amazon.com/'},
-  {name:'Pocket Casts',icon:'📻',cat:'podcast',method:'rss',connectUrl:null},
-  {name:'Podchaser',icon:'🎤',cat:'podcast',method:'signup',connectUrl:'https://www.podchaser.com/'},
-  // Newsletters
-  {name:'Substack',icon:'📧',cat:'newsletter',method:'signup',connectUrl:'https://substack.com/'},
-  {name:'Mailchimp',icon:'🐒',cat:'newsletter',method:'api',connectUrl:'https://mailchimp.com/'},
-  {name:'ConvertKit',icon:'✉',cat:'newsletter',method:'api',connectUrl:null},
-  {name:'Beehiiv',icon:'🐝',cat:'newsletter',method:'api',connectUrl:null},
-  {name:'Medium',icon:'📝',cat:'newsletter',method:'signup',connectUrl:'https://medium.com/'},
-  // Community
-  {name:'Quora',icon:'❓',cat:'community',method:'signup',connectUrl:'https://quora.com/'},
-  {name:'ResearchGate',icon:'🔬',cat:'community',method:'signup',connectUrl:'https://researchgate.net/'},
-  {name:'Academia.edu',icon:'🎓',cat:'community',method:'signup',connectUrl:'https://academia.edu/'},
-  {name:'ORCID',icon:'🆔',cat:'community',method:'signup',connectUrl:'https://orcid.org/register'},
-  // Video
-  {name:'YouTube',icon:'▶',cat:'video',method:'oauth',connectUrl:null},
-  {name:'Vimeo',icon:'🎬',cat:'video',method:'api',connectUrl:null},
-  // Directories
-  {name:'Google Business',icon:'🗺',cat:'directory',method:'signup',connectUrl:'https://business.google.com/'},
-  {name:'Bing Places',icon:'🔍',cat:'directory',method:'signup',connectUrl:'https://www.bingplaces.com/'},
-  {name:'Yell.com',icon:'📞',cat:'directory',method:'signup',connectUrl:'https://www.yell.com/'},
-  {name:'Trustpilot',icon:'⭐',cat:'directory',method:'signup',connectUrl:'https://business.trustpilot.com/'},
-  {name:'Counselling Directory',icon:'🧠',cat:'directory',method:'signup',connectUrl:'https://www.counselling-directory.org.uk/'},
-  {name:'Psychology Today',icon:'🧬',cat:'directory',method:'signup',connectUrl:'https://www.psychologytoday.com/gb/therapists/join'},
+var TIER1 = ['Fiverr','PeoplePerHour','Bark','Premium.Chat','Topmate','Noomii','Approach a Coach','Superprof','Eventbrite','Substack','Ko-fi','Buy Me a Coffee','Paperbell','Coachli'];
+var TIER2 = ['Circle','Mighty Networks','Nas.io','Patreon','Podia','Thinkific','Teachable','Gumroad','Payhip'];
+var TIER3 = ['ADHD UK Marketplace','Shimmer','Coacherly','Life Coach Directory','CoachFinder','Trusted Coach Directory'];
+
+var PLATFORMS = [{"name": "Rent a Cyber Friend", "cat": "companionship", "model": "Per-minute conversation", "status": "D,P,R", "url": "rentacyberfriend.com"}, {"name": "RentAFriend", "cat": "companionship", "model": "Hourly companionship", "status": "D,R", "url": "rentafriend.com"}, {"name": "FriendPC", "cat": "companionship", "model": "Virtual-friend listings", "status": "D,P,R", "url": "friendpc.com"}, {"name": "Companiions", "cat": "companionship", "model": "UK paid companionship", "status": "D,V,UK", "url": "companiions.com"}, {"name": "Premium.Chat", "cat": "companionship", "model": "Paid text/audio/video", "status": "F,P", "url": "premium.chat"}, {"name": "Popcall", "cat": "companionship", "model": "Paid calls and messages", "status": "F,P", "url": "popcall.com"}, {"name": "TrunkCall", "cat": "companionship", "model": "Expert calls/sessions/groups", "status": "D/F,P", "url": "trunkcall.com"}, {"name": "Talkspresso", "cat": "companionship", "model": "Paid consultations", "status": "D/F", "url": "talkspresso.com"}, {"name": "Intro", "cat": "companionship", "model": "Bookable paid video", "status": "D/F,V", "url": "intro.co"}, {"name": "Minnect", "cat": "companionship", "model": "Paid messages/consultations", "status": "D/F,V", "url": "minnect.com"}, {"name": "Fiverr", "cat": "freelance", "model": "Productised gigs", "status": "D,P", "url": "fiverr.com"}, {"name": "Upwork", "cat": "freelance", "model": "Contracts", "status": "D", "url": "upwork.com"}, {"name": "PeoplePerHour", "cat": "freelance", "model": "Hourly/packaged", "status": "D,UK", "url": "peopleperhour.com"}, {"name": "Freelancer.com", "cat": "freelance", "model": "Project bids", "status": "D", "url": "freelancer.com"}, {"name": "Bark", "cat": "freelance", "model": "Lead acquisition", "status": "D,UK", "url": "bark.com"}, {"name": "Airtasker", "cat": "freelance", "model": "Remote support tasks", "status": "D,UK", "url": "airtasker.com"}, {"name": "TaskRabbit", "cat": "freelance", "model": "Local/remote assistance", "status": "D,V,UK", "url": "taskrabbit.co.uk"}, {"name": "Guru", "cat": "freelance", "model": "Project marketplace", "status": "D", "url": "guru.com"}, {"name": "Contra", "cat": "freelance", "model": "Independent work", "status": "D", "url": "contra.com"}, {"name": "Malt", "cat": "freelance", "model": "Freelance marketplace", "status": "D", "url": "malt.com"}, {"name": "YunoJuno", "cat": "freelance", "model": "Freelance marketplace", "status": "D,UK", "url": "yunojuno.com"}, {"name": "Kounselly", "cat": "freelance", "model": "Coaching/consulting", "status": "D", "url": "kounselly.com"}, {"name": "Topmate", "cat": "mentoring", "model": "Paid sessions", "status": "D/F", "url": "topmate.io"}, {"name": "Superpeer", "cat": "mentoring", "model": "Paid calls", "status": "D/F", "url": "superpeer.com"}, {"name": "MentorCruise", "cat": "mentoring", "model": "Ongoing mentoring", "status": "D,V", "url": "mentorcruise.com"}, {"name": "GrowthMentor", "cat": "mentoring", "model": "Expert mentoring", "status": "D,V", "url": "growthmentor.com"}, {"name": "Sessions.us", "cat": "mentoring", "model": "Paid sessions", "status": "D/F", "url": "sessions.us"}, {"name": "Nas.io", "cat": "mentoring", "model": "Paid sessions/communities", "status": "D/F", "url": "nas.io"}, {"name": "Pensight", "cat": "mentoring", "model": "Paid calls", "status": "F", "url": "pensight.com"}, {"name": "Stan", "cat": "mentoring", "model": "Paid consultations", "status": "F", "url": "stan.store"}, {"name": "Beacons", "cat": "mentoring", "model": "Paid appointments", "status": "F", "url": "beacons.ai"}, {"name": "Directly.live", "cat": "mentoring", "model": "Expert access", "status": "D/F", "url": "directly.live"}, {"name": "Noomii", "cat": "coaching", "model": "Coach discovery", "status": "D,UK", "url": "noomii.com"}, {"name": "Life Coach Directory", "cat": "coaching", "model": "UK coach directory", "status": "D,V,UK", "url": "lifecoachdirectory.org.uk"}, {"name": "Life Coach Hub", "cat": "coaching", "model": "Coach marketplace", "status": "D", "url": "lifecoachhub.com"}, {"name": "Coach.me", "cat": "coaching", "model": "Habit/coaching", "status": "D", "url": "coach.me"}, {"name": "Approach a Coach", "cat": "coaching", "model": "Coach directory", "status": "D,UK", "url": "approachacoach.com"}, {"name": "CoachCompare", "cat": "coaching", "model": "Coach comparison", "status": "D,UK", "url": "coachcompare.com"}, {"name": "CoachMatching", "cat": "coaching", "model": "Coach matching", "status": "D", "url": "coachmatching.com"}, {"name": "ADHD UK Marketplace", "cat": "adhd", "model": "ADHD coach marketplace", "status": "D,C,V,UK", "url": "adhduk.co.uk"}, {"name": "Shimmer", "cat": "adhd", "model": "ADHD coaching", "status": "D,C,V", "url": "shimmer.care"}, {"name": "ADHD Coaching Agency", "cat": "adhd", "model": "ADHD coaching", "status": "D,C,V", "url": "adhdcoachingagency.com"}, {"name": "Focusmate", "cat": "adhd", "model": "Body doubling", "status": "F", "url": "focusmate.com"}, {"name": "Coacherly", "cat": "recovery", "model": "Recovery coaching", "status": "D,C", "url": "coacherly.com"}, {"name": "Superprof", "cat": "tutoring", "model": "Tutoring marketplace", "status": "D,UK", "url": "superprof.co.uk"}, {"name": "Tutorful", "cat": "tutoring", "model": "UK tutoring", "status": "D,V,UK", "url": "tutorful.co.uk"}, {"name": "Preply", "cat": "tutoring", "model": "Online tutoring", "status": "D,V", "url": "preply.com"}, {"name": "Udemy", "cat": "courses", "model": "Course marketplace", "status": "D", "url": "udemy.com"}, {"name": "Skillshare", "cat": "courses", "model": "Course platform", "status": "D", "url": "skillshare.com"}, {"name": "Maven", "cat": "courses", "model": "Cohort courses", "status": "D", "url": "maven.com"}, {"name": "Reed Courses", "cat": "courses", "model": "UK course marketplace", "status": "D,UK", "url": "reed.co.uk/courses"}, {"name": "Mighty Networks", "cat": "community", "model": "Paid community", "status": "F", "url": "mightynetworks.com"}, {"name": "Circle", "cat": "community", "model": "Community platform", "status": "F", "url": "circle.so"}, {"name": "Skool", "cat": "community", "model": "Community + courses", "status": "F", "url": "skool.com"}, {"name": "Whop", "cat": "community", "model": "Community + products", "status": "F", "url": "whop.com"}, {"name": "Bettermode", "cat": "community", "model": "Community platform", "status": "F", "url": "bettermode.com"}, {"name": "Disco", "cat": "community", "model": "Learning community", "status": "F", "url": "disco.co"}, {"name": "Hivebrite", "cat": "community", "model": "Community platform", "status": "F", "url": "hivebrite.com"}, {"name": "Patreon", "cat": "creator", "model": "Membership/subscriptions", "status": "F", "url": "patreon.com"}, {"name": "Ko-fi", "cat": "creator", "model": "Donations/memberships", "status": "F", "url": "ko-fi.com"}, {"name": "Buy Me a Coffee", "cat": "creator", "model": "Donations/memberships", "status": "F", "url": "buymeacoffee.com"}, {"name": "Substack", "cat": "creator", "model": "Newsletter/subscriptions", "status": "F", "url": "substack.com"}, {"name": "Ghost", "cat": "creator", "model": "Newsletter/memberships", "status": "F", "url": "ghost.org"}, {"name": "beehiiv", "cat": "creator", "model": "Newsletter platform", "status": "F", "url": "beehiiv.com"}, {"name": "Gumroad", "cat": "creator", "model": "Digital products", "status": "F", "url": "gumroad.com"}, {"name": "Payhip", "cat": "creator", "model": "Digital products", "status": "F", "url": "payhip.com"}, {"name": "Lemon Squeezy", "cat": "creator", "model": "Digital products", "status": "F", "url": "lemonsqueezy.com"}, {"name": "Fourthwall", "cat": "creator", "model": "Creator storefront", "status": "F", "url": "fourthwall.com"}, {"name": "Locals", "cat": "creator", "model": "Creator community", "status": "F", "url": "locals.com"}, {"name": "Memberful", "cat": "creator", "model": "Membership platform", "status": "F", "url": "memberful.com"}, {"name": "Teachable", "cat": "courses", "model": "Course platform", "status": "F", "url": "teachable.com"}, {"name": "Thinkific", "cat": "courses", "model": "Course platform", "status": "F", "url": "thinkific.com"}, {"name": "Kajabi", "cat": "courses", "model": "All-in-one platform", "status": "F", "url": "kajabi.com"}, {"name": "Podia", "cat": "courses", "model": "Course/community", "status": "F", "url": "podia.com"}, {"name": "LearnWorlds", "cat": "courses", "model": "Course platform", "status": "F", "url": "learnworlds.com"}, {"name": "Systeme.io", "cat": "courses", "model": "All-in-one", "status": "F", "url": "systeme.io"}, {"name": "Heights Platform", "cat": "courses", "model": "Course platform", "status": "F", "url": "heightsplatform.com"}, {"name": "Xperiencify", "cat": "courses", "model": "Gamified courses", "status": "F", "url": "xperiencify.com"}, {"name": "Medium", "cat": "writing", "model": "Partner program", "status": "D", "url": "medium.com"}, {"name": "Vocal Media", "cat": "writing", "model": "Paid writing", "status": "D", "url": "vocal.media"}, {"name": "Buttondown", "cat": "writing", "model": "Newsletter", "status": "F", "url": "buttondown.email"}, {"name": "Supercast", "cat": "podcast", "model": "Private podcast", "status": "F", "url": "supercast.com"}, {"name": "Podbean Patron", "cat": "podcast", "model": "Podcast subscriptions", "status": "F", "url": "podbean.com"}, {"name": "Buzzsprout", "cat": "podcast", "model": "Podcast hosting", "status": "F", "url": "buzzsprout.com"}, {"name": "Captivate", "cat": "podcast", "model": "Private podcasts", "status": "F", "url": "captivate.fm"}, {"name": "Transistor", "cat": "podcast", "model": "Private podcasts", "status": "F", "url": "transistor.fm"}, {"name": "Hello Audio", "cat": "podcast", "model": "Private audio", "status": "F", "url": "helloaudio.fm"}, {"name": "RedCircle", "cat": "podcast", "model": "Podcast subscriptions", "status": "F", "url": "redcircle.com"}, {"name": "Sellfy", "cat": "digital", "model": "Digital storefront", "status": "F", "url": "sellfy.com"}, {"name": "SendOwl", "cat": "digital", "model": "Digital delivery", "status": "F", "url": "sendowl.com"}, {"name": "ThriveCart", "cat": "digital", "model": "Cart/checkout", "status": "F", "url": "thrivecart.com"}, {"name": "SamCart", "cat": "digital", "model": "Cart/checkout", "status": "F", "url": "samcart.com"}, {"name": "Etsy", "cat": "digital", "model": "Digital resources", "status": "D", "url": "etsy.com"}, {"name": "Creative Market", "cat": "digital", "model": "Templates/journals", "status": "D", "url": "creativemarket.com"}, {"name": "Teachers Pay Teachers", "cat": "digital", "model": "Educational materials", "status": "D", "url": "teacherspayteachers.com"}, {"name": "Eventbrite", "cat": "events", "model": "Paid events", "status": "D,UK", "url": "eventbrite.co.uk"}, {"name": "Humanitix", "cat": "events", "model": "Ethical ticketing", "status": "D", "url": "humanitix.com"}, {"name": "Ticket Tailor", "cat": "events", "model": "Event ticketing", "status": "F,UK", "url": "tickettailor.com"}, {"name": "Luma", "cat": "events", "model": "Event platform", "status": "D/F", "url": "lu.ma"}, {"name": "Meetup", "cat": "events", "model": "Group events", "status": "D", "url": "meetup.com"}, {"name": "Crowdcast", "cat": "events", "model": "Online events", "status": "F", "url": "crowdcast.io"}, {"name": "Airmeet", "cat": "events", "model": "Virtual events", "status": "F", "url": "airmeet.com"}, {"name": "Butter", "cat": "events", "model": "Workshop platform", "status": "F", "url": "butter.us"}, {"name": "Demio", "cat": "events", "model": "Webinars", "status": "F", "url": "demio.com"}, {"name": "Paperbell", "cat": "booking", "model": "Coaching practice", "status": "F", "url": "paperbell.com"}, {"name": "CoachAccountable", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "coachaccountable.com"}, {"name": "Simply.Coach", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "simply.coach"}, {"name": "CoachVantage", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "coachvantage.com"}, {"name": "Practice.do", "cat": "booking", "model": "Practice management", "status": "F", "url": "practice.do"}, {"name": "Coachli", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "coachli.com"}, {"name": "UpCoach", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "upcoach.com"}, {"name": "HoneyBook", "cat": "booking", "model": "Client management", "status": "F", "url": "honeybook.com"}, {"name": "Calendly", "cat": "booking", "model": "Scheduling + payments", "status": "F", "url": "calendly.com"}, {"name": "Cal.com", "cat": "booking", "model": "Open source scheduling", "status": "F", "url": "cal.com"}, {"name": "Acuity Scheduling", "cat": "booking", "model": "Scheduling", "status": "F", "url": "acuityscheduling.com"}, {"name": "SimplyBook.me", "cat": "booking", "model": "Booking system", "status": "F", "url": "simplybook.me"}, {"name": "Setmore", "cat": "booking", "model": "Booking system", "status": "F,UK", "url": "setmore.com"}, {"name": "YouCanBookMe", "cat": "booking", "model": "Booking system", "status": "F,UK", "url": "youcanbook.me"}, {"name": "TidyCal", "cat": "booking", "model": "Scheduling", "status": "F", "url": "tidycal.com"}, {"name": "Zoho Bookings", "cat": "booking", "model": "Booking system", "status": "F,UK", "url": "zoho.com/bookings"}, {"name": "Book Like A Boss", "cat": "booking", "model": "Booking + payments", "status": "F", "url": "booklikeaboss.com"}, {"name": "Appointy", "cat": "booking", "model": "Appointment scheduling", "status": "F", "url": "appointy.com"}, {"name": "10to8", "cat": "booking", "model": "Appointment scheduling", "status": "F,UK", "url": "10to8.com"}, {"name": "GoCardless", "cat": "booking", "model": "Recurring UK payments", "status": "F,UK", "url": "gocardless.com"}, {"name": "SumUp", "cat": "booking", "model": "Payment links", "status": "F,UK", "url": "sumup.com"}];
+
+var CAT_LABELS = {"companionship": "Companionship & Listening", "freelance": "Freelance Marketplaces", "mentoring": "Expert Calls & Mentoring", "coaching": "Coaching Directories", "adhd": "ADHD & Neurodivergence", "recovery": "Recovery & Sobriety", "tutoring": "Tutoring & Learning", "courses": "Courses & Programmes", "community": "Membership & Community", "creator": "Creator & Subscription", "writing": "Newsletter & Writing", "podcast": "Podcast & Audio", "digital": "Digital Products", "events": "Events & Workshops", "booking": "Booking & Practice"};
+
+var BUCKETS = [
+  {id:'b1', name:'Short-form Social', platforms:['bluesky','x','threads'], color:'#0f3b3a'},
+  {id:'b2', name:'Professional', platforms:['linkedin'], color:'#1a73e8'},
+  {id:'b3', name:'Community', platforms:['substack','patreon','ko-fi'], color:'#5c2d3f'},
 ];
 
-var SIGNUP_INSTRUCTIONS = {
-  'ko-fi': ['Go to ko-fi.com and click "Start a Page"','Sign up with hello@identitypartners.uk','Profile name: Identity Partners','Category: Charity/Non-profit or Education','Add your bio and logo from the Brand Kit','Enable donations and set your goal','Copy your Ko-fi API key from Settings → API','Add it to Prism via Settings → Secret Ingester as KO_FI_API_KEY'],
-  'patreon': ['Go to patreon.com/create','Sign up with hello@identitypartners.uk','Creator name: Identity Partners','Category: Education','Add your bio, logo, and cover image','Create at least one membership tier','Connect your Stripe account for payments','Get your API key from patreon.com/portal/registration/register-clients'],
-  'substack': ['Go to substack.com and click "Start writing"','Sign up with hello@identitypartners.uk','Publication name: Identity Partners','Description: Evidence-based insights on addiction, trauma, and mental health','Add your logo and cover image','Set up your welcome email','Your Substack URL will be identitypartners.substack.com'],
-  'gumroad': ['Go to app.gumroad.com','Sign up with hello@identitypartners.uk','Display name: Identity Partners','Add your profile photo and bio','Create your first product (e.g. a free worksheet)','Go to Settings → Advanced → API to get your access token','Add it to Prism as GUMROAD_ACCESS_TOKEN'],
-  'medium': ['Go to medium.com','Sign up with hello@identitypartners.uk','Display name: Identity Partners','Add your bio and profile photo','Create a Publication called "Identity Partners"','Add your logo and description','Start publishing your research and insights'],
-  'buymeacoffee': ['Go to buymeacoffee.com','Sign up with hello@identitypartners.uk','Creator name: Identity Partners','Category: Education','Add your bio and profile photo','Set your coffee price (default £3)','Share your link: buymeacoffee.com/identitypartners'],
-  'spotify-podcasters': ['Go to podcasters.spotify.com','Sign up with hello@identitypartners.uk','Podcast name: Identity Partners','Category: Health & Fitness → Mental Health','Language: English','Add your podcast description and artwork','Submit your RSS feed or start recording directly'],
-  'podchaser': ['Go to podchaser.com','Sign up with hello@identitypartners.uk','Claim your podcast profile','Add your show description and links','Connect your social accounts'],
-  'teachable': ['Go to teachable.com','Sign up with hello@identitypartners.uk','School name: Identity Partners','Add your logo and brand colours (teal #0f3b3a, rose #5c2d3f)','Create your first course','Set up your payment gateway','Get your API key from Settings → API'],
-};
-
-function filterCat(el, cat) {
-  currentCat = cat;
-  var tabs = document.querySelectorAll('.cat-tab');
-  for (var i=0;i<tabs.length;i++) tabs[i].classList.remove('active');
-  el.classList.add('active');
-  renderPlatforms();
+function getTier(name) {
+  if (TIER1.indexOf(name) >= 0) return 'tier1';
+  if (TIER2.indexOf(name) >= 0) return 'tier2';
+  if (TIER3.indexOf(name) >= 0) return 'tier3';
+  return '';
 }
 
-function filterPlatforms(q) { currentSearch = q.toLowerCase(); renderPlatforms(); }
+function buildCatTabs() {
+  var tabs = document.getElementById('cat-tabs');
+  if (!tabs) return;
+  tabs.innerHTML = '';
+  var cats = ['all'].concat(Object.keys(CAT_LABELS));
+  cats.forEach(function(cat) {
+    var tab = document.createElement('div');
+    tab.className = 'cat-tab' + (cat === currentCat ? ' active' : '');
+    tab.textContent = cat === 'all' ? 'All (' + PLATFORMS.length + ')' : CAT_LABELS[cat] || cat;
+    tab.onclick = function() { currentCat = cat; buildCatTabs(); filterPlatforms(currentSearch); };
+    tabs.appendChild(tab);
+  });
+}
 
-function renderPlatforms() {
+function filterPlatforms(q) {
+  currentSearch = q || '';
+  var tierFilter = document.getElementById('tier-filter').value;
+  var connectedOnly = document.getElementById('show-connected').checked;
+  var filtered = PLATFORMS.filter(function(p) {
+    var catMatch = currentCat === 'all' || p.cat === currentCat;
+    var searchMatch = !currentSearch || p.name.toLowerCase().indexOf(currentSearch.toLowerCase()) >= 0 || (p.model||'').toLowerCase().indexOf(currentSearch.toLowerCase()) >= 0;
+    var tierMatch = !tierFilter || getTier(p.name) === tierFilter;
+    var connMatch = !connectedOnly || connectedPlatforms.indexOf(p.name.toLowerCase()) >= 0 || platformStatuses[p.name] === 'connected';
+    return catMatch && searchMatch && tierMatch && connMatch;
+  });
+  renderPlatforms(filtered);
+}
+
+function renderPlatforms(platforms) {
   var grid = document.getElementById('platform-grid');
   if (!grid) return;
-  var filtered = PLATFORMS.filter(function(p) {
-    var catOk = currentCat === 'all' || p.cat === currentCat;
-    var searchOk = !currentSearch || p.name.toLowerCase().indexOf(currentSearch) >= 0;
-    return catOk && searchOk;
-  });
-  grid.innerHTML = '';
-  var connected = PLATFORMS.filter(function(p){return p.connected||connectedPlatforms.indexOf(p.name.toLowerCase())>=0;}).length;
+  var connected = PLATFORMS.filter(function(p){return connectedPlatforms.indexOf(p.name.toLowerCase())>=0||platformStatuses[p.name]==='connected';}).length;
   var countEl = document.getElementById('connected-count');
   if (countEl) countEl.textContent = connected + ' of ' + PLATFORMS.length + ' connected';
-
-  filtered.forEach(function(p) {
-    var isConnected = p.connected || connectedPlatforms.indexOf(p.name.toLowerCase()) >= 0;
+  grid.innerHTML = '';
+  platforms.forEach(function(p) {
+    var isConnected = connectedPlatforms.indexOf(p.name.toLowerCase()) >= 0 || platformStatuses[p.name] === 'connected';
+    var isInProgress = platformStatuses[p.name] === 'in-progress';
+    var tier = getTier(p.name);
     var card = document.createElement('div');
-    card.className = 'platform-card';
-    var header = document.createElement('div');
-    header.className = 'platform-card-header';
-    var icon = document.createElement('div');
-    icon.className = 'platform-icon';
-    icon.textContent = p.icon;
-    var info = document.createElement('div');
-    var name = document.createElement('div');
-    name.className = 'platform-name';
-    name.textContent = p.name;
-    var cat = document.createElement('div');
-    cat.className = 'platform-cat';
-    cat.textContent = p.cat.charAt(0).toUpperCase()+p.cat.slice(1) + ' · ' + p.method.toUpperCase();
-    info.appendChild(name); info.appendChild(cat);
-    header.appendChild(icon); header.appendChild(info);
-    var statusRow = document.createElement('div');
-    statusRow.className = 'platform-status-row';
+    card.className = 'plt-card' + (isConnected ? ' connected' : isInProgress ? ' in-progress' : '');
+    if (tier === 'tier1') card.style.borderTop = '3px solid var(--accent)';
+    else if (tier === 'tier2') card.style.borderTop = '3px solid var(--warning)';
+    var name = document.createElement('div'); name.className = 'plt-name'; name.textContent = p.name;
+    var model = document.createElement('div'); model.className = 'plt-model'; model.textContent = p.model || '';
+    var statusRow = document.createElement('div'); statusRow.className = 'plt-status-row';
     var badge = document.createElement('span');
-    badge.className = 'badge ' + (isConnected ? 'badge-success' : 'badge-muted');
-    badge.textContent = isConnected ? '✓ Connected' : 'Not connected';
-    statusRow.appendChild(badge);
-    if (p.note) {
-      var note = document.createElement('span');
-      note.style.cssText = 'font-size:10.5px;color:var(--fg-muted);';
-      note.textContent = p.note;
-      statusRow.appendChild(note);
+    badge.className = 'badge ' + (isConnected ? 'badge-success' : isInProgress ? 'badge-warning' : 'badge-muted');
+    badge.textContent = isConnected ? '✓ Connected' : isInProgress ? '⟳ In progress' : 'Not connected';
+    var flags = document.createElement('div'); flags.className = 'status-flags';
+    (p.status||'').split(',').forEach(function(f) {
+      f = f.trim();
+      if (f) { var fl = document.createElement('span'); fl.className = 'flag flag-'+f; fl.textContent = f; flags.appendChild(fl); }
+    });
+    statusRow.appendChild(badge); statusRow.appendChild(flags);
+    var actions = document.createElement('div'); actions.className = 'plt-actions';
+    if (!isConnected) {
+      var signupBtn = document.createElement('button');
+      signupBtn.className = 'btn btn-sm btn-primary';
+      signupBtn.textContent = '🤖 Signup';
+      signupBtn.title = 'Headless signup for ' + p.name;
+      signupBtn.onclick = (function(plt) { return function() { signupSingle(plt); }; })(p);
+      actions.appendChild(signupBtn);
     }
-    var actions = document.createElement('div');
-    actions.className = 'platform-actions';
-    if (p.method === 'oauth' && p.connectUrl) {
-      var btn = document.createElement('a');
-      btn.className = 'btn btn-sm ' + (isConnected ? 'btn-secondary' : 'btn-primary');
-      btn.href = p.connectUrl;
-      btn.textContent = isConnected ? '↺ Reconnect' : '🔗 Connect';
-      btn.title = 'Connect ' + p.name + ' via OAuth';
-      actions.appendChild(btn);
-    } else if (p.method === 'signup') {
-      var btn = document.createElement('button');
-      btn.className = 'btn btn-sm btn-secondary';
-      btn.textContent = '📋 Signup Guide';
-      btn.title = 'Get signup instructions for ' + p.name;
-      btn.onclick = function() {
-        document.getElementById('signup-platform').value = p.name.toLowerCase().replace(/[^a-z0-9]/g,'-');
-        startSignup();
-        document.querySelector('.pm-right').scrollTop = 999;
-      };
-      actions.appendChild(btn);
-      if (p.connectUrl) {
-        var openBtn = document.createElement('a');
-        openBtn.className = 'btn btn-sm btn-ghost';
-        openBtn.href = p.connectUrl;
-        openBtn.target = '_blank';
-        openBtn.textContent = '↗ Open';
-        openBtn.title = 'Open ' + p.name;
-        actions.appendChild(openBtn);
-      }
-    } else if (p.method === 'api') {
-      var btn = document.createElement('button');
-      btn.className = 'btn btn-sm btn-secondary';
-      btn.textContent = '🔑 Add API Key';
-      btn.title = 'Add API key via Secret Ingester';
-      btn.onclick = function() { window.location.href = '/settings/ingester.html'; };
-      actions.appendChild(btn);
-    } else if (p.method === 'rss') {
-      var btn = document.createElement('button');
-      btn.className = 'btn btn-sm btn-secondary';
-      btn.textContent = '📡 Submit RSS';
-      btn.title = 'Submit your RSS feed';
-      if (p.connectUrl) { btn.onclick = function(){window.open(p.connectUrl,'_blank');}; }
-      actions.appendChild(btn);
+    if (p.url) {
+      var openBtn = document.createElement('a');
+      openBtn.className = 'btn btn-sm btn-ghost';
+      openBtn.href = 'https://' + p.url;
+      openBtn.target = '_blank';
+      openBtn.textContent = '↗';
+      openBtn.title = 'Open ' + p.name;
+      actions.appendChild(openBtn);
     }
-    card.appendChild(header); card.appendChild(statusRow); card.appendChild(actions);
+    var selectBtn = document.createElement('button');
+    selectBtn.className = 'btn btn-sm btn-ghost';
+    selectBtn.textContent = selectedForSignup.indexOf(p.name) >= 0 ? '✓' : '+';
+    selectBtn.title = 'Select for batch signup';
+    selectBtn.onclick = (function(plt, btn) { return function() {
+      var idx = selectedForSignup.indexOf(plt.name);
+      if (idx >= 0) { selectedForSignup.splice(idx,1); btn.textContent='+'; }
+      else { selectedForSignup.push(plt.name); btn.textContent='✓'; }
+      updateSelectedCount();
+    }; })(p, selectBtn);
+    actions.appendChild(selectBtn);
+    card.appendChild(name); card.appendChild(model); card.appendChild(statusRow); card.appendChild(actions);
     grid.appendChild(card);
   });
 }
 
-function toggleBroadcast(el) {
-  el.classList.toggle('active');
-  var p = el.getAttribute('data-p');
-  if (el.classList.contains('active')) { if (broadcastPlatforms.indexOf(p)<0) broadcastPlatforms.push(p); }
-  else broadcastPlatforms = broadcastPlatforms.filter(function(x){return x!==p;});
+function updateSelectedCount() {
+  var el = document.getElementById('selected-platforms');
+  if (el) el.textContent = selectedForSignup.length > 0 ? selectedForSignup.length + ' platforms selected: ' + selectedForSignup.slice(0,3).join(', ') + (selectedForSignup.length>3?'...':'') : 'No platforms selected.';
 }
 
-function broadcast() {
-  var text = document.getElementById('broadcast-text').value.trim();
-  if (!text) { Toast.warning('Write something first'); return; }
-  if (broadcastPlatforms.length === 0) { Toast.warning('Select at least one platform'); return; }
-  log('info', 'Broadcasting to: ' + broadcastPlatforms.join(', '));
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/social/broadcast', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      var r = JSON.parse(xhr.responseText);
-      if (r.results) Object.keys(r.results).forEach(function(p){log('ok', p+': posted successfully');});
-      if (r.errors) Object.keys(r.errors).forEach(function(p){log('err', p+': '+r.errors[p]);});
-      if (r.posted > 0) Toast.success('Posted to ' + r.posted + ' platform(s)');
-    } catch(e) { log('err', 'Failed: '+e.message); }
-  };
-  xhr.onerror = function() { log('err', 'Network error'); };
-  xhr.send(JSON.stringify({text:text, platforms:broadcastPlatforms}));
+function signupSingle(platform) {
+  selectedForSignup = [platform.name];
+  startHeadlessSignup();
 }
 
-function log(type, msg) {
-  var el = document.getElementById('broadcast-log');
-  if (!el) return;
-  var line = document.createElement('div');
-  line.className = 'log-' + type;
-  line.textContent = '['+new Date().toLocaleTimeString('en-GB')+'] '+msg;
-  el.appendChild(line);
-  el.scrollTop = el.scrollHeight;
-}
-
-function startSignup() {
-  var platform = document.getElementById('signup-platform').value;
-  var el = document.getElementById('signup-instructions');
-  if (!platform || !el) return;
-  var instructions = SIGNUP_INSTRUCTIONS[platform];
-  if (!instructions) {
-    el.style.display = 'block';
-    el.innerHTML = '<div style="color:var(--fg-muted);">No specific instructions available. Visit the platform website and sign up with <strong>hello@identitypartners.uk</strong>.</div>';
-    return;
+function startHeadlessSignup() {
+  if (selectedForSignup.length === 0) { Toast.warning('Select platforms first'); return; }
+  var log = document.getElementById('signup-log');
+  if (log) log.style.display = 'block';
+  function addLog(msg, type) {
+    if (!log) return;
+    var line = document.createElement('div');
+    line.style.color = type==='ok'?'#7ecf7e':type==='err'?'#f08080':'#a8d4f0';
+    line.textContent = '[' + new Date().toLocaleTimeString('en-GB') + '] ' + msg;
+    log.appendChild(line); log.scrollTop = log.scrollHeight;
   }
-  el.style.display = 'block';
-  el.innerHTML = '<div style="font-weight:600;color:var(--accent);margin-bottom:8px;">Signup steps for '+platform+':</div>';
-  instructions.forEach(function(step, i) {
-    var div = document.createElement('div');
-    div.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--border);display:flex;gap:8px;';
-    div.innerHTML = '<span style="color:var(--accent);font-weight:600;flex-shrink:0;">'+(i+1)+'.</span><span>'+step+'</span>';
-    el.appendChild(div);
+  addLog('Starting headless signup for ' + selectedForSignup.length + ' platforms...', 'info');
+  selectedForSignup.forEach(function(name, i) {
+    setTimeout(function() {
+      addLog('Initiating signup: ' + name, 'info');
+      fetch(WORKER + '/api/headless/signup', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          platform: name.toLowerCase().replace(/[^a-z0-9]/g,'-'),
+          email: 'hello@identitypartners.uk',
+          name: 'Identity Partners',
+          bio: 'Evidence-based support for addiction, trauma, and mental health. Non-clinical listening, coaching, mentoring and relational practice.',
+          website: 'https://www.identitypartners.uk'
+        })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(r) {
+        if (r.success) {
+          addLog(name + ': ' + (r.status||'queued') + ' — ' + (r.signupUrl||r.instructions||''), 'ok');
+          platformStatuses[name] = 'in-progress';
+        } else {
+          addLog(name + ': ' + (r.error||'failed'), 'err');
+        }
+        filterPlatforms(currentSearch);
+      })
+      .catch(function(e) { addLog(name + ': error — ' + e.message, 'err'); });
+    }, i * 500);
   });
-  var note = document.createElement('div');
-  note.style.cssText = 'margin-top:8px;padding:8px;background:var(--accent-light);border-radius:6px;font-size:11.5px;color:var(--accent);';
-  note.textContent = 'Use hello@identitypartners.uk for all platform signups. Store credentials in Prism via Settings → Secret Ingester.';
-  el.appendChild(note);
+}
+
+function renderBuckets() {
+  var list = document.getElementById('bucket-list');
+  if (!list) return;
+  list.innerHTML = '';
+  BUCKETS.forEach(function(bucket) {
+    var item = document.createElement('div');
+    item.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--border);';
+    var header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;';
+    var dot = document.createElement('div');
+    dot.style.cssText = 'width:10px;height:10px;border-radius:50%;background:'+bucket.color+';flex-shrink:0;';
+    var name = document.createElement('span');
+    name.style.cssText = 'font-weight:600;font-size:12.5px;flex:1;';
+    name.textContent = bucket.name;
+    var count = document.createElement('span');
+    count.style.cssText = 'font-size:11px;color:var(--fg-muted);';
+    count.textContent = bucket.platforms.length + ' platforms';
+    header.appendChild(dot); header.appendChild(name); header.appendChild(count);
+    var plts = document.createElement('div');
+    plts.style.cssText = 'font-size:11px;color:var(--fg-muted);';
+    plts.textContent = bucket.platforms.join(', ');
+    item.appendChild(header); item.appendChild(plts);
+    list.appendChild(item);
+  });
+}
+
+function addBucket() {
+  var name = prompt('Bucket name (e.g. "Recovery Community"):');
+  if (!name) return;
+  BUCKETS.push({id:'b'+Date.now(), name:name, platforms:[], color:'#0f3b3a'});
+  renderBuckets();
+  Toast.success('Bucket created: ' + name);
 }
 
 function refreshStatus() {
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', WORKER + '/api/platform/credentials', true);
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      var r = JSON.parse(xhr.responseText);
-      connectedPlatforms = (r.platforms || []).concat(['bluesky']);
-      renderPlatforms();
-      Toast.info('Status refreshed');
-    } catch(e) {}
-  };
-  xhr.send();
+  fetch(WORKER + '/api/platform/credentials')
+  .then(function(r) { return r.json(); })
+  .then(function(r) {
+    (r.platforms||[]).forEach(function(p) { platformStatuses[p] = 'connected'; });
+    connectedPlatforms = ['bluesky'].concat(r.platforms||[]);
+    filterPlatforms(currentSearch);
+    Toast.info('Status refreshed');
+  })
+  .catch(function(e) { Toast.error('Refresh failed: ' + e.message); });
 }
 
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
   if (mount) { var sb=buildSidebar('/platform-manager/'); mount.parentNode.insertBefore(sb,mount); mount.parentNode.removeChild(mount); }
-  renderPlatforms();
+  buildCatTabs();
+  filterPlatforms('');
+  renderBuckets();
   refreshStatus();
 });
 </script>

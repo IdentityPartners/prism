@@ -12,35 +12,141 @@
   <div class="main-content" id="main-content">
     <div class="topbar"><div class="topbar-title">Comms Centre</div></div>
     <div class="page-content">
-
-      <div class="grid-2" style="gap:20px;">
+      <div class="grid-3" style="gap:16px;">
         <a href="/comms/email/" class="card" style="text-decoration:none;display:block;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Email">
           <div style="font-size:32px;margin-bottom:10px;">📧</div>
-          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:6px;">Email</div>
-          <div style="font-size:13px;color:var(--fg-muted);">Zoho Mail — simon@identitypartners.uk and olivia@identitypartners.uk</div>
+          <div style="font-family:var(--font-heading);font-size:15px;font-weight:600;margin-bottom:4px;">Email</div>
+          <div style="font-size:12.5px;color:var(--fg-muted);">Zoho Mail — simon@ and olivia@</div>
         </a>
         <a href="/comms/zoho-calendar/" class="card" style="text-decoration:none;display:block;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Calendar">
           <div style="font-size:32px;margin-bottom:10px;">📅</div>
-          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:6px;">Calendar & Bookings</div>
-          <div style="font-size:13px;color:var(--fg-muted);">Events, bookings, and appointments via Zoho Calendar.</div>
+          <div style="font-family:var(--font-heading);font-size:15px;font-weight:600;margin-bottom:4px;">Calendar & Bookings</div>
+          <div style="font-size:12.5px;color:var(--fg-muted);">Zoho Calendar + booking page</div>
         </a>
+        <div class="card" onclick="openTelegram()" style="cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Telegram">
+          <div style="font-size:32px;margin-bottom:10px;">✈️</div>
+          <div style="font-family:var(--font-heading);font-size:15px;font-weight:600;margin-bottom:4px;">Telegram</div>
+          <div style="font-size:12.5px;color:var(--fg-muted);">Send messages via @OwlAI3_bot</div>
+          <span class="badge badge-success" style="margin-top:8px;">✓ Connected</span>
+        </div>
+        <div class="card" onclick="openDiscord()" style="cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Discord">
+          <div style="font-size:32px;margin-bottom:10px;">🎮</div>
+          <div style="font-family:var(--font-heading);font-size:15px;font-weight:600;margin-bottom:4px;">Discord</div>
+          <div style="font-size:12.5px;color:var(--fg-muted);">Post to server via webhook</div>
+          <span class="badge badge-muted" style="margin-top:8px;">Add DISCORD_WEBHOOK</span>
+        </div>
+        <div class="card" onclick="openWhatsApp()" style="cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="WhatsApp">
+          <div style="font-size:32px;margin-bottom:10px;">💬</div>
+          <div style="font-family:var(--font-heading);font-size:15px;font-weight:600;margin-bottom:4px;">WhatsApp</div>
+          <div style="font-size:12.5px;color:var(--fg-muted);">Via Callmebot or Twilio</div>
+          <span class="badge badge-muted" style="margin-top:8px;">Add WHATSAPP_KEY</span>
+        </div>
+        <div class="card" style="cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Matrix/Element">
+          <div style="font-size:32px;margin-bottom:10px;">🔷</div>
+          <div style="font-family:var(--font-heading);font-size:15px;font-weight:600;margin-bottom:4px;">Matrix / Element</div>
+          <div style="font-size:12.5px;color:var(--fg-muted);">Decentralised messaging</div>
+          <span class="badge badge-muted" style="margin-top:8px;">Add MATRIX_TOKEN</span>
+        </div>
+        <div class="card" style="cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Signal">
+          <div style="font-size:32px;margin-bottom:10px;">🔒</div>
+          <div style="font-family:var(--font-heading);font-size:15px;font-weight:600;margin-bottom:4px;">Signal</div>
+          <div style="font-size:12.5px;color:var(--fg-muted);">Via Signal CLI or Callmebot</div>
+          <span class="badge badge-muted" style="margin-top:8px;">Requires Signal CLI</span>
+        </div>
+        <div class="card" style="cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Slack">
+          <div style="font-size:32px;margin-bottom:10px;">💼</div>
+          <div style="font-family:var(--font-heading);font-size:15px;font-weight:600;margin-bottom:4px;">Slack</div>
+          <div style="font-size:12.5px;color:var(--fg-muted);">Workspace messaging</div>
+          <span class="badge badge-muted" style="margin-top:8px;">Add SLACK_WEBHOOK</span>
+        </div>
+        <div class="card" style="cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="SMS">
+          <div style="font-size:32px;margin-bottom:10px;">📱</div>
+          <div style="font-family:var(--font-heading);font-size:15px;font-weight:600;margin-bottom:4px;">SMS</div>
+          <div style="font-size:12.5px;color:var(--fg-muted);">Via Twilio or Vonage</div>
+          <span class="badge badge-muted" style="margin-top:8px;">Add TWILIO_SID</span>
+        </div>
       </div>
-      <div style="margin-top:16px;padding:14px;background:var(--accent-light);border:1px solid var(--accent);border-radius:var(--radius-sm);font-size:13px;color:var(--fg-secondary);">
-        <strong>Social posting</strong> is in <a href="/social-queue/" style="color:var(--accent);">Social Calendar</a> · 
-        <strong>CRM</strong> is in <a href="/crm/" style="color:var(--accent);">CRM</a> · 
-        <strong>Connect Zoho</strong> via <a href="/settings/" style="color:var(--accent);">Settings</a>
+
+      <!-- Quick send panel -->
+      <div class="card" style="margin-top:20px;">
+        <div class="card-header"><span class="card-title">Quick Send</span></div>
+        <div class="grid-2" style="gap:16px;">
+          <div>
+            <div class="form-group"><label class="form-label">Message</label><textarea class="textarea" id="quick-msg" rows="3" placeholder="Type your message..."></textarea></div>
+            <div class="form-group"><label class="form-label">Send via</label>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:4px;font-size:12.5px;cursor:pointer;"><input type="checkbox" id="send-telegram" checked> Telegram</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:12.5px;cursor:pointer;"><input type="checkbox" id="send-discord"> Discord</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:12.5px;cursor:pointer;"><input type="checkbox" id="send-whatsapp"> WhatsApp</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:12.5px;cursor:pointer;"><input type="checkbox" id="send-slack"> Slack</label>
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="quickSend()" title="Send message">Send Message</button>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:8px;">Send Log</div>
+            <div id="send-log" style="background:var(--fg-primary);color:#f0e9e0;border-radius:8px;padding:10px;font-family:monospace;font-size:11px;line-height:1.7;max-height:120px;overflow-y:auto;"><span style="color:#a8d4f0;">Ready.</span></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </div>
 <script src="/shared/prism.js"></script>
 <script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+
+function log(msg, type) {
+  var el = document.getElementById('send-log');
+  if (!el) return;
+  var line = document.createElement('div');
+  line.style.color = type==='ok'?'#7ecf7e':type==='err'?'#f08080':'#a8d4f0';
+  line.textContent = '[' + new Date().toLocaleTimeString('en-GB') + '] ' + msg;
+  el.appendChild(line); el.scrollTop = el.scrollHeight;
+}
+
+function quickSend() {
+  var msg = document.getElementById('quick-msg').value.trim();
+  if (!msg) { Toast.warning('Enter a message'); return; }
+  if (document.getElementById('send-telegram').checked) {
+    fetch(WORKER + '/api/notify', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})})
+    .then(function(r){return r.json();})
+    .then(function(r){if(r.success)log('Telegram: sent','ok');else log('Telegram: '+r.error,'err');})
+    .catch(function(e){log('Telegram: '+e.message,'err');});
+  }
+  if (document.getElementById('send-discord').checked) {
+    fetch(WORKER + '/api/discord/post', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:msg})})
+    .then(function(r){return r.json();})
+    .then(function(r){if(r.success)log('Discord: sent','ok');else log('Discord: '+r.error,'err');})
+    .catch(function(e){log('Discord: '+e.message,'err');});
+  }
+  Toast.info('Sending...');
+}
+
+function openTelegram() {
+  var msg = prompt('Send Telegram message:');
+  if (!msg) return;
+  fetch(WORKER + '/api/notify', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})})
+  .then(function(r){return r.json();})
+  .then(function(r){if(r.success)Toast.success('Telegram sent!');else Toast.error(r.error||'Failed');});
+}
+
+function openDiscord() {
+  var msg = prompt('Send Discord message:');
+  if (!msg) return;
+  fetch(WORKER + '/api/discord/post', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:msg})})
+  .then(function(r){return r.json();})
+  .then(function(r){if(r.success)Toast.success('Discord sent!');else Toast.error(r.error||'Failed');});
+}
+
+function openWhatsApp() {
+  Toast.info('WhatsApp requires WHATSAPP_KEY via Callmebot. Add via Settings → Secret Ingester.');
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
-  if (mount) { var sb = buildSidebar('/comms/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  
+  if (mount) { var sb=buildSidebar('/comms/'); mount.parentNode.insertBefore(sb,mount); mount.parentNode.removeChild(mount); }
 });
-
 </script>
 </body>
 </html>

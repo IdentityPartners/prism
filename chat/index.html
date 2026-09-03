@@ -522,6 +522,7 @@
 </div>
 </div>
 </div>
+<input type="file" id="chat-file-input" accept="image/*,.pdf,.txt,.csv,.md,.json,.js,.py,.html,.css" multiple style="display:none;" onchange="handleChatAttachment(this)">
 <script src="/shared/prism.js"></script>
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -546,6 +547,63 @@ var PERSONAS = [
   {name: 'The Poet', avatar: '🖊', systemPrompt: 'You find the metaphor in everything. Lyrical, evocative, precise. British English.'},
 ];
 
+// ── Attachment handling ───────────────────────────────────────────────────────
+var chatAttachments = []; // [{type:'image',data:'base64...',name:'file.png'},{type:'text',data:'content',name:'file.csv'}]
+
+function handleChatAttachment(input) {
+  if (!input.files || !input.files.length) return;
+  var preview = document.getElementById('attachment-preview');
+  if (preview) preview.style.display = 'flex';
+  
+  Array.from(input.files).forEach(function(file) {
+    var reader = new FileReader();
+    var isImage = file.type.startsWith('image/');
+    
+    reader.onload = function(e) {
+      var data = e.target.result;
+      if (isImage) {
+        chatAttachments.push({type:'image', data:data, name:file.name, mimeType:file.type});
+        // Show thumbnail
+        if (preview) {
+          var thumb = document.createElement('div');
+          thumb.style.cssText = 'position:relative;';
+          var img = document.createElement('img');
+          img.src = data;
+          img.style.cssText = 'width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border);';
+          var del = document.createElement('button');
+          del.textContent = '×';
+          del.style.cssText = 'position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:var(--danger);color:#fff;border:none;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;';
+          del.onclick = function() { chatAttachments = chatAttachments.filter(function(a){return a.name!==file.name;}); thumb.remove(); if(!chatAttachments.length&&preview)preview.style.display='none'; };
+          thumb.appendChild(img); thumb.appendChild(del);
+          preview.appendChild(thumb);
+        }
+      } else {
+        // Text/document — extract content
+        var textContent = typeof data === 'string' ? data : new TextDecoder().decode(data);
+        chatAttachments.push({type:'text', data:textContent.substring(0,10000), name:file.name});
+        if (preview) {
+          var chip = document.createElement('div');
+          chip.style.cssText = 'padding:4px 8px;background:var(--accent-light);border:1px solid var(--accent);border-radius:6px;font-size:11.5px;color:var(--accent);display:flex;align-items:center;gap:4px;';
+          chip.textContent = '📄 ' + file.name;
+          var del = document.createElement('button');
+          del.textContent = '×';
+          del.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--accent);font-size:14px;';
+          del.onclick = function() { chatAttachments = chatAttachments.filter(function(a){return a.name!==file.name;}); chip.remove(); if(!chatAttachments.length&&preview)preview.style.display='none'; };
+          chip.appendChild(del);
+          preview.appendChild(chip);
+        }
+      }
+    };
+    
+    if (file.type.startsWith('image/')) {
+      reader.readAsDataURL(file);
+    } else {
+      reader.readAsText(file);
+    }
+  });
+  input.value = ''; // Reset so same file can be re-attached
+}
+
 // ── Send Message — self-contained, no shared library dependency ───────────────
 function doSend() {
   var input = document.getElementById('chat-input');
@@ -560,8 +618,17 @@ function doSend() {
   // Append user message to UI
   appendMessage('user', text, null, null);
 
-  // Build messages array
+  // Build messages array with attachments
   var messages = [{role: 'system', content: currentPersona.systemPrompt}];
+  
+  // Add attachment context
+  if (chatAttachments.length > 0) {
+    var attachmentContext = chatAttachments.map(function(a) {
+      if (a.type === 'text') return 'Attached file "' + a.name + '":\n' + a.data;
+      return '[Image attached: ' + a.name + ']';
+    }).join('\n\n');
+    messages[0].content += '\n\nAttached files:\n' + attachmentContext;
+  }
   for (var i = 0; i < messageHistory.length; i++) {
     messages.push(messageHistory[i]);
   }
@@ -631,11 +698,18 @@ function doSend() {
     if (sendBtn) sendBtn.disabled = false;
     appendMessage('assistant', 'Network error. Check your connection.', null, null);
   };
-  xhr2.send(JSON.stringify({
-    messages: messages,
-    profile: currentProfile,
-    threadId: currentThreadId
-  }));
+  // Include image attachments for vision models
+  var imageAttachments = chatAttachments.filter(function(a){return a.type==='image';});
+  var payload = {messages: messages, profile: currentProfile, threadId: currentThreadId};
+  if (imageAttachments.length > 0) {
+    payload.images = imageAttachments.map(function(a){return {data:a.data,mimeType:a.mimeType||'image/jpeg'};});
+    payload.profile = 'multimodal'; // Route to vision-capable model
+  }
+  xhr2.send(JSON.stringify(payload));
+  // Clear attachments after send
+  chatAttachments = [];
+  var preview = document.getElementById('attachment-preview');
+  if (preview) { preview.innerHTML = ''; preview.style.display = 'none'; }
 }
 
 // ── DOM Helpers ───────────────────────────────────────────────────────────────

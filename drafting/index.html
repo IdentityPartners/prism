@@ -135,6 +135,7 @@
 </div>
 </div>
 </div>
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script src="/shared/prism.js"></script>
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
@@ -386,14 +387,58 @@ function sendToAtomise() {
   window.location.href = '/atomise/';
 }
 
+var quill = null;
+
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
   if (mount) { var sb = buildSidebar('/drafting/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  
+  // Init Quill if available
+  if (typeof Quill !== 'undefined') {
+    quill = new Quill('#quill-editor', {
+      theme: 'snow',
+      placeholder: 'Start writing… Handwriting via Surface Slim Pen 2 works directly in this field.',
+      modules: {
+        toolbar: [
+          [{ 'header': [1, 2, 3, false] }],
+          ['bold', 'italic', 'underline', 'strike'],
+          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+          ['blockquote', 'code-block'],
+          ['link'],
+          [{ 'align': [] }],
+          ['clean']
+        ]
+      }
+    });
+    quill.on('text-change', function() {
+      updateWordCount();
+    });
+    // Hide textarea, show Quill
+    var editorEl = document.getElementById('editor');
+    if (editorEl) editorEl.style.display = 'none';
+  } else {
+    // Quill not loaded, use textarea
+    var quillContainer = document.getElementById('quill-container');
+    if (quillContainer) quillContainer.style.display = 'none';
+    var editorEl = document.getElementById('editor');
+    if (editorEl) editorEl.style.display = 'block';
+  }
+  
   init();
   var prefill = '';
   try { prefill = sessionStorage.getItem('prism-draft') || ''; sessionStorage.removeItem('prism-draft'); } catch(e) {}
-  if (prefill) { var editor = document.getElementById('editor'); if (editor) { editor.value = prefill; updateWordCount(); } }
+  if (prefill) {
+    if (quill) quill.setText(prefill);
+    else { var editor = document.getElementById('editor'); if (editor) { editor.value = prefill; updateWordCount(); } }
+  }
 });
+
+// Override getEditorContent to use Quill
+function getEditorContent() {
+  if (quill) return quill.getText();
+  var editor = document.getElementById('editor');
+  return editor ? editor.value : '';
+}
 </script>
 </body>
 </html>

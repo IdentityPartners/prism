@@ -2,7 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Atomise — Prism</title>
+<title>Refract — Prism</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
 <style>
@@ -55,7 +55,7 @@
   <div id="sidebar-mount"></div>
   <div class="main-content" id="main-content">
     <div class="topbar">
-      <div class="topbar-title">Atomise</div>
+      <div class="topbar-title">Refract</div>
       <div class="topbar-actions">
         <button class="btn btn-sm btn-ghost" onclick="clearAll()" title="Clear everything">Clear</button>
         <button class="btn btn-sm btn-secondary" onclick="queueApproved()" title="Queue approved assets">Queue Approved</button>
@@ -68,7 +68,7 @@
           <span style="font-size:13px;font-weight:600;color:var(--fg-secondary);">Source Text</span>
           <span class="word-counter" id="wc">0 / 1,500 words</span>
         </div>
-        <textarea class="atomise-ta" id="atomise-input" placeholder="Paste your text here. The number of assets generated scales with word count — 250 words generates a core set, 1,500 words generates the full set with articles, long-form, and multiple variations per platform." oninput="updateWC()"></textarea>
+        <textarea class="atomise-ta" id="atomise-input" placeholder="Paste your text here. Refract takes one input and splits it into its full spectrum of uses across every platform. The number of assets generated scales with word count — 250 words generates a core set, 1,500 words generates the full set with articles, long-form, and multiple variations per platform." oninput="updateWC()"></textarea>
         <div class="atomise-controls">
           <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:8px;">Platforms</div>
           <div class="plt-row" id="plt-row">

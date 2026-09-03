@@ -1,0 +1,877 @@
+[
+  {
+    "name": "Rent a Cyber Friend",
+    "cat": "companionship",
+    "model": "Per-minute conversation",
+    "status": "D,P,R",
+    "url": "rentacyberfriend.com"
+  },
+  {
+    "name": "RentAFriend",
+    "cat": "companionship",
+    "model": "Hourly companionship",
+    "status": "D,R",
+    "url": "rentafriend.com"
+  },
+  {
+    "name": "FriendPC",
+    "cat": "companionship",
+    "model": "Virtual-friend listings",
+    "status": "D,P,R",
+    "url": "friendpc.com"
+  },
+  {
+    "name": "Companiions",
+    "cat": "companionship",
+    "model": "UK paid companionship",
+    "status": "D,V,UK",
+    "url": "companiions.com"
+  },
+  {
+    "name": "Premium.Chat",
+    "cat": "companionship",
+    "model": "Paid text/audio/video",
+    "status": "F,P",
+    "url": "premium.chat"
+  },
+  {
+    "name": "Popcall",
+    "cat": "companionship",
+    "model": "Paid calls and messages",
+    "status": "F,P",
+    "url": "popcall.com"
+  },
+  {
+    "name": "TrunkCall",
+    "cat": "companionship",
+    "model": "Expert calls/sessions/groups",
+    "status": "D/F,P",
+    "url": "trunkcall.com"
+  },
+  {
+    "name": "Talkspresso",
+    "cat": "companionship",
+    "model": "Paid consultations",
+    "status": "D/F",
+    "url": "talkspresso.com"
+  },
+  {
+    "name": "Intro",
+    "cat": "companionship",
+    "model": "Bookable paid video",
+    "status": "D/F,V",
+    "url": "intro.co"
+  },
+  {
+    "name": "Minnect",
+    "cat": "companionship",
+    "model": "Paid messages/consultations",
+    "status": "D/F,V",
+    "url": "minnect.com"
+  },
+  {
+    "name": "Fiverr",
+    "cat": "freelance",
+    "model": "Productised gigs",
+    "status": "D,P",
+    "url": "fiverr.com"
+  },
+  {
+    "name": "Upwork",
+    "cat": "freelance",
+    "model": "Contracts",
+    "status": "D",
+    "url": "upwork.com"
+  },
+  {
+    "name": "PeoplePerHour",
+    "cat": "freelance",
+    "model": "Hourly/packaged",
+    "status": "D,UK",
+    "url": "peopleperhour.com"
+  },
+  {
+    "name": "Freelancer.com",
+    "cat": "freelance",
+    "model": "Project bids",
+    "status": "D",
+    "url": "freelancer.com"
+  },
+  {
+    "name": "Bark",
+    "cat": "freelance",
+    "model": "Lead acquisition",
+    "status": "D,UK",
+    "url": "bark.com"
+  },
+  {
+    "name": "Airtasker",
+    "cat": "freelance",
+    "model": "Remote support tasks",
+    "status": "D,UK",
+    "url": "airtasker.com"
+  },
+  {
+    "name": "TaskRabbit",
+    "cat": "freelance",
+    "model": "Local/remote assistance",
+    "status": "D,V,UK",
+    "url": "taskrabbit.co.uk"
+  },
+  {
+    "name": "Guru",
+    "cat": "freelance",
+    "model": "Project marketplace",
+    "status": "D",
+    "url": "guru.com"
+  },
+  {
+    "name": "Contra",
+    "cat": "freelance",
+    "model": "Independent work",
+    "status": "D",
+    "url": "contra.com"
+  },
+  {
+    "name": "Malt",
+    "cat": "freelance",
+    "model": "Freelance marketplace",
+    "status": "D",
+    "url": "malt.com"
+  },
+  {
+    "name": "YunoJuno",
+    "cat": "freelance",
+    "model": "Freelance marketplace",
+    "status": "D,UK",
+    "url": "yunojuno.com"
+  },
+  {
+    "name": "Kounselly",
+    "cat": "freelance",
+    "model": "Coaching/consulting",
+    "status": "D",
+    "url": "kounselly.com"
+  },
+  {
+    "name": "Topmate",
+    "cat": "mentoring",
+    "model": "Paid sessions",
+    "status": "D/F",
+    "url": "topmate.io"
+  },
+  {
+    "name": "Superpeer",
+    "cat": "mentoring",
+    "model": "Paid calls",
+    "status": "D/F",
+    "url": "superpeer.com"
+  },
+  {
+    "name": "MentorCruise",
+    "cat": "mentoring",
+    "model": "Ongoing mentoring",
+    "status": "D,V",
+    "url": "mentorcruise.com"
+  },
+  {
+    "name": "GrowthMentor",
+    "cat": "mentoring",
+    "model": "Expert mentoring",
+    "status": "D,V",
+    "url": "growthmentor.com"
+  },
+  {
+    "name": "Sessions.us",
+    "cat": "mentoring",
+    "model": "Paid sessions",
+    "status": "D/F",
+    "url": "sessions.us"
+  },
+  {
+    "name": "Nas.io",
+    "cat": "mentoring",
+    "model": "Paid sessions/communities",
+    "status": "D/F",
+    "url": "nas.io"
+  },
+  {
+    "name": "Pensight",
+    "cat": "mentoring",
+    "model": "Paid calls",
+    "status": "F",
+    "url": "pensight.com"
+  },
+  {
+    "name": "Stan",
+    "cat": "mentoring",
+    "model": "Paid consultations",
+    "status": "F",
+    "url": "stan.store"
+  },
+  {
+    "name": "Beacons",
+    "cat": "mentoring",
+    "model": "Paid appointments",
+    "status": "F",
+    "url": "beacons.ai"
+  },
+  {
+    "name": "Directly.live",
+    "cat": "mentoring",
+    "model": "Expert access",
+    "status": "D/F",
+    "url": "directly.live"
+  },
+  {
+    "name": "Noomii",
+    "cat": "coaching",
+    "model": "Coach discovery",
+    "status": "D,UK",
+    "url": "noomii.com"
+  },
+  {
+    "name": "Life Coach Directory",
+    "cat": "coaching",
+    "model": "UK coach directory",
+    "status": "D,V,UK",
+    "url": "lifecoachdirectory.org.uk"
+  },
+  {
+    "name": "Life Coach Hub",
+    "cat": "coaching",
+    "model": "Coach marketplace",
+    "status": "D",
+    "url": "lifecoachhub.com"
+  },
+  {
+    "name": "Coach.me",
+    "cat": "coaching",
+    "model": "Habit/coaching",
+    "status": "D",
+    "url": "coach.me"
+  },
+  {
+    "name": "Approach a Coach",
+    "cat": "coaching",
+    "model": "Coach directory",
+    "status": "D,UK",
+    "url": "approachacoach.com"
+  },
+  {
+    "name": "CoachCompare",
+    "cat": "coaching",
+    "model": "Coach comparison",
+    "status": "D,UK",
+    "url": "coachcompare.com"
+  },
+  {
+    "name": "CoachMatching",
+    "cat": "coaching",
+    "model": "Coach matching",
+    "status": "D",
+    "url": "coachmatching.com"
+  },
+  {
+    "name": "ADHD UK Marketplace",
+    "cat": "adhd",
+    "model": "ADHD coach marketplace",
+    "status": "D,C,V,UK",
+    "url": "adhduk.co.uk"
+  },
+  {
+    "name": "Shimmer",
+    "cat": "adhd",
+    "model": "ADHD coaching",
+    "status": "D,C,V",
+    "url": "shimmer.care"
+  },
+  {
+    "name": "ADHD Coaching Agency",
+    "cat": "adhd",
+    "model": "ADHD coaching",
+    "status": "D,C,V",
+    "url": "adhdcoachingagency.com"
+  },
+  {
+    "name": "Focusmate",
+    "cat": "adhd",
+    "model": "Body doubling",
+    "status": "F",
+    "url": "focusmate.com"
+  },
+  {
+    "name": "Coacherly",
+    "cat": "recovery",
+    "model": "Recovery coaching",
+    "status": "D,C",
+    "url": "coacherly.com"
+  },
+  {
+    "name": "Superprof",
+    "cat": "tutoring",
+    "model": "Tutoring marketplace",
+    "status": "D,UK",
+    "url": "superprof.co.uk"
+  },
+  {
+    "name": "Tutorful",
+    "cat": "tutoring",
+    "model": "UK tutoring",
+    "status": "D,V,UK",
+    "url": "tutorful.co.uk"
+  },
+  {
+    "name": "Preply",
+    "cat": "tutoring",
+    "model": "Online tutoring",
+    "status": "D,V",
+    "url": "preply.com"
+  },
+  {
+    "name": "Udemy",
+    "cat": "courses",
+    "model": "Course marketplace",
+    "status": "D",
+    "url": "udemy.com"
+  },
+  {
+    "name": "Skillshare",
+    "cat": "courses",
+    "model": "Course platform",
+    "status": "D",
+    "url": "skillshare.com"
+  },
+  {
+    "name": "Maven",
+    "cat": "courses",
+    "model": "Cohort courses",
+    "status": "D",
+    "url": "maven.com"
+  },
+  {
+    "name": "Reed Courses",
+    "cat": "courses",
+    "model": "UK course marketplace",
+    "status": "D,UK",
+    "url": "reed.co.uk/courses"
+  },
+  {
+    "name": "Mighty Networks",
+    "cat": "community",
+    "model": "Paid community",
+    "status": "F",
+    "url": "mightynetworks.com"
+  },
+  {
+    "name": "Circle",
+    "cat": "community",
+    "model": "Community platform",
+    "status": "F",
+    "url": "circle.so"
+  },
+  {
+    "name": "Skool",
+    "cat": "community",
+    "model": "Community + courses",
+    "status": "F",
+    "url": "skool.com"
+  },
+  {
+    "name": "Whop",
+    "cat": "community",
+    "model": "Community + products",
+    "status": "F",
+    "url": "whop.com"
+  },
+  {
+    "name": "Bettermode",
+    "cat": "community",
+    "model": "Community platform",
+    "status": "F",
+    "url": "bettermode.com"
+  },
+  {
+    "name": "Disco",
+    "cat": "community",
+    "model": "Learning community",
+    "status": "F",
+    "url": "disco.co"
+  },
+  {
+    "name": "Hivebrite",
+    "cat": "community",
+    "model": "Community platform",
+    "status": "F",
+    "url": "hivebrite.com"
+  },
+  {
+    "name": "Patreon",
+    "cat": "creator",
+    "model": "Membership/subscriptions",
+    "status": "F",
+    "url": "patreon.com"
+  },
+  {
+    "name": "Ko-fi",
+    "cat": "creator",
+    "model": "Donations/memberships",
+    "status": "F",
+    "url": "ko-fi.com"
+  },
+  {
+    "name": "Buy Me a Coffee",
+    "cat": "creator",
+    "model": "Donations/memberships",
+    "status": "F",
+    "url": "buymeacoffee.com"
+  },
+  {
+    "name": "Substack",
+    "cat": "creator",
+    "model": "Newsletter/subscriptions",
+    "status": "F",
+    "url": "substack.com"
+  },
+  {
+    "name": "Ghost",
+    "cat": "creator",
+    "model": "Newsletter/memberships",
+    "status": "F",
+    "url": "ghost.org"
+  },
+  {
+    "name": "beehiiv",
+    "cat": "creator",
+    "model": "Newsletter platform",
+    "status": "F",
+    "url": "beehiiv.com"
+  },
+  {
+    "name": "Gumroad",
+    "cat": "creator",
+    "model": "Digital products",
+    "status": "F",
+    "url": "gumroad.com"
+  },
+  {
+    "name": "Payhip",
+    "cat": "creator",
+    "model": "Digital products",
+    "status": "F",
+    "url": "payhip.com"
+  },
+  {
+    "name": "Lemon Squeezy",
+    "cat": "creator",
+    "model": "Digital products",
+    "status": "F",
+    "url": "lemonsqueezy.com"
+  },
+  {
+    "name": "Fourthwall",
+    "cat": "creator",
+    "model": "Creator storefront",
+    "status": "F",
+    "url": "fourthwall.com"
+  },
+  {
+    "name": "Locals",
+    "cat": "creator",
+    "model": "Creator community",
+    "status": "F",
+    "url": "locals.com"
+  },
+  {
+    "name": "Memberful",
+    "cat": "creator",
+    "model": "Membership platform",
+    "status": "F",
+    "url": "memberful.com"
+  },
+  {
+    "name": "Teachable",
+    "cat": "courses",
+    "model": "Course platform",
+    "status": "F",
+    "url": "teachable.com"
+  },
+  {
+    "name": "Thinkific",
+    "cat": "courses",
+    "model": "Course platform",
+    "status": "F",
+    "url": "thinkific.com"
+  },
+  {
+    "name": "Kajabi",
+    "cat": "courses",
+    "model": "All-in-one platform",
+    "status": "F",
+    "url": "kajabi.com"
+  },
+  {
+    "name": "Podia",
+    "cat": "courses",
+    "model": "Course/community",
+    "status": "F",
+    "url": "podia.com"
+  },
+  {
+    "name": "LearnWorlds",
+    "cat": "courses",
+    "model": "Course platform",
+    "status": "F",
+    "url": "learnworlds.com"
+  },
+  {
+    "name": "Systeme.io",
+    "cat": "courses",
+    "model": "All-in-one",
+    "status": "F",
+    "url": "systeme.io"
+  },
+  {
+    "name": "Heights Platform",
+    "cat": "courses",
+    "model": "Course platform",
+    "status": "F",
+    "url": "heightsplatform.com"
+  },
+  {
+    "name": "Xperiencify",
+    "cat": "courses",
+    "model": "Gamified courses",
+    "status": "F",
+    "url": "xperiencify.com"
+  },
+  {
+    "name": "Medium",
+    "cat": "writing",
+    "model": "Partner program",
+    "status": "D",
+    "url": "medium.com"
+  },
+  {
+    "name": "Vocal Media",
+    "cat": "writing",
+    "model": "Paid writing",
+    "status": "D",
+    "url": "vocal.media"
+  },
+  {
+    "name": "Buttondown",
+    "cat": "writing",
+    "model": "Newsletter",
+    "status": "F",
+    "url": "buttondown.email"
+  },
+  {
+    "name": "Supercast",
+    "cat": "podcast",
+    "model": "Private podcast",
+    "status": "F",
+    "url": "supercast.com"
+  },
+  {
+    "name": "Podbean Patron",
+    "cat": "podcast",
+    "model": "Podcast subscriptions",
+    "status": "F",
+    "url": "podbean.com"
+  },
+  {
+    "name": "Buzzsprout",
+    "cat": "podcast",
+    "model": "Podcast hosting",
+    "status": "F",
+    "url": "buzzsprout.com"
+  },
+  {
+    "name": "Captivate",
+    "cat": "podcast",
+    "model": "Private podcasts",
+    "status": "F",
+    "url": "captivate.fm"
+  },
+  {
+    "name": "Transistor",
+    "cat": "podcast",
+    "model": "Private podcasts",
+    "status": "F",
+    "url": "transistor.fm"
+  },
+  {
+    "name": "Hello Audio",
+    "cat": "podcast",
+    "model": "Private audio",
+    "status": "F",
+    "url": "helloaudio.fm"
+  },
+  {
+    "name": "RedCircle",
+    "cat": "podcast",
+    "model": "Podcast subscriptions",
+    "status": "F",
+    "url": "redcircle.com"
+  },
+  {
+    "name": "Sellfy",
+    "cat": "digital",
+    "model": "Digital storefront",
+    "status": "F",
+    "url": "sellfy.com"
+  },
+  {
+    "name": "SendOwl",
+    "cat": "digital",
+    "model": "Digital delivery",
+    "status": "F",
+    "url": "sendowl.com"
+  },
+  {
+    "name": "ThriveCart",
+    "cat": "digital",
+    "model": "Cart/checkout",
+    "status": "F",
+    "url": "thrivecart.com"
+  },
+  {
+    "name": "SamCart",
+    "cat": "digital",
+    "model": "Cart/checkout",
+    "status": "F",
+    "url": "samcart.com"
+  },
+  {
+    "name": "Etsy",
+    "cat": "digital",
+    "model": "Digital resources",
+    "status": "D",
+    "url": "etsy.com"
+  },
+  {
+    "name": "Creative Market",
+    "cat": "digital",
+    "model": "Templates/journals",
+    "status": "D",
+    "url": "creativemarket.com"
+  },
+  {
+    "name": "Teachers Pay Teachers",
+    "cat": "digital",
+    "model": "Educational materials",
+    "status": "D",
+    "url": "teacherspayteachers.com"
+  },
+  {
+    "name": "Eventbrite",
+    "cat": "events",
+    "model": "Paid events",
+    "status": "D,UK",
+    "url": "eventbrite.co.uk"
+  },
+  {
+    "name": "Humanitix",
+    "cat": "events",
+    "model": "Ethical ticketing",
+    "status": "D",
+    "url": "humanitix.com"
+  },
+  {
+    "name": "Ticket Tailor",
+    "cat": "events",
+    "model": "Event ticketing",
+    "status": "F,UK",
+    "url": "tickettailor.com"
+  },
+  {
+    "name": "Luma",
+    "cat": "events",
+    "model": "Event platform",
+    "status": "D/F",
+    "url": "lu.ma"
+  },
+  {
+    "name": "Meetup",
+    "cat": "events",
+    "model": "Group events",
+    "status": "D",
+    "url": "meetup.com"
+  },
+  {
+    "name": "Crowdcast",
+    "cat": "events",
+    "model": "Online events",
+    "status": "F",
+    "url": "crowdcast.io"
+  },
+  {
+    "name": "Airmeet",
+    "cat": "events",
+    "model": "Virtual events",
+    "status": "F",
+    "url": "airmeet.com"
+  },
+  {
+    "name": "Butter",
+    "cat": "events",
+    "model": "Workshop platform",
+    "status": "F",
+    "url": "butter.us"
+  },
+  {
+    "name": "Demio",
+    "cat": "events",
+    "model": "Webinars",
+    "status": "F",
+    "url": "demio.com"
+  },
+  {
+    "name": "Paperbell",
+    "cat": "booking",
+    "model": "Coaching practice",
+    "status": "F",
+    "url": "paperbell.com"
+  },
+  {
+    "name": "CoachAccountable",
+    "cat": "booking",
+    "model": "Coaching platform",
+    "status": "F",
+    "url": "coachaccountable.com"
+  },
+  {
+    "name": "Simply.Coach",
+    "cat": "booking",
+    "model": "Coaching platform",
+    "status": "F",
+    "url": "simply.coach"
+  },
+  {
+    "name": "CoachVantage",
+    "cat": "booking",
+    "model": "Coaching platform",
+    "status": "F",
+    "url": "coachvantage.com"
+  },
+  {
+    "name": "Practice.do",
+    "cat": "booking",
+    "model": "Practice management",
+    "status": "F",
+    "url": "practice.do"
+  },
+  {
+    "name": "Coachli",
+    "cat": "booking",
+    "model": "Coaching platform",
+    "status": "F",
+    "url": "coachli.com"
+  },
+  {
+    "name": "UpCoach",
+    "cat": "booking",
+    "model": "Coaching platform",
+    "status": "F",
+    "url": "upcoach.com"
+  },
+  {
+    "name": "HoneyBook",
+    "cat": "booking",
+    "model": "Client management",
+    "status": "F",
+    "url": "honeybook.com"
+  },
+  {
+    "name": "Calendly",
+    "cat": "booking",
+    "model": "Scheduling + payments",
+    "status": "F",
+    "url": "calendly.com"
+  },
+  {
+    "name": "Cal.com",
+    "cat": "booking",
+    "model": "Open source scheduling",
+    "status": "F",
+    "url": "cal.com"
+  },
+  {
+    "name": "Acuity Scheduling",
+    "cat": "booking",
+    "model": "Scheduling",
+    "status": "F",
+    "url": "acuityscheduling.com"
+  },
+  {
+    "name": "SimplyBook.me",
+    "cat": "booking",
+    "model": "Booking system",
+    "status": "F",
+    "url": "simplybook.me"
+  },
+  {
+    "name": "Setmore",
+    "cat": "booking",
+    "model": "Booking system",
+    "status": "F,UK",
+    "url": "setmore.com"
+  },
+  {
+    "name": "YouCanBookMe",
+    "cat": "booking",
+    "model": "Booking system",
+    "status": "F,UK",
+    "url": "youcanbook.me"
+  },
+  {
+    "name": "TidyCal",
+    "cat": "booking",
+    "model": "Scheduling",
+    "status": "F",
+    "url": "tidycal.com"
+  },
+  {
+    "name": "Zoho Bookings",
+    "cat": "booking",
+    "model": "Booking system",
+    "status": "F,UK",
+    "url": "zoho.com/bookings"
+  },
+  {
+    "name": "Book Like A Boss",
+    "cat": "booking",
+    "model": "Booking + payments",
+    "status": "F",
+    "url": "booklikeaboss.com"
+  },
+  {
+    "name": "Appointy",
+    "cat": "booking",
+    "model": "Appointment scheduling",
+    "status": "F",
+    "url": "appointy.com"
+  },
+  {
+    "name": "10to8",
+    "cat": "booking",
+    "model": "Appointment scheduling",
+    "status": "F,UK",
+    "url": "10to8.com"
+  },
+  {
+    "name": "GoCardless",
+    "cat": "booking",
+    "model": "Recurring UK payments",
+    "status": "F,UK",
+    "url": "gocardless.com"
+  },
+  {
+    "name": "SumUp",
+    "cat": "booking",
+    "model": "Payment links",
+    "status": "F,UK",
+    "url": "sumup.com"
+  }
+]

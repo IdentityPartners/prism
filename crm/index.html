@@ -246,6 +246,8 @@ function showContactDetail(contact) {
     {label: 'Phone', value: contact.phone || '—'},
     {label: 'Status', value: contact.status || '—'},
     {label: 'Added', value: contact.created ? new Date(contact.created).toLocaleDateString('en-GB') : '—'},
+    {label: 'Group', value: contact.group || '—'},
+    {label: 'Tags', value: (contact.tags||[]).join(', ') || '—'},
   ];
   var fieldsSection = document.createElement('div');
   fieldsSection.className = 'detail-section';

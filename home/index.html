@@ -170,11 +170,12 @@
 <button class="atm-btn" onclick="toggleEmbed('spotify')" title="Embed a Spotify playlist">🎵 Spotify</button>
 <button class="atm-btn" onclick="toggleEmbed('youtube')" title="Embed a YouTube video">▶ YouTube</button>
 <button class="atm-btn" onclick="window.open('https://www.bbc.co.uk/iplayer','_blank')" title="Open BBC iPlayer">📺 iPlayer</button>
-<button class="atm-btn" onclick="window.open('https://www.globalplayer.com','_blank')" title="Open Global Player">📻 Global Player</button>
+<button class="atm-btn" onclick="loadPreset('https://www.globalplayer.com/live-player/?stationId=2BR&embedType=player')" title="Embed Global Player live radio">📻 Global Player</button>
 <button class="atm-btn" onclick="window.open('https://music.amazon.co.uk','_blank')" title="Open Amazon Music">🎶 Amazon Music</button>
 <button class="atm-btn" onclick="playAmbient('whitenoise')" title="Play white noise">🌊 White Noise</button>
 <button class="atm-btn" onclick="playAmbient('nature')" title="Play nature sounds">🌿 Nature</button>
 <button class="atm-btn" onclick="playAmbient('lofi')" title="Play lo-fi music">🎹 Lo-Fi</button>
+            <button class="atm-btn" onclick="loadRadioGarden()" title="Radio Garden — world radio map">🌍 Radio Garden</button>
 </div>
 <!-- Embed panel (hidden by default) -->
 <div class="embed-panel hidden" id="embed-panel">
@@ -334,15 +335,29 @@ function loadEmbed() {
   var embedUrl = url;
   if (url.includes('youtube.com/watch')) {
     var vid = url.split('v=')[1];
-    if (vid) embedUrl = 'https://www.youtube.com/embed/' + vid.split('&')[0];
+    if (vid) embedUrl = 'https://www.youtube.com/embed/' + vid.split('&')[0] + '?autoplay=1';
   } else if (url.includes('youtu.be/')) {
     var vid = url.split('youtu.be/')[1];
-    if (vid) embedUrl = 'https://www.youtube.com/embed/' + vid;
+    if (vid) embedUrl = 'https://www.youtube.com/embed/' + vid + '?autoplay=1';
   } else if (url.includes('spotify.com') && !url.includes('/embed/')) {
     embedUrl = url.replace('open.spotify.com/', 'open.spotify.com/embed/');
+  } else if (url.includes('radio.garden')) {
+    // Radio Garden embed
+    var match = url.match(/radio\.garden\/listen\/[^/]+\/([^/]+)/);
+    if (match) embedUrl = 'https://radio.garden/embed/' + match[1];
   }
   var frame = document.getElementById('embed-frame');
-  if (frame) frame.src = embedUrl;
+  if (frame) { frame.src = embedUrl; frame.style.height = '200px'; }
+  var panel = document.getElementById('embed-panel');
+  if (panel) panel.classList.remove('hidden');
+}
+
+function loadRadioGarden() {
+  // Radio Garden — world radio map
+  var frame = document.getElementById('embed-frame');
+  if (frame) { frame.src = 'https://radio.garden/embed'; frame.style.height = '400px'; }
+  var panel = document.getElementById('embed-panel');
+  if (panel) panel.classList.remove('hidden');
 }
 
 function loadPreset(url) {

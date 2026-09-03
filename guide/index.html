@@ -12,48 +12,67 @@
   <div class="main-content" id="main-content">
     <div class="topbar"><div class="topbar-title">Integration Guide</div></div>
     <div class="page-content">
-      <div class="card" style="max-width:800px;">
-        <div class="card-header"><span class="card-title">Integration Guide</span></div>
+      <div class="card" style="max-width:800px;margin-bottom:20px;">
+        <div class="card-header"><span class="card-title">Booking Widget — Embed on identitypartners.uk</span></div>
         <div class="md-content" style="font-size:13.5px;line-height:1.8;">
-          <h2>Zoho Integration</h2>
-          <p>Prism integrates with Zoho Mail, Calendar, CRM, and Social. To connect:</p>
+          <h2>Option 1: Prism Booking Page (recommended)</h2>
+          <p>Add this to your website's <code>&lt;/body&gt;</code> tag:</p>
+          <pre><code>&lt;script src="https://prism.identitypartners.uk/chatbot/embed.js"
+  data-type="booking"
+  data-position="bottom-right"
+  data-color="#0f3b3a"
+  data-label="Book an Initial Consultation"&gt;
+&lt;/script&gt;</code></pre>
+          <h2>Option 2: Zoho Bookings Embed</h2>
+          <p>Once Zoho Calendar is connected, embed your booking page directly:</p>
+          <pre><code>&lt;iframe src="https://bookings.zoho.eu/portal/identitypartners"
+  width="100%" height="600" frameborder="0"&gt;
+&lt;/iframe&gt;</code></pre>
+          <h2>Option 3: Setmore</h2>
+          <p>Setmore is the simplest option. Sign up at setmore.com, connect to Zoho Calendar, then embed:</p>
+          <pre><code>&lt;script id="setmore_script" type="text/javascript"
+  src="https://storage.googleapis.com/fullintegration-live/webComponentAppListing/Container/setmoreIframeLive.js"&gt;
+&lt;/script&gt;
+&lt;a id="Setmore_button_iframe" style="float:none" href="https://booking.setmore.com/scheduleappointment/YOUR_KEY"&gt;
+  &lt;img border="none" src="https://storage.googleapis.com/full-assets/setmore/images/1.0/Logo/book-now-blue.svg"&gt;
+&lt;/a&gt;</code></pre>
+          <h2>Zoho Calendar Integration</h2>
+          <p>Zoho Bookings integrates directly with Zoho Calendar. Once you connect Zoho Calendar in Prism:</p>
           <ol>
-            <li>Go to <strong>Settings → Zoho Integration</strong></li>
-            <li>Click the service you want to connect</li>
-            <li>You will be redirected to Zoho to authorise access</li>
-            <li>After authorising, you will be returned to Prism automatically</li>
+            <li>Go to bookings.zoho.eu</li>
+            <li>Create a service: "Initial Consultation — 20 minutes — Free"</li>
+            <li>Connect to your Zoho Calendar</li>
+            <li>Copy the embed code</li>
+            <li>Paste into identitypartners.uk</li>
           </ol>
-          <p><strong>Important:</strong> Use the Global Zoho API console (api-console.zoho.com), not the EU console. The EU console produces intermittent authentication errors.</p>
-          <h2>Cloudflare Tunnel (Local Models)</h2>
-          <p>To use local Ollama models remotely:</p>
-          <ol>
-            <li>Install Cloudflare Tunnel on your Surface Pro 9</li>
-            <li>Run: <code>cloudflared tunnel --url http://localhost:11434</code></li>
-            <li>Copy the tunnel URL (e.g. https://xxx.trycloudflare.com)</li>
-            <li>Paste it in <strong>Settings → Routing → Ollama Tunnel URL</strong></li>
-          </ol>
-          <h2>API Keys</h2>
-          <p>All API keys are stored in Cloudflare Worker environment variables. To add or update a key:</p>
-          <ol>
-            <li>Go to the Cloudflare dashboard</li>
-            <li>Navigate to Workers &amp; Pages → prism-api → Settings → Variables</li>
-            <li>Add or update the secret</li>
-          </ol>
-          <p>Alternatively, use the Key Ingester in <strong>Settings</strong> to note keys for the next deployment.</p>
-          <h2>Bluesky</h2>
-          <p>Bluesky posting uses your app password (not your main password). Generate one at bsky.app → Settings → App Passwords. The handle and app password are already configured in the Worker.</p>
+          <p>Bookings will appear automatically in your Prism Calendar page.</p>
         </div>
-      </div></div>
+      </div>
+      <div class="card" style="max-width:800px;">
+        <div class="card-header"><span class="card-title">Zoho OAuth Setup</span></div>
+        <div class="md-content" style="font-size:13.5px;line-height:1.8;">
+          <h2>Required redirect URIs in api-console.zoho.eu</h2>
+          <pre><code>https://prism.identitypartners.uk/oauth/zoho/mail
+https://prism.identitypartners.uk/oauth/zoho/calendar
+https://prism.identitypartners.uk/oauth/zoho/crm
+https://prism.identitypartners.uk/oauth/zoho/social</code></pre>
+          <h2>Connect each service</h2>
+          <ol>
+            <li><a href="/oauth/zoho/calendar">Connect Zoho Calendar</a></li>
+            <li><a href="/oauth/zoho/mail">Connect Zoho Mail</a></li>
+            <li><a href="/oauth/zoho/crm">Connect Zoho CRM</a></li>
+          </ol>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 <script src="/shared/prism.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
-  if (mount) { var sb = buildSidebar('/guide/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  
+  if (mount) { var sb=buildSidebar('/guide/'); mount.parentNode.insertBefore(sb,mount); mount.parentNode.removeChild(mount); }
 });
-
 </script>
 </body>
 </html>
