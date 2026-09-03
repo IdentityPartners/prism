@@ -200,6 +200,74 @@ function saveRouting() {
   Toast.success('Routing settings saved');
 }
 
+function saveSignupProfile() {
+  var profile = {
+    displayName: document.getElementById('sp-displayname').value,
+    email: document.getElementById('sp-email').value,
+    website: document.getElementById('sp-website').value,
+    bio: document.getElementById('sp-bio').value,
+    tagline: document.getElementById('sp-tagline').value,
+    rates: {
+      consultation: document.getElementById('sp-rate-consult').value,
+      session: document.getElementById('sp-rate-session').value,
+      group: document.getElementById('sp-rate-group').value,
+      monthly: document.getElementById('sp-rate-monthly').value,
+    },
+    socials: {
+      bluesky: document.getElementById('sp-bluesky').value,
+      linkedin: document.getElementById('sp-linkedin').value,
+      instagram: document.getElementById('sp-instagram').value,
+      twitter: document.getElementById('sp-twitter').value,
+    },
+    categories: document.getElementById('sp-categories').value.split(',').map(function(s){return s.trim();}).filter(Boolean),
+    keywords: document.getElementById('sp-keywords').value.split(',').map(function(s){return s.trim();}).filter(Boolean),
+  };
+  // Save to localStorage for immediate use
+  try { localStorage.setItem('prism-signup-profile', JSON.stringify(profile)); } catch(e) {}
+  // Save to Worker KV
+  fetch('https://prism-api.identitypartners.workers.dev/api/profile/signup', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(profile)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(r) {
+    var status = document.getElementById('sp-status');
+    if (status) status.textContent = r.success ? '✓ Profile saved to Cloudflare KV' : 'Error: ' + (r.error||'unknown');
+    if (r.success) Toast.success('Signup profile saved');
+  })
+  .catch(function(e) {
+    var status = document.getElementById('sp-status');
+    if (status) status.textContent = 'Saved locally (Worker unreachable)';
+    Toast.info('Saved locally');
+  });
+}
+
+function loadSignupProfile() {
+  try {
+    var saved = JSON.parse(localStorage.getItem('prism-signup-profile') || '{}');
+    if (saved.displayName) document.getElementById('sp-displayname').value = saved.displayName;
+    if (saved.email) document.getElementById('sp-email').value = saved.email;
+    if (saved.website) document.getElementById('sp-website').value = saved.website;
+    if (saved.bio) document.getElementById('sp-bio').value = saved.bio;
+    if (saved.tagline) document.getElementById('sp-tagline').value = saved.tagline;
+    if (saved.rates) {
+      if (saved.rates.consultation) document.getElementById('sp-rate-consult').value = saved.rates.consultation;
+      if (saved.rates.session) document.getElementById('sp-rate-session').value = saved.rates.session;
+      if (saved.rates.group) document.getElementById('sp-rate-group').value = saved.rates.group;
+      if (saved.rates.monthly) document.getElementById('sp-rate-monthly').value = saved.rates.monthly;
+    }
+    if (saved.socials) {
+      if (saved.socials.bluesky) document.getElementById('sp-bluesky').value = saved.socials.bluesky;
+      if (saved.socials.linkedin) document.getElementById('sp-linkedin').value = saved.socials.linkedin;
+      if (saved.socials.instagram) document.getElementById('sp-instagram').value = saved.socials.instagram;
+      if (saved.socials.twitter) document.getElementById('sp-twitter').value = saved.socials.twitter;
+    }
+    if (saved.categories) document.getElementById('sp-categories').value = saved.categories.join(', ');
+    if (saved.keywords) document.getElementById('sp-keywords').value = saved.keywords.join(', ');
+  } catch(e) {}
+}
+
 function saveDisplay() {
   try {
     localStorage.setItem('prism-osk', document.getElementById('osk-setting').value);
@@ -213,6 +281,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (mount) { var sb = buildSidebar('/settings/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
   initThemeSelect();
   initKeyFields();
+  loadSignupProfile();
   try {
     var savedProfile = localStorage.getItem('prism-default-profile');
     if (savedProfile) document.getElementById('profile-select').value = savedProfile;

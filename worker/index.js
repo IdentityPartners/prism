@@ -2238,34 +2238,30 @@ export default {
         var platformName = body.platform || '';
         var browserlessKey = env['BROWSERLESS.IO'] || env.BROWSERLESS_IO;
 
-        // Full profile data to inject
-        var profile = {
-          name: body.name || 'Simon Johnson',
-          displayName: body.displayName || 'Identity Partners',
-          email: body.email || 'hello@identitypartners.uk',
+        // Load profile from KV (editable via Settings → Platform Signup Profile)
+        var savedProfile = null;
+        if (env.PRISM_KV) {
+          try { var sp = await env.PRISM_KV.get('profile:signup'); if (sp) savedProfile = JSON.parse(sp); } catch(e) {}
+        }
+        var profile = Object.assign({
+          name: 'Simon Johnson',
+          displayName: 'Identity Partners',
+          email: 'hello@identitypartners.uk',
           personalEmail: 'simon@identitypartners.uk',
           website: 'https://www.identitypartners.uk',
           bookingUrl: 'https://www.identitypartners.uk/book',
-          bio: body.bio || 'Non-clinical listening, coaching, mentoring and relational practice. Evidence-based support for addiction, trauma, mental health, and community wellbeing. Based in the UK.',
+          bio: 'Non-clinical listening, coaching, mentoring and relational practice. Evidence-based support for addiction, trauma, mental health, and community wellbeing. Based in the UK.',
           shortBio: 'Relational practice for addiction, trauma & mental health. Non-clinical. Evidence-based.',
           tagline: 'Understand your past. Appreciate the present. Define your future.',
-          rates: {
-            consultation: 'Free (20 min initial consultation)',
-            session: '£80 per hour',
-            group: '£40 per session',
-            monthly: '£250 per month (4 sessions)'
-          },
-          socials: {
-            bluesky: '@identitypartners.bsky.social',
-            linkedin: 'linkedin.com/in/simonjohnsonip',
-            instagram: '@identitypartners',
-            twitter: '@identitypartners'
-          },
-          categories: ['Life Coaching', 'Mental Health', 'Addiction Recovery', 'Trauma Support', 'ADHD Coaching', 'Accountability'],
-          keywords: ['addiction recovery', 'trauma-informed', 'mental health', 'relational practice', 'non-clinical', 'accountability', 'ADHD', 'neurodivergent'],
+          rates: {consultation:'Free (20 minutes)', session:'£50 per hour', group:'£25 per session', monthly:'£150 per month (4 sessions)'},
+          socials: {bluesky:'@identitypartners.bsky.social', linkedin:'identitypartners', instagram:'@identitypartners', twitter:'@identitypartners'},
+          categories: ['Life Coaching','Mental Health','Addiction Recovery','Trauma Support','ADHD Coaching','Accountability'],
+          keywords: ['addiction recovery','trauma-informed','mental health','relational practice','non-clinical','accountability','ADHD','neurodivergent'],
           logoUrl: 'https://prism.identitypartners.uk/shared/assets/logo-square.png',
           password: 'IPrism2026!Secure'
-        };
+        }, savedProfile || {}, body || {});
+        // Ensure password is always set
+        if (!profile.password) profile.password = 'IPrism2026!Secure';
 
         // Find platform URL from our platform list
         var platformData = null;
@@ -3220,6 +3216,24 @@ export default {
           size: pdfBuffer.byteLength
         }, 200, origin);
       } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+
+    // ── Signup profile storage ────────────────────────────────────────────────
+    if (path === '/api/profile/signup' && request.method === 'POST') {
+      try {
+        var body = await request.json();
+        if (env.PRISM_KV) await env.PRISM_KV.put('profile:signup', JSON.stringify(body));
+        return json({success:true}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    if (path === '/api/profile/signup' && request.method === 'GET') {
+      try {
+        if (!env.PRISM_KV) return json({profile:null}, 200, origin);
+        var stored = await env.PRISM_KV.get('profile:signup');
+        return json({profile: stored ? JSON.parse(stored) : null}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
     return json({error:'Not found', path:path}, 404, origin);
