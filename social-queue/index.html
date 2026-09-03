@@ -155,12 +155,18 @@ function loadQueue() {
   var list = document.getElementById('queue-list');
   if(list) list.innerHTML = '<div class="empty-state"><div class="spinner"></div><div style="margin-top:8px;">Loading...</div></div>';
 
-  fetch(WORKER + '/api/social/queue?limit=500', {
+  var controller = new AbortController();
+  var timeoutId = setTimeout(function() { controller.abort(); }, 20000);
+
+  fetch(WORKER + '/api/social/queue?limit=100', {
     method: 'GET',
-    headers: {'Content-Type': 'application/json'},
-    signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined
+    signal: controller.signal
   })
-  .then(function(resp) { return resp.json(); })
+  .then(function(resp) {
+    clearTimeout(timeoutId);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return resp.json();
+  })
   .then(function(r) {
     allQueue = r.queue || [];
     updateStats();
@@ -168,8 +174,19 @@ function loadQueue() {
     renderPlatformStatus();
   })
   .catch(function(e) {
-    if(list) list.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠</div><div>Could not load queue: ' + e.message + '<br><button class="btn btn-sm btn-secondary" onclick="loadQueue()" style="margin-top:8px;">Retry</button></div></div>';
+    clearTimeout(timeoutId);
+    var msg = e.name === 'AbortError' ? 'Request timed out after 20s' : e.message;
+    if(list) list.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠</div><div style="font-size:13px;">' + msg + '</div>' +
+      '<button class="btn btn-sm btn-secondary" onclick="loadQueue()" style="margin-top:8px;">Retry</button>' +
+      '<button class="btn btn-sm btn-ghost" onclick="testWorker()" style="margin-top:4px;">Test Connection</button></div>';
   });
+}
+
+function testWorker() {
+  fetch(WORKER + '/health')
+  .then(function(r) { return r.json(); })
+  .then(function(d) { Toast.success('Worker OK: ' + d.version); })
+  .catch(function(e) { Toast.error('Worker unreachable: ' + e.message); });
 }
 
 

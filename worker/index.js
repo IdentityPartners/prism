@@ -1227,27 +1227,24 @@ export default {
     if (path === '/api/social/queue' && request.method === 'GET') {
       if (!env.PRISM_KV) return json({queue:[], total:0}, 200, origin);
       var status_filter = url.searchParams.get('status') || '';
-      var limit = parseInt(url.searchParams.get('limit') || '500');
+      var limit = parseInt(url.searchParams.get('limit') || '100');
       var cursor = url.searchParams.get('cursor') || undefined;
-      // Get all queue items (KV list supports up to 1000 per call)
-      var listOpts = {prefix:'queue:', limit: Math.min(limit, 1000)};
+      var listOpts = {prefix:'queue:', limit: Math.min(limit, 100)};
       if (cursor) listOpts.cursor = cursor;
       var list = await env.PRISM_KV.list(listOpts);
       var queue = [];
-      // Fetch all values in parallel for speed
-      var fetches = list.keys.map(function(k) {
-        return env.PRISM_KV.get(k.name).then(function(val) {
+      // Sequential reads to avoid overwhelming KV
+      for (var i = 0; i < list.keys.length; i++) {
+        try {
+          var val = await env.PRISM_KV.get(list.keys[i].name);
           if (val) {
-            try {
-              var item = JSON.parse(val);
-              if (!status_filter || item.status === status_filter) queue.push(item);
-            } catch(e) {}
+            var item = JSON.parse(val);
+            if (!status_filter || item.status === status_filter) queue.push(item);
           }
-        });
-      });
-      await Promise.all(fetches);
-      queue.sort(function(a,b){ return new Date(a.scheduledAt||a.created) - new Date(b.scheduledAt||b.created); });
-      return json({queue: queue, total: queue.length, has_more: list.list_complete === false, cursor: list.cursor}, 200, origin);
+        } catch(e) {}
+      }
+      queue.sort(function(a,b){ return new Date(b.created||0) - new Date(a.created||0); });
+      return json({queue: queue, total: queue.length, has_more: !list.list_complete, cursor: list.cursor}, 200, origin);
     }
     if (path === '/api/social/queue' && request.method === 'POST') {
       var body = await request.json();
