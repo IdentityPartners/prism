@@ -75,25 +75,56 @@
         <div class="platform-grid" id="platform-grid"></div>
       </div>
       <div class="pm-right">
-        <div class="signup-panel" id="signup-panel">
-          <div class="signup-title">Headless Signup</div>
-          <div style="font-size:12.5px;color:var(--fg-muted);margin-bottom:10px;">Select platforms and click "Headless Signup" to automate account creation using hello@identitypartners.uk.</div>
-          <div id="selected-platforms" style="font-size:12px;color:var(--fg-secondary);margin-bottom:8px;">No platforms selected.</div>
-          <button class="btn btn-primary btn-sm" style="width:100%;margin-bottom:6px;" onclick="startHeadlessSignup()" title="Start AI-directed signup">🤖 Start AI Signup</button>
-          <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="checkSignupStatus()" title="Check signup status">📊 Check Status</button>
-          <div id="signup-log" style="margin-top:10px;background:#1a1a1a;color:#7ecf7e;border-radius:6px;padding:8px;font-family:monospace;font-size:11px;max-height:120px;overflow-y:auto;display:none;"></div>
+        <!-- Profile Editor -->
+        <div class="signup-panel">
+          <div class="signup-title" style="display:flex;align-items:center;justify-content:space-between;">Your Profile<button class="btn btn-primary btn-sm" onclick="saveProfile()">Save</button></div>
+          <div style="font-size:11px;color:var(--fg-muted);margin-bottom:8px;">Injected into every platform signup automatically.</div>
+          <div style="display:flex;flex-direction:column;gap:7px;">
+            <div><label style="font-size:10px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;display:block;margin-bottom:2px;">Display Name</label><input class="input" id="p-displayname" type="text" value="Identity Partners" style="font-size:12px;padding:5px 8px;"></div>
+            <div><label style="font-size:10px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;display:block;margin-bottom:2px;">Signup Email</label><input class="input" id="p-email" type="email" value="hello@identitypartners.uk" style="font-size:12px;padding:5px 8px;"></div>
+            <div><label style="font-size:10px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;display:block;margin-bottom:2px;">Website</label><input class="input" id="p-website" type="text" value="https://www.identitypartners.uk" style="font-size:12px;padding:5px 8px;"></div>
+            <div><label style="font-size:10px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;display:block;margin-bottom:2px;">Short Bio</label><textarea id="p-bio-short" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11.5px;font-family:var(--font-ui);resize:none;outline:none;background:var(--bg-primary);color:var(--fg-primary);min-height:48px;" maxlength="150">Relational practice for addiction, trauma &amp; mental health. Non-clinical. Evidence-based.</textarea></div>
+            <div><label style="font-size:10px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;display:block;margin-bottom:2px;">Long Bio</label><textarea id="p-bio-long" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11.5px;font-family:var(--font-ui);resize:none;outline:none;background:var(--bg-primary);color:var(--fg-primary);min-height:64px;">Non-clinical listening, coaching, mentoring and relational practice. Evidence-based support for addiction, trauma, mental health, and community wellbeing. Based in the UK.</textarea></div>
+            <div><label style="font-size:10px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;display:block;margin-bottom:2px;">Tagline</label><input class="input" id="p-tagline" type="text" value="Understand your past. Appreciate the present. Define your future." style="font-size:11.5px;padding:5px 8px;"></div>
+          </div>
+          <div style="font-size:10px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;margin:8px 0 5px;">Services &amp; Rates</div>
+          <div style="display:flex;flex-direction:column;gap:5px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;"><input class="input" id="p-svc1-name" type="text" value="Initial Consultation" style="font-size:11px;padding:4px 7px;"><input class="input" id="p-svc1-rate" type="text" value="Free" style="font-size:11px;padding:4px 7px;"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;"><input class="input" id="p-svc2-name" type="text" value="Individual Session" style="font-size:11px;padding:4px 7px;"><input class="input" id="p-svc2-rate" type="text" value="&#xA3;50 per hour" style="font-size:11px;padding:4px 7px;"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;"><input class="input" id="p-svc3-name" type="text" value="Group Session" style="font-size:11px;padding:4px 7px;"><input class="input" id="p-svc3-rate" type="text" value="&#xA3;25 per session" style="font-size:11px;padding:4px 7px;"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;"><input class="input" id="p-svc4-name" type="text" value="Monthly Package" style="font-size:11px;padding:4px 7px;"><input class="input" id="p-svc4-rate" type="text" value="&#xA3;150 per month" style="font-size:11px;padding:4px 7px;"></div>
+          </div>
+          <div style="font-size:10px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;margin:8px 0 5px;">Social Handles</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+            <input class="input" id="p-bluesky" type="text" value="@identitypartners.bsky.social" placeholder="Bluesky" style="font-size:10.5px;padding:4px 7px;">
+            <input class="input" id="p-linkedin" type="text" value="identitypartners" placeholder="LinkedIn" style="font-size:10.5px;padding:4px 7px;">
+            <input class="input" id="p-instagram" type="text" value="@identitypartners" placeholder="Instagram" style="font-size:10.5px;padding:4px 7px;">
+            <input class="input" id="p-twitter" type="text" value="@identitypartners" placeholder="Twitter/X" style="font-size:10.5px;padding:4px 7px;">
+          </div>
+          <div style="font-size:10px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;margin:8px 0 5px;">Categories &amp; Keywords</div>
+          <input class="input" id="p-categories" type="text" value="Life Coaching, Mental Health, Addiction Recovery, Trauma Support, ADHD Coaching" style="font-size:10.5px;padding:4px 7px;margin-bottom:4px;">
+          <input class="input" id="p-keywords" type="text" value="addiction recovery, trauma-informed, mental health, relational practice, non-clinical, ADHD" style="font-size:10.5px;padding:4px 7px;">
+          <div id="profile-status" style="margin-top:6px;font-size:11px;color:var(--fg-muted);"></div>
         </div>
+
+        <!-- Signup Actions -->
+        <div class="signup-panel">
+          <div class="signup-title">Headless Signup</div>
+          <div style="font-size:11px;color:var(--fg-muted);margin-bottom:8px;">Select platforms from the grid, then start AI-directed signup using the profile above.</div>
+          <div id="selected-platforms" style="font-size:11px;color:var(--fg-secondary);margin-bottom:8px;">No platforms selected.</div>
+          <button class="btn btn-primary btn-sm" style="width:100%;margin-bottom:4px;" onclick="startHeadlessSignup()">&#x1F916; Start AI Signup</button>
+          <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="checkSignupStatus()">&#x1F4CA; Check Status</button>
+          <div id="signup-log" style="margin-top:8px;background:#1a1a1a;color:#7ecf7e;border-radius:6px;padding:8px;font-family:monospace;font-size:11px;max-height:140px;overflow-y:auto;display:none;"></div>
+        </div>
+
+        <!-- Content Buckets -->
         <div class="broadcast-panel">
           <div class="signup-title">Content Buckets</div>
-          <div style="font-size:12px;color:var(--fg-muted);margin-bottom:8px;">Group platforms to receive the same content simultaneously.</div>
+          <div style="font-size:11px;color:var(--fg-muted);margin-bottom:6px;">Group platforms to receive the same content simultaneously.</div>
           <div id="bucket-list"></div>
-          <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:8px;" onclick="addBucket()" title="Add content bucket">+ Add Bucket</button>
+          <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:5px;" onclick="addBucket()">+ Add Bucket</button>
         </div>
-        <div class="signup-panel">
-          <div class="signup-title">Platform Status</div>
-          <div id="platform-status-list" style="font-size:12px;color:var(--fg-secondary);"></div>
-        </div>
-      </div>
+      
     </div>
   </div>
 </div>
