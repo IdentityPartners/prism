@@ -147,10 +147,12 @@ var META = {
   bluesky:          {label:'Bluesky',           icon:'&#x1F98B;', fmt:'posts scaled with word count'},
   twitter:          {label:'X / Twitter',       icon:'&#x1D54F;', fmt:'posts scaled with word count'},
   linkedin_post:    {label:'LinkedIn Post',     icon:'&#x1F4BC;', fmt:'150-200 words'},
+  linkedin_image_quote: {label:'LinkedIn Image',  icon:'&#x1F4BC;', fmt:'Hero quote for post image'},
   linkedin_article: {label:'LinkedIn Article',  icon:'&#x1F4BC;', fmt:'600-800 words'},
   linkedin_carousel:{label:'LinkedIn Carousel', icon:'&#x1F4BC;', fmt:'slides scaled with word count'},
   instagram:        {label:'Instagram',         icon:'&#x1F4F8;', fmt:'same text as Bluesky, on canvas'},
   facebook:         {label:'Facebook',          icon:'&#x1F465;', fmt:'100-150 words'},
+  facebook_image_quote: {label:'Facebook Image',  icon:'&#x1F465;', fmt:'Hero quote for post image'},
   threads:          {label:'Threads',           icon:'&#x1F9F5;', fmt:'notes scaled with word count'},
   substack_note:    {label:'Substack Note',     icon:'&#x1F4E7;', fmt:'notes scaled with word count'},
   substack_article: {label:'Substack Article',  icon:'&#x1F4E7;', fmt:'400-600 words'},
@@ -161,14 +163,25 @@ var META = {
   broadcast:        {label:'Broadcast',         icon:'&#x1F4F1;', fmt:'WhatsApp/Telegram'},
 };
 
-// Canvas layouts for Instagram/quote cards
-// Parchment background (#f7f3e9) with teal text (#0f3b3a) — correct brand direction
+// Canvas card styles — colours used for overlay cards ON TOP of background images
 var CANVAS_LAYOUTS = [
-  {bg:'#f7f3e9', textColor:'#0f3b3a', accentColor:'#5c2d3f', font:'Playfair Display', style:'editorial'},
-  {bg:'#0f3b3a', textColor:'#f7f3e9', accentColor:'#ddd0c8', font:'Inter', style:'bold'},
-  {bg:'#5c2d3f', textColor:'#f7f3e9', accentColor:'#ddd0c8', font:'Merriweather', style:'warm'},
-  {bg:'#f0e9e0', textColor:'#0f3b3a', accentColor:'#5c2d3f', font:'Inter', style:'minimal'},
-  {bg:'#1a5550', textColor:'#f7f3e9', accentColor:'#ddd0c8', font:'Playfair Display', style:'rich'},
+  {overlay:'rgba(15,59,58,0.82)', textColor:'#f7f3e9', accentColor:'#ddd0c8', font:'Playfair Display', style:'teal'},
+  {overlay:'rgba(92,45,63,0.82)', textColor:'#f7f3e9', accentColor:'#ddd0c8', font:'Merriweather', style:'rose'},
+  {overlay:'rgba(247,243,233,0.88)', textColor:'#0f3b3a', accentColor:'#5c2d3f', font:'Playfair Display', style:'ivory'},
+  {overlay:'rgba(26,85,80,0.85)', textColor:'#f7f3e9', accentColor:'#ddd0c8', font:'Inter', style:'teal2'},
+  {overlay:'rgba(26,26,26,0.80)', textColor:'#f7f3e9', accentColor:'#ddd0c8', font:'Playfair Display', style:'dark'},
+];
+
+// Background image URLs (Unsplash — therapy/nature/calm themed)
+var BG_IMAGES = [
+  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1080&q=80',
+  'https://images.unsplash.com/photo-1518173946687-a4c8892bbd9f?w=1080&q=80',
+  'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1080&q=80',
+  'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=1080&q=80',
+  'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1080&q=80',
+  'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=1080&q=80',
+  'https://images.unsplash.com/photo-1504701954957-2010ec3bcec1?w=1080&q=80',
+  'https://images.unsplash.com/photo-1476611338391-6f395a0dd82e?w=1080&q=80',
 ];
 
 function toggleP(el) {
@@ -284,7 +297,8 @@ function renderAssets(assets, wordCount) {
       if (igPosts && igPosts.length > 0) {
         igPosts.forEach(function(post, i) {
           var layout = CANVAS_LAYOUTS[i % CANVAS_LAYOUTS.length];
-          var canvas = renderCanvasPreview(post, layout, 400, 400);
+          var bgImg = (assets.backgroundImages || BG_IMAGES)[i % (assets.backgroundImages || BG_IMAGES).length];
+          var canvas = renderCanvasPreview(post, layout, 400, 400, bgImg);
           body.appendChild(canvas);
         });
         body.style.display = 'flex';
@@ -299,7 +313,8 @@ function renderAssets(assets, wordCount) {
       var parsedQuotes = safeParseArray(assets[key]);
       parsedQuotes.forEach(function(q, i) {
         var layout = CANVAS_LAYOUTS[i % CANVAS_LAYOUTS.length];
-        var canvas = renderCanvasPreview('\u201c' + q + '\u201d', layout, 400, 400);
+        var bgImg = (assets.backgroundImages || BG_IMAGES)[i % (assets.backgroundImages || BG_IMAGES).length];
+        var canvas = renderCanvasPreview('“' + q + '”', layout, 400, 400, bgImg);
         body.appendChild(canvas);
       });
       body.style.display = 'flex';

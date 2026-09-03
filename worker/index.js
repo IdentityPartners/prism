@@ -815,7 +815,7 @@ async function atomise(env, text, profile, variations) {
     return [cleaned];
   }
 
-  var sys = {role:'system', content:'You are a content strategist for Identity Partners. Write in British English. Professional, warm, evidence-based. No sycophancy. Always include a CTA to www.identitypartners.uk or the booking page at www.www.identitypartners.uk/book. IMPORTANT: When asked to return JSON arrays, return ONLY the raw JSON array with no markdown formatting, no code blocks, no explanation.'};
+  var sys = {role:'system', content:'You are a content strategist for Identity Partners. Write in British English. Professional, warm, evidence-based. No sycophancy. Always include a CTA to www.identitypartners.uk or the booking page at www.www.identitypartners.uk/contact IMPORTANT: When asked to return JSON arrays, return ONLY the raw JSON array with no markdown formatting, no code blocks, no explanation.'};
   var assets = {};
   var p = profile || 'balanced';
   var wordCount = text.trim().split(/\s+/).length;
@@ -892,13 +892,13 @@ async function atomise(env, text, profile, variations) {
       orchestrate(env, [sys, prompt('Write a LinkedIn article, 600-800 words, professional and evidence-based, compelling headline, introduction, 3-4 subheadings, conclusion with CTA to www.identitypartners.uk.')], p, 'drafting', null)
         .then(function(r){ assets.linkedin_article = r.content; }),
 
-      orchestrate(env, [sys, prompt('Write a Substack newsletter article, 400-600 words, warm and personal, subject line, personal opening, 2-3 sections, closing reflection, CTA to www.identitypartners.uk/book.')], p, 'drafting', null)
+      orchestrate(env, [sys, prompt('Write a Substack newsletter article, 400-600 words, warm and personal, subject line, personal opening, 2-3 sections, closing reflection, CTA to www.identitypartners.uk/contact')], p, 'drafting', null)
         .then(function(r){ assets.substack_article = r.content; }),
 
       orchestrate(env, [sys, prompt('Write a Reddit post for r/mentalhealth or r/addiction, 150-250 words, community-first not promotional, share insight or ask a question, suggest a subreddit.')], p, 'drafting', null)
         .then(function(r){ assets.reddit = r.content; }),
 
-      orchestrate(env, [sys, prompt('Write a WhatsApp/Telegram broadcast message, under 200 words, personal and direct, warm tone, include link to www.identitypartners.uk/book.')], p, 'drafting', null)
+      orchestrate(env, [sys, prompt('Write a WhatsApp/Telegram broadcast message, under 200 words, personal and direct, warm tone, include link to www.identitypartners.uk/contact')], p, 'drafting', null)
         .then(function(r){ assets.broadcast = r.content; }),
     ]);
   }
@@ -2249,7 +2249,7 @@ export default {
           email: 'hello@identitypartners.uk',
           personalEmail: 'simon@identitypartners.uk',
           website: 'https://www.identitypartners.uk',
-          bookingUrl: 'https://www.identitypartners.uk/book',
+          bookingUrl: 'https://www.identitypartners.uk/contact',
           bio: 'Non-clinical listening, coaching, mentoring and relational practice. Evidence-based support for addiction, trauma, mental health, and community wellbeing. Based in the UK.',
           shortBio: 'Relational practice for addiction, trauma & mental health. Non-clinical. Evidence-based.',
           tagline: 'Understand your past. Appreciate the present. Define your future.',
