@@ -742,3 +742,42 @@ input, textarea, select { font-family: var(--font-ui); }
   transition: background 0.15s;
 }
 .help-btn:hover { background: var(--accent); }
+
+/* ── Dropdown Navigation ────────────────────────────────────────────────────── */
+.nav-group { position: relative; }
+.nav-group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  user-select: none;
+  border-left: 3px solid transparent;
+}
+.nav-group-header:hover { background: var(--accent-light); color: var(--accent); }
+.nav-group-header.active { background: var(--accent-light); color: var(--accent); border-left-color: var(--accent); }
+.nav-group-arrow {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--fg-muted);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.nav-group.open .nav-group-arrow { transform: rotate(90deg); }
+.nav-group-children {
+  display: none;
+  background: var(--bg-primary);
+  border-left: 2px solid var(--border);
+  margin-left: 14px;
+}
+.nav-group.open .nav-group-children { display: block; }
+.nav-group-children .nav-item {
+  padding: 6px 14px 6px 12px;
+  font-size: 12.5px;
+}
+.nav-group-children .nav-item::before { display: none; }
+.nav-group-children .nav-item.active { background: var(--accent-light); color: var(--accent); }

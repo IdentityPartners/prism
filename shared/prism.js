@@ -567,45 +567,50 @@ var OSK = (function() {
 
 // ── Sidebar HTML Builder ──────────────────────────────────────────────────────
 function buildSidebar(activePage) {
-  var nav = [
-    {label: 'Workspaces', icon: '🗂', href: '/workspaces/'},
-    {label: 'Home', icon: '⌂', href: '/home/'},
-    {label: 'Chat', icon: '💬', href: '/chat/'},
-    {label: 'Research', icon: '🔍', href: '/research/'},
-    {label: 'Drafting Desk', icon: '✍', href: '/drafting/'},
-    {type: 'section', label: 'Create'},
-    {label: 'Creator Studio', icon: '🎨', href: '/creator/'},
-    {label: '↳ Canvas', icon: '', href: '/creator/canvas/', sub: true},
-    {label: '↳ Assets', icon: '', href: '/creator/assets/', sub: true},
-    {label: '↳ Podcasts', icon: '', href: '/creator/podcasts/', sub: true},
-    {label: '↳ Worksheets', icon: '', href: '/creator/worksheets/', sub: true},
-    {label: '↳ Social Series', icon: '', href: '/creator/social-series/', sub: true},
-    {label: '↳ Brand Kit', icon: '', href: '/creator/brand-kit/', sub: true},
-    {label: 'Atomise', icon: '⚡', href: '/atomise/'},
-    {label: 'Social Calendar', icon: '📅', href: '/social-queue/'},
-    {type: 'section', label: 'Business'},
-    {label: 'CRM', icon: '👥', href: '/crm/'},
-    {label: 'Monetisation', icon: '💷', href: '/monetisation/'},
-    {label: '↳ Platform Manager', icon: '', href: '/platform-manager/', sub: true},
-    {label: 'Comms Centre', icon: '📧', href: '/comms/'},
-    {label: '↳ Email', icon: '', href: '/comms/email/', sub: true},
-    {label: '↳ Calendar', icon: '', href: '/comms/zoho-calendar/', sub: true},
-    {type: 'section', label: 'Intelligence'},
-    {label: 'Agenti City', icon: '🤖', href: '/agenti/'},
-    {label: '↳ Agent Builder', icon: '', href: '/agenti/agent-builder/', sub: true},
-    {label: '↳ Persona Maker', icon: '', href: '/agenti/persona-maker/', sub: true},
-    {label: '↳ Round Table', icon: '', href: '/agenti/round-table/', sub: true},
-    {label: '↳ Workflow Wizard', icon: '', href: '/agenti/workflow-wizard/', sub: true},
-    {label: 'Orchestrator', icon: '⚙', href: '/orchestrator/'},
-    {type: 'section', label: 'System'},
-    {label: 'My Profile', icon: '👤', href: '/profile/'},
-    {label: 'Memory', icon: '🧠', href: '/memory/'},
-    {label: 'Whiteboard', icon: '🖊', href: '/whiteboard/'},
-    {label: 'Handwriting', icon: '✒', href: '/handwriting/'},
-    {label: 'Settings', icon: '⚙', href: '/settings/'},
-    {label: 'Dev Team', icon: '🛠', href: '/dev-team/'},
-    {label: 'Sitemap', icon: '🗺', href: '/sitemap/'},
+  // Nav structure: flat items and grouped dropdowns
+  var navStructure = [
+    {type:'item', label:'Workspaces', icon:'🗂', href:'/workspaces/'},
+    {type:'item', label:'Home', icon:'⌂', href:'/home/'},
+    {type:'item', label:'Chat', icon:'💬', href:'/chat/'},
+    {type:'item', label:'Research', icon:'🔍', href:'/research/'},
+    {type:'item', label:'Drafting Desk', icon:'✍', href:'/drafting/'},
+    {type:'section', label:'Create'},
+    {type:'group', label:'Creator Studio', icon:'🎨', children:[
+      {label:'Canvas', href:'/creator/canvas/'},
+      {label:'Assets', href:'/creator/assets/'},
+      {label:'Podcasts', href:'/creator/podcasts/'},
+      {label:'Worksheets', href:'/creator/worksheets/'},
+      {label:'Social Series', href:'/creator/social-series/'},
+      {label:'Brand Kit', href:'/creator/brand-kit/'},
+    ]},
+    {type:'item', label:'Atomise', icon:'⚡', href:'/atomise/'},
+    {type:'item', label:'Social Calendar', icon:'📅', href:'/social-queue/'},
+    {type:'section', label:'Business'},
+    {type:'item', label:'CRM', icon:'👥', href:'/crm/'},
+    {type:'item', label:'Monetisation', icon:'💷', href:'/monetisation/'},
+    {type:'item', label:'Platform Manager', icon:'🔗', href:'/platform-manager/'},
+    {type:'group', label:'Comms Centre', icon:'📧', children:[
+      {label:'Email', href:'/comms/email/'},
+      {label:'Calendar', href:'/comms/zoho-calendar/'},
+    ]},
+    {type:'section', label:'Intelligence'},
+    {type:'group', label:'Agenti City', icon:'🤖', children:[
+      {label:'Agent Builder', href:'/agenti/agent-builder/'},
+      {label:'Persona Maker', href:'/agenti/persona-maker/'},
+      {label:'Round Table', href:'/agenti/round-table/'},
+      {label:'Workflow Wizard', href:'/agenti/workflow-wizard/'},
+    ]},
+    {type:'item', label:'Orchestrator', icon:'⚙', href:'/orchestrator/'},
+    {type:'section', label:'System'},
+    {type:'item', label:'My Profile', icon:'👤', href:'/profile/'},
+    {type:'item', label:'Memory', icon:'🧠', href:'/memory/'},
+    {type:'item', label:'Whiteboard', icon:'🖊', href:'/whiteboard/'},
+    {type:'item', label:'Handwriting', icon:'✒', href:'/handwriting/'},
+    {type:'item', label:'Settings', icon:'⚙', href:'/settings/'},
+    {type:'item', label:'Dev Team', icon:'🛠', href:'/dev-team/'},
+    {type:'item', label:'Sitemap', icon:'🗺', href:'/sitemap/'},
   ];
+
 
   var sidebar = document.createElement('nav');
   sidebar.className = 'sidebar';
@@ -627,33 +632,78 @@ function buildSidebar(activePage) {
   // Nav
   var navEl = document.createElement('div');
   navEl.className = 'sidebar-nav';
+  var path = window.location.pathname;
 
-  for (var i = 0; i < nav.length; i++) {
-    var item = nav[i];
+  navStructure.forEach(function(item) {
     if (item.type === 'section') {
       var sec = document.createElement('div');
       sec.className = 'sidebar-section';
       sec.textContent = item.label;
       navEl.appendChild(sec);
-    } else {
-      var a = document.createElement('a');
-      a.className = 'nav-item' + (item.sub ? ' nav-sub' : '');
-      a.href = item.href;
-      a.title = item.label;
-      if (activePage && item.href === activePage) a.classList.add('active');
-      if (item.icon) {
-        var icon = document.createElement('span');
-        icon.className = 'nav-item-icon';
-        icon.textContent = item.icon;
-        a.appendChild(icon);
-      }
-      var lbl = document.createElement('span');
-      lbl.className = 'nav-item-label';
-      lbl.textContent = item.label;
-      a.appendChild(lbl);
-      navEl.appendChild(a);
+      return;
     }
-  }
+
+    if (item.type === 'group') {
+      var group = document.createElement('div');
+      group.className = 'nav-group';
+      // Check if any child is active
+      var anyActive = item.children && item.children.some(function(c){return path.startsWith(c.href);});
+      if (anyActive) group.classList.add('open');
+
+      var header = document.createElement('div');
+      header.className = 'nav-group-header' + (anyActive ? ' active' : '');
+      var hIcon = document.createElement('span');
+      hIcon.className = 'nav-item-icon';
+      hIcon.textContent = item.icon || '';
+      var hLabel = document.createElement('span');
+      hLabel.className = 'nav-item-label';
+      hLabel.textContent = item.label;
+      var arrow = document.createElement('span');
+      arrow.className = 'nav-group-arrow';
+      arrow.textContent = '▶';
+      header.appendChild(hIcon);
+      header.appendChild(hLabel);
+      header.appendChild(arrow);
+      header.onclick = function() { group.classList.toggle('open'); };
+
+      var children = document.createElement('div');
+      children.className = 'nav-group-children';
+      (item.children || []).forEach(function(child) {
+        var a = document.createElement('a');
+        a.className = 'nav-item' + (path.startsWith(child.href) ? ' active' : '');
+        a.href = child.href;
+        a.title = child.label;
+        var lbl = document.createElement('span');
+        lbl.className = 'nav-item-label';
+        lbl.textContent = child.label;
+        a.appendChild(lbl);
+        children.appendChild(a);
+      });
+
+      group.appendChild(header);
+      group.appendChild(children);
+      navEl.appendChild(group);
+      return;
+    }
+
+    // Regular item
+    var a = document.createElement('a');
+    a.className = 'nav-item' + (activePage && item.href === activePage ? ' active' : (path === item.href ? ' active' : ''));
+    a.href = item.href;
+    a.title = item.label;
+    if (item.icon) {
+      var icon = document.createElement('span');
+      icon.className = 'nav-item-icon';
+      icon.textContent = item.icon;
+      a.appendChild(icon);
+    }
+    var lbl = document.createElement('span');
+    lbl.className = 'nav-item-label';
+    lbl.textContent = item.label;
+    a.appendChild(lbl);
+    navEl.appendChild(a);
+  });
+
   sidebar.appendChild(navEl);
 
   // Toggle
