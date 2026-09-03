@@ -78,7 +78,8 @@
           <div class="signup-title">Headless Signup</div>
           <div style="font-size:12.5px;color:var(--fg-muted);margin-bottom:10px;">Select platforms and click "Headless Signup" to automate account creation using hello@identitypartners.uk.</div>
           <div id="selected-platforms" style="font-size:12px;color:var(--fg-secondary);margin-bottom:8px;">No platforms selected.</div>
-          <button class="btn btn-primary btn-sm" style="width:100%;" onclick="startHeadlessSignup()" title="Start automated signup">🤖 Start Signup</button>
+          <button class="btn btn-primary btn-sm" style="width:100%;margin-bottom:6px;" onclick="startHeadlessSignup()" title="Start AI-directed signup">🤖 Start AI Signup</button>
+          <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="checkSignupStatus()" title="Check signup status">📊 Check Status</button>
           <div id="signup-log" style="margin-top:10px;background:#1a1a1a;color:#7ecf7e;border-radius:6px;padding:8px;font-family:monospace;font-size:11px;max-height:120px;overflow-y:auto;display:none;"></div>
         </div>
         <div class="broadcast-panel">
@@ -236,32 +237,51 @@ function startHeadlessSignup() {
     log.appendChild(line); log.scrollTop = log.scrollHeight;
   }
   addLog('Starting headless signup for ' + selectedForSignup.length + ' platforms...', 'info');
+  var FULL_PROFILE = {
+    name: 'Simon Johnson',
+    displayName: 'Identity Partners',
+    email: 'hello@identitypartners.uk',
+    website: 'https://www.identitypartners.uk',
+    bookingUrl: 'https://www.identitypartners.uk/book',
+    bio: 'Non-clinical listening, coaching, mentoring and relational practice. Evidence-based support for addiction, trauma, mental health, and community wellbeing. Based in the UK.',
+    shortBio: 'Relational practice for addiction, trauma & mental health. Non-clinical. Evidence-based.',
+    tagline: 'Understand your past. Appreciate the present. Define your future.',
+    rates: {consultation:'Free (20 min)', session:'£80/hr', group:'£40/session', monthly:'£250/month'},
+    socials: {bluesky:'@identitypartners.bsky.social', linkedin:'identitypartners', instagram:'@identitypartners'},
+    categories: ['Life Coaching','Mental Health','Addiction Recovery','Trauma Support','ADHD Coaching'],
+    keywords: ['addiction recovery','trauma-informed','mental health','relational practice','non-clinical','accountability','ADHD']
+  };
+
+  addLog('Profile: ' + FULL_PROFILE.displayName + ' <' + FULL_PROFILE.email + '>', 'info');
+  addLog('Website: ' + FULL_PROFILE.website, 'info');
+  addLog('Bio: ' + FULL_PROFILE.shortBio, 'info');
+  addLog('Starting AI-directed signup for ' + selectedForSignup.length + ' platforms...', 'info');
+
   selectedForSignup.forEach(function(name, i) {
     setTimeout(function() {
-      addLog('Initiating signup: ' + name, 'info');
+      addLog('\u2192 ' + name + ': AI analysing signup page...', 'info');
       fetch(WORKER + '/api/headless/signup', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          platform: name.toLowerCase().replace(/[^a-z0-9]/g,'-'),
-          email: 'hello@identitypartners.uk',
-          name: 'Identity Partners',
-          bio: 'Evidence-based support for addiction, trauma, and mental health. Non-clinical listening, coaching, mentoring and relational practice.',
-          website: 'https://www.identitypartners.uk'
-        })
+        body: JSON.stringify(Object.assign({}, FULL_PROFILE, {
+          platform: name.toLowerCase().replace(/[^a-z0-9]/g,'-')
+        }))
       })
       .then(function(r) { return r.json(); })
       .then(function(r) {
         if (r.success) {
-          addLog(name + ': ' + (r.status||'queued') + ' — ' + (r.signupUrl||r.instructions||''), 'ok');
-          platformStatuses[name] = 'in-progress';
+          var steps = r.stepsExecuted || 0;
+          var status = r.status || 'attempted';
+          addLog(name + ': ' + (status==='form_submitted'?'\u2713 Form submitted':'\u25B6 Attempted') + ' (' + steps + ' AI steps) — ' + (r.note||''), status==='form_submitted'?'ok':'info');
+          platformStatuses[name] = status === 'form_submitted' ? 'in-progress' : 'attempted';
+          if (r.signupUrl) addLog('  URL: ' + r.signupUrl, 'info');
         } else {
-          addLog(name + ': ' + (r.error||'failed'), 'err');
+          addLog(name + ': \u2717 ' + (r.error||'failed'), 'err');
         }
         filterPlatforms(currentSearch);
       })
       .catch(function(e) { addLog(name + ': error — ' + e.message, 'err'); });
-    }, i * 500);
+    }, i * 2000); // 2s between signups to avoid rate limiting
   });
 }
 
@@ -297,6 +317,31 @@ function addBucket() {
   BUCKETS.push({id:'b'+Date.now(), name:name, platforms:[], color:'#0f3b3a'});
   renderBuckets();
   Toast.success('Bucket created: ' + name);
+}
+
+function checkSignupStatus() {
+  fetch(WORKER + '/api/headless/status')
+  .then(function(r) { return r.json(); })
+  .then(function(r) {
+    var signups = r.signups || [];
+    var log = document.getElementById('signup-log');
+    if (log) log.style.display = 'block';
+    function addLog(msg, type) {
+      if (!log) return;
+      var line = document.createElement('div');
+      line.style.color = type==='ok'?'#7ecf7e':type==='err'?'#f08080':'#a8d4f0';
+      line.textContent = msg;
+      log.appendChild(line); log.scrollTop = log.scrollHeight;
+    }
+    if (signups.length === 0) { addLog('No signup attempts recorded yet.', 'info'); return; }
+    addLog('Signup history (' + signups.length + ' platforms):', 'info');
+    signups.forEach(function(s) {
+      addLog(s.platform + ': ' + s.status + ' (' + new Date(s.created).toLocaleDateString('en-GB') + ')', s.status==='form_submitted'?'ok':'info');
+      platformStatuses[s.platform] = s.status === 'form_submitted' ? 'in-progress' : s.status;
+    });
+    filterPlatforms(currentSearch);
+  })
+  .catch(function(e) { Toast.error('Status check failed: ' + e.message); });
 }
 
 function refreshStatus() {

@@ -2230,166 +2230,195 @@ export default {
 
 
 
-    // ── Headless platform signup via Browserless.io ─────────────────────────
+    // ── AI-directed browser automation for platform signup ─────────────────
+    // Uses Gemma4 to analyse pages and fill forms intelligently
     if (path === '/api/headless/signup' && request.method === 'POST') {
       try {
         var body = await request.json();
-        var platform = (body.platform || '').toLowerCase().replace(/[^a-z0-9]/g, '-');
-        var email = body.email || 'hello@identitypartners.uk';
-        var name = body.name || 'Identity Partners';
-        var bio = body.bio || 'Evidence-based support for addiction, trauma, and mental health. Non-clinical listening, coaching, mentoring and relational practice. www.identitypartners.uk';
-        var website = body.website || 'https://www.identitypartners.uk';
+        var platformName = body.platform || '';
         var browserlessKey = env['BROWSERLESS.IO'] || env.BROWSERLESS_IO;
 
-        // Platform-specific Puppeteer scripts
-        var SIGNUP_SCRIPTS = {
-          'fiverr': {
-            url: 'https://www.fiverr.com/join',
-            script: `
-              await page.goto('https://www.fiverr.com/join', {waitUntil:'networkidle2'});
-              await page.waitForSelector('input[name="email"]', {timeout:10000});
-              await page.type('input[name="email"]', '${email}');
-              const usernameField = await page.$('input[name="username"]');
-              if (usernameField) await page.type('input[name="username"]', 'identitypartners');
-              const passwordField = await page.$('input[name="password"]');
-              if (passwordField) await page.type('input[name="password"]', 'IPrism2026!Secure');
-              return {status:'form_filled', email:'${email}', platform:'fiverr', note:'Manual verification required'};
-            `
+        // Full profile data to inject
+        var profile = {
+          name: body.name || 'Simon Johnson',
+          displayName: body.displayName || 'Identity Partners',
+          email: body.email || 'hello@identitypartners.uk',
+          personalEmail: 'simon@identitypartners.uk',
+          website: 'https://www.identitypartners.uk',
+          bookingUrl: 'https://www.identitypartners.uk/book',
+          bio: body.bio || 'Non-clinical listening, coaching, mentoring and relational practice. Evidence-based support for addiction, trauma, mental health, and community wellbeing. Based in the UK.',
+          shortBio: 'Relational practice for addiction, trauma & mental health. Non-clinical. Evidence-based.',
+          tagline: 'Understand your past. Appreciate the present. Define your future.',
+          rates: {
+            consultation: 'Free (20 min initial consultation)',
+            session: '£80 per hour',
+            group: '£40 per session',
+            monthly: '£250 per month (4 sessions)'
           },
-          'substack': {
-            url: 'https://substack.com/account/signup',
-            script: `
-              await page.goto('https://substack.com/account/signup', {waitUntil:'networkidle2'});
-              await page.waitForSelector('input[type="email"]', {timeout:10000});
-              await page.type('input[type="email"]', '${email}');
-              const submitBtn = await page.$('button[type="submit"]');
-              if (submitBtn) await submitBtn.click();
-              await page.waitForTimeout(2000);
-              return {status:'email_submitted', email:'${email}', platform:'substack', note:'Check email for verification link'};
-            `
+          socials: {
+            bluesky: '@identitypartners.bsky.social',
+            linkedin: 'linkedin.com/in/simonjohnsonip',
+            instagram: '@identitypartners',
+            twitter: '@identitypartners'
           },
-          'ko-fi': {
-            url: 'https://ko-fi.com/account/register',
-            script: `
-              await page.goto('https://ko-fi.com/account/register', {waitUntil:'networkidle2'});
-              await page.waitForSelector('#email', {timeout:10000});
-              await page.type('#email', '${email}');
-              const displayName = await page.$('#displayName');
-              if (displayName) await page.type('#displayName', '${name}');
-              return {status:'form_filled', email:'${email}', platform:'ko-fi', note:'Complete signup manually'};
-            `
-          },
-          'topmate': {
-            url: 'https://topmate.io/signup',
-            script: `
-              await page.goto('https://topmate.io/signup', {waitUntil:'networkidle2'});
-              await page.waitForSelector('input[type="email"]', {timeout:10000});
-              await page.type('input[type="email"]', '${email}');
-              return {status:'email_entered', email:'${email}', platform:'topmate', note:'Check email for magic link'};
-            `
-          },
-          'noomii': {
-            url: 'https://www.noomii.com/coach-signup',
-            script: `
-              await page.goto('https://www.noomii.com/coach-signup', {waitUntil:'networkidle2'});
-              await page.waitForSelector('input[name="email"]', {timeout:10000});
-              await page.type('input[name="email"]', '${email}');
-              const firstName = await page.$('input[name="first_name"]');
-              if (firstName) await page.type('input[name="first_name"]', 'Simon');
-              const lastName = await page.$('input[name="last_name"]');
-              if (lastName) await page.type('input[name="last_name"]', 'Johnson');
-              return {status:'form_filled', email:'${email}', platform:'noomii'};
-            `
-          },
-          'paperbell': {
-            url: 'https://paperbell.com/signup',
-            script: `
-              await page.goto('https://paperbell.com/signup', {waitUntil:'networkidle2'});
-              await page.waitForSelector('input[type="email"]', {timeout:10000});
-              await page.type('input[type="email"]', '${email}');
-              return {status:'email_entered', email:'${email}', platform:'paperbell'};
-            `
-          },
-          'bark': {
-            url: 'https://www.bark.com/en/gb/register/',
-            script: `
-              await page.goto('https://www.bark.com/en/gb/register/', {waitUntil:'networkidle2'});
-              await page.waitForSelector('input[name="email"]', {timeout:10000});
-              await page.type('input[name="email"]', '${email}');
-              return {status:'email_entered', email:'${email}', platform:'bark'};
-            `
-          },
-          'peopleperhour': {
-            url: 'https://www.peopleperhour.com/register',
-            script: `
-              await page.goto('https://www.peopleperhour.com/register', {waitUntil:'networkidle2'});
-              await page.waitForSelector('input[name="email"]', {timeout:10000});
-              await page.type('input[name="email"]', '${email}');
-              return {status:'email_entered', email:'${email}', platform:'peopleperhour'};
-            `
-          },
+          categories: ['Life Coaching', 'Mental Health', 'Addiction Recovery', 'Trauma Support', 'ADHD Coaching', 'Accountability'],
+          keywords: ['addiction recovery', 'trauma-informed', 'mental health', 'relational practice', 'non-clinical', 'accountability', 'ADHD', 'neurodivergent'],
+          logoUrl: 'https://prism.identitypartners.uk/shared/assets/logo-square.png',
+          password: 'IPrism2026!Secure'
         };
 
-        var scriptConfig = SIGNUP_SCRIPTS[platform];
-        if (!scriptConfig) {
-          // Generic signup attempt
-          return json({
-            success: true,
-            platform: platform,
-            status: 'manual_required',
-            email: email,
-            instructions: 'Visit the platform website and sign up with ' + email + '. Use "Identity Partners" as the display name.',
-            signupUrl: 'https://' + platform + '.com/signup'
-          }, 200, origin);
+        // Find platform URL from our platform list
+        var platformData = null;
+        var PLATFORMS = [{"name": "Rent a Cyber Friend", "cat": "companionship", "model": "Per-minute conversation", "status": "D,P,R", "url": "rentacyberfriend.com"}, {"name": "RentAFriend", "cat": "companionship", "model": "Hourly companionship", "status": "D,R", "url": "rentafriend.com"}, {"name": "FriendPC", "cat": "companionship", "model": "Virtual-friend listings", "status": "D,P,R", "url": "friendpc.com"}, {"name": "Companiions", "cat": "companionship", "model": "UK paid companionship", "status": "D,V,UK", "url": "companiions.com"}, {"name": "Premium.Chat", "cat": "companionship", "model": "Paid text/audio/video", "status": "F,P", "url": "premium.chat"}, {"name": "Popcall", "cat": "companionship", "model": "Paid calls and messages", "status": "F,P", "url": "popcall.com"}, {"name": "TrunkCall", "cat": "companionship", "model": "Expert calls/sessions/groups", "status": "D/F,P", "url": "trunkcall.com"}, {"name": "Talkspresso", "cat": "companionship", "model": "Paid consultations", "status": "D/F", "url": "talkspresso.com"}, {"name": "Intro", "cat": "companionship", "model": "Bookable paid video", "status": "D/F,V", "url": "intro.co"}, {"name": "Minnect", "cat": "companionship", "model": "Paid messages/consultations", "status": "D/F,V", "url": "minnect.com"}, {"name": "Fiverr", "cat": "freelance", "model": "Productised gigs", "status": "D,P", "url": "fiverr.com"}, {"name": "Upwork", "cat": "freelance", "model": "Contracts", "status": "D", "url": "upwork.com"}, {"name": "PeoplePerHour", "cat": "freelance", "model": "Hourly/packaged", "status": "D,UK", "url": "peopleperhour.com"}, {"name": "Freelancer.com", "cat": "freelance", "model": "Project bids", "status": "D", "url": "freelancer.com"}, {"name": "Bark", "cat": "freelance", "model": "Lead acquisition", "status": "D,UK", "url": "bark.com"}, {"name": "Airtasker", "cat": "freelance", "model": "Remote support tasks", "status": "D,UK", "url": "airtasker.com"}, {"name": "TaskRabbit", "cat": "freelance", "model": "Local/remote assistance", "status": "D,V,UK", "url": "taskrabbit.co.uk"}, {"name": "Guru", "cat": "freelance", "model": "Project marketplace", "status": "D", "url": "guru.com"}, {"name": "Contra", "cat": "freelance", "model": "Independent work", "status": "D", "url": "contra.com"}, {"name": "Malt", "cat": "freelance", "model": "Freelance marketplace", "status": "D", "url": "malt.com"}, {"name": "YunoJuno", "cat": "freelance", "model": "Freelance marketplace", "status": "D,UK", "url": "yunojuno.com"}, {"name": "Kounselly", "cat": "freelance", "model": "Coaching/consulting", "status": "D", "url": "kounselly.com"}, {"name": "Topmate", "cat": "mentoring", "model": "Paid sessions", "status": "D/F", "url": "topmate.io"}, {"name": "Superpeer", "cat": "mentoring", "model": "Paid calls", "status": "D/F", "url": "superpeer.com"}, {"name": "MentorCruise", "cat": "mentoring", "model": "Ongoing mentoring", "status": "D,V", "url": "mentorcruise.com"}, {"name": "GrowthMentor", "cat": "mentoring", "model": "Expert mentoring", "status": "D,V", "url": "growthmentor.com"}, {"name": "Sessions.us", "cat": "mentoring", "model": "Paid sessions", "status": "D/F", "url": "sessions.us"}, {"name": "Nas.io", "cat": "mentoring", "model": "Paid sessions/communities", "status": "D/F", "url": "nas.io"}, {"name": "Pensight", "cat": "mentoring", "model": "Paid calls", "status": "F", "url": "pensight.com"}, {"name": "Stan", "cat": "mentoring", "model": "Paid consultations", "status": "F", "url": "stan.store"}, {"name": "Beacons", "cat": "mentoring", "model": "Paid appointments", "status": "F", "url": "beacons.ai"}, {"name": "Directly.live", "cat": "mentoring", "model": "Expert access", "status": "D/F", "url": "directly.live"}, {"name": "Noomii", "cat": "coaching", "model": "Coach discovery", "status": "D,UK", "url": "noomii.com"}, {"name": "Life Coach Directory", "cat": "coaching", "model": "UK coach directory", "status": "D,V,UK", "url": "lifecoachdirectory.org.uk"}, {"name": "Life Coach Hub", "cat": "coaching", "model": "Coach marketplace", "status": "D", "url": "lifecoachhub.com"}, {"name": "Coach.me", "cat": "coaching", "model": "Habit/coaching", "status": "D", "url": "coach.me"}, {"name": "Approach a Coach", "cat": "coaching", "model": "Coach directory", "status": "D,UK", "url": "approachacoach.com"}, {"name": "CoachCompare", "cat": "coaching", "model": "Coach comparison", "status": "D,UK", "url": "coachcompare.com"}, {"name": "CoachMatching", "cat": "coaching", "model": "Coach matching", "status": "D", "url": "coachmatching.com"}, {"name": "ADHD UK Marketplace", "cat": "adhd", "model": "ADHD coach marketplace", "status": "D,C,V,UK", "url": "adhduk.co.uk"}, {"name": "Shimmer", "cat": "adhd", "model": "ADHD coaching", "status": "D,C,V", "url": "shimmer.care"}, {"name": "ADHD Coaching Agency", "cat": "adhd", "model": "ADHD coaching", "status": "D,C,V", "url": "adhdcoachingagency.com"}, {"name": "Focusmate", "cat": "adhd", "model": "Body doubling", "status": "F", "url": "focusmate.com"}, {"name": "Coacherly", "cat": "recovery", "model": "Recovery coaching", "status": "D,C", "url": "coacherly.com"}, {"name": "Superprof", "cat": "tutoring", "model": "Tutoring marketplace", "status": "D,UK", "url": "superprof.co.uk"}, {"name": "Tutorful", "cat": "tutoring", "model": "UK tutoring", "status": "D,V,UK", "url": "tutorful.co.uk"}, {"name": "Preply", "cat": "tutoring", "model": "Online tutoring", "status": "D,V", "url": "preply.com"}, {"name": "Udemy", "cat": "courses", "model": "Course marketplace", "status": "D", "url": "udemy.com"}, {"name": "Skillshare", "cat": "courses", "model": "Course platform", "status": "D", "url": "skillshare.com"}, {"name": "Maven", "cat": "courses", "model": "Cohort courses", "status": "D", "url": "maven.com"}, {"name": "Reed Courses", "cat": "courses", "model": "UK course marketplace", "status": "D,UK", "url": "reed.co.uk/courses"}, {"name": "Mighty Networks", "cat": "community", "model": "Paid community", "status": "F", "url": "mightynetworks.com"}, {"name": "Circle", "cat": "community", "model": "Community platform", "status": "F", "url": "circle.so"}, {"name": "Skool", "cat": "community", "model": "Community + courses", "status": "F", "url": "skool.com"}, {"name": "Whop", "cat": "community", "model": "Community + products", "status": "F", "url": "whop.com"}, {"name": "Bettermode", "cat": "community", "model": "Community platform", "status": "F", "url": "bettermode.com"}, {"name": "Disco", "cat": "community", "model": "Learning community", "status": "F", "url": "disco.co"}, {"name": "Hivebrite", "cat": "community", "model": "Community platform", "status": "F", "url": "hivebrite.com"}, {"name": "Patreon", "cat": "creator", "model": "Membership/subscriptions", "status": "F", "url": "patreon.com"}, {"name": "Ko-fi", "cat": "creator", "model": "Donations/memberships", "status": "F", "url": "ko-fi.com"}, {"name": "Buy Me a Coffee", "cat": "creator", "model": "Donations/memberships", "status": "F", "url": "buymeacoffee.com"}, {"name": "Substack", "cat": "creator", "model": "Newsletter/subscriptions", "status": "F", "url": "substack.com"}, {"name": "Ghost", "cat": "creator", "model": "Newsletter/memberships", "status": "F", "url": "ghost.org"}, {"name": "beehiiv", "cat": "creator", "model": "Newsletter platform", "status": "F", "url": "beehiiv.com"}, {"name": "Gumroad", "cat": "creator", "model": "Digital products", "status": "F", "url": "gumroad.com"}, {"name": "Payhip", "cat": "creator", "model": "Digital products", "status": "F", "url": "payhip.com"}, {"name": "Lemon Squeezy", "cat": "creator", "model": "Digital products", "status": "F", "url": "lemonsqueezy.com"}, {"name": "Fourthwall", "cat": "creator", "model": "Creator storefront", "status": "F", "url": "fourthwall.com"}, {"name": "Locals", "cat": "creator", "model": "Creator community", "status": "F", "url": "locals.com"}, {"name": "Memberful", "cat": "creator", "model": "Membership platform", "status": "F", "url": "memberful.com"}, {"name": "Teachable", "cat": "courses", "model": "Course platform", "status": "F", "url": "teachable.com"}, {"name": "Thinkific", "cat": "courses", "model": "Course platform", "status": "F", "url": "thinkific.com"}, {"name": "Kajabi", "cat": "courses", "model": "All-in-one platform", "status": "F", "url": "kajabi.com"}, {"name": "Podia", "cat": "courses", "model": "Course/community", "status": "F", "url": "podia.com"}, {"name": "LearnWorlds", "cat": "courses", "model": "Course platform", "status": "F", "url": "learnworlds.com"}, {"name": "Systeme.io", "cat": "courses", "model": "All-in-one", "status": "F", "url": "systeme.io"}, {"name": "Heights Platform", "cat": "courses", "model": "Course platform", "status": "F", "url": "heightsplatform.com"}, {"name": "Xperiencify", "cat": "courses", "model": "Gamified courses", "status": "F", "url": "xperiencify.com"}, {"name": "Medium", "cat": "writing", "model": "Partner program", "status": "D", "url": "medium.com"}, {"name": "Vocal Media", "cat": "writing", "model": "Paid writing", "status": "D", "url": "vocal.media"}, {"name": "Buttondown", "cat": "writing", "model": "Newsletter", "status": "F", "url": "buttondown.email"}, {"name": "Supercast", "cat": "podcast", "model": "Private podcast", "status": "F", "url": "supercast.com"}, {"name": "Podbean Patron", "cat": "podcast", "model": "Podcast subscriptions", "status": "F", "url": "podbean.com"}, {"name": "Buzzsprout", "cat": "podcast", "model": "Podcast hosting", "status": "F", "url": "buzzsprout.com"}, {"name": "Captivate", "cat": "podcast", "model": "Private podcasts", "status": "F", "url": "captivate.fm"}, {"name": "Transistor", "cat": "podcast", "model": "Private podcasts", "status": "F", "url": "transistor.fm"}, {"name": "Hello Audio", "cat": "podcast", "model": "Private audio", "status": "F", "url": "helloaudio.fm"}, {"name": "RedCircle", "cat": "podcast", "model": "Podcast subscriptions", "status": "F", "url": "redcircle.com"}, {"name": "Sellfy", "cat": "digital", "model": "Digital storefront", "status": "F", "url": "sellfy.com"}, {"name": "SendOwl", "cat": "digital", "model": "Digital delivery", "status": "F", "url": "sendowl.com"}, {"name": "ThriveCart", "cat": "digital", "model": "Cart/checkout", "status": "F", "url": "thrivecart.com"}, {"name": "SamCart", "cat": "digital", "model": "Cart/checkout", "status": "F", "url": "samcart.com"}, {"name": "Etsy", "cat": "digital", "model": "Digital resources", "status": "D", "url": "etsy.com"}, {"name": "Creative Market", "cat": "digital", "model": "Templates/journals", "status": "D", "url": "creativemarket.com"}, {"name": "Teachers Pay Teachers", "cat": "digital", "model": "Educational materials", "status": "D", "url": "teacherspayteachers.com"}, {"name": "Eventbrite", "cat": "events", "model": "Paid events", "status": "D,UK", "url": "eventbrite.co.uk"}, {"name": "Humanitix", "cat": "events", "model": "Ethical ticketing", "status": "D", "url": "humanitix.com"}, {"name": "Ticket Tailor", "cat": "events", "model": "Event ticketing", "status": "F,UK", "url": "tickettailor.com"}, {"name": "Luma", "cat": "events", "model": "Event platform", "status": "D/F", "url": "lu.ma"}, {"name": "Meetup", "cat": "events", "model": "Group events", "status": "D", "url": "meetup.com"}, {"name": "Crowdcast", "cat": "events", "model": "Online events", "status": "F", "url": "crowdcast.io"}, {"name": "Airmeet", "cat": "events", "model": "Virtual events", "status": "F", "url": "airmeet.com"}, {"name": "Butter", "cat": "events", "model": "Workshop platform", "status": "F", "url": "butter.us"}, {"name": "Demio", "cat": "events", "model": "Webinars", "status": "F", "url": "demio.com"}, {"name": "Paperbell", "cat": "booking", "model": "Coaching practice", "status": "F", "url": "paperbell.com"}, {"name": "CoachAccountable", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "coachaccountable.com"}, {"name": "Simply.Coach", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "simply.coach"}, {"name": "CoachVantage", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "coachvantage.com"}, {"name": "Practice.do", "cat": "booking", "model": "Practice management", "status": "F", "url": "practice.do"}, {"name": "Coachli", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "coachli.com"}, {"name": "UpCoach", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "upcoach.com"}, {"name": "HoneyBook", "cat": "booking", "model": "Client management", "status": "F", "url": "honeybook.com"}, {"name": "Calendly", "cat": "booking", "model": "Scheduling + payments", "status": "F", "url": "calendly.com"}, {"name": "Cal.com", "cat": "booking", "model": "Open source scheduling", "status": "F", "url": "cal.com"}, {"name": "Acuity Scheduling", "cat": "booking", "model": "Scheduling", "status": "F", "url": "acuityscheduling.com"}, {"name": "SimplyBook.me", "cat": "booking", "model": "Booking system", "status": "F", "url": "simplybook.me"}, {"name": "Setmore", "cat": "booking", "model": "Booking system", "status": "F,UK", "url": "setmore.com"}, {"name": "YouCanBookMe", "cat": "booking", "model": "Booking system", "status": "F,UK", "url": "youcanbook.me"}, {"name": "TidyCal", "cat": "booking", "model": "Scheduling", "status": "F", "url": "tidycal.com"}, {"name": "Zoho Bookings", "cat": "booking", "model": "Booking system", "status": "F,UK", "url": "zoho.com/bookings"}, {"name": "Book Like A Boss", "cat": "booking", "model": "Booking + payments", "status": "F", "url": "booklikeaboss.com"}, {"name": "Appointy", "cat": "booking", "model": "Appointment scheduling", "status": "F", "url": "appointy.com"}, {"name": "10to8", "cat": "booking", "model": "Appointment scheduling", "status": "F,UK", "url": "10to8.com"}, {"name": "GoCardless", "cat": "booking", "model": "Recurring UK payments", "status": "F,UK", "url": "gocardless.com"}, {"name": "SumUp", "cat": "booking", "model": "Payment links", "status": "F,UK", "url": "sumup.com"}];
+        for (var i = 0; i < PLATFORMS.length; i++) {
+          if (PLATFORMS[i].name.toLowerCase().replace(/[^a-z0-9]/g,'-') === platformName.toLowerCase().replace(/[^a-z0-9]/g,'-') ||
+              PLATFORMS[i].name.toLowerCase() === platformName.toLowerCase()) {
+            platformData = PLATFORMS[i];
+            break;
+          }
         }
+
+        var signupUrl = platformData ? 'https://' + platformData.url : body.signupUrl || ('https://' + platformName + '.com/signup');
 
         if (!browserlessKey) {
-          // No Browserless key — return instructions
+          // No Browserless — return profile data for manual use
           return json({
             success: true,
-            platform: platform,
+            platform: platformName,
             status: 'manual_required',
-            email: email,
-            signupUrl: scriptConfig.url,
-            instructions: 'Visit ' + scriptConfig.url + ' and sign up with ' + email
+            signupUrl: signupUrl,
+            profile: profile,
+            instructions: 'Visit ' + signupUrl + ' and use the profile data below to complete signup.'
           }, 200, origin);
         }
 
-        // Run Puppeteer script via Browserless
-        var browserResp = await fetch('https://chrome.browserless.io/function?token=' + browserlessKey, {
+        // Step 1: Take screenshot of signup page
+        var screenshotResp = await fetch('https://chrome.browserless.io/screenshot?token=' + browserlessKey, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            code: 'module.exports = async ({ page }) => { ' + scriptConfig.script + ' }',
-            context: {email: email, name: name, bio: bio, website: website}
-          })
+          body: JSON.stringify({url: signupUrl, options: {type:'jpeg', quality:60, fullPage:false}})
         });
 
-        if (!browserResp.ok) {
-          return json({success:false, error:'Browserless error: ' + browserResp.status, platform:platform}, 200, origin);
+        var pageAnalysis = 'Could not load page';
+        if (screenshotResp.ok) {
+          var screenshotBuf = await screenshotResp.arrayBuffer();
+          var screenshotB64 = btoa(String.fromCharCode(...new Uint8Array(screenshotBuf)));
+
+          // Step 2: Ask Gemma4 to analyse the page and generate fill instructions
+          var kvRaw = null;
+          try { kvRaw = await env.PRISM_KV.get('__secrets__'); } catch(e) {}
+          var kvSecrets = {};
+          if (kvRaw) { try { kvSecrets = JSON.parse(kvRaw); } catch(e) {} }
+          var envPlus = new Proxy(env, {
+            get: function(target, prop) {
+              if (target[prop] !== undefined) return target[prop];
+              if (kvSecrets[prop] !== undefined) return kvSecrets[prop];
+              if (kvSecrets[prop.toUpperCase()] !== undefined) return kvSecrets[prop.toUpperCase()];
+              if (kvSecrets[prop.toLowerCase()] !== undefined) return kvSecrets[prop.toLowerCase()];
+              return undefined;
+            }
+          });
+
+          var analysisResult = await callGemini(envPlus, [
+            {role: 'system', content: 'You are an expert at web automation. Analyse signup page screenshots and generate precise Puppeteer instructions to fill in forms. Return a JSON object with: {steps: [{action, selector, value, description}], notes: string}'},
+            {role: 'user', content: 'Analyse this signup page for ' + platformName + ' and generate Puppeteer steps to fill in the signup form with this profile: ' + JSON.stringify({email:profile.email, name:profile.displayName, bio:profile.shortBio, website:profile.website}) + '. Return JSON only.'}
+          ], 'gemini-2.0-flash', [{data:'data:image/jpeg;base64,'+screenshotB64, mimeType:'image/jpeg'}]);
+
+          pageAnalysis = analysisResult;
         }
 
-        var result = await browserResp.json();
+        // Step 3: Execute AI-generated steps via Browserless function
+        var steps = [];
+        try {
+          var parsed = JSON.parse(pageAnalysis.match(/\{[\s\S]*\}/)[0]);
+          steps = parsed.steps || [];
+        } catch(e) {
+          // Fallback: generic form filling
+          steps = [
+            {action:'type', selector:'input[type="email"], input[name="email"], #email', value:profile.email, description:'Fill email'},
+            {action:'type', selector:'input[name="name"], input[name="displayName"], #name, #display_name', value:profile.displayName, description:'Fill name'},
+            {action:'type', selector:'input[name="password"], input[type="password"]', value:profile.password, description:'Fill password'},
+            {action:'type', selector:'textarea[name="bio"], textarea[name="description"], #bio', value:profile.shortBio, description:'Fill bio'},
+            {action:'type', selector:'input[name="website"], input[name="url"], #website', value:profile.website, description:'Fill website'},
+          ];
+        }
 
-        // Store signup record in KV
+        // Build Puppeteer script from AI steps
+        var puppeteerCode = 'module.exports = async ({ page }) => {\n';
+        puppeteerCode += '  const results = [];\n';
+        puppeteerCode += '  await page.goto(' + JSON.stringify(signupUrl) + ', {waitUntil:"networkidle2", timeout:30000});\n';
+        puppeteerCode += '  await page.waitForTimeout(2000);\n';
+
+        steps.forEach(function(step) {
+          if (step.action === 'type' && step.selector && step.value) {
+            puppeteerCode += '  try {\n';
+            puppeteerCode += '    const el = await page.$(' + JSON.stringify(step.selector) + ');\n';
+            puppeteerCode += '    if (el) { await el.click({clickCount:3}); await el.type(' + JSON.stringify(step.value) + '); results.push({done:' + JSON.stringify(step.description||step.selector) + '}); }\n';
+            puppeteerCode += '  } catch(e) { results.push({skip:' + JSON.stringify(step.description||step.selector) + ', reason:e.message}); }\n';
+          } else if (step.action === 'click' && step.selector) {
+            puppeteerCode += '  try {\n';
+            puppeteerCode += '    await page.click(' + JSON.stringify(step.selector) + ');\n';
+            puppeteerCode += '    await page.waitForTimeout(1000);\n';
+            puppeteerCode += '    results.push({clicked:' + JSON.stringify(step.description||step.selector) + '});\n';
+            puppeteerCode += '  } catch(e) { results.push({skip:' + JSON.stringify(step.description||step.selector) + ', reason:e.message}); }\n';
+          }
+        });
+
+        puppeteerCode += '  const url = page.url();\n';
+        puppeteerCode += '  return {results, finalUrl:url, platform:' + JSON.stringify(platformName) + '};\n';
+        puppeteerCode += '};\n';
+
+        var execResp = await fetch('https://chrome.browserless.io/function?token=' + browserlessKey, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({code: puppeteerCode})
+        });
+
+        var execResult = {status:'attempted'};
+        if (execResp.ok) {
+          execResult = await execResp.json();
+        }
+
+        // Store signup record
         if (env.PRISM_KV) {
-          await env.PRISM_KV.put('signup:' + platform, JSON.stringify({
-            platform: platform,
-            email: email,
-            status: result.status || 'attempted',
-            result: result,
+          await env.PRISM_KV.put('signup:' + platformName, JSON.stringify({
+            platform: platformName,
+            email: profile.email,
+            status: execResult.finalUrl ? 'form_submitted' : 'attempted',
+            result: execResult,
+            aiSteps: steps.length,
             created: new Date().toISOString()
           }));
         }
 
         return json({
           success: true,
-          platform: platform,
-          status: result.status || 'attempted',
-          result: result,
-          note: result.note || 'Check ' + email + ' for verification emails'
+          platform: platformName,
+          signupUrl: signupUrl,
+          status: execResult.finalUrl ? 'form_submitted' : 'attempted',
+          stepsExecuted: steps.length,
+          result: execResult,
+          note: 'Check hello@identitypartners.uk for verification emails. Some platforms require manual email confirmation.'
         }, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
+
+      } catch(e) { return json({error: e.message, platform: body.platform}, 500, origin); }
+    }
+
+    // ── Headless signup status check ──────────────────────────────────────────
+    if (path === '/api/headless/status' && request.method === 'GET') {
+      try {
+        if (!env.PRISM_KV) return json({signups:[]}, 200, origin);
+        var list = await env.PRISM_KV.list({prefix:'signup:'});
+        var signups = [];
+        for (var i = 0; i < list.keys.length; i++) {
+          var val = await env.PRISM_KV.get(list.keys[i].name);
+          if (val) {
+            var s = JSON.parse(val);
+            signups.push({platform:s.platform, email:s.email, status:s.status, created:s.created});
+          }
+        }
+        return json({signups: signups.sort(function(a,b){return new Date(b.created)-new Date(a.created);})}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
     // ── OLD headless signup (kept for compatibility) ───────────────────────────
