@@ -200,7 +200,7 @@ function saveRouting() {
   Toast.success('Routing settings saved');
 }
 
-function saveSignupProfile() {
+function _saveSignupProfile_moved() { // moved to platform-manager
   var profile = {
     displayName: document.getElementById('sp-displayname').value,
     email: document.getElementById('sp-email').value,
@@ -243,7 +243,7 @@ function saveSignupProfile() {
   });
 }
 
-function loadSignupProfile() {
+function _loadSignupProfile_moved() { // moved to platform-manager
   try {
     var saved = JSON.parse(localStorage.getItem('prism-signup-profile') || '{}');
     if (saved.displayName) document.getElementById('sp-displayname').value = saved.displayName;
@@ -281,7 +281,6 @@ document.addEventListener('DOMContentLoaded', function() {
   if (mount) { var sb = buildSidebar('/settings/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
   initThemeSelect();
   initKeyFields();
-  loadSignupProfile();
   try {
     var savedProfile = localStorage.getItem('prism-default-profile');
     if (savedProfile) document.getElementById('profile-select').value = savedProfile;

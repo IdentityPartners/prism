@@ -215,6 +215,77 @@ function renderPlatforms(platforms) {
   });
 }
 
+function saveProfile() {
+  var profile = {
+    displayName: document.getElementById('p-displayname').value,
+    email: document.getElementById('p-email').value,
+    website: document.getElementById('p-website').value,
+    shortBio: document.getElementById('p-bio-short').value,
+    bio: document.getElementById('p-bio-long').value,
+    tagline: document.getElementById('p-tagline').value,
+    services: [
+      {name:document.getElementById('p-svc1-name').value, description:document.getElementById('p-svc1-desc').value, rate:document.getElementById('p-svc1-rate').value},
+      {name:document.getElementById('p-svc2-name').value, description:document.getElementById('p-svc2-desc').value, rate:document.getElementById('p-svc2-rate').value},
+      {name:document.getElementById('p-svc3-name').value, description:document.getElementById('p-svc3-desc').value, rate:document.getElementById('p-svc3-rate').value},
+      {name:document.getElementById('p-svc4-name').value, description:document.getElementById('p-svc4-desc').value, rate:document.getElementById('p-svc4-rate').value},
+    ],
+    rates: {
+      consultation: document.getElementById('p-svc1-rate').value,
+      session: document.getElementById('p-svc2-rate').value,
+      group: document.getElementById('p-svc3-rate').value,
+      monthly: document.getElementById('p-svc4-rate').value,
+    },
+    socials: {
+      bluesky: document.getElementById('p-bluesky').value,
+      linkedin: document.getElementById('p-linkedin').value,
+      instagram: document.getElementById('p-instagram').value,
+      twitter: document.getElementById('p-twitter').value,
+    },
+    categories: document.getElementById('p-categories').value.split(',').map(function(s){return s.trim();}).filter(Boolean),
+    keywords: document.getElementById('p-keywords').value.split(',').map(function(s){return s.trim();}).filter(Boolean),
+  };
+  try { localStorage.setItem('prism-signup-profile', JSON.stringify(profile)); } catch(e) {}
+  fetch(WORKER + '/api/profile/signup', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(profile)
+  })
+  .then(function(r){return r.json();})
+  .then(function(r){
+    var s = document.getElementById('profile-status');
+    if(s) s.textContent = r.success ? '✓ Saved to Cloudflare KV' : 'Error: '+(r.error||'unknown');
+    if(r.success) Toast.success('Profile saved');
+  })
+  .catch(function(e){
+    var s = document.getElementById('profile-status');
+    if(s) s.textContent = 'Saved locally';
+    Toast.info('Saved locally');
+  });
+}
+
+function loadProfile() {
+  try {
+    var saved = JSON.parse(localStorage.getItem('prism-signup-profile') || '{}');
+    var set = function(id, val) { var el = document.getElementById(id); if(el && val) el.value = val; };
+    set('p-displayname', saved.displayName);
+    set('p-email', saved.email);
+    set('p-website', saved.website);
+    set('p-bio-short', saved.shortBio);
+    set('p-bio-long', saved.bio);
+    set('p-tagline', saved.tagline);
+    if (saved.services && saved.services.length >= 4) {
+      set('p-svc1-name', saved.services[0].name); set('p-svc1-desc', saved.services[0].description); set('p-svc1-rate', saved.services[0].rate);
+      set('p-svc2-name', saved.services[1].name); set('p-svc2-desc', saved.services[1].description); set('p-svc2-rate', saved.services[1].rate);
+      set('p-svc3-name', saved.services[2].name); set('p-svc3-desc', saved.services[2].description); set('p-svc3-rate', saved.services[2].rate);
+      set('p-svc4-name', saved.services[3].name); set('p-svc4-desc', saved.services[3].description); set('p-svc4-rate', saved.services[3].rate);
+    }
+    if (saved.socials) {
+      set('p-bluesky', saved.socials.bluesky); set('p-linkedin', saved.socials.linkedin);
+      set('p-instagram', saved.socials.instagram); set('p-twitter', saved.socials.twitter);
+    }
+    if (saved.categories) set('p-categories', saved.categories.join(', '));
+    if (saved.keywords) set('p-keywords', saved.keywords.join(', '));
+  } catch(e) {}
+}
+
 function updateSelectedCount() {
   var el = document.getElementById('selected-platforms');
   if (el) el.textContent = selectedForSignup.length > 0 ? selectedForSignup.length + ' platforms selected: ' + selectedForSignup.slice(0,3).join(', ') + (selectedForSignup.length>3?'...':'') : 'No platforms selected.';
@@ -237,10 +308,11 @@ function startHeadlessSignup() {
     log.appendChild(line); log.scrollTop = log.scrollHeight;
   }
   addLog('Starting headless signup for ' + selectedForSignup.length + ' platforms...', 'info');
+  // Build profile from form fields
   var FULL_PROFILE = {
     name: 'Simon Johnson',
-    displayName: 'Identity Partners',
-    email: 'hello@identitypartners.uk',
+    displayName: document.getElementById('p-displayname') ? document.getElementById('p-displayname').value : 'Identity Partners',
+    email: document.getElementById('p-email') ? document.getElementById('p-email').value : 'hello@identitypartners.uk',
     website: 'https://www.identitypartners.uk',
     bookingUrl: 'https://www.identitypartners.uk/book',
     bio: 'Non-clinical listening, coaching, mentoring and relational practice. Evidence-based support for addiction, trauma, mental health, and community wellbeing. Based in the UK.',
@@ -363,6 +435,7 @@ document.addEventListener('DOMContentLoaded', function() {
   filterPlatforms('');
   renderBuckets();
   refreshStatus();
+  loadProfile();
 });
 </script>
 </body>
