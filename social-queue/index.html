@@ -6,50 +6,46 @@
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
 <style>
-.sq-layout { display:grid; grid-template-columns:1fr 360px; height:calc(100vh - var(--topbar-h)); overflow:hidden; gap:0; }
-@media(max-width:1000px){ .sq-layout{ grid-template-columns:1fr; } .sq-right{ display:none; } }
-.sq-main { overflow-y:auto; padding:20px; }
-.sq-right { border-left:1px solid var(--border); background:var(--bg-surface); overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; }
-.queue-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:20px; }
-.stat-box { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px; text-align:center; }
-.stat-num { font-size:26px; font-weight:700; color:var(--accent); font-family:var(--font-heading); }
-.stat-lbl { font-size:11px; color:var(--fg-muted); margin-top:2px; }
-.queue-filters { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
-.filter-chip { padding:5px 12px; border:1px solid var(--border); border-radius:20px; font-size:12px; cursor:pointer; color:var(--fg-secondary); background:var(--bg-elevated); transition:all 0.15s; }
-.filter-chip.active { background:var(--accent-light); border-color:var(--accent); color:var(--accent); }
-.queue-item { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; margin-bottom:10px; transition:border-color 0.15s; }
-.queue-item:hover { border-color:var(--accent); }
-.queue-item-header { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-.platform-pills { display:flex; gap:4px; flex-wrap:wrap; }
-.platform-pill { padding:2px 8px; border-radius:10px; font-size:11px; font-weight:500; }
-.pill-bluesky { background:#e8f0fe; color:#1a73e8; }
-.pill-x { background:#f0f0f0; color:#1a1a1a; }
-.pill-linkedin { background:#e8f4f4; color:#0f3b3a; }
-.pill-instagram { background:#fce4ec; color:#c2185b; }
-.pill-facebook { background:#e3f2fd; color:#1565c0; }
-.pill-threads { background:#f3e5f5; color:#6a1b9a; }
-.queue-item-content { font-size:13.5px; line-height:1.6; color:var(--fg-primary); margin-bottom:10px; white-space:pre-wrap; }
-.queue-item-footer { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.queue-time { font-size:11.5px; color:var(--fg-muted); }
-.queue-actions { margin-left:auto; display:flex; gap:5px; }
-.bulk-gen-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:20px; }
-.bulk-gen-title { font-size:14px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
-.platform-toggles { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
-.plt-toggle { padding:6px 12px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; cursor:pointer; color:var(--fg-secondary); background:var(--bg-surface); transition:all 0.15s; display:flex; align-items:center; gap:5px; user-select:none; }
-.plt-toggle.active { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
-.progress-section { margin-top:12px; }
-.progress-bar-wrap { background:var(--border); border-radius:4px; height:6px; overflow:hidden; margin:8px 0; }
-.progress-bar-fill { height:100%; background:var(--accent); border-radius:4px; transition:width 0.3s ease; }
-.compose-section { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px; }
-.compose-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.07em; color:var(--fg-muted); margin-bottom:10px; }
-.compose-ta { width:100%; min-height:90px; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; font-family:var(--font-ui); resize:none; outline:none; background:var(--bg-primary); color:var(--fg-primary); line-height:1.6; }
-.compose-ta:focus { border-color:var(--accent); }
-.char-counter { font-size:11px; color:var(--fg-muted); text-align:right; margin-top:3px; }
-.char-counter.over { color:var(--danger); }
-.posting-log { background:var(--fg-primary); color:#f0e9e0; border-radius:8px; padding:12px; font-family:var(--font-mono); font-size:11.5px; line-height:1.7; max-height:200px; overflow-y:auto; margin-top:10px; }
-.log-ok { color:#7ecf7e; }
-.log-err { color:#f08080; }
-.log-info { color:#a8d4f0; }
+.sq-layout{display:grid;grid-template-columns:1fr 340px;height:calc(100vh - var(--topbar-h));overflow:hidden;}
+@media(max-width:1000px){.sq-layout{grid-template-columns:1fr;}.sq-right{display:none;}}
+.sq-main{overflow-y:auto;padding:16px 20px;}
+.sq-right{border-left:1px solid var(--border);background:var(--bg-surface);overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+.stat-box{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;text-align:center;}
+.stat-num{font-size:26px;font-weight:700;color:var(--accent);font-family:var(--font-heading);}
+.stat-lbl{font-size:11px;color:var(--fg-muted);margin-top:2px;}
+.filters{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+.fc{padding:5px 12px;border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer;color:var(--fg-secondary);background:var(--bg-elevated);transition:all 0.15s;}
+.fc.active{background:var(--accent-light);border-color:var(--accent);color:var(--accent);}
+.q-item{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;transition:border-color 0.15s;}
+.q-item:hover{border-color:var(--accent);}
+.q-item-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.plt-pill{padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;}
+.pill-bluesky{background:#e8f0fe;color:#1a73e8;}
+.pill-x{background:#f0f0f0;color:#1a1a1a;}
+.pill-linkedin{background:#e8f4f4;color:#0f3b3a;}
+.pill-instagram{background:#fce4ec;color:#c2185b;}
+.pill-facebook{background:#e3f2fd;color:#1565c0;}
+.pill-default{background:var(--bg-surface);color:var(--fg-muted);}
+.q-content{font-size:13.5px;line-height:1.6;color:var(--fg-primary);margin-bottom:8px;white-space:pre-wrap;word-break:break-word;}
+.q-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.q-time{font-size:11.5px;color:var(--fg-muted);}
+.q-actions{margin-left:auto;display:flex;gap:5px;}
+.bulk-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:16px;}
+.bulk-title{font-size:14px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.plt-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
+.plt-tog{padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:11.5px;cursor:pointer;color:var(--fg-secondary);background:var(--bg-surface);transition:all 0.15s;user-select:none;}
+.plt-tog.active{border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
+.prog-bar{width:100%;height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin:8px 0;}
+.prog-fill{height:100%;background:var(--accent);border-radius:3px;transition:width 0.3s ease;}
+.compose-sec{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;}
+.compose-ttl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);margin-bottom:8px;}
+.compose-ta{width:100%;min-height:80px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:13.5px;font-family:var(--font-ui);resize:none;outline:none;background:var(--bg-primary);color:var(--fg-primary);line-height:1.6;}
+.compose-ta:focus{border-color:var(--accent);}
+.post-log{background:var(--fg-primary);color:#f0e9e0;border-radius:7px;padding:10px;font-family:var(--font-mono);font-size:11px;line-height:1.7;max-height:160px;overflow-y:auto;margin-top:8px;}
+.log-ok{color:#7ecf7e;}.log-err{color:#f08080;}.log-info{color:#a8d4f0;}
+.empty-state{text-align:center;padding:60px 20px;color:var(--fg-muted);}
+.empty-icon{font-size:48px;margin-bottom:12px;}
 </style>
 </head>
 <body>
@@ -61,143 +57,119 @@
       <div class="topbar-actions">
         <button class="btn btn-sm btn-secondary" onclick="loadQueue()" title="Refresh queue">↺ Refresh</button>
         <button class="btn btn-sm btn-secondary" onclick="postAllPending()" title="Post all pending items now">🚀 Post All Pending</button>
+        <button class="btn btn-sm btn-secondary" onclick="clearPosted()" title="Clear posted items">🗑 Clear Posted</button>
         <a href="/atomise/" class="btn btn-sm btn-primary" title="Generate assets via Atomise">⚡ Atomise</a>
       </div>
     </div>
     <div class="sq-layout">
-      <!-- Main queue -->
       <div class="sq-main">
-        <!-- Bulk generation -->
-        <div class="bulk-gen-card">
-          <div class="bulk-gen-title">⚡ Bulk Content Generator <span class="badge badge-accent">250+ posts</span></div>
-          <div class="form-group">
-            <label class="form-label">Topic or source text</label>
-            <textarea class="compose-ta" id="bulk-topic" rows="3" placeholder="Paste a topic, programme description, or up to 1,500 words of source material…"></textarea>
-          </div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-            <div class="form-group" style="flex:1;min-width:120px;margin-bottom:0;">
-              <label class="form-label">Posts to generate</label>
-              <select class="select" id="bulk-count">
-                <option value="30">30 posts</option>
-                <option value="50">50 posts</option>
-                <option value="100">100 posts</option>
-                <option value="250" selected>250 posts</option>
-                <option value="500">500 posts</option>
-              </select>
-            </div>
-            <div class="form-group" style="flex:1;min-width:120px;margin-bottom:0;">
-              <label class="form-label">Posting frequency</label>
-              <select class="select" id="bulk-freq">
-                <option value="3x-daily">3× daily</option>
-                <option value="2x-daily" selected>2× daily</option>
-                <option value="daily">Once daily</option>
-                <option value="weekdays">Weekdays only</option>
-              </select>
-            </div>
-            <div class="form-group" style="flex:1;min-width:120px;margin-bottom:0;">
-              <label class="form-label">Content mix</label>
-              <select class="select" id="bulk-mix">
-                <option value="varied" selected>Varied (recommended)</option>
-                <option value="quotes">Quotes only</option>
-                <option value="tips">Tips only</option>
-                <option value="educational">Educational only</option>
-                <option value="engagement">Engagement-focused</option>
-              </select>
-            </div>
-          </div>
-          <div class="platform-toggles" id="bulk-platforms">
-            <div class="plt-toggle active" data-platform="bluesky" onclick="togglePlatform(this)">🦋 Bluesky</div>
-            <div class="plt-toggle active" data-platform="x" onclick="togglePlatform(this)">𝕏 X / Twitter</div>
-            <div class="plt-toggle active" data-platform="linkedin" onclick="togglePlatform(this)">💼 LinkedIn</div>
-            <div class="plt-toggle" data-platform="instagram" onclick="togglePlatform(this)">📸 Instagram</div>
-            <div class="plt-toggle" data-platform="facebook" onclick="togglePlatform(this)">👥 Facebook</div>
-            <div class="plt-toggle" data-platform="threads" onclick="togglePlatform(this)">🧵 Threads</div>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:12px;">
-            <button class="btn btn-primary" onclick="bulkGenerate()" title="Generate bulk posts" id="bulk-btn">✨ Generate Posts</button>
-            <button class="btn btn-secondary" onclick="scheduleAll()" title="Schedule all generated posts">📅 Schedule All</button>
-            <button class="btn btn-secondary" onclick="postAllPending()" title="Post all pending now">🚀 Post Now</button>
-          </div>
-          <div class="progress-section hidden" id="bulk-progress">
-            <div style="font-size:12.5px;color:var(--fg-secondary);" id="bulk-progress-label">Generating…</div>
-            <div class="progress-bar-wrap"><div class="progress-bar-fill" id="bulk-progress-fill" style="width:0%"></div></div>
-          </div>
+        <!-- Stats -->
+        <div class="stats-row">
+          <div class="stat-box"><div class="stat-num" id="s-total">—</div><div class="stat-lbl">Total</div></div>
+          <div class="stat-box"><div class="stat-num" id="s-pending">—</div><div class="stat-lbl">Pending</div></div>
+          <div class="stat-box"><div class="stat-num" id="s-posted">—</div><div class="stat-lbl">Posted</div></div>
+          <div class="stat-box"><div class="stat-num" id="s-scheduled">—</div><div class="stat-lbl">Scheduled</div></div>
         </div>
 
-        <!-- Stats -->
-        <div class="queue-stats">
-          <div class="stat-box"><div class="stat-num" id="stat-total">—</div><div class="stat-lbl">Total</div></div>
-          <div class="stat-box"><div class="stat-num" id="stat-pending">—</div><div class="stat-lbl">Pending</div></div>
-          <div class="stat-box"><div class="stat-num" id="stat-posted">—</div><div class="stat-lbl">Posted</div></div>
-          <div class="stat-box"><div class="stat-num" id="stat-scheduled">—</div><div class="stat-lbl">Scheduled</div></div>
+        <!-- Bulk generator -->
+        <div class="bulk-card">
+          <div class="bulk-title">⚡ Bulk Content Generator <span class="badge badge-accent" id="bulk-count-badge">250 posts</span></div>
+          <div class="form-group">
+            <textarea class="compose-ta" id="bulk-topic" rows="3" placeholder="Paste topic or source text (up to 1,500 words)..."></textarea>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+            <div class="form-group" style="flex:1;min-width:100px;margin-bottom:0;">
+              <label class="form-label">Posts to generate</label>
+              <select class="select" id="bulk-count" onchange="document.getElementById('bulk-count-badge').textContent=this.value+' posts'">
+                <option value="30">30</option><option value="50">50</option><option value="100">100</option>
+                <option value="250" selected>250</option><option value="500">500</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1;min-width:100px;margin-bottom:0;">
+              <label class="form-label">Frequency</label>
+              <select class="select" id="bulk-freq">
+                <option value="3x">3× daily</option><option value="2x" selected>2× daily</option>
+                <option value="daily">Daily</option><option value="weekdays">Weekdays</option>
+              </select>
+            </div>
+          </div>
+          <div class="plt-row" id="bulk-plts">
+            <div class="plt-tog active" data-p="bluesky" onclick="toggleBP(this)">🦋 Bluesky</div>
+            <div class="plt-tog active" data-p="x" onclick="toggleBP(this)">𝕏 X</div>
+            <div class="plt-tog active" data-p="linkedin" onclick="toggleBP(this)">💼 LinkedIn</div>
+            <div class="plt-tog" data-p="instagram" onclick="toggleBP(this)">📸 Instagram</div>
+            <div class="plt-tog" data-p="facebook" onclick="toggleBP(this)">👥 Facebook</div>
+            <div class="plt-tog" data-p="threads" onclick="toggleBP(this)">🧵 Threads</div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="btn btn-primary" id="bulk-btn" onclick="bulkGenerate()" title="Generate and queue posts">✨ Generate &amp; Queue</button>
+            <button class="btn btn-secondary" onclick="postAllPending()" title="Post all pending now">🚀 Post All Now</button>
+          </div>
+          <div id="bulk-prog" style="display:none;">
+            <div class="prog-bar"><div class="prog-fill" id="bulk-fill" style="width:0%"></div></div>
+            <div style="font-size:11.5px;color:var(--fg-muted);" id="bulk-lbl">Generating...</div>
+          </div>
         </div>
 
         <!-- Filters -->
-        <div class="queue-filters">
-          <span class="filter-chip active" onclick="filterQueue(this,'all')">All</span>
-          <span class="filter-chip" onclick="filterQueue(this,'pending')">Pending</span>
-          <span class="filter-chip" onclick="filterQueue(this,'scheduled')">Scheduled</span>
-          <span class="filter-chip" onclick="filterQueue(this,'posted')">Posted</span>
-          <span class="filter-chip" onclick="filterQueue(this,'bluesky')">🦋 Bluesky</span>
-          <span class="filter-chip" onclick="filterQueue(this,'x')">𝕏 X</span>
-          <span class="filter-chip" onclick="filterQueue(this,'linkedin')">💼 LinkedIn</span>
-          <span class="filter-chip" onclick="filterQueue(this,'instagram')">📸 Instagram</span>
-          <button class="btn btn-ghost btn-sm" onclick="clearPosted()" title="Clear all posted items">🗑 Clear Posted</button>
-          <button class="btn btn-ghost btn-sm" onclick="exportQueue()" title="Export queue as CSV">⬇ Export CSV</button>
+        <div class="filters">
+          <span class="fc active" onclick="filterQ(this,'all')">All</span>
+          <span class="fc" onclick="filterQ(this,'pending')">Pending</span>
+          <span class="fc" onclick="filterQ(this,'scheduled')">Scheduled</span>
+          <span class="fc" onclick="filterQ(this,'posted')">Posted</span>
+          <span class="fc" onclick="filterQ(this,'bluesky')">🦋 Bluesky</span>
+          <span class="fc" onclick="filterQ(this,'x')">𝕏 X</span>
+          <span class="fc" onclick="filterQ(this,'linkedin')">💼 LinkedIn</span>
+          <button class="btn btn-ghost btn-sm" onclick="exportCSV()" title="Export as CSV">⬇ CSV</button>
+          <span style="font-size:12px;color:var(--fg-muted);margin-left:auto;" id="showing-count"></span>
         </div>
 
         <!-- Queue list -->
         <div id="queue-list">
-          <div style="text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">Loading queue…</div>
+          <div class="empty-state"><div class="empty-icon">📅</div><div>Loading queue...</div></div>
         </div>
       </div>
 
       <!-- Right panel -->
       <div class="sq-right">
-        <!-- Compose -->
-        <div class="compose-section">
-          <div class="compose-title">Compose Post</div>
-          <textarea class="compose-ta" id="compose-text" placeholder="Write your post…" oninput="updateCharCount()"></textarea>
-          <div class="char-counter" id="char-count">0 / 280</div>
-          <div class="platform-toggles" style="margin:8px 0;">
-            <div class="plt-toggle active" data-platform="bluesky" onclick="toggleComposePlatform(this)">🦋</div>
-            <div class="plt-toggle" data-platform="x" onclick="toggleComposePlatform(this)">𝕏</div>
-            <div class="plt-toggle" data-platform="linkedin" onclick="toggleComposePlatform(this)">💼</div>
-            <div class="plt-toggle" data-platform="instagram" onclick="toggleComposePlatform(this)">📸</div>
+        <div class="compose-sec">
+          <div class="compose-ttl">Compose Post</div>
+          <textarea class="compose-ta" id="compose-text" placeholder="Write your post..." oninput="updateCC()"></textarea>
+          <div style="font-size:11px;color:var(--fg-muted);text-align:right;margin-top:3px;" id="cc">0 / 280</div>
+          <div class="plt-row" style="margin:8px 0;">
+            <div class="plt-tog active" data-p="bluesky" onclick="toggleCP(this)">🦋</div>
+            <div class="plt-tog" data-p="x" onclick="toggleCP(this)">𝕏</div>
+            <div class="plt-tog" data-p="linkedin" onclick="toggleCP(this)">💼</div>
+            <div class="plt-tog" data-p="instagram" onclick="toggleCP(this)">📸</div>
           </div>
-          <div style="display:flex;gap:6px;margin-top:8px;">
-            <input type="datetime-local" class="input" id="schedule-time" style="flex:1;font-size:12px;padding:6px 8px;">
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <input type="datetime-local" class="input" id="sched-time" style="flex:1;font-size:12px;padding:6px 8px;">
+            <button class="btn btn-ghost btn-sm" onclick="setNow()" title="Schedule for now">Now</button>
           </div>
-          <div style="display:flex;gap:6px;margin-top:8px;">
+          <div style="display:flex;gap:6px;">
             <button class="btn btn-primary btn-sm" style="flex:1;" onclick="addToQueue()" title="Add to queue">📅 Queue</button>
             <button class="btn btn-rose btn-sm" style="flex:1;" onclick="postNow()" title="Post immediately">🚀 Post Now</button>
           </div>
         </div>
 
-        <!-- AI assist -->
-        <div class="compose-section">
-          <div class="compose-title">AI Assist</div>
-          <input class="input" id="ai-prompt" type="text" placeholder="e.g. Write about addiction recovery…" style="margin-bottom:8px;">
+        <div class="compose-sec">
+          <div class="compose-ttl">AI Assist</div>
+          <input class="input" id="ai-prompt" type="text" placeholder="e.g. Write about recovery..." style="margin-bottom:8px;">
           <div style="display:flex;gap:5px;flex-wrap:wrap;">
-            <button class="btn btn-sm btn-secondary" onclick="aiGenerate()" title="Generate post">✨ Generate</button>
-            <button class="btn btn-sm btn-secondary" onclick="aiImprove()" title="Improve current text">✨ Improve</button>
-            <button class="btn btn-sm btn-secondary" onclick="aiHashtags()" title="Add hashtags">🏷 Tags</button>
-            <button class="btn btn-sm btn-secondary" onclick="aiThread()" title="Expand to thread">🧵 Thread</button>
+            <button class="btn btn-sm btn-secondary" onclick="aiGen()" title="Generate post">✨ Generate</button>
+            <button class="btn btn-sm btn-secondary" onclick="aiImprove()" title="Improve text">✨ Improve</button>
+            <button class="btn btn-sm btn-secondary" onclick="aiTags()" title="Add hashtags">🏷 Tags</button>
           </div>
         </div>
 
-        <!-- Posting log -->
-        <div class="compose-section">
-          <div class="compose-title">Posting Log</div>
-          <div class="posting-log" id="posting-log">
-            <span class="log-info">Ready.</span>
-          </div>
+        <div class="compose-sec">
+          <div class="compose-ttl">Posting Log</div>
+          <div class="post-log" id="post-log"><span class="log-info">Ready.</span></div>
         </div>
 
-        <!-- Platform connections -->
-        <div class="compose-section">
-          <div class="compose-title">Platform Status</div>
-          <div id="platform-status" style="display:flex;flex-direction:column;gap:6px;font-size:12.5px;"></div>
+        <div class="compose-sec">
+          <div class="compose-ttl">Platform Status</div>
+          <div id="plt-status" style="font-size:12.5px;display:flex;flex-direction:column;gap:5px;"></div>
         </div>
       </div>
     </div>
@@ -213,217 +185,20 @@ var composePlatforms = ['bluesky'];
 var bulkPlatforms = ['bluesky','x','linkedin'];
 var generatedBatch = [];
 
-var PLATFORM_ICONS = {bluesky:'🦋',x:'𝕏',linkedin:'💼',instagram:'📸',facebook:'👥',threads:'🧵'};
-var PLATFORM_LIMITS = {bluesky:300,x:280,linkedin:3000,instagram:2200,facebook:63206,threads:500};
+var PLAT_ICONS = {bluesky:'🦋',x:'𝕏',linkedin:'💼',instagram:'📸',facebook:'👥',threads:'🧵'};
+var PLAT_LIMITS = {bluesky:300,x:280,linkedin:3000,instagram:2200,facebook:63206,threads:500};
 
-// ── Platform toggles ──────────────────────────────────────────────────────────
-function togglePlatform(el) {
-  el.classList.toggle('active');
-  var p = el.getAttribute('data-platform');
-  if (el.classList.contains('active')) { if (bulkPlatforms.indexOf(p) < 0) bulkPlatforms.push(p); }
-  else bulkPlatforms = bulkPlatforms.filter(function(x){return x!==p;});
-}
-
-function toggleComposePlatform(el) {
-  el.classList.toggle('active');
-  var p = el.getAttribute('data-platform');
-  if (el.classList.contains('active')) { if (composePlatforms.indexOf(p) < 0) composePlatforms.push(p); }
-  else composePlatforms = composePlatforms.filter(function(x){return x!==p;});
-}
-
-function updateCharCount() {
-  var text = document.getElementById('compose-text').value;
-  var el = document.getElementById('char-count');
-  if (el) { el.textContent = text.length + ' / 280'; el.className = 'char-counter' + (text.length > 280 ? ' over' : ''); }
-}
-
-// ── Bulk generation ───────────────────────────────────────────────────────────
-function bulkGenerate() {
-  var topic = document.getElementById('bulk-topic').value.trim();
-  if (!topic) { Toast.warning('Enter a topic or paste source text'); return; }
-  var count = parseInt(document.getElementById('bulk-count').value);
-  var freq = document.getElementById('bulk-freq').value;
-  var mix = document.getElementById('bulk-mix').value;
-  if (bulkPlatforms.length === 0) { Toast.warning('Select at least one platform'); return; }
-
-  var btn = document.getElementById('bulk-btn');
-  var progress = document.getElementById('bulk-progress');
-  var progressFill = document.getElementById('bulk-progress-fill');
-  var progressLabel = document.getElementById('bulk-progress-label');
-  if (btn) btn.disabled = true;
-  if (progress) progress.classList.remove('hidden');
-  generatedBatch = [];
-
-  log('info', 'Generating ' + count + ' posts across ' + bulkPlatforms.join(', ') + '…');
-
-  // Generate in batches of 20 to avoid timeout
-  var batchSize = 20;
-  var batches = Math.ceil(count / batchSize);
-  var completed = 0;
-
-  function generateBatch(batchNum) {
-    if (batchNum >= batches) {
-      if (btn) btn.disabled = false;
-      if (progress) progress.classList.add('hidden');
-      log('ok', 'Generated ' + generatedBatch.length + ' posts. Click "Schedule All" to queue them.');
-      Toast.success(generatedBatch.length + ' posts generated!');
-      renderQueue(generatedBatch.concat(allQueue));
-      return;
-    }
-
-    var thisBatchSize = Math.min(batchSize, count - batchNum * batchSize);
-    var pct = Math.round((batchNum / batches) * 100);
-    if (progressFill) progressFill.style.width = pct + '%';
-    if (progressLabel) progressLabel.textContent = 'Generating batch ' + (batchNum+1) + ' of ' + batches + ' (' + (batchNum*batchSize) + '/' + count + ' posts)…';
-
-    var contentTypes = {
-      varied: ['quote','tip','fact','question','story','announcement','reflection'],
-      quotes: ['quote'],
-      tips: ['tip'],
-      educational: ['fact','educational'],
-      engagement: ['question','poll','challenge']
-    };
-    var types = contentTypes[mix] || contentTypes.varied;
-
-    var systemPrompt = 'You are a social media content creator for Identity Partners, a professional services firm focused on addiction, trauma, mental health, and community wellbeing. Write in British English. Be professional, warm, and evidence-based. No sycophancy. No AI tropes. Each post must stand alone and be immediately publishable.';
-
-    var platformInstructions = bulkPlatforms.map(function(p) {
-      var limit = PLATFORM_LIMITS[p] || 280;
-      if (p === 'bluesky' || p === 'x') return p + ': under ' + limit + ' characters, conversational, no hashtags in body';
-      if (p === 'linkedin') return 'linkedin: 100-200 words, professional, 3-5 hashtags at end';
-      if (p === 'instagram') return 'instagram: engaging, 5-10 hashtags, emoji welcome';
-      return p + ': under ' + limit + ' characters';
-    }).join('; ');
-
-    var userPrompt = 'Generate exactly ' + thisBatchSize + ' social media posts about: ' + topic.substring(0, 500) + '\n\nContent types to use (rotate through): ' + types.join(', ') + '\nPlatforms: ' + bulkPlatforms.join(', ') + '\nPlatform requirements: ' + platformInstructions + (source ? '\n\nSource material:\n' + source.substring(0, 2000) : '') + '\n\nReturn ONLY a JSON array. Each item: {post_number, title, content_by_platform: {platform: text}, hashtags, best_time}. Return ONLY the JSON array, no other text.';
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', WORKER + '/api/chat', true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.timeout = 60000;
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState !== 4) return;
-      try {
-        var r = JSON.parse(xhr.responseText);
-        var content = r.content || '';
-        var jsonMatch = content.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          var posts = JSON.parse(jsonMatch[0]);
-          // Schedule posts based on frequency
-          var now = Date.now();
-          var intervalMs = {
-            '3x-daily': 8*3600000,
-            '2x-daily': 12*3600000,
-            'daily': 24*3600000,
-            'weekdays': 24*3600000
-          }[freq] || 12*3600000;
-
-          posts.forEach(function(post, i) {
-            var scheduledAt = new Date(now + (generatedBatch.length + i) * intervalMs).toISOString();
-            var item = {
-              id: 'gen-' + Date.now() + '-' + i,
-              type: post.type || 'post',
-              platforms: post.platforms || {},
-              hashtags: post.hashtags || [],
-              status: 'pending',
-              scheduledAt: scheduledAt,
-              created: new Date().toISOString(),
-              source: 'bulk-generator'
-            };
-            generatedBatch.push(item);
-          });
-        }
-      } catch(e) {
-        log('err', 'Batch ' + (batchNum+1) + ' parse error: ' + e.message);
-      }
-      setTimeout(function() { generateBatch(batchNum + 1); }, 300);
-    };
-    xhr.ontimeout = function() {
-      log('err', 'Batch ' + (batchNum+1) + ' timed out, continuing…');
-      setTimeout(function() { generateBatch(batchNum + 1); }, 300);
-    };
-    xhr.onerror = function() {
-      log('err', 'Batch ' + (batchNum+1) + ' network error');
-      setTimeout(function() { generateBatch(batchNum + 1); }, 300);
-    };
-    xhr.send(JSON.stringify({
-      messages: [{role:'system',content:systemPrompt},{role:'user',content:userPrompt}],
-      profile: 'balanced'
-    }));
-  }
-
-  generateBatch(0);
-}
-
-// ── Schedule all generated posts ──────────────────────────────────────────────
-function scheduleAll() {
-  if (generatedBatch.length === 0) { Toast.warning('Generate posts first'); return; }
-  var queued = 0;
-  log('info', 'Queuing ' + generatedBatch.length + ' posts…');
-  generatedBatch.forEach(function(item) {
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', WORKER + '/api/social/queue', true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState !== 4) return;
-      queued++;
-      if (queued === generatedBatch.length) {
-        log('ok', queued + ' posts queued successfully');
-        Toast.success(queued + ' posts queued!');
-        generatedBatch = [];
-        loadQueue();
-      }
-    };
-    xhr.send(JSON.stringify(item));
-  });
-}
-
-// ── Post all pending ──────────────────────────────────────────────────────────
-function postAllPending() {
-  var pending = allQueue.filter(function(i) { return i.status === 'pending' || i.status === 'scheduled'; });
-  if (pending.length === 0) { Toast.warning('No pending posts'); return; }
-  log('info', 'Posting ' + pending.length + ' items…');
-  var posted = 0;
-  pending.forEach(function(item) {
-    // Post to each platform
-    var platforms = Object.keys(item.platforms || {});
-    if (platforms.length === 0 && item.content) platforms = ['bluesky'];
-    platforms.forEach(function(platform) {
-      var text = (item.platforms && item.platforms[platform]) || item.content || '';
-      if (!text) return;
-      postToPlatform(platform, text, item.id, function(ok, err) {
-        posted++;
-        if (ok) log('ok', platform + ': posted "' + text.substring(0,40) + '…"');
-        else log('err', platform + ': ' + (err||'failed'));
-      });
-    });
-  });
-}
-
-function postToPlatform(platform, text, itemId, callback) {
-  if (platform === 'bluesky') {
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', WORKER + '/api/social/post', true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState !== 4) return;
-      try {
-        var r = JSON.parse(xhr.responseText);
-        callback(r.success, r.error);
-      } catch(e) { callback(false, e.message); }
-    };
-    xhr.onerror = function() { callback(false, 'Network error'); };
-    xhr.send(JSON.stringify({text: text, platforms: ['bluesky']}));
-  } else {
-    // X, LinkedIn, Instagram, Facebook — log as queued (OAuth needed)
-    log('info', platform + ': queued (connect via Platform Manager for live posting)');
-    callback(true, null);
-  }
-}
+function toggleBP(el){el.classList.toggle('active');var p=el.getAttribute('data-p');if(el.classList.contains('active')){if(bulkPlatforms.indexOf(p)<0)bulkPlatforms.push(p);}else bulkPlatforms=bulkPlatforms.filter(function(x){return x!==p;});}
+function toggleCP(el){el.classList.toggle('active');var p=el.getAttribute('data-p');if(el.classList.contains('active')){if(composePlatforms.indexOf(p)<0)composePlatforms.push(p);}else composePlatforms=composePlatforms.filter(function(x){return x!==p;});}
+function updateCC(){var t=document.getElementById('compose-text').value;var el=document.getElementById('cc');if(el){el.textContent=t.length+' / 280';el.style.color=t.length>280?'var(--danger)':'';};}
+function setNow(){var el=document.getElementById('sched-time');if(el)el.value=new Date(Date.now()+3600000).toISOString().slice(0,16);}
 
 // ── Load queue ────────────────────────────────────────────────────────────────
 function loadQueue() {
+  var list = document.getElementById('queue-list');
+  if(list) list.innerHTML = '<div class="empty-state"><div class="spinner"></div><div style="margin-top:8px;">Loading...</div></div>';
   var xhr = new XMLHttpRequest();
-  xhr.open('GET', WORKER + '/api/social/queue', true);
+  xhr.open('GET', WORKER + '/api/social/queue?limit=500', true);
   xhr.onreadystatechange = function() {
     if (xhr.readyState !== 4) return;
     try {
@@ -432,27 +207,28 @@ function loadQueue() {
       updateStats();
       renderQueue(allQueue);
       renderPlatformStatus();
-    } catch(e) { renderQueue([]); }
+    } catch(e) { if(list) list.innerHTML = '<div class="empty-state">Failed to load queue</div>'; }
   };
-  xhr.onerror = function() { renderQueue([]); };
+  xhr.onerror = function() { if(list) list.innerHTML = '<div class="empty-state">Network error</div>'; };
   xhr.send();
 }
 
 function updateStats() {
   var s = function(id,v){var e=document.getElementById(id);if(e)e.textContent=v;};
-  s('stat-total', allQueue.length);
-  s('stat-pending', allQueue.filter(function(i){return i.status==='pending';}).length);
-  s('stat-posted', allQueue.filter(function(i){return i.status==='posted';}).length);
-  s('stat-scheduled', allQueue.filter(function(i){return i.status==='scheduled';}).length);
+  s('s-total', allQueue.length);
+  s('s-pending', allQueue.filter(function(i){return i.status==='pending';}).length);
+  s('s-posted', allQueue.filter(function(i){return i.status==='posted';}).length);
+  s('s-scheduled', allQueue.filter(function(i){return i.status==='scheduled';}).length);
 }
 
-function filterQueue(el, filter) {
+function filterQ(el, filter) {
   currentFilter = filter;
-  var chips = document.querySelectorAll('.filter-chip');
-  for (var i=0;i<chips.length;i++) chips[i].classList.remove('active');
+  var chips = document.querySelectorAll('.fc');
+  for(var i=0;i<chips.length;i++) chips[i].classList.remove('active');
   el.classList.add('active');
   var filtered = filter === 'all' ? allQueue : allQueue.filter(function(item) {
     if (item.status === filter) return true;
+    if (item.platform === filter) return true;
     if (item.platforms && item.platforms[filter]) return true;
     return false;
   });
@@ -461,61 +237,52 @@ function filterQueue(el, filter) {
 
 function renderQueue(items) {
   var list = document.getElementById('queue-list');
+  var countEl = document.getElementById('showing-count');
   if (!list) return;
-  list.innerHTML = '';
+  if (countEl) countEl.textContent = 'Showing ' + items.length + ' of ' + allQueue.length;
   if (!items || items.length === 0) {
-    list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">Queue is empty. Generate posts or compose manually.</div>';
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div><div>No posts in queue. Use Atomise to generate content, or compose manually.</div></div>';
     return;
   }
-  for (var i=0;i<items.length;i++) {
-    (function(item) {
+  list.innerHTML = '';
+  items.forEach(function(item) {
+    (function(it) {
       var el = document.createElement('div');
-      el.className = 'queue-item';
+      el.className = 'q-item';
       var header = document.createElement('div');
-      header.className = 'queue-item-header';
-      var pills = document.createElement('div');
-      pills.className = 'platform-pills';
-      var platforms = item.platforms ? Object.keys(item.platforms) : (item.platform ? [item.platform] : ['post']);
-      platforms.forEach(function(p) {
-        var pill = document.createElement('span');
-        pill.className = 'platform-pill pill-' + p;
-        pill.textContent = (PLATFORM_ICONS[p]||'📝') + ' ' + p;
-        pills.appendChild(pill);
-      });
+      header.className = 'q-item-header';
+      // Platform pill
+      var platform = it.platform || (it.platforms ? Object.keys(it.platforms)[0] : 'post');
+      var pill = document.createElement('span');
+      pill.className = 'plt-pill pill-' + platform;
+      if (!document.querySelector('.pill-' + platform + '{')) pill.className = 'plt-pill pill-default';
+      pill.textContent = (PLAT_ICONS[platform]||'📝') + ' ' + (it.type || platform);
       var statusBadge = document.createElement('span');
-      var sc = item.status==='posted'?'badge-success':item.status==='scheduled'?'badge-accent':'badge-warning';
+      var sc = it.status==='posted'?'badge-success':it.status==='scheduled'?'badge-accent':'badge-warning';
       statusBadge.className = 'badge ' + sc;
       statusBadge.style.marginLeft = 'auto';
-      statusBadge.textContent = item.status || 'pending';
-      header.appendChild(pills);
+      statusBadge.textContent = it.status || 'pending';
+      header.appendChild(pill);
       header.appendChild(statusBadge);
-
+      // Content
       var content = document.createElement('div');
-      content.className = 'queue-item-content';
-      // Show first platform's content\nvar text = '';
-      if (item.platforms) { var keys = Object.keys(item.platforms); if (keys.length) text = item.platforms[keys[0]]; }
-      if (!text) text = item.content || '';
-      content.textContent = text.substring(0, 200) + (text.length > 200 ? '…' : '');
-
+      content.className = 'q-content';
+      var text = it.content || (it.platforms ? Object.values(it.platforms)[0] : '') || '';
+      content.textContent = text.substring(0, 300) + (text.length > 300 ? '...' : '');
+      // Footer
       var footer = document.createElement('div');
-      footer.className = 'queue-item-footer';
+      footer.className = 'q-footer';
       var time = document.createElement('span');
-      time.className = 'queue-time';
-      time.textContent = item.scheduledAt ? '📅 ' + new Date(item.scheduledAt).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : 'No schedule';
+      time.className = 'q-time';
+      time.textContent = it.scheduledAt ? '📅 ' + new Date(it.scheduledAt).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : 'No schedule';
       var actions = document.createElement('div');
-      actions.className = 'queue-actions';
-      if (item.status !== 'posted') {
+      actions.className = 'q-actions';
+      if (it.status !== 'posted') {
         var postBtn = document.createElement('button');
         postBtn.className = 'btn btn-sm btn-primary';
         postBtn.textContent = '🚀 Post';
         postBtn.title = 'Post now';
-        postBtn.onclick = function() {
-          var t = text;
-          postToPlatform(platforms[0]||'bluesky', t, item.id, function(ok,err) {
-            if (ok) { item.status='posted'; renderQueue(allQueue); Toast.success('Posted!'); }
-            else Toast.error('Failed: '+(err||'unknown'));
-          });
-        };
+        postBtn.onclick = function() { postItem(it); };
         actions.appendChild(postBtn);
       }
       var editBtn = document.createElement('button');
@@ -524,16 +291,13 @@ function renderQueue(items) {
       editBtn.title = 'Edit';
       editBtn.onclick = function() {
         var ta = document.getElementById('compose-text');
-        if (ta) { ta.value = text; updateCharCount(); }
+        if (ta) { ta.value = text; updateCC(); }
       };
       var delBtn = document.createElement('button');
       delBtn.className = 'btn btn-sm btn-ghost';
       delBtn.textContent = '🗑';
       delBtn.title = 'Delete';
-      delBtn.onclick = function() {
-        allQueue = allQueue.filter(function(q){return q.id!==item.id;});
-        updateStats(); renderQueue(allQueue);
-      };
+      delBtn.onclick = function() { deleteItem(it.id); };
       actions.appendChild(editBtn);
       actions.appendChild(delBtn);
       footer.appendChild(time);
@@ -542,173 +306,145 @@ function renderQueue(items) {
       el.appendChild(content);
       el.appendChild(footer);
       list.appendChild(el);
-    })(items[i]);
-  }
-}
-
-// ── Compose ───────────────────────────────────────────────────────────────────
-function addToQueue() {
-  var text = document.getElementById('compose-text').value.trim();
-  if (!text) { Toast.warning('Write something first'); return; }
-  var schedEl = document.getElementById('schedule-time');
-  var scheduledAt = schedEl && schedEl.value ? new Date(schedEl.value).toISOString() : new Date(Date.now()+3600000).toISOString();
-  var platforms = {};
-  composePlatforms.forEach(function(p) { platforms[p] = text; });
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/social/queue', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    Toast.success('Added to queue');
-    document.getElementById('compose-text').value = '';
-    updateCharCount();
-    loadQueue();
-  };
-  xhr.send(JSON.stringify({platforms: platforms, content: text, status: 'scheduled', scheduledAt: scheduledAt}));
-}
-
-function postNow() {
-  var text = document.getElementById('compose-text').value.trim();
-  if (!text) { Toast.warning('Write something first'); return; }
-  composePlatforms.forEach(function(p) {
-    postToPlatform(p, text, null, function(ok, err) {
-      if (ok) Toast.success('Posted to ' + p + '!');
-      else Toast.error(p + ' failed: ' + (err||'unknown'));
-    });
+    })(item);
   });
 }
 
-// ── AI assist ─────────────────────────────────────────────────────────────────
-function aiGenerate() {
-  var prompt = document.getElementById('ai-prompt').value.trim();
-  if (!prompt) { Toast.warning('Enter a prompt'); return; }
+// ── Post item ─────────────────────────────────────────────────────────────────
+function postItem(item) {
+  var text = item.content || (item.platforms ? Object.values(item.platforms)[0] : '') || '';
+  var platform = item.platform || 'bluesky';
+  log('info', 'Posting to ' + platform + '...');
   var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/chat', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try { var r=JSON.parse(xhr.responseText); var el=document.getElementById('compose-text'); if(el&&r.content){el.value=r.content;updateCharCount();} } catch(e) {}
-  };
-  xhr.send(JSON.stringify({messages:[{role:'system',content:'Write a social media post for Identity Partners. British English. Professional. Under 280 characters unless specified.'},{role:'user',content:prompt}],profile:'fast'}));
-}
-
-function aiImprove() {
-  var text = document.getElementById('compose-text').value.trim();
-  if (!text) { Toast.warning('Write something first'); return; }
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/chat', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try { var r=JSON.parse(xhr.responseText); var el=document.getElementById('compose-text'); if(el&&r.content){el.value=r.content;updateCharCount();} } catch(e) {}
-  };
-  xhr.send(JSON.stringify({messages:[{role:'system',content:'Improve this social media post. Keep under 280 characters. British English. Professional.'},{role:'user',content:text}],profile:'fast'}));
-}
-
-function aiHashtags() {
-  var text = document.getElementById('compose-text').value.trim();
-  if (!text) { Toast.warning('Write something first'); return; }
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/chat', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try { var r=JSON.parse(xhr.responseText); var el=document.getElementById('compose-text'); if(el&&r.content){el.value=text+'\n\n'+r.content;updateCharCount();} } catch(e) {}
-  };
-  xhr.send(JSON.stringify({messages:[{role:'system',content:'Generate 5 relevant hashtags. Return only hashtags space-separated.'},{role:'user',content:text}],profile:'fast'}));
-}
-
-function aiThread() {
-  var text = document.getElementById('compose-text').value.trim();
-  if (!text) { Toast.warning('Write something first'); return; }
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/chat', true);
+  xhr.open('POST', WORKER + '/api/social/post', true);
   xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.onreadystatechange = function() {
     if (xhr.readyState !== 4) return;
     try {
-      var r=JSON.parse(xhr.responseText);
-      if (r.content) {
-        // Add each thread post to queue
-        var posts = r.content.split(/\n\n+/).filter(function(p){return p.trim();});
-        posts.forEach(function(post,i) {
-          var xhr2 = new XMLHttpRequest();
-          xhr2.open('POST', WORKER + '/api/social/queue', true);
-          xhr2.setRequestHeader('Content-Type', 'application/json');
-          xhr2.onreadystatechange = function() { if(xhr2.readyState===4&&i===posts.length-1){loadQueue();Toast.success(posts.length+' thread posts queued');} };
-          xhr2.send(JSON.stringify({platforms:{bluesky:post},content:post,status:'pending',scheduledAt:new Date(Date.now()+(i+1)*300000).toISOString()}));
-        });
+      var r = JSON.parse(xhr.responseText);
+      var results = r.results || {};
+      var posted = false;
+      Object.keys(results).forEach(function(p) {
+        if (!results[p].error) { log('ok', p + ': posted'); posted = true; }
+        else log('err', p + ': ' + results[p].error);
+      });
+      if (posted) {
+        item.status = 'posted';
+        item.postedAt = new Date().toISOString();
+        // Update in KV
+        var patchXhr = new XMLHttpRequest();
+        patchXhr.open('PATCH', WORKER + '/api/social/queue/' + item.id.replace('queue:',''), true);
+        patchXhr.setRequestHeader('Content-Type', 'application/json');
+        patchXhr.send(JSON.stringify({status:'posted', postedAt:item.postedAt}));
+        updateStats();
+        renderQueue(allQueue);
+        Toast.success('Posted!');
       }
-    } catch(e) {}
+    } catch(e) { log('err', 'Failed: ' + e.message); }
   };
-  xhr.send(JSON.stringify({messages:[{role:'system',content:'Expand this into a Bluesky thread. 5-7 posts, each under 280 characters. Number them 1/5 etc. Separate posts with blank lines.'},{role:'user',content:text}],profile:'fast'}));
+  xhr.onerror = function() { log('err', 'Network error'); };
+  xhr.send(JSON.stringify({text: text.substring(0, PLAT_LIMITS[platform]||280), platforms: [platform]}));
 }
 
-// ── Platform status ───────────────────────────────────────────────────────────
-function renderPlatformStatus() {
-  var el = document.getElementById('platform-status');
-  if (!el) return;
-  var platforms = [
-    {name:'Bluesky', icon:'🦋', connected:true, note:'Active'},
-    {name:'X / Twitter', icon:'𝕏', connected:false, note:'OAuth needed'},
-    {name:'LinkedIn', icon:'💼', connected:false, note:'OAuth needed'},
-    {name:'Instagram', icon:'📸', connected:false, note:'Meta OAuth needed'},
-    {name:'Facebook', icon:'👥', connected:false, note:'Meta OAuth needed'},
-    {name:'Threads', icon:'🧵', connected:false, note:'Meta OAuth needed'},
-  ];
-  el.innerHTML = '';
-  platforms.forEach(function(p) {
-    var row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);';
-    var left = document.createElement('span');
-    left.textContent = p.icon + ' ' + p.name;
-    var right = document.createElement('span');
-    right.className = p.connected ? 'badge badge-success' : 'badge badge-muted';
-    right.textContent = p.connected ? '✓ ' + p.note : p.note;
-    row.appendChild(left); row.appendChild(right);
-    el.appendChild(row);
-  });
+function postAllPending() {
+  var pending = allQueue.filter(function(i){return i.status==='pending'||i.status==='scheduled';});
+  if (pending.length === 0) { Toast.warning('No pending posts'); return; }
+  log('info', 'Posting ' + pending.length + ' items...');
+  pending.forEach(function(item) { postItem(item); });
 }
 
-// ── Utilities ─────────────────────────────────────────────────────────────────
-function log(type, msg) {
-  var el = document.getElementById('posting-log');
-  if (!el) return;
-  var line = document.createElement('div');
-  line.className = 'log-' + type;
-  line.textContent = '[' + new Date().toLocaleTimeString('en-GB') + '] ' + msg;
-  el.appendChild(line);
-  el.scrollTop = el.scrollHeight;
+function deleteItem(id) {
+  var cleanId = (id||'').replace('queue:','');
+  var xhr = new XMLHttpRequest();
+  xhr.open('DELETE', WORKER + '/api/social/queue/' + cleanId, true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      allQueue = allQueue.filter(function(i){return i.id !== id;});
+      updateStats();
+      renderQueue(allQueue);
+    }
+  };
+  xhr.send();
 }
 
 function clearPosted() {
-  allQueue = allQueue.filter(function(i){return i.status!=='posted';});
-  updateStats(); renderQueue(allQueue);
-  Toast.info('Cleared posted items');
+  var posted = allQueue.filter(function(i){return i.status==='posted';});
+  if (posted.length === 0) { Toast.info('No posted items to clear'); return; }
+  posted.forEach(function(item) { deleteItem(item.id); });
+  Toast.success('Cleared ' + posted.length + ' posted items');
 }
 
-function exportQueue() {
-  var rows = ['ID,Type,Platform,Content,Status,Scheduled'];
-  allQueue.forEach(function(item) {
-    var platforms = item.platforms ? Object.keys(item.platforms) : [''];
-    platforms.forEach(function(p) {
-      var text = (item.platforms&&item.platforms[p])||item.content||'';
-      rows.push([item.id,item.type||'post',p,'"'+text.replace(/"/g,'""')+'"',item.status,item.scheduledAt||''].join(','));
-    });
-  });
-  var blob = new Blob([rows.join('\n')],{type:'text/csv'});
-  var a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='social-queue-'+Date.now()+'.csv'; a.click();
-}
+// ── Bulk generation ───────────────────────────────────────────────────────────
+function bulkGenerate() {
+  var topic = document.getElementById('bulk-topic').value.trim();
+  if (!topic) { Toast.warning('Enter a topic or paste source text'); return; }
+  var count = parseInt(document.getElementById('bulk-count').value);
+  var freq = document.getElementById('bulk-freq').value;
+  if (bulkPlatforms.length === 0) { Toast.warning('Select at least one platform'); return; }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', function() {
-  var mount = document.getElementById('sidebar-mount');
-  if (mount) { var sb=buildSidebar('/social-queue/'); mount.parentNode.insertBefore(sb,mount); mount.parentNode.removeChild(mount); }
-  // Set default schedule time to 1 hour from now
-  var schedEl = document.getElementById('schedule-time');
-  if (schedEl) schedEl.value = new Date(Date.now()+3600000).toISOString().slice(0,16);
-  loadQueue();
-});
-</script>
-</body>
-</html>
+  var btn = document.getElementById('bulk-btn');
+  var prog = document.getElementById('bulk-prog');
+  var fill = document.getElementById('bulk-fill');
+  var lbl = document.getElementById('bulk-lbl');
+  if (btn) btn.disabled = true;
+  if (prog) prog.style.display = 'block';
+  generatedBatch = [];
+
+  var batchSize = 20;
+  var batches = Math.ceil(count / batchSize);
+  var completed = 0;
+  var totalQueued = 0;
+
+  log('info', 'Generating ' + count + ' posts across ' + bulkPlatforms.join(', ') + '...');
+
+  function runBatch(batchNum) {
+    if (batchNum >= batches) {
+      if (btn) btn.disabled = false;
+      if (prog) prog.style.display = 'none';
+      log('ok', 'Generated and queued ' + totalQueued + ' posts');
+      Toast.success(totalQueued + ' posts queued!');
+      loadQueue();
+      return;
+    }
+
+    var thisBatch = Math.min(batchSize, count - batchNum * batchSize);
+    var pct = Math.round((batchNum / batches) * 100);
+    if (fill) fill.style.width = pct + '%';
+    if (lbl) lbl.textContent = 'Batch ' + (batchNum+1) + ' of ' + batches + ' (' + (batchNum*batchSize) + '/' + count + ' posts)...';
+
+    var freqMs = {
+      '3x': 8*3600000, '2x': 12*3600000, 'daily': 24*3600000, 'weekdays': 24*3600000
+    }[freq] || 12*3600000;
+
+    var platformInstructions = bulkPlatforms.map(function(p) {
+      var limit = PLAT_LIMITS[p] || 280;
+      return p + ': under ' + limit + ' chars';
+    }).join('; ');
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', WORKER + '/api/chat', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.timeout = 90000;
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4) return;
+      try {
+        var r = JSON.parse(xhr.responseText);
+        var content = r.content || '';
+        // Parse posts from response
+        var posts = [];
+        try {
+          var m = content.match(/\[[\s\S]*?\]/);
+          if (m) posts = JSON.parse(m[0]);
+        } catch(e) {
+          // Split by newlines as fallback
+          posts = content.split('\n').filter(function(l){return l.trim().length > 20;}).slice(0, thisBatch);
+        }
+
+        // Save each post to KV queue immediately
+        var saveCount = 0;
+        posts.forEach(function(post, i) {
+          var text = typeof post === 'string' ? post : (post.content || JSON.stringify(post));
+          text = text.replace(/^\d+\.\s*/, '').replace(/^["']|["']$/g, '').trim();
+          if (!text || text.length < 10) return;
+
+          >

@@ -804,7 +804,7 @@ async function atomise(env, text, profile) {
     return [cleaned];
   }
 
-  var sys = {role:'system', content:'You are a content strategist for Identity Partners. Write in British English. Professional, warm, evidence-based. No sycophancy. Always include a CTA to identitypartners.uk or the booking page. IMPORTANT: When asked to return JSON arrays, return ONLY the raw JSON array with no markdown formatting, no code blocks, no explanation.'};
+  var sys = {role:'system', content:'You are a content strategist for Identity Partners. Write in British English. Professional, warm, evidence-based. No sycophancy. Always include a CTA to www.identitypartners.uk or the booking page at www.www.identitypartners.uk/book. IMPORTANT: When asked to return JSON arrays, return ONLY the raw JSON array with no markdown formatting, no code blocks, no explanation.'};
   var assets = {};
   var p = profile || 'balanced';
   var wordCount = text.trim().split(/\s+/).length;
@@ -853,7 +853,7 @@ async function atomise(env, text, profile) {
     orchestrate(env, [sys, prompt('Write an Instagram caption, 100-150 words, warm and engaging, end with 10 relevant hashtags on a new line, include CTA (link in bio).')], p, 'drafting', null)
       .then(function(r){ assets.instagram = r.content; }),
 
-    orchestrate(env, [sys, prompt('Write a Facebook post, 100-150 words, conversational and community-focused, ask a question to encourage comments, include link to identitypartners.uk.')], p, 'drafting', null)
+    orchestrate(env, [sys, prompt('Write a Facebook post, 100-150 words, conversational and community-focused, ask a question to encourage comments, include link to www.identitypartners.uk.')], p, 'drafting', null)
       .then(function(r){ assets.facebook = r.content; }),
   ]);
 
@@ -877,16 +877,16 @@ async function atomise(env, text, profile) {
   // Batch 4: Long-form articles (600+ words input only)
   if (isRich) {
     await Promise.allSettled([
-      orchestrate(env, [sys, prompt('Write a LinkedIn article, 600-800 words, professional and evidence-based, compelling headline, introduction, 3-4 subheadings, conclusion with CTA to identitypartners.uk.')], p, 'drafting', null)
+      orchestrate(env, [sys, prompt('Write a LinkedIn article, 600-800 words, professional and evidence-based, compelling headline, introduction, 3-4 subheadings, conclusion with CTA to www.identitypartners.uk.')], p, 'drafting', null)
         .then(function(r){ assets.linkedin_article = r.content; }),
 
-      orchestrate(env, [sys, prompt('Write a Substack newsletter article, 400-600 words, warm and personal, subject line, personal opening, 2-3 sections, closing reflection, CTA to identitypartners.uk/book.')], p, 'drafting', null)
+      orchestrate(env, [sys, prompt('Write a Substack newsletter article, 400-600 words, warm and personal, subject line, personal opening, 2-3 sections, closing reflection, CTA to www.identitypartners.uk/book.')], p, 'drafting', null)
         .then(function(r){ assets.substack_article = r.content; }),
 
       orchestrate(env, [sys, prompt('Write a Reddit post for r/mentalhealth or r/addiction, 150-250 words, community-first not promotional, share insight or ask a question, suggest a subreddit.')], p, 'drafting', null)
         .then(function(r){ assets.reddit = r.content; }),
 
-      orchestrate(env, [sys, prompt('Write a WhatsApp/Telegram broadcast message, under 200 words, personal and direct, warm tone, include link to identitypartners.uk/book.')], p, 'drafting', null)
+      orchestrate(env, [sys, prompt('Write a WhatsApp/Telegram broadcast message, under 200 words, personal and direct, warm tone, include link to www.identitypartners.uk/book.')], p, 'drafting', null)
         .then(function(r){ assets.broadcast = r.content; }),
     ]);
   }
@@ -1224,14 +1224,29 @@ export default {
 
     // Social queue
     if (path === '/api/social/queue' && request.method === 'GET') {
-      if (!env.PRISM_KV) return json({queue:[]}, 200, origin);
-      var list = await env.PRISM_KV.list({prefix:'queue:'});
+      if (!env.PRISM_KV) return json({queue:[], total:0}, 200, origin);
+      var status_filter = url.searchParams.get('status') || '';
+      var limit = parseInt(url.searchParams.get('limit') || '500');
+      var cursor = url.searchParams.get('cursor') || undefined;
+      // Get all queue items (KV list supports up to 1000 per call)
+      var listOpts = {prefix:'queue:', limit: Math.min(limit, 1000)};
+      if (cursor) listOpts.cursor = cursor;
+      var list = await env.PRISM_KV.list(listOpts);
       var queue = [];
-      for (var i = 0; i < list.keys.length; i++) {
-        var val = await env.PRISM_KV.get(list.keys[i].name);
-        if (val) queue.push(JSON.parse(val));
-      }
-      return json({queue: queue.sort(function(a,b){return new Date(a.scheduledAt)-new Date(b.scheduledAt);})}, 200, origin);
+      // Fetch all values in parallel for speed
+      var fetches = list.keys.map(function(k) {
+        return env.PRISM_KV.get(k.name).then(function(val) {
+          if (val) {
+            try {
+              var item = JSON.parse(val);
+              if (!status_filter || item.status === status_filter) queue.push(item);
+            } catch(e) {}
+          }
+        });
+      });
+      await Promise.all(fetches);
+      queue.sort(function(a,b){ return new Date(a.scheduledAt||a.created) - new Date(b.scheduledAt||b.created); });
+      return json({queue: queue, total: queue.length, has_more: list.list_complete === false, cursor: list.cursor}, 200, origin);
     }
     if (path === '/api/social/queue' && request.method === 'POST') {
       var body = await request.json();
@@ -2714,6 +2729,30 @@ export default {
         return json({voices:(data.voices||[]).map(function(v){return {id:v.voice_id,name:v.name,category:v.category};})}, 200, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
+
+    if (path.startsWith('/api/social/queue/') && request.method === 'DELETE') {
+      var qid = path.slice(18);
+      if (env.PRISM_KV) await env.PRISM_KV.delete('queue:' + qid);
+      return json({success:true}, 200, origin);
+    }
+
+    // Mark queue item as posted
+    if (path.startsWith('/api/social/queue/') && request.method === 'PATCH') {
+      var qid = path.slice(18);
+      try {
+        var body = await request.json();
+        if (env.PRISM_KV) {
+          var existing = await env.PRISM_KV.get('queue:' + qid);
+          if (existing) {
+            var item = JSON.parse(existing);
+            Object.assign(item, body);
+            await env.PRISM_KV.put('queue:' + qid, JSON.stringify(item));
+          }
+        }
+        return json({success:true}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
     return json({error:'Not found', path:path}, 404, origin);
   }
 };
