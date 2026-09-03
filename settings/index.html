@@ -276,11 +276,62 @@ function saveDisplay() {
   Toast.success('Display settings saved');
 }
 
+function checkZohoStatus() {
+  var list = document.getElementById('zoho-status-list');
+  if (!list) return;
+  fetch('https://prism-api.identitypartners.workers.dev/api/zoho/status')
+  .then(function(r) { return r.json(); })
+  .then(function(r) {
+    var status = r.status || {};
+    var services = [
+      {key:'mail', label:'Zoho Mail', icon:'📧', href:'/oauth/zoho/mail'},
+      {key:'calendar', label:'Zoho Calendar', icon:'📅', href:'/oauth/zoho/calendar'},
+      {key:'crm', label:'Zoho CRM', icon:'👥', href:'/oauth/zoho/crm'},
+    ];
+    list.innerHTML = '';
+    services.forEach(function(svc) {
+      var connected = status[svc.key] && status[svc.key].connected;
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);';
+      var left = document.createElement('div');
+      left.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;';
+      left.textContent = svc.icon + ' ' + svc.label;
+      var right = document.createElement('div');
+      right.style.cssText = 'display:flex;align-items:center;gap:8px;';
+      var badge = document.createElement('span');
+      badge.className = connected ? 'badge badge-success' : 'badge badge-muted';
+      badge.textContent = connected ? '✓ Connected' : 'Not connected';
+      right.appendChild(badge);
+      if (!connected) {
+        var btn = document.createElement('a');
+        btn.href = svc.href;
+        btn.className = 'btn btn-sm btn-primary';
+        btn.textContent = 'Connect';
+        btn.title = 'Connect ' + svc.label;
+        right.appendChild(btn);
+      } else {
+        var reconBtn = document.createElement('a');
+        reconBtn.href = svc.href;
+        reconBtn.className = 'btn btn-sm btn-ghost';
+        reconBtn.textContent = '↺ Reconnect';
+        reconBtn.title = 'Reconnect ' + svc.label;
+        right.appendChild(reconBtn);
+      }
+      row.appendChild(left); row.appendChild(right);
+      list.appendChild(row);
+    });
+  })
+  .catch(function(e) {
+    if (list) list.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);">Could not check status. <a href="/oauth/zoho/calendar" style="color:var(--accent);">Connect Calendar</a> · <a href="/oauth/zoho/mail" style="color:var(--accent);">Connect Mail</a> · <a href="/oauth/zoho/crm" style="color:var(--accent);">Connect CRM</a></div>';
+  });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
   if (mount) { var sb = buildSidebar('/settings/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
   initThemeSelect();
   initKeyFields();
+  checkZohoStatus();
   try {
     var savedProfile = localStorage.getItem('prism-default-profile');
     if (savedProfile) document.getElementById('profile-select').value = savedProfile;
