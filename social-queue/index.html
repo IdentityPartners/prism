@@ -156,17 +156,31 @@ function loadQueue() {
   if(list) list.innerHTML = '<div class="empty-state"><div class="spinner"></div><div style="margin-top:8px;">Loading...</div></div>';
   var xhr = new XMLHttpRequest();
   xhr.open('GET', WORKER + '/api/social/queue?limit=500', true);
+  xhr.timeout = 15000;
   xhr.onreadystatechange = function() {
     if (xhr.readyState !== 4) return;
     try {
-      var r = JSON.parse(xhr.responseText);
+      var text = xhr.responseText;
+      // Handle proxy responses that aren't JSON
+      if (!text || text.indexOf('{') < 0) {
+        if(list) list.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div><div>Queue is empty or unreachable.<br><small style="color:var(--fg-muted);">Status: ' + xhr.status + '</small></div></div>';
+        return;
+      }
+      var r = JSON.parse(text);
       allQueue = r.queue || [];
       updateStats();
       renderQueue(allQueue);
       renderPlatformStatus();
-    } catch(e) { if(list) list.innerHTML = '<div class="empty-state">Failed to load queue</div>'; }
+    } catch(e) {
+      if(list) list.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠</div><div>Could not parse queue response.<br><small style="color:var(--fg-muted);">' + e.message + '</small></div></div>';
+    }
   };
-  xhr.onerror = function() { if(list) list.innerHTML = '<div class="empty-state">Network error</div>'; };
+  xhr.ontimeout = function() {
+    if(list) list.innerHTML = '<div class="empty-state"><div class="empty-icon">⏱</div><div>Queue request timed out.<br><button class="btn btn-sm btn-secondary" onclick="loadQueue()" style="margin-top:8px;">Retry</button></div></div>';
+  };
+  xhr.onerror = function() {
+    if(list) list.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠</div><div>Network error loading queue.<br><button class="btn btn-sm btn-secondary" onclick="loadQueue()" style="margin-top:8px;">Retry</button></div></div>';
+  };
   xhr.send();
 }
 

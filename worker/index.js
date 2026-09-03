@@ -830,16 +830,16 @@ async function atomise(env, text, profile, variations) {
 
   // Batch 1: Short-form (always generated)
   await Promise.allSettled([
-    orchestrate(env, [sys, prompt('Extract ' + qCount + ' powerful standalone quotes, each 15-25 words, suitable for a visual quote card, no hashtags. Return as JSON array of strings only.')], p, 'drafting', null)
+    orchestrate(env, [sys, prompt('Extract ' + qCount + ' powerful standalone quotes, each 15-25 words, suitable for a visual quote card, no hashtags. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, 'drafting', null)
       .then(function(r){ var _equotes=extractArray(r.content);assets.quotes=_equotes||[r.content]; }),
 
-    orchestrate(env, [sys, prompt('Write ' + postCount + ' standalone Bluesky posts, each under 280 characters, conversational, no hashtags in body, each works independently. Return as JSON array of strings only.')], p, 'drafting', null)
+    orchestrate(env, [sys, prompt('Write ' + postCount + ' standalone Bluesky posts, each under 280 characters, conversational, no hashtags in body, each works independently. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, 'drafting', null)
       .then(function(r){ var _ebluesky=extractArray(r.content);assets.bluesky=_ebluesky||[r.content]; }),
 
-    orchestrate(env, [sys, prompt('Write ' + postCount + ' standalone X/Twitter posts, each strictly under 280 characters, punchy, 1-2 hashtags per post. Return as JSON array of strings only.')], p, 'drafting', null)
+    orchestrate(env, [sys, prompt('Write ' + postCount + ' standalone X/Twitter posts, each strictly under 280 characters, punchy, 1-2 hashtags per post. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, 'drafting', null)
       .then(function(r){ var _etwitter=extractArray(r.content);assets.twitter=_etwitter||[r.content]; }),
 
-    orchestrate(env, [sys, prompt('Write ' + threadCount + ' Threads notes, each under 500 characters, casual and authentic, no hashtags. Return as JSON array of strings only.')], p, 'drafting', null)
+    orchestrate(env, [sys, prompt('Write ' + threadCount + ' Threads notes, each under 500 characters, casual and authentic, no hashtags. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, 'drafting', null)
       .then(function(r){ var _ethreads=extractArray(r.content);assets.threads=_ethreads||[r.content]; }),
   ]);
 
@@ -848,7 +848,7 @@ async function atomise(env, text, profile, variations) {
     orchestrate(env, [sys, prompt('Write a LinkedIn post, 150-200 words, professional, hook in first line, 3-5 hashtags at end, clear CTA.')], p, 'drafting', null)
       .then(function(r){ assets.linkedin_post = r.content; }),
 
-    orchestrate(env, [sys, prompt('Create a ' + slideCount + '-slide LinkedIn carousel. Slide 1: hook/title. Middle slides: one key insight each (title max 8 words, body max 25 words). Last slide: CTA. Return as JSON array of {title,body} objects only.')], p, 'drafting', null)
+    orchestrate(env, [sys, prompt('Create a ' + slideCount + '-slide LinkedIn carousel. Return ONLY a raw JSON array like this: [{"title":"Slide title","body":"Slide body text"},{"title":"Next slide","body":"Body text"}]. No markdown, no code blocks, no explanation. Just the JSON array.')], p, 'drafting', null)
       .then(function(r){ try{assets.linkedin_carousel=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.linkedin_carousel=[{title:'Key Insight',body:r.content}];} }),
 
     orchestrate(env, [sys, prompt('Write an Instagram caption, 100-150 words, warm and engaging, end with 10 relevant hashtags on a new line, include CTA (link in bio).')], p, 'drafting', null)
@@ -861,7 +861,7 @@ async function atomise(env, text, profile, variations) {
   // Batch 3: Medium-form (200+ words input)
   if (isMedium) {
     await Promise.allSettled([
-      orchestrate(env, [sys, prompt('Write ' + threadCount + ' Substack Notes, each under 300 characters, teaser that makes people want to read more. Return as JSON array of strings only.')], p, 'drafting', null)
+      orchestrate(env, [sys, prompt('Write ' + threadCount + ' Substack Notes, each under 300 characters, teaser that makes people want to read more. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, 'drafting', null)
         .then(function(r){ var _esubstack_note=extractArray(r.content);assets.substack_note=_esubstack_note||[r.content]; }),
 
       orchestrate(env, [sys, prompt('Write a Tumblr post, 200-300 words, creative and thoughtful, include relevant tags at end in format #tag1 #tag2.')], p, 'drafting', null)
