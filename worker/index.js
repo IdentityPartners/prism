@@ -428,7 +428,7 @@ async function runAgenticPipeline(env, config) {
   async function askPM(question, context) {
     pmHistory.push({ role: "user", content: "AGENT QUERY: " + question + (context ? "\n\nContext: " + context : "") });
     var pmMessages = [
-      { role: "system", content: "You are the Programme Manager for an agentic AI pipeline running for Identity Partners. You coordinate between models, answer their questions, and modify the pipeline if something is not working. You have full knowledge of the pipeline steps, the IP brand guidelines, and the social media strategy. British English. Be direct and specific. No sycophancy. RULES: Never describe actions - execute them using available tools. Never invent business metrics, engagement numbers, or meeting outcomes. Never say I would... - do it. Never hallucinate data. If a tool is unavailable, say so plainly and escalate. You are an executor, not a consultant." },
+      { role: "system", content: "You are the Programme Manager for an agentic AI pipeline running for Identity Partners. You coordinate between models, answer their questions, and modify the pipeline if something is not working. You have full knowledge of the pipeline steps, the IP brand guidelines, and the social media strategy. British English. Be direct and specific. No sycophancy." },
       ...pmHistory
     ];
     var pmResult = await orchestrate(env, pmMessages, "balanced", "agent_task", null);
@@ -2048,7 +2048,7 @@ async function atomise(env, text, profile, variations) {
   return assets;
 }
 __name(atomise, "atomise");
-async function postViaBuffer(env, text, platforms, imageUrl) {
+async function postViaBuffer(env, text, platforms) {
   var bufferKey = env.BUFFER_API_KEY || env.buffer_api_key;
   if (!bufferKey) return { results: {}, errors: { error: "BUFFER_API_KEY not set" } };
   var channelMap = {};
@@ -2082,17 +2082,16 @@ async function postViaBuffer(env, text, platforms, imageUrl) {
     if (service === "twitter") postText = text.substring(0, 280);
     if (service === "instagram") postText = text.substring(0, 2200);
     var metadataStr = "";
-    if (service === "instagram" && !imageUrl) {
-      errors[platform] = "Instagram requires an image URL. Pass imageUrl parameter or use /api/social/post-with-canvas.";
+    if (service === "instagram") {
+      errors[platform] = "Instagram requires an image. Use Refract canvas previews, download, and post via Buffer.";
       continue;
     }
     if (service === "facebook") {
       metadataStr = ", metadata:{facebook:{type:post}}";
     }
-    // Include image asset when imageUrl provided (fixes X/Twitter image attachment)
-    var assetsStr = imageUrl ? "assets:[{image:{url:" + JSON.stringify(imageUrl) + "}}]" : "assets:[]";
+    var assetsStr = "assets:[]";
     var cleanMetaStr = metadataStr;
-    if (!imageUrl && metadataStr.includes("assets:[{")) {
+    if (metadataStr.includes("assets:[{")) {
       var assetMatch = metadataStr.match(/assets:\[\{[^\]]+\}\]/);
       if (assetMatch) {
         assetsStr = assetMatch[0];
@@ -2119,22 +2118,6 @@ async function postViaBuffer(env, text, platforms, imageUrl) {
 }
 __name(postViaBuffer, "postViaBuffer");
 async function postToMastodon(env, text) {
-  // Rate limit: max 2 posts per day, minimum 30 minutes between posts (spec Section 4, item 17)
-  if (env.PRISM_KV) {
-    var now = Date.now();
-    var lastPostStr = await env.PRISM_KV.get("mastodon:last_post_time");
-    var dailyCountStr = await env.PRISM_KV.get("mastodon:daily_count:" + new Date().toISOString().slice(0,10));
-    var lastPost = lastPostStr ? parseInt(lastPostStr) : 0;
-    var dailyCount = dailyCountStr ? parseInt(dailyCountStr) : 0;
-    var minGapMs = 30 * 60 * 1000; // 30 minutes
-    if (now - lastPost < minGapMs) {
-      return { success: false, error: "Mastodon rate limit: minimum 30 minutes between posts. Next post allowed at " + new Date(lastPost + minGapMs).toISOString() };
-    }
-    if (dailyCount >= 2) {
-      return { success: false, error: "Mastodon rate limit: maximum 2 posts per day reached." };
-    }
-  }
-
   var token = env.MASTODON_ACCESS_TOKEN;
   var instance = env.MASTODON_INSTANCE || "https://mastodon.social";
   if (!token) return { error: "MASTODON_ACCESS_TOKEN not set" };
@@ -2146,14 +2129,7 @@ async function postToMastodon(env, text) {
       body: JSON.stringify({ status: postText, visibility: "public" })
     });
     var d = await r.json();
-    if (d.id) if (env.PRISM_KV) {
-      var nowTs = Date.now();
-      await env.PRISM_KV.put("mastodon:last_post_time", nowTs.toString(), { expirationTtl: 86400 });
-      var today = new Date().toISOString().slice(0,10);
-      var cnt = parseInt(await env.PRISM_KV.get("mastodon:daily_count:" + today) || "0");
-      await env.PRISM_KV.put("mastodon:daily_count:" + today, (cnt+1).toString(), { expirationTtl: 86400 });
-    }
-    return { success: true, id: d.id, url: d.url };
+    if (d.id) return { success: true, id: d.id, url: d.url };
     return { error: d.error || JSON.stringify(d).substring(0, 100) };
   } catch (e) {
     return { error: e.message };
@@ -2248,17 +2224,12 @@ var DEV_TEAM_PROMPTS = {
 };
 var index_default = {
   async scheduled(event, env, ctx) {
-    var now = /* @__PURE__ */ new Date();
-    var hour = now.getUTCHours();
-    var minute = now.getUTCMinutes();
-    // Spec Section 7: 08:00, 13:00, 20:00 UTC — fire within a 10-minute window of each
-    var slot = (hour === 8 && minute < 10) ? "morning"
-             : (hour === 13 && minute < 10) ? "lunchtime"
-             : (hour === 20 && minute < 10) ? "evening"
-             : null;
+    var hour = (/* @__PURE__ */ new Date()).getUTCHours();
+    var slot = hour >= 7 && hour < 9 ? "morning" : hour >= 12 && hour < 14 ? "lunchtime" : hour >= 19 && hour < 21 ? "evening" : null;
     if (slot) {
       try {
-        var req = new Request("https://prism-api.identitypartners.workers.dev/api/daily-pipeline", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slot }) });
+        // Media Manager owns the daily pipeline — routes through /api/mm/run
+        var req = new Request("https://prism-api.identitypartners.workers.dev/api/mm/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slot }) });
         await this.fetch(req, env, ctx);
       } catch (e) {
       }
@@ -2901,36 +2872,6 @@ var index_default = {
           var td = await env.PRISM_KV.get("oauth:linkedin:tokens");
           if (td) tokenData = JSON.parse(td);
         }
-        // Check token expiry (LinkedIn tokens expire after 60 days)
-        if (tokenData && tokenData.expires_at && Date.now() > tokenData.expires_at) {
-          // Attempt refresh if refresh_token available
-          if (tokenData.refresh_token && env.LINKEDIN_CLIENT_ID && env.LINKEDIN_CLIENT_SECRET) {
-            try {
-              var refreshResp = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(tokenData.refresh_token) +
-                      "&client_id=" + encodeURIComponent(env.LINKEDIN_CLIENT_ID || env.linkedin_client_id) +
-                      "&client_secret=" + encodeURIComponent(env.LINKEDIN_CLIENT_SECRET || env.linkedin_primary_client_secret)
-              });
-              if (refreshResp.ok) {
-                var refreshData = await refreshResp.json();
-                tokenData = {
-                  access_token: refreshData.access_token,
-                  refresh_token: refreshData.refresh_token || tokenData.refresh_token,
-                  expires_at: Date.now() + (refreshData.expires_in || 5184000) * 1000
-                };
-                if (env.PRISM_KV) await env.PRISM_KV.put("oauth:linkedin:tokens", JSON.stringify(tokenData));
-              } else {
-                tokenData = null; // Force reconnect
-              }
-            } catch (e) {
-              tokenData = null;
-            }
-          } else {
-            tokenData = null; // No refresh token — force reconnect
-          }
-        }
         if (!tokenData || !tokenData.access_token) return json({ error: "LinkedIn not connected. Go to /oauth/linkedin/callback to connect." }, 401, origin);
         var meResp = await fetch("https://api.linkedin.com/v2/userinfo", { headers: { "Authorization": "Bearer " + tokenData.access_token } });
         var me = await meResp.json();
@@ -2969,20 +2910,46 @@ var index_default = {
         var body = await request.json();
         var text = body.text || "";
         var platforms = body.platforms || ["bluesky"];
+        var imageUrl = body.imageUrl || null;
+        var bypassMM = body.bypassMM === true; // Only /api/mm/approve sets this
+
+        // All posts go through Media Manager queue unless bypassMM is set
+        // bypassMM is only set internally by /api/mm/approve
+        if (!bypassMM) {
+          var qRaw = env.PRISM_KV ? await env.PRISM_KV.get("mm:queue") : null;
+          var q = qRaw ? JSON.parse(qRaw) : [];
+          var newItem = {
+            id: "mm-" + Date.now() + "-" + Math.random().toString(36).slice(2,6),
+            text: text.substring(0, 2200),
+            platforms,
+            imageUrl,
+            status: "pending",
+            source: body.source || "direct",
+            createdAt: Date.now(),
+            scheduledFor: null,
+            notes: "Queued via /api/social/post — awaiting Media Manager approval"
+          };
+          q.push(newItem);
+          if (env.PRISM_KV) await env.PRISM_KV.put("mm:queue", JSON.stringify(q));
+          return json({
+            success: true,
+            queued: true,
+            itemId: newItem.id,
+            message: "Queued for Media Manager review. Approve at /social-queue/ or via /api/mm/approve."
+          }, 200, origin);
+        }
+
+        // bypassMM=true path — actual posting (called only by /api/mm/approve)
         var results = {};
+        var errors = {};
         for (var pi = 0; pi < platforms.length; pi++) {
           var platform = platforms[pi];
           try {
             if (platform === "x" || platform === "twitter" || platform === "facebook") {
               var _bufP = platform === "x" ? "twitter" : platform;
-              var _bufR = await postViaBuffer(env, text, [_bufP]);
-              if (!results) results = {};
-              if (!errors) errors = {};
-              if (_bufR.results && _bufR.results[_bufP]) {
-                results[platform] = _bufR.results[_bufP];
-              } else {
-                errors[platform] = _bufR.errors && _bufR.errors[_bufP] || _bufR.error || platform + " not connected in Buffer";
-              }
+              var _bufR = await postViaBuffer(env, text, [_bufP], imageUrl);
+              if (_bufR.results && _bufR.results[_bufP]) results[platform] = _bufR.results[_bufP];
+              else errors[platform] = (_bufR.errors && _bufR.errors[_bufP]) || _bufR.error || platform + " not connected in Buffer";
               continue;
             }
             if (platform === "mastodon") {
@@ -2993,36 +2960,17 @@ var index_default = {
             }
             if (platform === "bluesky") {
               results.bluesky = await postToBluesky(env, text);
-            } else if (platform === "x" || platform === "twitter") {
-              var bufXResult = await postViaBuffer(env, text, ["twitter"]);
-              if (bufXResult.results && (bufXResult.results.twitter || bufXResult.results.x)) {
-                results[platform] = bufXResult.results.twitter || bufXResult.results.x;
-              } else {
-                errors[platform] = bufXResult.errors && (bufXResult.errors.twitter || bufXResult.errors.x) || "X not connected in Buffer";
-              }
             } else if (platform === "linkedin") {
-              var liTokenData = null;
-              if (env.PRISM_KV) {
-                var litd = await env.PRISM_KV.get("oauth:linkedin:tokens");
-                if (litd) liTokenData = JSON.parse(litd);
-              }
-              if (liTokenData && liTokenData.access_token) {
-                var meR = await fetch("https://api.linkedin.com/v2/userinfo", { headers: { "Authorization": "Bearer " + liTokenData.access_token } });
-                var meD = await meR.json();
-                var liResp = await fetch("https://api.linkedin.com/v2/ugcPosts", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + liTokenData.access_token, "X-Restli-Protocol-Version": "2.0.0" }, body: JSON.stringify({ author: "urn:li:person:" + meD.sub, lifecycleState: "PUBLISHED", specificContent: { "com.linkedin.ugc.ShareContent": { shareCommentary: { text }, shareMediaCategory: "NONE" } }, visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" } }) });
-                results.linkedin = await liResp.json();
-              } else {
-                results.linkedin = { error: "Not connected -- visit /oauth/linkedin/callback" };
-              }
-            } else {
-              results[platform] = { error: "Platform not yet connected -- visit Platform Manager" };
+              var liR = await postToLinkedIn(env, text);
+              if (liR.success) results.linkedin = liR;
+              else errors.linkedin = liR.error || "LinkedIn post failed";
             }
-          } catch (pe) {
-            results[platform] = { error: pe.message };
+          } catch(e) {
+            errors[platform] = e.message;
           }
         }
-        return json({ success: true, results }, 200, origin);
-      } catch (e) {
+        return json({ success: true, results, errors }, 200, origin);
+      } catch(e) {
         return json({ error: e.message }, 500, origin);
       }
     }
@@ -4681,11 +4629,7 @@ var index_default = {
               var link = linkM ? linkM[1].trim() : "";
               var dateM = item2.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
               var date = dateM ? dateM[1].trim() : "";
-              // Extract image: try media:thumbnail, media:content, enclosure, then inline URL
-              var imgM = item2.match(/<media:thumbnail[^>]+url="([^"]+)"/i)
-                      || item2.match(/<media:content[^>]+url="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i)
-                      || item2.match(/<enclosure[^>]+url="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i)
-                      || item2.match(/url="(https?:\/\/[^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i);
+              var imgM = item2.match(/url="(https?:\/\/[^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i);
               var image = imgM ? imgM[1] : null;
               var descM = item2.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/);
               var desc = descM ? descM[1].replace(/<[^>]+>/g, "").trim().substring(0, 200) : "";
@@ -6587,7 +6531,300 @@ var index_default = {
         return json({ error: e.message }, 500, origin);
       }
     }
-    return json({ error: "Not found", path }, 404, origin);
+    
+    // ══════════════════════════════════════════════════════════════════════
+    // MEDIA MANAGER — owns all posting decisions (spec addition)
+    // Routes: /api/mm/chat  /api/mm/queue  /api/mm/approve  /api/mm/status
+    // ══════════════════════════════════════════════════════════════════════
+
+    // Media Manager chat — Simon talks to MM here
+    if (path === "/api/mm/chat" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var userMsg = (body.message || "").substring(0, 2000);
+        var sessionId = body.sessionId || "mm-default";
+
+        // Load MM conversation history from KV
+        var mmHistoryRaw = env.PRISM_KV ? await env.PRISM_KV.get("mm:history:" + sessionId) : null;
+        var mmHistory = mmHistoryRaw ? JSON.parse(mmHistoryRaw) : [];
+
+        // Load queue summary for context
+        var queueRaw = env.PRISM_KV ? await env.PRISM_KV.get("mm:queue") : null;
+        var queue = queueRaw ? JSON.parse(queueRaw) : [];
+        var pending = queue.filter(function(p) { return p.status === "pending"; });
+        var scheduled = queue.filter(function(p) { return p.status === "scheduled"; });
+        var posted = queue.filter(function(p) { return p.status === "posted"; });
+
+        var queueContext = "Current queue: " + pending.length + " pending, " +
+          scheduled.length + " scheduled, " + posted.length + " posted today.\n";
+        if (pending.length > 0) {
+          queueContext += "Pending items:\n" + pending.slice(0, 5).map(function(p, i) {
+            return (i+1) + ". [" + p.platforms.join(",") + "] " + (p.text || "").substring(0, 80) +
+              (p.imageUrl ? " [has image]" : "") + " — added " + new Date(p.createdAt).toLocaleString("en-GB");
+          }).join("\n");
+        }
+
+        var mmSystemPrompt = "You are the Media Manager for Identity Partners. You are embedded in the social media posting calendar. " +
+          "You are the sole gatekeeper for all content that goes out on behalf of Identity Partners. Nothing is published without your approval.\n\n" +
+          "YOUR RESPONSIBILITIES:\n" +
+          "- Review all content queued for posting\n" +
+          "- Approve, reject, reschedule, or edit posts before they go out\n" +
+          "- Enforce IP brand rules: mandatory hashtags (#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing), footer (hello@identitypartners.uk | www.identitypartners.uk/contact), no /book URL\n" +
+          "- Coordinate the posting schedule across platforms (X, Instagram, Facebook, Bluesky, LinkedIn)\n" +
+          "- Report on what went out, what failed, and why\n" +
+          "- Escalate only genuine decisions to Simon — never ask him to do anything technical\n" +
+          "- Manage the daily pipeline slots: 08:00 (morning), 13:00 (lunchtime), 20:00 (evening) UTC\n\n" +
+          "YOUR RULES:\n" +
+          "- British English throughout\n" +
+          "- Never post test strings or placeholder content\n" +
+          "- Never use www.identitypartners.uk/book\n" +
+          "- Never hallucinate engagement metrics or post performance\n" +
+          "- Never describe actions — execute them using the available tools\n" +
+          "- When Simon says 'go' or 'post it' or 'approve all' — execute immediately\n" +
+          "- When content is ready and approved, call /api/mm/approve with the item IDs\n\n" +
+          "AVAILABLE ACTIONS (tell Simon what you are doing):\n" +
+          "- approve:[id] — approve a queued item for immediate posting\n" +
+          "- schedule:[id]:[ISO datetime] — schedule a queued item\n" +
+          "- reject:[id]:[reason] — reject a queued item\n" +
+          "- edit:[id]:[new text] — edit a queued item's text\n" +
+          "- queue:[platform,platform]:[text] — add new item to queue\n\n" +
+          "CURRENT QUEUE STATUS:\n" + queueContext;
+
+        var messages = [
+          { role: "system", content: mmSystemPrompt },
+          ...mmHistory.slice(-10),
+          { role: "user", content: userMsg }
+        ];
+
+        var mmResult = await orchestrate(env, messages, "balanced", "agent_task", null);
+        var mmReply = mmResult.content || "I could not process that request.";
+
+        // Parse and execute any actions in the reply
+        var actionsExecuted = [];
+        var approveMatches = mmReply.match(/approve:([a-z0-9\-]+)/gi) || [];
+        for (var ai = 0; ai < approveMatches.length; ai++) {
+          var itemId = approveMatches[ai].split(":")[1];
+          var approveReq = new Request("https://prism-api.identitypartners.workers.dev/api/mm/approve", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Origin": "https://prism.identitypartners.uk" },
+            body: JSON.stringify({ itemId })
+          });
+          try {
+            var approveResp = await fetch(approveReq);
+            var approveData = await approveResp.json();
+            actionsExecuted.push({ action: "approve", itemId, result: approveData });
+          } catch(e) {
+            actionsExecuted.push({ action: "approve", itemId, error: e.message });
+          }
+        }
+
+        // Save updated history
+        mmHistory.push({ role: "user", content: userMsg });
+        mmHistory.push({ role: "assistant", content: mmReply });
+        if (mmHistory.length > 40) mmHistory = mmHistory.slice(-40);
+        if (env.PRISM_KV) await env.PRISM_KV.put("mm:history:" + sessionId, JSON.stringify(mmHistory), { expirationTtl: 86400 * 7 });
+
+        return json({ reply: mmReply, actionsExecuted, queueSummary: { pending: pending.length, scheduled: scheduled.length, posted: posted.length } }, 200, origin);
+      } catch(e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+
+    // Media Manager queue — get/add items
+    if (path === "/api/mm/queue" && request.method === "GET") {
+      try {
+        var qRaw = env.PRISM_KV ? await env.PRISM_KV.get("mm:queue") : null;
+        var q = qRaw ? JSON.parse(qRaw) : [];
+        // Clean up old posted items (keep last 7 days)
+        var cutoff = Date.now() - 7 * 86400000;
+        q = q.filter(function(item) { return item.status !== "posted" || item.postedAt > cutoff; });
+        return json({ queue: q, counts: {
+          pending: q.filter(function(i){ return i.status==="pending"; }).length,
+          scheduled: q.filter(function(i){ return i.status==="scheduled"; }).length,
+          posted: q.filter(function(i){ return i.status==="posted"; }).length,
+          rejected: q.filter(function(i){ return i.status==="rejected"; }).length
+        }}, 200, origin);
+      } catch(e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+
+    if (path === "/api/mm/queue" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var qRaw = env.PRISM_KV ? await env.PRISM_KV.get("mm:queue") : null;
+        var q = qRaw ? JSON.parse(qRaw) : [];
+        var newItem = {
+          id: "mm-" + Date.now() + "-" + Math.random().toString(36).slice(2,6),
+          text: (body.text || "").substring(0, 2200),
+          platforms: body.platforms || ["bluesky"],
+          imageUrl: body.imageUrl || null,
+          status: "pending",
+          source: body.source || "manual",
+          createdAt: Date.now(),
+          scheduledFor: body.scheduledFor || null,
+          notes: body.notes || ""
+        };
+        q.push(newItem);
+        if (env.PRISM_KV) await env.PRISM_KV.put("mm:queue", JSON.stringify(q));
+        return json({ success: true, item: newItem }, 200, origin);
+      } catch(e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+
+    // Media Manager approve — post an item immediately
+    if (path === "/api/mm/approve" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var itemId = body.itemId;
+        var qRaw = env.PRISM_KV ? await env.PRISM_KV.get("mm:queue") : null;
+        var q = qRaw ? JSON.parse(qRaw) : [];
+        var item = q.find(function(i){ return i.id === itemId; });
+        if (!item) return json({ error: "Item not found: " + itemId }, 404, origin);
+        if (item.status === "posted") return json({ error: "Already posted" }, 400, origin);
+
+        // Post via the appropriate route
+        var postResults = {};
+        var postErrors = {};
+
+        // Separate image platforms from text-only
+        var imagePlatforms = item.platforms.filter(function(p){ return p==="instagram"||p==="facebook"; });
+        var textPlatforms = item.platforms.filter(function(p){ return p!=="instagram"&&p!=="facebook"; });
+
+        // Post image platforms via post-with-canvas
+        if (imagePlatforms.length > 0) {
+          var pwcReq = new Request("https://prism-api.identitypartners.workers.dev/api/social/post-with-canvas", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Origin": "https://prism.identitypartners.uk" },
+            body: JSON.stringify({ text: item.text, platforms: imagePlatforms, prebuiltImageUrl: item.imageUrl || null })
+          });
+          var pwcResp = await fetch(pwcReq);
+          var pwcData = await pwcResp.json();
+          Object.assign(postResults, pwcData.results || {});
+          Object.assign(postErrors, pwcData.errors || {});
+        }
+
+        // Post text platforms via postViaBuffer
+        if (textPlatforms.length > 0) {
+          var bufferResults = await postViaBuffer(env, item.text, textPlatforms, item.imageUrl || null);
+          Object.assign(postResults, bufferResults.results || {});
+          Object.assign(postErrors, bufferResults.errors || {});
+        }
+
+        // Update item status
+        item.status = Object.keys(postResults).length > 0 ? "posted" : "failed";
+        item.postedAt = Date.now();
+        item.postResults = postResults;
+        item.postErrors = postErrors;
+        if (env.PRISM_KV) await env.PRISM_KV.put("mm:queue", JSON.stringify(q));
+
+        // Log to MM activity log
+        var logEntry = {
+          ts: Date.now(),
+          itemId,
+          action: "posted",
+          platforms: item.platforms,
+          results: postResults,
+          errors: postErrors
+        };
+        var logRaw = env.PRISM_KV ? await env.PRISM_KV.get("mm:log") : null;
+        var log = logRaw ? JSON.parse(logRaw) : [];
+        log.unshift(logEntry);
+        if (log.length > 100) log = log.slice(0, 100);
+        if (env.PRISM_KV) await env.PRISM_KV.put("mm:log", JSON.stringify(log));
+
+        return json({ success: true, item, results: postResults, errors: postErrors }, 200, origin);
+      } catch(e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+
+    // Media Manager status update (approve/reject/reschedule/edit)
+    if (path === "/api/mm/update" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var qRaw = env.PRISM_KV ? await env.PRISM_KV.get("mm:queue") : null;
+        var q = qRaw ? JSON.parse(qRaw) : [];
+        var item = q.find(function(i){ return i.id === body.itemId; });
+        if (!item) return json({ error: "Item not found" }, 404, origin);
+        if (body.action === "reject") { item.status = "rejected"; item.rejectReason = body.reason || ""; }
+        if (body.action === "schedule") { item.status = "scheduled"; item.scheduledFor = body.scheduledFor; }
+        if (body.action === "edit") { item.text = (body.text || item.text).substring(0, 2200); }
+        if (body.action === "platforms") { item.platforms = body.platforms || item.platforms; }
+        if (env.PRISM_KV) await env.PRISM_KV.put("mm:queue", JSON.stringify(q));
+        return json({ success: true, item }, 200, origin);
+      } catch(e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+
+    // Media Manager activity log
+    if (path === "/api/mm/log" && request.method === "GET") {
+      try {
+        var logRaw = env.PRISM_KV ? await env.PRISM_KV.get("mm:log") : null;
+        var log = logRaw ? JSON.parse(logRaw) : [];
+        return json({ log: log.slice(0, 50) }, 200, origin);
+      } catch(e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+
+    // Media Manager daily run — called by cron, reviews queue and posts scheduled items
+    if (path === "/api/mm/run" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var slot = body.slot || "morning";
+        var qRaw = env.PRISM_KV ? await env.PRISM_KV.get("mm:queue") : null;
+        var q = qRaw ? JSON.parse(qRaw) : [];
+        var now = Date.now();
+        var posted = [];
+        var skipped = [];
+
+        // Find items scheduled for this slot or overdue
+        var toPost = q.filter(function(item) {
+          if (item.status !== "scheduled" && item.status !== "pending") return false;
+          if (item.status === "scheduled" && item.scheduledFor) {
+            return new Date(item.scheduledFor).getTime() <= now;
+          }
+          // Pending items: post if this is the right slot and no post today yet
+          return item.status === "pending";
+        });
+
+        // Limit to 1 item per slot to avoid spam
+        var toPostNow = toPost.slice(0, 1);
+
+        for (var ti = 0; ti < toPostNow.length; ti++) {
+          var item = toPostNow[ti];
+          var approveReq = new Request("https://prism-api.identitypartners.workers.dev/api/mm/approve", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Origin": "https://prism.identitypartners.uk" },
+            body: JSON.stringify({ itemId: item.id })
+          });
+          var approveResp = await fetch(approveReq);
+          var approveData = await approveResp.json();
+          posted.push({ id: item.id, results: approveData.results, errors: approveData.errors });
+        }
+
+        // If queue is empty, generate content via the daily pipeline and queue it
+        if (toPost.length === 0) {
+          var pipelineReq = new Request("https://prism-api.identitypartners.workers.dev/api/daily-pipeline", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Origin": "https://prism.identitypartners.uk" },
+            body: JSON.stringify({ slot, mmMode: true })
+          });
+          var pipelineResp = await fetch(pipelineReq);
+          var pipelineData = await pipelineResp.json();
+          skipped.push("Queue empty — triggered daily pipeline for " + slot);
+        }
+
+        return json({ success: true, slot, posted, skipped }, 200, origin);
+      } catch(e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+
+return json({ error: "Not found", path }, 404, origin);
   }
 };
 export {
