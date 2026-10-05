@@ -20,6 +20,9 @@ canvas#hw { position:absolute; top:0; left:0; touch-action:none; }
 .hw-btn { padding:5px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; background:var(--bg-surface); color:var(--fg-secondary); cursor:pointer; transition:all 0.15s; }
 .hw-btn.active { background:var(--accent-light); border-color:var(--accent); color:var(--accent); }
 </style>
+<script>
+(function(){var m={"ink-canvas":"hw","text-layer":"ocr-result"};var _g=document.getElementById.bind(document);document.getElementById=function(id){return _g(m[id]||id);};})();
+</script>
 </head>
 <body>
 <div class="prism-shell">
