@@ -2118,6 +2118,22 @@ async function postViaBuffer(env, text, platforms) {
 }
 __name(postViaBuffer, "postViaBuffer");
 async function postToMastodon(env, text) {
+  // Rate limit: max 2 posts per day, minimum 30 minutes between posts (spec item 17)
+  if (env.PRISM_KV) {
+    var now = Date.now();
+    var lastPostStr = await env.PRISM_KV.get("mastodon:last_post_time");
+    var dailyCountStr = await env.PRISM_KV.get("mastodon:daily_count:" + new Date().toISOString().slice(0,10));
+    var lastPost = lastPostStr ? parseInt(lastPostStr) : 0;
+    var dailyCount = dailyCountStr ? parseInt(dailyCountStr) : 0;
+    var minGapMs = 30 * 60 * 1000;
+    if (now - lastPost < minGapMs) {
+      return { success: false, error: "Mastodon rate limit: minimum 30 minutes between posts. Next allowed at " + new Date(lastPost + minGapMs).toISOString() };
+    }
+    if (dailyCount >= 2) {
+      return { success: false, error: "Mastodon rate limit: maximum 2 posts per day reached." };
+    }
+  }
+
   var token = env.MASTODON_ACCESS_TOKEN;
   var instance = env.MASTODON_INSTANCE || "https://mastodon.social";
   if (!token) return { error: "MASTODON_ACCESS_TOKEN not set" };
@@ -2129,7 +2145,14 @@ async function postToMastodon(env, text) {
       body: JSON.stringify({ status: postText, visibility: "public" })
     });
     var d = await r.json();
-    if (d.id) return { success: true, id: d.id, url: d.url };
+    if (d.id) if (env.PRISM_KV) {
+      var nowTs = Date.now();
+      await env.PRISM_KV.put("mastodon:last_post_time", nowTs.toString(), { expirationTtl: 86400 });
+      var today = new Date().toISOString().slice(0,10);
+      var cnt = parseInt(await env.PRISM_KV.get("mastodon:daily_count:" + today) || "0");
+      await env.PRISM_KV.put("mastodon:daily_count:" + today, (cnt+1).toString(), { expirationTtl: 86400 });
+    }
+    return { success: true, id: d.id, url: d.url };
     return { error: d.error || JSON.stringify(d).substring(0, 100) };
   } catch (e) {
     return { error: e.message };
@@ -2871,6 +2894,25 @@ var index_default = {
         if (env.PRISM_KV) {
           var td = await env.PRISM_KV.get("oauth:linkedin:tokens");
           if (td) tokenData = JSON.parse(td);
+        }
+        // Check token expiry (LinkedIn tokens expire after 60 days)
+        if (tokenData && tokenData.expires_at && Date.now() > tokenData.expires_at) {
+          if (tokenData.refresh_token && (env.LINKEDIN_CLIENT_ID || env.linkedin_client_id)) {
+            try {
+              var refreshResp = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(tokenData.refresh_token) +
+                      "&client_id=" + encodeURIComponent(env.LINKEDIN_CLIENT_ID || env.linkedin_client_id) +
+                      "&client_secret=" + encodeURIComponent(env.LINKEDIN_CLIENT_SECRET || env.linkedin_primary_client_secret)
+              });
+              if (refreshResp.ok) {
+                var refreshData = await refreshResp.json();
+                tokenData = { access_token: refreshData.access_token, refresh_token: refreshData.refresh_token || tokenData.refresh_token, expires_at: Date.now() + (refreshData.expires_in || 5184000) * 1000 };
+                if (env.PRISM_KV) await env.PRISM_KV.put("oauth:linkedin:tokens", JSON.stringify(tokenData));
+              } else { tokenData = null; }
+            } catch(e) { tokenData = null; }
+          } else { tokenData = null; }
         }
         if (!tokenData || !tokenData.access_token) return json({ error: "LinkedIn not connected. Go to /oauth/linkedin/callback to connect." }, 401, origin);
         var meResp = await fetch("https://api.linkedin.com/v2/userinfo", { headers: { "Authorization": "Bearer " + tokenData.access_token } });
@@ -6683,6 +6725,78 @@ var index_default = {
         var item = q.find(function(i){ return i.id === itemId; });
         if (!item) return json({ error: "Item not found: " + itemId }, 404, origin);
         if (item.status === "posted") return json({ error: "Already posted" }, 400, origin);
+
+        // ── Visual QA check (runs before every post with an image) ──────────
+        // Catches: blank rectangles, invisible text, missing brand elements,
+        // broken renders (pure green/white/solid colour)
+        if (item.imageUrl && item.imageUrl.includes('r2.dev')) {
+          try {
+            var geminiKey = env.GEMINI_API_KEY || env.gemini_api_key || env.gemini_paid_api_key || env.GEMINI_PAID_API_KEY;
+            if (geminiKey) {
+              // Fetch the image
+              var imgResp = await fetch(item.imageUrl);
+              if (imgResp.ok) {
+                var imgBuf = await imgResp.arrayBuffer();
+                var imgB64 = btoa(String.fromCharCode(...new Uint8Array(imgBuf)));
+                var imgSize = imgBuf.byteLength;
+
+                // Size check — blank PNGs are typically < 5KB
+                if (imgSize < 5000) {
+                  // Auto-reject and swap to pre-baked template
+                  var ti = Math.floor(Math.random() * 150);
+                  item.imageUrl = "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-" + ti + ".png";
+                  item.qaNote = "Image too small (" + imgSize + " bytes) — swapped to pre-baked template " + ti;
+                } else {
+                  // Gemini Vision QA
+                  var qaPayload = {
+                    contents: [{
+                      parts: [
+                        { text: "QA check for an Identity Partners social media canvas. Check: (1) blank or solid colour? (2) text readable? (3) IP logo visible? (4) real background (not pure green/white)? (5) professional appearance? Reply QA_PASS if all pass, or QA_FAIL: [reason] if any fail." },
+
+
+
+
+
+
+
+
+                        { inline_data: { mime_type: "image/png", data: imgB64.substring(0, 200000) } }
+                      ]
+                    }]
+                  };
+                  var qaResp = await fetch(
+                    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + geminiKey,
+                    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(qaPayload) }
+                  );
+                  if (qaResp.ok) {
+                    var qaData = await qaResp.json();
+                    var qaText = ((qaData.candidates || [])[0] || {}).content;
+                    qaText = qaText ? (qaText.parts || [])[0].text || "" : "";
+                    item.qaNote = qaText.substring(0, 300);
+
+                    if (qaText.includes("QA_FAIL")) {
+                      // Swap to pre-baked template — do not post the broken image
+                      var ti2 = Math.floor(Math.random() * 150);
+                      var oldUrl = item.imageUrl;
+                      item.imageUrl = "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-" + ti2 + ".png";
+                      item.qaNote = "QA FAILED: " + qaText.replace("QA_FAIL:", "").trim().substring(0, 200) +
+                        " — swapped to pre-baked template " + ti2 + " (was: " + oldUrl.split("/").pop() + ")";
+                    }
+                    // QA_PASS — proceed with original image
+                  }
+                }
+              }
+            }
+          } catch(qaErr) {
+            // QA error is non-fatal — log and continue with original image
+            item.qaNote = "QA check error (non-fatal): " + qaErr.message;
+          }
+        }
+
+        // Pre-baked templates skip vision QA (already verified)
+        if (item.imageUrl && item.imageUrl.includes('ig-template-') && !item.qaNote) {
+          item.qaNote = "Pre-baked template — QA skipped";
+        }
 
         // Post via the appropriate route
         var postResults = {};
