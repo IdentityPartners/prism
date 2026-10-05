@@ -1,7 +1,828 @@
-// Prism API Worker — Identity Partners
-// ES Module format (required for D1 binding)
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// ─── TROPE ELIMINATION ────────────────────────────────────────────────────────
+// worker/index.js
+async function uploadToImgur(imageBase64, env) {
+  var clientId = env.IMGUR_CLIENT_ID || env.IMGUR_CLIENT_ID || env.IMGUR_PAID_1 || "";
+  var resp = await fetch("https://api.imgur.com/3/image", {
+    method: "POST",
+    headers: {
+      "Authorization": "Client-ID " + clientId,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      image: imageBase64,
+      type: "base64",
+      title: "Identity Partners",
+      description: "identitypartners.uk"
+    })
+  });
+  var data = await resp.json();
+  if (data.success && data.data && data.data.link) {
+    return { success: true, url: data.data.link, deleteHash: data.data.deletehash };
+  }
+  return { success: false, error: data.data ? data.data.error : "Imgur upload failed" };
+}
+__name(uploadToImgur, "uploadToImgur");
+var AUTO_TAG_CATEGORIES = {
+  "addiction": ["addiction", "recovery", "sobriety", "alcohol", "drugs", "substance", "relapse", "withdrawal", "12-step", "AA", "NA"],
+  "trauma": ["trauma", "PTSD", "abuse", "neglect", "adverse", "ACE", "dissociation", "flashback", "trigger", "hypervigilance"],
+  "mental-health": ["anxiety", "depression", "OCD", "bipolar", "schizophrenia", "mental health", "wellbeing", "therapy", "counselling", "psychiatry"],
+  "identity": ["identity", "self", "persona", "imposter", "authenticity", "values", "purpose", "meaning", "ikigai", "who am I"],
+  "neurodivergence": ["ADHD", "autism", "dyslexia", "dyspraxia", "neurodivergent", "executive function", "masking", "stimming", "sensory"],
+  "relationships": ["relationship", "attachment", "boundaries", "family", "partner", "loneliness", "connection", "intimacy", "trust"],
+  "research": ["research", "study", "paper", "evidence", "data", "statistics", "literature", "academic", "journal", "findings"],
+  "social-media": ["post", "tweet", "bluesky", "linkedin", "instagram", "facebook", "content", "refract", "atomise", "social"],
+  "business": ["client", "CRM", "booking", "revenue", "programme", "cohort", "platform", "monetise", "invoice", "session"],
+  "technical": ["worker", "cloudflare", "API", "deploy", "code", "bug", "fix", "error", "database", "KV", "D1"],
+  "creative": ["canvas", "design", "podcast", "worksheet", "template", "brand", "logo", "colour", "font", "visual"],
+  "personal": ["Goldsmiths", "MSc", "master", "study", "university", "placement", "volunteer", "career", "CV"]
+};
+function autoTag(text) {
+  if (!text) return [];
+  var lower = text.toLowerCase();
+  var tags = [];
+  Object.keys(AUTO_TAG_CATEGORIES).forEach(function(tag) {
+    var keywords = AUTO_TAG_CATEGORIES[tag];
+    if (keywords.some(function(kw) {
+      return lower.includes(kw.toLowerCase());
+    })) {
+      tags.push(tag);
+    }
+  });
+  return tags;
+}
+__name(autoTag, "autoTag");
+async function saveThreadToD1(env, threadId, title, messages, persona, profile) {
+  if (!env.PRISM_D1) return null;
+  try {
+    var now = (/* @__PURE__ */ new Date()).toISOString();
+    var allText = "";
+    for (var mi = 0; mi < messages.length; mi++) {
+      var mc = messages[mi];
+      if (mc && typeof mc.content === "string") allText += " " + mc.content;
+    }
+    var tags = autoTag(allText);
+    var tagsJson = JSON.stringify(tags);
+    var safeTitle = (title || "Untitled").substring(0, 200);
+    var safePersona = (persona || "Gerald").substring(0, 50);
+    var safeProfile = (profile || "balanced").substring(0, 50);
+    var msgCount = messages ? messages.length : 0;
+    var existing = await env.PRISM_D1.prepare("SELECT id FROM threads WHERE id = ?").bind(threadId).first();
+    if (existing) {
+      await env.PRISM_D1.prepare(
+        "UPDATE threads SET title=?, message_count=?, auto_tags=?, updated_at=? WHERE id=?"
+      ).bind(safeTitle, msgCount, tagsJson, now, threadId).run();
+    } else {
+      await env.PRISM_D1.prepare(
+        "INSERT INTO threads (id, title, persona, profile, message_count, auto_tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      ).bind(threadId, safeTitle, safePersona, safeProfile, msgCount, tagsJson, now, now).run();
+    }
+    if (messages && messages.length > 0) {
+      var stmts = [];
+      for (var i = 0; i < messages.length; i++) {
+        var msg = messages[i];
+        if (!msg || !msg.role || !msg.content) continue;
+        var msgId = threadId + ":" + i;
+        var content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+        var provider = msg.provider || null;
+        var model = msg.model || null;
+        stmts.push(
+          env.PRISM_D1.prepare(
+            "INSERT OR IGNORE INTO messages (id, thread_id, role, content, provider, model, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+          ).bind(msgId, threadId, msg.role, content.substring(0, 1e4), provider, model, now)
+        );
+      }
+      if (stmts.length > 0) {
+        for (var b = 0; b < stmts.length; b += 10) {
+          await env.PRISM_D1.batch(stmts.slice(b, b + 10));
+        }
+      }
+    }
+    return tags;
+  } catch (e) {
+    console.error("D1 save error:", e.message, e.stack ? e.stack.substring(0, 200) : "");
+    return null;
+  }
+}
+__name(saveThreadToD1, "saveThreadToD1");
+async function getThreadFromD1(env, threadId) {
+  if (!env.PRISM_D1) return null;
+  try {
+    var thread = await env.PRISM_D1.prepare("SELECT * FROM threads WHERE id = ?").bind(threadId).first();
+    if (!thread) return null;
+    var msgs = await env.PRISM_D1.prepare("SELECT * FROM messages WHERE thread_id = ? ORDER BY rowid ASC").bind(threadId).all();
+    var parsedTags = [];
+    try {
+      parsedTags = JSON.parse(thread.auto_tags || "[]");
+    } catch (e) {
+    }
+    return {
+      id: thread.id,
+      title: thread.title,
+      persona: thread.persona,
+      profile: thread.profile,
+      tags: parsedTags,
+      messages: (msgs.results || []).map(function(m) {
+        return { role: m.role, content: m.content, provider: m.provider, model: m.model };
+      }),
+      created: thread.created_at,
+      updated: thread.updated_at,
+      source: "d1"
+    };
+  } catch (e) {
+    console.error("D1 get error:", e.message);
+    return null;
+  }
+}
+__name(getThreadFromD1, "getThreadFromD1");
+async function listThreadsFromD1(env, userId, limit, offset, tag) {
+  if (!env.PRISM_D1) return [];
+  try {
+    var lim = limit || 100;
+    var off = offset || 0;
+    var result;
+    if (tag) {
+      result = await env.PRISM_D1.prepare(
+        "SELECT id, title, persona, profile, message_count, auto_tags, created_at, updated_at FROM threads WHERE archived = 0 AND auto_tags LIKE ? ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+      ).bind("%" + (tag || "").replace(/[%_]/g, "\\$&") + "%", lim, off).all();
+    } else {
+      result = await env.PRISM_D1.prepare(
+        "SELECT id, title, persona, profile, message_count, auto_tags, created_at, updated_at FROM threads WHERE archived = 0 ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+      ).bind(lim, off).all();
+    }
+    return (result.results || []).map(function(t) {
+      return {
+        id: t.id,
+        title: t.title,
+        persona: t.persona,
+        profile: t.profile,
+        messageCount: t.message_count,
+        tags: JSON.parse(t.auto_tags || "[]"),
+        created: t.created_at,
+        updated: t.updated_at
+      };
+    });
+  } catch (e) {
+    console.error("D1 list error:", e.message);
+    return [];
+  }
+}
+__name(listThreadsFromD1, "listThreadsFromD1");
+async function archiveToNotion(env, threadId, title, messages, tags) {
+  var notionToken = env.NOTION_TOKEN || env.ntn_token;
+  var notionDb = env.NOTION_DB || env.NOTION_DB_ID;
+  if (!notionToken || !notionDb) return null;
+  try {
+    var blocks = [];
+    if (tags && tags.length > 0) {
+      blocks.push({ object: "block", type: "callout", callout: { rich_text: [{ type: "text", text: { content: "Tags: " + tags.join(", ") } }], icon: { emoji: "" }, color: "gray_background" } });
+    }
+    var msgLimit = Math.min(messages.length, 50);
+    for (var i = 0; i < msgLimit; i++) {
+      var msg = messages[i];
+      if (!msg || !msg.role) continue;
+      var content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+      var prefix = msg.role === "user" ? " " : " Gerald: ";
+      var chunks = [];
+      for (var j = 0; j < content.length; j += 1900) {
+        chunks.push(content.substring(j, j + 1900));
+      }
+      chunks.forEach(function(chunk, ci) {
+        blocks.push({
+          object: "block",
+          type: "paragraph",
+          paragraph: {
+            rich_text: [{
+              type: "text",
+              text: { content: (ci === 0 ? prefix : "  ") + chunk },
+              annotations: { bold: msg.role === "user", color: msg.role === "user" ? "blue" : "default" }
+            }]
+          }
+        });
+      });
+    }
+    if (messages.length > msgLimit) {
+      blocks.push({ object: "block", type: "paragraph", paragraph: { rich_text: [{ type: "text", text: { content: "... (" + (messages.length - msgLimit) + " more messages)" } }] } });
+    }
+    var pageData = {
+      parent: { database_id: notionDb },
+      properties: {
+        Name: { title: [{ type: "text", text: { content: title || "Untitled Thread" } }] },
+        Tags: { multi_select: (tags || []).map(function(t) {
+          return { name: t };
+        }) },
+        "Thread ID": { rich_text: [{ type: "text", text: { content: threadId } }] },
+        Messages: { number: messages.length },
+        Date: { date: { start: (/* @__PURE__ */ new Date()).toISOString().split("T")[0] } }
+      },
+      children: blocks.slice(0, 100)
+      // Notion limit
+    };
+    var resp = await fetch("https://api.notion.com/v1/pages", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + notionToken, "Content-Type": "application/json", "Notion-Version": "2022-06-28" },
+      body: JSON.stringify(pageData)
+    });
+    var data = await resp.json();
+    if (data.id) {
+      if (env.PRISM_D1) {
+        await env.PRISM_D1.prepare("UPDATE threads SET notion_page_id = ? WHERE id = ?").bind(data.id, threadId).run();
+      }
+      return data.id;
+    }
+    return null;
+  } catch (e) {
+    console.error("Notion archive error:", e.message);
+    return null;
+  }
+}
+__name(archiveToNotion, "archiveToNotion");
+async function getZohoInboxSummary(env) {
+  try {
+    var tokens = null;
+    if (env.PRISM_KV) {
+      var raw = await env.PRISM_KV.get("zoho:tokens:mail");
+      if (raw) tokens = JSON.parse(raw);
+    }
+    if (!tokens || !tokens.access_token) return null;
+    var resp = await fetch("https://mail.zoho.eu/api/accounts", {
+      headers: { "Authorization": "Zoho-oauthtoken " + tokens.access_token }
+    });
+    if (!resp.ok) return null;
+    var data = await resp.json();
+    var accounts = data.data || [];
+    if (accounts.length === 0) return null;
+    var accountId = accounts[0].accountId;
+    var inboxResp = await fetch("https://mail.zoho.eu/api/accounts/" + accountId + "/folders?foldername=Inbox", {
+      headers: { "Authorization": "Zoho-oauthtoken " + tokens.access_token }
+    });
+    if (!inboxResp.ok) return null;
+    var inboxData = await inboxResp.json();
+    var folders = inboxData.data || [];
+    var inbox = folders.find(function(f) {
+      return f.folderName === "Inbox";
+    });
+    if (!inbox) return null;
+    var msgResp = await fetch("https://mail.zoho.eu/api/accounts/" + accountId + "/messages/view?folderId=" + inbox.folderId + "&status=unread&limit=5", {
+      headers: { "Authorization": "Zoho-oauthtoken " + tokens.access_token }
+    });
+    if (!msgResp.ok) return { unread: inbox.unreadCount || 0, messages: [] };
+    var msgData = await msgResp.json();
+    var messages = (msgData.data || []).map(function(m) {
+      return { from: m.fromAddress, subject: m.subject, date: m.receivedTime };
+    });
+    return { unread: inbox.unreadCount || 0, messages };
+  } catch (e) {
+    return null;
+  }
+}
+__name(getZohoInboxSummary, "getZohoInboxSummary");
+async function runWeeklyResearchScrape(env) {
+  var RESEARCH_QUERIES = [
+    "addiction recovery evidence-based 2026",
+    "trauma-informed care mental health 2026",
+    "neurodivergence ADHD identity 2026",
+    "loneliness social isolation mental health 2026",
+    "recovery capital community support 2026",
+    "adverse childhood experiences ACE trauma 2026",
+    "identity formation therapy 2026",
+    "peer support addiction recovery outcomes 2026"
+  ];
+  var results = [];
+  var tavilyKey = env.tavily_api_key || env.TAVILY_PAID_1;
+  var semanticKey = env.semantic_scholar_api_key || env.SEMANTICSCHOLAR_FREE_1;
+  for (var i = 0; i < Math.min(RESEARCH_QUERIES.length, 4); i++) {
+    var query = RESEARCH_QUERIES[i];
+    try {
+      if (tavilyKey) {
+        var tResp = await fetch("https://api.tavily.com/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ api_key: tavilyKey, query, max_results: 3, search_depth: "advanced", include_domains: ["pubmed.ncbi.nlm.nih.gov", "scholar.google.com", "semanticscholar.org", "ncbi.nlm.nih.gov", "bmj.com", "thelancet.com", "nature.com", "sciencedirect.com"] })
+        });
+        if (tResp.ok) {
+          var tData = await tResp.json();
+          (tData.results || []).forEach(function(r) {
+            results.push({ query, title: r.title, url: r.url, snippet: (r.content || "").substring(0, 300), source: "tavily", date: (/* @__PURE__ */ new Date()).toISOString() });
+          });
+        }
+      }
+      if (semanticKey) {
+        var sResp = await fetch("https://api.semanticscholar.org/graph/v1/paper/search?query=" + encodeURIComponent(query) + "&limit=3&fields=title,abstract,year,authors,url", {
+          headers: { "x-api-key": semanticKey }
+        });
+        if (sResp.ok) {
+          var sData = await sResp.json();
+          (sData.data || []).forEach(function(p) {
+            if (p.year >= 2020) {
+              results.push({ query, title: p.title, url: p.url || "https://semanticscholar.org/paper/" + p.paperId, snippet: (p.abstract || "").substring(0, 300), source: "semantic-scholar", year: p.year, date: (/* @__PURE__ */ new Date()).toISOString() });
+            }
+          });
+        }
+      }
+    } catch (e) {
+    }
+  }
+  if (env.PRISM_KV && results.length > 0) {
+    var scrapeKey = "research:weekly:" + (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    await env.PRISM_KV.put(scrapeKey, JSON.stringify({ results, runAt: (/* @__PURE__ */ new Date()).toISOString(), count: results.length }), { expirationTtl: 86400 * 30 });
+    await env.PRISM_KV.put("research:latest", JSON.stringify({ results: results.slice(0, 20), runAt: (/* @__PURE__ */ new Date()).toISOString(), count: results.length }));
+  }
+  var socialPosts = [];
+  if (results.length > 0 && env.PRISM_KV) {
+    var topResults = results.slice(0, 5);
+    for (var j = 0; j < topResults.length; j++) {
+      var r2 = topResults[j];
+      try {
+        var postResult = await orchestrate(env, [
+          { role: "system", content: "You are a social media content creator for Identity Partners. Write a compelling Bluesky post (under 280 chars) about this research finding. British English. Professional. Include the key insight. End with www.identitypartners.uk" },
+          { role: "user", content: "Research: " + r2.title + "\n\nKey finding: " + r2.snippet }
+        ], "fast", "social_post", null);
+        if (postResult.content) {
+          socialPosts.push({ content: postResult.content, source: r2.title, url: r2.url, platform: "bluesky" });
+        }
+      } catch (e) {
+      }
+    }
+    for (var k = 0; k < socialPosts.length; k++) {
+      var sp = socialPosts[k];
+      var qKey = "queue:research-" + Date.now() + "-" + k;
+      await env.PRISM_KV.put(qKey, JSON.stringify({
+        id: qKey,
+        platform: "bluesky",
+        content: sp.content,
+        type: "Research Post",
+        status: "pending",
+        source: "weekly-research",
+        sourceTitle: sp.source,
+        sourceUrl: sp.url,
+        scheduledAt: new Date(Date.now() + (k + 1) * 36e5).toISOString(),
+        created: (/* @__PURE__ */ new Date()).toISOString()
+      }));
+    }
+  }
+  var tgToken = env.TELEGRAM_TOKEN || env.telegram_bot_token;
+  var tgChat = env.TELEGRAM_CHAT || env.TELEGRAM_CHAT_ID;
+  if (tgToken && tgChat && results.length > 0) {
+    var summary = " Weekly Research Scrape complete\n" + results.length + " findings across " + RESEARCH_QUERIES.slice(0, 4).length + " topics\n" + socialPosts.length + " social posts queued\n\nTop finding: " + (results[0] ? results[0].title.substring(0, 100) : "none");
+    await fetch("https://api.telegram.org/bot" + tgToken + "/sendMessage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: tgChat, text: summary })
+    });
+  }
+  return { results: results.length, posts: socialPosts.length };
+}
+__name(runWeeklyResearchScrape, "runWeeklyResearchScrape");
+async function generateImageKie(key, model, prompt) {
+  var resp = await fetch("https://api.kie.ai/v1/images/generations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
+    body: JSON.stringify({ model, prompt, n: 1, size: "1024x1024" })
+  });
+  if (!resp.ok) throw new Error("kie.ai image HTTP " + resp.status);
+  var data = await resp.json();
+  var url = data.data && data.data[0] && (data.data[0].url || data.data[0].b64_json);
+  if (!url) throw new Error("kie.ai image: no url");
+  return { url, provider: "kie.ai/" + model };
+}
+__name(generateImageKie, "generateImageKie");
+async function generateMusicKie(key, prompt, style, instrumental) {
+  var resp = await fetch("https://api.kie.ai/suno-gen/v1/media/generations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
+    body: JSON.stringify({
+      model: "suno-gen",
+      prompt,
+      style: style || "ambient instrumental",
+      instrumental: instrumental !== false,
+      duration: 30
+    })
+  });
+  if (!resp.ok) throw new Error("kie.ai music HTTP " + resp.status);
+  var data = await resp.json();
+  return { taskId: data.task_id, provider: "kie.ai/suno-v5.5" };
+}
+__name(generateMusicKie, "generateMusicKie");
+async function getMusicStatusKie(key, taskId) {
+  var resp = await fetch("https://api.kie.ai/suno-gen/v1/media/generations/" + taskId, {
+    headers: { "Authorization": "Bearer " + key }
+  });
+  if (!resp.ok) throw new Error("kie.ai music status HTTP " + resp.status);
+  var data = await resp.json();
+  return data;
+}
+__name(getMusicStatusKie, "getMusicStatusKie");
+async function runAgenticPipeline(env, config) {
+  var log = [];
+  var results = {};
+  var pmHistory = [];
+  var startTime = Date.now();
+  function addLog(step, model, msg, status) {
+    var entry = { step, model, msg, status: status || "info", ts: (/* @__PURE__ */ new Date()).toISOString() };
+    log.push(entry);
+    console.log("[AGENT] " + step + " (" + model + "): " + msg);
+  }
+  __name(addLog, "addLog");
+  async function askPM(question, context) {
+    pmHistory.push({ role: "user", content: "AGENT QUERY: " + question + (context ? "\n\nContext: " + context : "") });
+    var pmMessages = [
+      { role: "system", content: "You are the Programme Manager for an agentic AI pipeline running for Identity Partners. You coordinate between models, answer their questions, and modify the pipeline if something is not working. You have full knowledge of the pipeline steps, the IP brand guidelines, and the social media strategy. British English. Be direct and specific. No sycophancy. RULES: Never describe actions - execute them using available tools. Never invent business metrics, engagement numbers, or meeting outcomes. Never say I would... - do it. Never hallucinate data. If a tool is unavailable, say so plainly and escalate. You are an executor, not a consultant." },
+      ...pmHistory
+    ];
+    var pmResult = await orchestrate(env, pmMessages, "balanced", "agent_task", null);
+    pmHistory.push({ role: "assistant", content: pmResult.content });
+    return pmResult.content;
+  }
+  __name(askPM, "askPM");
+  addLog("step1", "gemma4/cerebras", "Generating search strings for: " + config.topic, "running");
+  var searchStrings = [];
+  try {
+    var step1Result = await orchestrate(env, [
+      { role: "system", content: 'You are a research strategist for Identity Partners. Your job is to expand a topic into a rich set of search queries that will find the most relevant academic papers, news articles, policy documents, and practitioner content. For each topic, you must: (1) identify synonyms and related terms (e.g. "stigma"  "shamed", "ostracised", "outcast", "deviant", "marginalised", "labelled"); (2) generate queries from multiple angles: academic, news, policy, practitioner, lived-experience, UK-specific; (3) include both broad and narrow queries. Return as a JSON array of strings only. No other text.' },
+      { role: "user", content: 'Expand this topic into 10 diverse search queries: "' + config.topic + '". Include synonyms, related terms, and multiple angles (academic, news, policy, practitioner, lived experience, UK context). The queries should collectively cover the full semantic space of the topic.' }
+    ], "fast", "research", null);
+    try {
+      var m = step1Result.content.match(/\[\s*"[\s\S]*?"\s*\]/);
+      searchStrings = m ? JSON.parse(m[0]) : step1Result.content.split("\n").filter(function(l) {
+        return l.trim().length > 10;
+      }).slice(0, 8);
+    } catch (e) {
+      searchStrings = [config.topic + " research 2026", config.topic + " UK policy", config.topic + " lived experience"];
+    }
+    addLog("step1", "gemma4/cerebras", "Generated " + searchStrings.length + " search strings", "ok");
+    results.searchStrings = searchStrings;
+  } catch (e) {
+    addLog("step1", "gemma4/cerebras", "Error: " + e.message + " -- asking PM", "error");
+    var pmFix = await askPM("Step 1 failed: " + e.message + ". Should I use default search strings or retry?", config.topic);
+    searchStrings = [config.topic, config.topic + " UK", config.topic + " recovery", config.topic + " mental health"];
+    addLog("step1", "pm", "PM response: " + pmFix.substring(0, 100) + " -- using defaults", "warn");
+  }
+  addLog("step2", "tavily+exa+semantic", "Scraping " + searchStrings.length + " queries across all sources", "running");
+  var allFindings = [];
+  var tavilyKey = env.tavily_api_key || env.TAVILY_PAID_1;
+  var semanticKey = env.semantic_scholar_api_key || env.SEMANTICSCHOLAR_FREE_1;
+  var exaKey = env.exa_api_key || env.EXA_PAID_1;
+  var scrapePromises = searchStrings.slice(0, 6).map(async function(query) {
+    var findings = [];
+    if (tavilyKey) {
+      try {
+        var tr = await fetch("https://api.tavily.com/search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ api_key: tavilyKey, query, max_results: 3, search_depth: "advanced" }) });
+        if (tr.ok) {
+          var td = await tr.json();
+          (td.results || []).forEach(function(r) {
+            findings.push({ title: r.title, url: r.url, snippet: (r.content || "").substring(0, 400), source: "tavily", query });
+          });
+        }
+      } catch (e) {
+      }
+    }
+    if (semanticKey) {
+      try {
+        var sr = await fetch("https://api.semanticscholar.org/graph/v1/paper/search?query=" + encodeURIComponent(query) + "&limit=2&fields=title,abstract,year,url", { headers: { "x-api-key": semanticKey } });
+        if (sr.ok) {
+          var sd = await sr.json();
+          (sd.data || []).filter(function(p) {
+            return p.year >= 2020;
+          }).forEach(function(p) {
+            findings.push({ title: p.title, url: p.url || "", snippet: (p.abstract || "").substring(0, 400), source: "semantic-scholar", query, year: p.year });
+          });
+        }
+      } catch (e) {
+      }
+    }
+    if (exaKey) {
+      try {
+        var er = await fetch("https://api.exa.ai/search", { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": exaKey }, body: JSON.stringify({ query, numResults: 2, useAutoprompt: true }) });
+        if (er.ok) {
+          var ed = await er.json();
+          (ed.results || []).forEach(function(r) {
+            findings.push({ title: r.title, url: r.url, snippet: (r.text || "").substring(0, 400), source: "exa", query });
+          });
+        }
+      } catch (e) {
+      }
+    }
+    return findings;
+  });
+  var scrapeResults = await Promise.allSettled(scrapePromises);
+  scrapeResults.forEach(function(r) {
+    if (r.status === "fulfilled") allFindings = allFindings.concat(r.value);
+  });
+  addLog("step2", "tavily+exa+semantic", "Found " + allFindings.length + " findings across all sources", "ok");
+  results.findings = allFindings;
+  if (allFindings.length < 3) {
+    var pmAdvice = await askPM("Only " + allFindings.length + ' findings found for "' + config.topic + '". Should I proceed or widen the search?', JSON.stringify(searchStrings));
+    addLog("step2", "pm", "PM: " + pmAdvice.substring(0, 100), "warn");
+  }
+  addLog("step3", "deepseek", "Synthesising " + allFindings.length + " findings", "running");
+  var synthesis = "";
+  var socialAssets = {};
+  try {
+    var findingsText = allFindings.slice(0, 12).map(function(f) {
+      return f.title + " (" + f.source + ", " + f.year + "):\n" + f.snippet;
+    }).join("\n\n");
+    var step3Result = await orchestrate(env, [
+      { role: "system", content: "You are a content strategist for Identity Partners. Synthesise research findings into social media content. British English. No sycophancy. No wellness retreat language. Evidence-based, warm, direct. Return a JSON object with these exact keys: summary (200 words), bluesky_posts (array of 5 strings, each under 280 chars), linkedin_post (150 words, professional), quote_cards (array of 5 strings, each 15-25 words, powerful standalone quotes), instagram_caption (100 words + 8 hashtags), facebook_post (120 words, community-focused)." },
+      { role: "user", content: 'Synthesise these findings about "' + config.topic + '" into social media content:\n\n' + findingsText }
+    ], "balanced", "drafting", null);
+    try {
+      var jsonMatch = step3Result.content.match(/\{[\s\S]*\}/);
+      socialAssets = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+      synthesis = socialAssets.summary || step3Result.content.substring(0, 500);
+    } catch (e) {
+      synthesis = step3Result.content.substring(0, 500);
+    }
+    addLog("step3", "deepseek", "Synthesis complete. Assets: " + Object.keys(socialAssets).join(", "), "ok");
+    results.synthesis = synthesis;
+    results.socialAssets = socialAssets;
+  } catch (e) {
+    addLog("step3", "deepseek", "Error: " + e.message, "error");
+    var pmFix3 = await askPM("DeepSeek synthesis failed: " + e.message + ". Should I retry with a different model?", "");
+    addLog("step3", "pm", pmFix3.substring(0, 100), "warn");
+  }
+  addLog("step4", "canvas", "Generating canvas images for quote cards", "running");
+  var canvasUrls = [];
+  var browserlessKey = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO;
+
+  if (quotes.length > 0) {
+    for (var qi = 0; qi < Math.min(quotes.length, 3); qi++) {
+      var quote = quotes[qi];
+      try {
+        // generateCanvasHtml now returns proper HTML/CSS with embedded background
+        // No JS canvas element — eliminates the Browserless render timeout
+        var html = await generateCanvasHtml(quote, ["quote-teal","quote-rose","quote-ivory","quote-dark"][qi % 4], env);
+
+        var canvasGenerated = false;
+        if (browserlessKey) {
+          var blResp = await fetch("https://chrome.browserless.io/screenshot?token=" + browserlessKey, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              html,
+              options: { type: "png", clip: { x: 0, y: 0, width: 1080, height: 1080 }, fullPage: false },
+              waitForFunction: { fn: "() => document.title === 'READY'", timeout: 10000 },
+              waitForTimeout: 12000
+            })
+          });
+
+          if (blResp.ok) {
+            var pngBuf = await blResp.arrayBuffer();
+            if (pngBuf.byteLength > 5000) {
+              var canvasKey = "agent-canvas-" + (config.topic || "ip").replace(/\s+/g, "-").substring(0, 20) + "-" + qi + "-" + Date.now() + ".png";
+              if (env.PRISM_ASSETS) {
+                await env.PRISM_ASSETS.put(canvasKey, pngBuf, { httpMetadata: { contentType: "image/png" }, expirationTtl: 86400 * 30 });
+              }
+              var canvasUrl = "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/" + canvasKey;
+              canvasUrls.push({ url: canvasUrl, quote, theme: qi % 4 });
+              addLog("step4", "browserless", "Canvas " + qi + " generated: " + pngBuf.byteLength + " bytes", "ok");
+              canvasGenerated = true;
+            } else {
+              addLog("step4", "browserless", "Canvas " + qi + " too small (" + pngBuf.byteLength + " bytes) — using pre-baked", "warn");
+            }
+          } else {
+            addLog("step4", "browserless", "Canvas " + qi + " Browserless error " + blResp.status + " — using pre-baked", "warn");
+          }
+        }
+
+        if (!canvasGenerated) {
+          // Option B: pre-baked R2 template (spec Section 3.2)
+          var ti = (qi * 37 + Math.floor(Date.now() / 86400000)) % 150;
+          canvasUrls.push({ url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-" + ti + ".png", quote, theme: qi % 4 });
+          addLog("step4", "prebaked", "Canvas " + qi + " using pre-baked template " + ti, "ok");
+        }
+      } catch (e) {
+        var ti2 = qi % 150;
+        canvasUrls.push({ url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-" + ti2 + ".png", quote, theme: qi % 4 });
+        addLog("step4", "prebaked", "Canvas " + qi + " error fallback: " + e.message, "warn");
+      }
+    }
+  } else {
+    addLog("step4", "prebaked", "No quotes — using pre-baked templates", "warn");
+    for (var ti3 = 0; ti3 < 3; ti3++) {
+      canvasUrls.push({ url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-" + ti3 + ".png", quote: "", theme: ti3 % 4 });
+    }
+  }
+
+  results.canvasUrls = canvasUrls;
+  addLog("step5", "gemma4-vision", "QA checking " + canvasUrls.length + " canvases", "running");
+  var approvedCanvases = [];
+  var geminiKey = env.gemini_paid_api_key || env.GEMINI_PAID_1 || env.gemini_api_key;
+  for (var ci = 0; ci < canvasUrls.length; ci++) {
+    var cv = canvasUrls[ci];
+    var qaPass = true;
+    var qaReason = "Auto-approved (no vision model)";
+    if (geminiKey) {
+      try {
+        var imgResp = await fetch(cv.url);
+        if (imgResp.ok) {
+          var imgBuf = await imgResp.arrayBuffer();
+          var imgB64 = btoa(String.fromCharCode(...new Uint8Array(imgBuf)));
+          var qaResp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + geminiKey, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: "QA check for Identity Partners social media canvas. Check ALL of: (1) Quote text clearly readable? (2) IP logo visible top-right? (3) Colour grid visible top-left? (4) IdentityPartners wordmark present? (5) Background image visible? (6) Professional appearance? Reply PASS or FAIL + specific reason for each check." }, { inline_data: { mime_type: "image/png", data: imgB64.substring(0, 2e5) } }] }] }) });
+          if (qaResp.ok) {
+            var qaData = await qaResp.json();
+            var qaText = qaData.candidates && qaData.candidates[0] && qaData.candidates[0].content && qaData.candidates[0].content.parts && qaData.candidates[0].content.parts[0] && qaData.candidates[0].content.parts[0].text || "";
+            qaPass = qaText.toUpperCase().includes("PASS") && !qaText.toUpperCase().startsWith("FAIL");
+            qaReason = qaText.substring(0, 200);
+            if (!qaPass) {
+              var pmQA = await askPM("Canvas " + ci + " failed QA: " + qaReason + ". Should I retry with a different template or skip this canvas?", "Quote: " + cv.quote.substring(0, 100));
+              addLog("step5", "pm", "PM on failed canvas: " + pmQA.substring(0, 100), "warn");
+            }
+          }
+        }
+      } catch (e) {
+        qaReason = "Vision QA error: " + e.message;
+      }
+    }
+    if (qaPass) {
+      approvedCanvases.push(cv);
+      addLog("step5", "gemma4-vision", "Canvas " + ci + ": APPROVED -- " + qaReason.substring(0, 80), "ok");
+    } else {
+      addLog("step5", "gemma4-vision", "Canvas " + ci + ": REJECTED -- " + qaReason.substring(0, 80), "warn");
+    }
+  }
+  results.approvedCanvases = approvedCanvases;
+  addLog("step6", "social-queue", "Queuing assets across all platforms", "running");
+  var queued = [];
+  var suffix = "\n\nhello@identitypartners.uk | identitypartners.uk\n#IdentityPartners #MentalHealth #Recovery #" + config.topic.replace(/\s+/g, "");
+  var scheduleBase = config.scheduleFrom ? new Date(config.scheduleFrom).getTime() : Date.now() + 36e5;
+  var scheduleInterval = (config.spreadDays || 7) * 864e5 / Math.max(1, (socialAssets.bluesky_posts || []).length + approvedCanvases.length);
+  var scheduleIdx = 0;
+  var bskyPosts = socialAssets.bluesky_posts || [];
+  for (var bi = 0; bi < bskyPosts.length; bi++) {
+    var bskyText = (bskyPosts[bi] + " identitypartners.uk").substring(0, 300);
+    var qKey = "queue:agent-" + Date.now() + "-bsky-" + bi;
+    var scheduledAt = new Date(scheduleBase + scheduleIdx * scheduleInterval).toISOString();
+    if (env.PRISM_KV) await env.PRISM_KV.put(qKey, JSON.stringify({ id: qKey, platform: "bluesky", content: bskyText, type: "Research Post (" + config.topic + ")", status: "pending", source: "agentic-pipeline", scheduledAt, created: (/* @__PURE__ */ new Date()).toISOString() }));
+    queued.push({ platform: "bluesky", scheduledAt });
+    scheduleIdx++;
+  }
+  for (var ai = 0; ai < approvedCanvases.length; ai++) {
+    var cv2 = approvedCanvases[ai];
+    var igCaption = (cv2.quote + suffix).substring(0, 2200);
+    var scheduledAt2 = new Date(scheduleBase + scheduleIdx * scheduleInterval).toISOString();
+    var qKey2 = "queue:agent-" + Date.now() + "-ig-" + ai;
+    if (env.PRISM_KV) await env.PRISM_KV.put(qKey2, JSON.stringify({ id: qKey2, platform: "instagram", content: igCaption, imageUrl: cv2.url, type: "Canvas Post (" + config.topic + ")", status: "pending", source: "agentic-pipeline", scheduledAt: scheduledAt2, created: (/* @__PURE__ */ new Date()).toISOString() }));
+    queued.push({ platform: "instagram", imageUrl: cv2.url, scheduledAt: scheduledAt2 });
+    scheduleIdx++;
+    var qKey3 = "queue:agent-" + Date.now() + "-fb-" + ai;
+    var scheduledAt3 = new Date(scheduleBase + (scheduleIdx + 1) * scheduleInterval).toISOString();
+    if (env.PRISM_KV) await env.PRISM_KV.put(qKey3, JSON.stringify({ id: qKey3, platform: "facebook", content: igCaption, imageUrl: cv2.url, type: "Canvas Post (" + config.topic + ")", status: "pending", source: "agentic-pipeline", scheduledAt: scheduledAt3, created: (/* @__PURE__ */ new Date()).toISOString() }));
+    queued.push({ platform: "facebook", imageUrl: cv2.url, scheduledAt: scheduledAt3 });
+    scheduleIdx++;
+  }
+  if (socialAssets.linkedin_post) {
+    var liText = (socialAssets.linkedin_post + "\n\nhello@identitypartners.uk | identitypartners.uk\n#IdentityPartners #MentalHealth").substring(0, 3e3);
+    var qKeyLI = "queue:agent-" + Date.now() + "-li";
+    var scheduledAtLI = new Date(scheduleBase + scheduleIdx * scheduleInterval).toISOString();
+    if (env.PRISM_KV) await env.PRISM_KV.put(qKeyLI, JSON.stringify({ id: qKeyLI, platform: "linkedin", content: liText, type: "LinkedIn Post (" + config.topic + ")", status: "pending", source: "agentic-pipeline", scheduledAt: scheduledAtLI, created: (/* @__PURE__ */ new Date()).toISOString() }));
+    queued.push({ platform: "linkedin", scheduledAt: scheduledAtLI });
+  }
+  addLog("step6", "social-queue", "Queued " + queued.length + " items across " + [...new Set(queued.map(function(q) {
+    return q.platform;
+  }))].join(", "), "ok");
+  results.queued = queued;
+  addLog("step7", "pm", "Final pipeline review", "running");
+  var pmSummary = await askPM(
+    "Pipeline complete. Review the results and flag any issues.",
+    "Topic: " + config.topic + ". Findings: " + allFindings.length + ". Canvases approved: " + approvedCanvases.length + "/" + canvasUrls.length + ". Items queued: " + queued.length + ". Log: " + log.filter(function(l) {
+      return l.status === "error" || l.status === "warn";
+    }).map(function(l) {
+      return l.step + ": " + l.msg;
+    }).join("; ")
+  );
+  results.pmReview = pmSummary;
+  addLog("step7", "pm", pmSummary.substring(0, 200), "ok");
+  var tgToken = env.TELEGRAM_TOKEN || env.telegram_bot_token;
+  var tgChat = env.TELEGRAM_CHAT || env.TELEGRAM_CHAT_ID;
+  if (tgToken && tgChat) {
+    var errors = log.filter(function(l) {
+      return l.status === "error";
+    }).length;
+    var summary = " Agentic Pipeline Complete\n\nTopic: " + config.topic + "\n\n Findings: " + allFindings.length + "\n Canvases: " + approvedCanvases.length + " approved\n Queued: " + queued.length + " posts\n" + (errors > 0 ? " Errors: " + errors + "\n" : "") + "\nPM: " + pmSummary.substring(0, 200);
+    await fetch("https://api.telegram.org/bot" + tgToken + "/sendMessage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: tgChat, text: summary }) });
+  }
+  return {
+    success: true,
+    topic: config.topic,
+    steps: log.length,
+    findings: allFindings.length,
+    canvasesApproved: approvedCanvases.length,
+    queued: queued.length,
+    spreadDays: config.spreadDays || 7,
+    pmReview: pmSummary,
+    log,
+    durationMs: Date.now() - startTime
+  };
+}
+__name(runAgenticPipeline, "runAgenticPipeline");
+async function generateCanvasHtml(text, template, env) {
+  // Fetch a Pexels landscape background image server-side and embed as base64.
+  // This eliminates all external fetches at Browserless render time — the root
+  // cause of the blank canvas bug (Browserless timed out waiting for images).
+  var bgDataUri = "";
+  try {
+    var pexelsKey = env.pexels_api_key || env.PEXELS_API_KEY || env.pexels || "";
+    if (pexelsKey) {
+      var pexelsResp = await fetch(
+        "https://api.pexels.com/v1/search?query=landscape+vista+nature+partnership&per_page=10&orientation=landscape",
+        { headers: { "Authorization": pexelsKey } }
+      );
+      if (pexelsResp.ok) {
+        var pexelsData = await pexelsResp.json();
+        var photos = pexelsData.photos || [];
+        if (photos.length > 0) {
+          // Pick a random photo from results for variety
+          var photo = photos[Math.floor(Math.random() * photos.length)];
+          var imgUrl = photo.src.large2x || photo.src.large;
+          var imgResp = await fetch(imgUrl);
+          if (imgResp.ok) {
+            var imgBuf = await imgResp.arrayBuffer();
+            var imgB64 = btoa(String.fromCharCode(...new Uint8Array(imgBuf)));
+            var ct = imgResp.headers.get("content-type") || "image/jpeg";
+            bgDataUri = "data:" + ct + ";base64," + imgB64;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // Background fetch failed — gradient fallback used below
+  }
+
+  // Gradient fallback (brand colours) when Pexels unavailable
+  if (!bgDataUri) {
+    var gradSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='1080' height='1080'>" +
+      "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>" +
+      "<stop offset='0%' stop-color='#0f3b3a'/><stop offset='45%' stop-color='#1a5c5a'/>" +
+      "<stop offset='100%' stop-color='#5c2d3f'/></linearGradient></defs>" +
+      "<rect width='1080' height='1080' fill='url(#g)'/></svg>";
+    bgDataUri = "data:image/svg+xml;base64," + btoa(gradSvg);
+  }
+
+  var safeText = (text || "").substring(0, 280)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+  // IP logo SVG inline (no external dependency)
+  var logoSvg = "<svg viewBox='0 0 120 120' fill='none' xmlns='http://www.w3.org/2000/svg' style='width:100%;height:100%;'>" +
+    "<rect x='5' y='5' width='50' height='50' rx='10' fill='#0f3b3a' opacity='0.95'/>" +
+    "<rect x='65' y='5' width='50' height='50' rx='10' fill='#5c2d3f' opacity='0.95'/>" +
+    "<rect x='5' y='65' width='50' height='50' rx='10' fill='#5c2d3f' opacity='0.75'/>" +
+    "<rect x='65' y='65' width='50' height='50' rx='10' fill='#0f3b3a' opacity='0.75'/>" +
+    "<text x='60' y='68' font-family='Inter,sans-serif' font-size='14' fill='#f7f3e9' text-anchor='middle' font-weight='600'>IP</text>" +
+    "</svg>";
+  var logoB64 = btoa(logoSvg);
+
+  var html = "<!DOCTYPE html><html><head><meta charset='UTF-8'>" +
+    "<link href='https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;1,400&family=Inter:wght@400;500;600&display=swap' rel='stylesheet'>" +
+    "<style>" +
+    "*{margin:0;padding:0;box-sizing:border-box;}" +
+    "body{width:1080px;height:1080px;overflow:hidden;background:#0f3b3a;}" +
+    ".canvas{width:1080px;height:1080px;position:relative;" +
+      "background:#0f3b3a url('" + bgDataUri + "') center/cover no-repeat;" +
+      "display:flex;flex-direction:column;align-items:center;justify-content:center;}" +
+    ".overlay{position:absolute;inset:0;background:linear-gradient(135deg,rgba(15,59,58,0.70) 0%,rgba(92,45,63,0.52) 100%);}" +
+    ".accent-top{position:absolute;top:0;left:0;right:0;height:8px;background:linear-gradient(90deg,#0f3b3a 0%,#5c2d3f 100%);}" +
+    ".accent-bottom{position:absolute;bottom:0;left:0;right:0;height:8px;background:linear-gradient(90deg,#5c2d3f 0%,#0f3b3a 100%);}" +
+    ".grid{position:absolute;top:32px;left:32px;width:88px;height:88px;display:grid;grid-template-columns:1fr 1fr;gap:5px;}" +
+    ".grid div{border-radius:7px;}" +
+    ".logo-area{position:absolute;top:28px;right:28px;width:110px;height:110px;display:flex;align-items:center;justify-content:center;}" +
+    ".content{position:relative;z-index:10;text-align:center;padding:0 110px;max-width:1080px;}" +
+    ".open-quote{font-size:120px;color:#f7f3e9;opacity:0.18;line-height:0.7;margin-bottom:16px;font-family:'Playfair Display',Georgia,serif;}" +
+    ".quote{font-size:48px;font-style:italic;color:#f7f3e9;line-height:1.5;font-weight:400;font-family:'Playfair Display',Georgia,serif;text-shadow:0 2px 14px rgba(0,0,0,0.50);}" +
+    ".divider{width:280px;height:2px;background:linear-gradient(90deg,#0f3b3a,#5c2d3f);opacity:0.8;margin:36px auto;}" +
+    ".wordmark{font-size:30px;font-weight:600;font-style:normal;letter-spacing:-0.3px;font-family:'Playfair Display',Georgia,serif;}" +
+    ".identity{color:#7ecfcd;}.partners{color:#d4899a;}" +
+    ".tagline{font-size:16px;color:#f7f3e9;opacity:0.82;margin-top:10px;font-family:'Inter',sans-serif;letter-spacing:0.3px;}" +
+    ".footer{position:absolute;bottom:24px;left:0;right:0;text-align:center;font-size:16px;color:#f7f3e9;font-family:'Inter',sans-serif;opacity:0.80;letter-spacing:0.2px;}" +
+    "</style></head><body>" +
+    "<div class='canvas'>" +
+    "<div class='overlay'></div>" +
+    "<div class='accent-top'></div>" +
+    "<div class='accent-bottom'></div>" +
+    "<div class='grid'>" +
+      "<div style='background:#0f3b3a;'></div>" +
+      "<div style='background:#5c2d3f;'></div>" +
+      "<div style='background:#5c2d3f;opacity:0.7;'></div>" +
+      "<div style='background:#0f3b3a;opacity:0.7;'></div>" +
+    "</div>" +
+    "<div class='logo-area'><img src='data:image/svg+xml;base64," + logoB64 + "' style='width:100%;height:100%;' alt='IP logo'></div>" +
+    "<div class='content'>" +
+      "<div class='open-quote'>&ldquo;</div>" +
+      "<div class='quote'>" + safeText + "</div>" +
+      "<div class='divider'></div>" +
+      "<div class='wordmark'><span class='identity'>Identity</span><span class='partners'>Partners</span></div>" +
+      "<div class='tagline'>Understand your past &middot; Appreciate the present &middot; Define your future</div>" +
+    "</div>" +
+    "<div class='footer'>identitypartners.uk &nbsp;&middot;&nbsp; hello@identitypartners.uk</div>" +
+    "</div>" +
+    "<script>document.fonts.ready.then(function(){document.title='READY';});</script>" +
+    "</body></html>";
+
+  return html;
+}
+__name(generateCanvasHtml, "generateCanvasHtml");
 function stripTropes(text) {
   if (!text) return text;
   var patterns = [
@@ -11,1270 +832,1981 @@ function stripTropes(text) {
     /\btapestry\b/gi,
     /^(In conclusion|To summarise|To summarize|In summary)[,:.]\s*/gim,
     /^(Certainly|Absolutely|Of course|Sure)[!,]\s*/gi,
-    /I('m| am) (just |only )?an? (AI|language model|AI assistant)[^.]*\./gi,
+    /I('m| am) (just |only )?an? (AI|language model|AI assistant)[^.]*\./gi
   ];
   var result = text;
-  patterns.forEach(function(p) { result = result.replace(p, ''); });
+  patterns.forEach(function(p) {
+    result = result.replace(p, "");
+  });
   return result.trim();
 }
-
-// ─── INTENT CLASSIFICATION ────────────────────────────────────────────────────
+__name(stripTropes, "stripTropes");
 function classifyIntent(message) {
-  if (!message) return 'chat';
+  if (!message) return "chat";
   var m = message.toLowerCase();
-  if (/\b(generate|create|draw|illustrate|make)\s+(an?\s+)?(image|picture|photo|illustration)\b/.test(m)) return 'image_gen';
-  if (/\b(generate|create|compose)\s+(a\s+)?(song|music|audio|track)\b/.test(m)) return 'audio_gen';
-  if (/\b(search|find|research|look up)\b/.test(m)) return 'research';
-  if (/\b(write|draft|compose)\s+(a\s+)?(email|letter|report|article|blog|essay)\b/.test(m)) return 'drafting';
-  if (/\b(code|function|script|program|debug|fix|implement)\b/.test(m)) return 'coding';
-  if (/\b(reason|analyse|analyze|evaluate|assess)\b/.test(m)) return 'reasoning';
-  if (/\b(remember|save|store|note|memory)\b/.test(m)) return 'memory_action';
-  if (/\b(crm|client|contact|session|booking)\b/.test(m)) return 'crm_action';
-  if (/\b(post|tweet|publish|schedule|social)\b/.test(m)) return 'social_post';
-  if (/\b(atomise|atomize|refract|repurpose)\b/.test(m)) return 'social_post';
-  return 'chat';
+  if (/\b(generate|create|draw|illustrate|make)\s+(an?\s+)?(image|picture|photo|illustration)\b/.test(m)) return "image_gen";
+  if (/\b(generate|create|compose)\s+(a\s+)?(song|music|audio|track)\b/.test(m)) return "audio_gen";
+  if (/\b(search|find|research|look up)\b/.test(m)) return "research";
+  if (/\b(write|draft|compose)\s+(a\s+)?(email|letter|report|article|blog|essay)\b/.test(m)) return "drafting";
+  if (/\b(code|function|script|program|debug|fix|implement)\b/.test(m)) return "coding";
+  if (/\b(reason|analyse|analyze|evaluate|assess)\b/.test(m)) return "reasoning";
+  if (/\b(remember|save|store|note|memory)\b/.test(m)) return "memory_action";
+  if (/\b(crm|client|contact|session|booking)\b/.test(m)) return "crm_action";
+  if (/\b(post|tweet|publish|schedule|social)\b/.test(m)) return "social_post";
+  if (/\b(atomise|atomize|refract|repurpose)\b/.test(m)) return "social_post";
+  return "chat";
 }
-
-// ─── PROVIDER ADAPTERS ────────────────────────────────────────────────────────
+__name(classifyIntent, "classifyIntent");
 async function callCerebras(env, messages, model) {
-  var keys = [env.CEREBRAS_FREE_1, env.CEREBRAS_FREE_2, env.CEREBRAS_FREE_3, env.CEREBRAS_FREE_4, env.cerebras_free_1, env.cerebras_free_2, env.cerebras_free_3, env.cerebras_free_4, env.CEREBRAS_API_KEY, env.CEREBRAS_PAID, env.cerebras_paid, env.CEREBRAS_PAID2, env.cerebras_paid2].filter(Boolean);
-  if (!keys.length) throw new Error('No Cerebras keys');
-  var key = keys[Math.floor(Math.random() * keys.length)];
-  var resp = await fetch('https://api.cerebras.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'gemma-4-9b-it', messages: messages, max_tokens: 4096})
+  var keys = [
+    env.CEREBRAS_PAID_1,
+    env.CEREBRAS_PAID_2,
+    env.cerebras_api_key,
+    env.CEREBRAS_API_KEY,
+    env.CEREBRAS_FREE_1,
+    env.CEREBRAS_FREE_2,
+    env.CEREBRAS_FREE_3,
+    env.CEREBRAS_FREE_4,
+    env.cerebras_free_1,
+    env.cerebras_free_2,
+    env.cerebras_free_3,
+    env.cerebras_free_4,
+    env.CEREBRAS_PAID,
+    env.cerebras_paid,
+    env.CEREBRAS_PAID2,
+    env.cerebras_paid2
+  ].filter(Boolean);
+  if (!keys.length) throw new Error("No Cerebras keys configured");
+  var shuffled = keys.slice().sort(function() {
+    return Math.random() - 0.5;
   });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('Cerebras: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
+  var lastErr = "";
+  for (var ki = 0; ki < shuffled.length; ki++) {
+    try {
+      var resp = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + shuffled[ki] },
+        body: JSON.stringify({ model: model || "llama-4-scout-17b-16e-instruct", messages, max_tokens: 4096, temperature: 0.7 })
+      });
+      if (resp.status === 402 || resp.status === 429 || resp.status === 503) {
+        lastErr = "HTTP " + resp.status;
+        continue;
+      }
+      var data = await resp.json();
+      if (data.error) {
+        var ec = data.error.code || data.error.type || "";
+        if (ec.indexOf("rate_limit") >= 0 || ec.indexOf("quota") >= 0) {
+          lastErr = ec;
+          continue;
+        }
+        throw new Error("Cerebras: " + (data.error.message || JSON.stringify(data.error)));
+      }
+      if (!data.choices || !data.choices[0]) {
+        lastErr = "no choices";
+        continue;
+      }
+      return { content: data.choices[0].message.content, provider: "cerebras", model: model || "llama-4-scout-17b-16e-instruct" };
+    } catch (e) {
+      if (e.message.indexOf("Cerebras:") === 0) throw e;
+      lastErr = e.message;
+    }
+  }
+  throw new Error("Cerebras: all " + shuffled.length + " keys exhausted. Last: " + lastErr);
 }
-
-async function callGroq(env, messages, model) {
-  var keys = [env.GROQ_FREE_1, env.GROQ_FREE_2, env.GROQ_FREE_3, env.GROQ_API_KEY, env.groq_free_1, env.groq_free_2, env.groq_free_3, env.groq_api_key, env.GROQ_API_KEY].filter(Boolean);
-  if (!keys.length) throw new Error('No Groq keys');
-  var key = keys[Math.floor(Math.random() * keys.length)];
-  var resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'gemma2-9b-it', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('Groq: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
-async function callDeepSeek(env, messages, model) {
-  var key = env.DEEPSEEK_PAID || env.deepseek_paid || env.DEEPSEEK_FREE_1 || env.deepseek_free_1 || env.DEEPSEEK_API_KEY || env.deepseek_api_key;
-  if (!key) throw new Error('No DeepSeek key');
-  var resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'deepseek-chat', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('DeepSeek: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
+__name(callCerebras, "callCerebras");
 async function callGemini(env, messages, model) {
   var keys = [env.GEMINI_API_KEY, env.gemini_api_key, env.gemini_paid_api_key, env.GEMINI_PAID_API_KEY, env.GEMINI_API_KEY_2, env.GEMINI_API_KEY_3, env.GEMINI_API_KEY_4].filter(Boolean);
-  if (!keys.length) throw new Error('No Gemini keys');
+  if (!keys.length) throw new Error("No Gemini keys");
   var key = keys[Math.floor(Math.random() * keys.length)];
-  var mdl = model || 'gemini-2.0-flash';
-  var contents = messages.filter(function(m){return m.role!=='system';}).map(function(m){
-    return {role: m.role==='assistant'?'model':'user', parts:[{text:m.content}]};
+  var mdl = model || "gemini-2.5-flash";
+  var contents = messages.filter(function(m) {
+    return m.role !== "system";
+  }).map(function(m) {
+    return { role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] };
   });
-  var sysMsg = messages.find(function(m){return m.role==='system';});
-  var body = {contents: contents};
-  if (sysMsg) body.systemInstruction = {parts:[{text:sysMsg.content}]};
-  var resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+mdl+':generateContent?key='+key, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
+  var sysMsg = messages.find(function(m) {
+    return m.role === "system";
+  });
+  var body = { contents };
+  if (sysMsg) body.systemInstruction = { parts: [{ text: sysMsg.content }] };
+  var resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + mdl + ":generateContent?key=" + key, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
   var data = await resp.json();
-  if (!resp.ok) throw new Error('Gemini: '+(data.error&&data.error.message||resp.status));
+  if (!resp.ok) throw new Error("Gemini: " + (data.error && data.error.message || resp.status));
   return data.candidates[0].content.parts[0].text;
 }
-
-async function callOpenRouter(env, messages, model) {
-  var key = env.OPENROUTER_API_KEY || env.openrouter_api_key;
-  if (!key) throw new Error('No OpenRouter key');
-  var resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key,'HTTP-Referer':'https://prism.identitypartners.uk'},
-    body: JSON.stringify({model: model||'deepseek/deepseek-chat-v3-0324:free', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('OpenRouter: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
-async function callSambaNova(env, messages, model) {
-  var key = env.SAMBANOVA_API_KEY || env.sambanova_api_key;
-  if (!key) throw new Error('No SambaNova key');
-  var resp = await fetch('https://api.sambanova.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'Meta-Llama-3.3-70B-Instruct', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('SambaNova: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
-async function callNvidia(env, messages, model) {
-  var key = env.NVIDIA_API_KEY || env.nvidia_build_api_key || env.NVIDIA_BUILD_API_KEY || env.nvidia_build_api_key_2;
-  if (!key) throw new Error('No NVIDIA key');
-  var resp = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'nvidia/llama-3.1-nemotron-ultra-253b-v1', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('NVIDIA: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
-async function callMistral(env, messages, model) {
-  var key = env.MISTRAL_API_KEY || env.mistral_api_key;
-  if (!key) throw new Error('No Mistral key');
-  var resp = await fetch('https://api.mistral.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'mistral-small-latest', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('Mistral: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
-async function callTogether(env, messages, model) {
-  var key = env.TOGETHER_API_KEY || env.together_api_key;
-  if (!key) throw new Error('No Together key');
-  var resp = await fetch('https://api.together.xyz/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'meta-llama/Llama-3.3-70B-Instruct-Turbo-Free', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('Together: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
-async function callFireworks(env, messages, model) {
-  var key = env.FIREWORKS_API_KEY || env.fireworks_api_key;
-  if (!key) throw new Error('No Fireworks key');
-  var resp = await fetch('https://api.fireworks.ai/inference/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'accounts/fireworks/models/llama-v3p3-70b-instruct', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('Fireworks: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
-async function callZhipu(env, messages, model) {
-  var key = env.ZHIPU_API_KEY || env.zhipu_api_key;
-  if (!key) throw new Error('No Zhipu key');
-  var resp = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'glm-4-flash', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('Zhipu: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
-async function callChutes(env, messages, model) {
-  var key = env.CHUTES_API_KEY || env.chutes_api_key;
-  if (!key) throw new Error('No Chutes key');
-  var resp = await fetch('https://llm.chutes.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'deepseek-ai/DeepSeek-V3-0324', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('Chutes: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
-async function callNebius(env, messages, model) {
-  var key = env.NEBIOUS_API_KEY || env.NEBIUS_API_KEY || env.nebius_api_key || env.NEBIUS_API_key;
-  if (!key) throw new Error('No Nebius key');
-  var resp = await fetch('https://api.studio.nebius.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'meta-llama/Meta-Llama-3.1-70B-Instruct', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('Nebius: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
-async function callKimi(env, messages, model) {
-  var key = env.KIMI_API_KEY || env.kimi_api_key;
-  if (!key) throw new Error('No Kimi key');
-  var resp = await fetch('https://api.moonshot.cn/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'moonshot-v1-8k', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('Kimi: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
-async function callOllama(env, messages, model) {
-  var tunnelUrl = env.OLLAMA_TUNNEL_URL || 'http://localhost:11434';
-  var resp = await fetch(tunnelUrl+'/api/chat', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({model: model||'phi4:latest', messages: messages, stream: false})
-  });
-  if (!resp.ok) throw new Error('Ollama: '+resp.status);
-  var data = await resp.json();
-  return data.message.content;
-}
-
-
-async function callAnyAPI(env, messages, model) {
-  var key = env.ANYAPI_KEY || env.anyapi_key || env.ANY_API_KEY;
-  if (!key) throw new Error('No AnyAPI key');
-  var resp = await fetch('https://api.anyapi.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'gpt-4o-mini', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('AnyAPI: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
-async function callPerplexity(env, messages, model) {
-  var key = env.PERPLEXITY_API_KEY || env.perplexity;
-  if (!key) throw new Error('No Perplexity key');
-  var resp = await fetch('https://api.perplexity.ai/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'llama-3.1-sonar-small-128k-online', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('Perplexity: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
-async function callHuggingFace(env, messages, model) {
-  var key = env.HUGGINGFACE_API_KEY || env.huggingface_api_key;
-  if (!key) throw new Error('No HuggingFace key');
-  // Use HF Inference API with Gemma4
-  var mdl = model || 'google/gemma-2-9b-it';
-  var resp = await fetch('https://api-inference.huggingface.co/models/' + mdl + '/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: mdl, messages: messages, max_tokens: 2048, stream: false})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('HuggingFace: '+(data.error||resp.status));
-  return data.choices[0].message.content;
-}
-
-async function callImageRouter(env, messages, model) {
-  var key = env.IMAGEROUTER_API_KEY || env.imagerouter_api_key;
-  if (!key) throw new Error('No ImageRouter key');
-  var resp = await fetch('https://ir.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({model: model||'google/gemma-3-27b-it:free', messages: messages, max_tokens: 4096})
-  });
-  var data = await resp.json();
-  if (!resp.ok) throw new Error('ImageRouter: '+(data.error&&data.error.message||resp.status));
-  return data.choices[0].message.content;
-}
-
-// ─── ROUTING PROFILES ─────────────────────────────────────────────────────────
-
+__name(callGemini, "callGemini");
 async function searchExa(env, query) {
   var key = env.EXA_API_KEY || env.exa_api_key;
-  if (!key) throw new Error('No Exa key');
-  var resp = await fetch('https://api.exa.ai/search', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','x-api-key':key},
-    body: JSON.stringify({query:query, numResults:8, useAutoprompt:true, type:'neural', contents:{text:{maxCharacters:500}}})
+  if (!key) throw new Error("No Exa key");
+  var resp = await fetch("https://api.exa.ai/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": key },
+    body: JSON.stringify({ query, numResults: 8, useAutoprompt: true, type: "neural", contents: { text: { maxCharacters: 500 } } })
   });
-  if (!resp.ok) throw new Error('Exa: '+resp.status);
+  if (!resp.ok) throw new Error("Exa: " + resp.status);
   var data = await resp.json();
-  return (data.results||[]).map(function(r){return {title:r.title,url:r.url,content:r.text||r.snippet||'',score:r.score};});
+  return (data.results || []).map(function(r) {
+    return { title: r.title, url: r.url, content: r.text || r.snippet || "", score: r.score };
+  });
 }
-
+__name(searchExa, "searchExa");
 async function searchSemanticScholar(env, query) {
   var key = env.SEMANTIC_SCHOLAR_API_KEY || env.semantic_scholar_api_key;
-  var headers = {'Content-Type':'application/json'};
-  if (key) headers['x-api-key'] = key;
-  var resp = await fetch('https://api.semanticscholar.org/graph/v1/paper/search?query='+encodeURIComponent(query)+'&limit=8&fields=title,abstract,url,year,authors,citationCount,openAccessPdf', {headers:headers});
-  if (!resp.ok) throw new Error('Semantic Scholar: '+resp.status);
+  var headers = { "Content-Type": "application/json" };
+  if (key) headers["x-api-key"] = key;
+  var resp = await fetch("https://api.semanticscholar.org/graph/v1/paper/search?query=" + encodeURIComponent(query) + "&limit=8&fields=title,abstract,url,year,authors,citationCount,openAccessPdf", { headers });
+  if (!resp.ok) throw new Error("Semantic Scholar: " + resp.status);
   var data = await resp.json();
-  return (data.data||[]).map(function(p){return {
-    title:p.title,
-    url:(p.openAccessPdf&&p.openAccessPdf.url)||('https://www.semanticscholar.org/paper/'+p.paperId),
-    content:(p.abstract||'').substring(0,400),
-    year:p.year,
-    authors:(p.authors||[]).map(function(a){return a.name;}).join(', '),
-    citations:p.citationCount,
-    _type:'academic'
-  };});
+  return (data.data || []).map(function(p) {
+    return {
+      title: p.title,
+      url: p.openAccessPdf && p.openAccessPdf.url || "https://www.semanticscholar.org/paper/" + p.paperId,
+      content: (p.abstract || "").substring(0, 400),
+      year: p.year,
+      authors: (p.authors || []).map(function(a) {
+        return a.name;
+      }).join(", "),
+      citations: p.citationCount,
+      _type: "academic"
+    };
+  });
 }
-
+__name(searchSemanticScholar, "searchSemanticScholar");
 async function searchPubMed(env, query) {
   var key = env.NCBI_API_KEY || env.ncbi_api_key;
-  var apiKey = key ? '&api_key='+key : '';
-  // Search for IDs
-  var searchResp = await fetch('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term='+encodeURIComponent(query)+'&retmax=8&retmode=json'+apiKey);
-  if (!searchResp.ok) throw new Error('PubMed search: '+searchResp.status);
+  var apiKey = key ? "&api_key=" + key : "";
+  var searchResp = await fetch("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=" + encodeURIComponent(query) + "&retmax=8&retmode=json" + apiKey);
+  if (!searchResp.ok) throw new Error("PubMed search: " + searchResp.status);
   var searchData = await searchResp.json();
-  var ids = (searchData.esearchresult&&searchData.esearchresult.idlist)||[];
+  var ids = searchData.esearchresult && searchData.esearchresult.idlist || [];
   if (ids.length === 0) return [];
-  // Fetch summaries
-  var summaryResp = await fetch('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id='+ids.join(',')+'&retmode=json'+apiKey);
+  var summaryResp = await fetch("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=" + ids.join(",") + "&retmode=json" + apiKey);
   if (!summaryResp.ok) return [];
   var summaryData = await summaryResp.json();
   var result = summaryData.result || {};
-  return ids.map(function(id){
-    var item = result[id]||{};
+  return ids.map(function(id) {
+    var item = result[id] || {};
     return {
-      title:item.title||'',
-      url:'https://pubmed.ncbi.nlm.nih.gov/'+id+'/',
-      content:(item.source||'')+' '+(item.pubdate||''),
-      authors:(item.authors||[]).map(function(a){return a.name;}).join(', '),
-      year:item.pubdate,
-      _type:'academic',
-      _source:'pubmed'
+      title: item.title || "",
+      url: "https://pubmed.ncbi.nlm.nih.gov/" + id + "/",
+      content: (item.source || "") + " " + (item.pubdate || ""),
+      authors: (item.authors || []).map(function(a) {
+        return a.name;
+      }).join(", "),
+      year: item.pubdate,
+      _type: "academic",
+      _source: "pubmed"
     };
-  }).filter(function(r){return r.title;});
-}
-
-async function searchCrossref(env, query) {
-  var resp = await fetch('https://api.crossref.org/works?query='+encodeURIComponent(query)+'&rows=8&select=title,URL,abstract,author,published,container-title&mailto=hello@identitypartners.uk');
-  if (!resp.ok) throw new Error('Crossref: '+resp.status);
-  var data = await resp.json();
-  return ((data.message&&data.message.items)||[]).map(function(item){
-    var authors = (item.author||[]).map(function(a){return (a.given||'')+' '+(a.family||'');}).join(', ');
-    var year = item.published&&item.published['date-parts']&&item.published['date-parts'][0]&&item.published['date-parts'][0][0];
-    return {
-      title:(item.title&&item.title[0])||'',
-      url:item.URL||'',
-      content:(item.abstract||'').replace(/<[^>]+>/g,'').substring(0,400),
-      authors:authors,
-      year:year,
-      journal:(item['container-title']&&item['container-title'][0])||'',
-      _type:'academic'
-    };
-  }).filter(function(r){return r.title;});
-}
-
-async function searchOpenAlex(env, query) {
-  var resp = await fetch('https://api.openalex.org/works?search='+encodeURIComponent(query)+'&per-page=8&select=title,doi,abstract_inverted_index,authorships,publication_year,primary_location&mailto=hello@identitypartners.uk');
-  if (!resp.ok) throw new Error('OpenAlex: '+resp.status);
-  var data = await resp.json();
-  return ((data.results)||[]).map(function(item){
-    var authors = (item.authorships||[]).slice(0,3).map(function(a){return a.author&&a.author.display_name||'';}).join(', ');
-    var url = item.doi ? 'https://doi.org/'+item.doi.replace('https://doi.org/','') : '';
-    return {
-      title:item.title||'',
-      url:url,
-      content:'',
-      authors:authors,
-      year:item.publication_year,
-      _type:'academic'
-    };
-  }).filter(function(r){return r.title;});
-}
-
-async function searchCORE(env, query) {
-  // CORE API v3 — free, no key needed for basic search
-  var resp = await fetch('https://api.core.ac.uk/v3/search/works?q='+encodeURIComponent(query)+'&limit=8', {
-    headers: {'Content-Type':'application/json'}
+  }).filter(function(r) {
+    return r.title;
   });
-  if (!resp.ok) throw new Error('CORE: '+resp.status);
-  var data = await resp.json();
-  return ((data.results)||[]).map(function(item){
-    return {
-      title:item.title||'',
-      url:item.downloadUrl||item.sourceFulltextUrls&&item.sourceFulltextUrls[0]||'https://core.ac.uk/works/'+item.id,
-      content:(item.abstract||'').substring(0,400),
-      authors:(item.authors||[]).map(function(a){return a.name||'';}).join(', '),
-      year:item.yearPublished,
-      _type:'academic',
-      openAccess:true
-    };
-  }).filter(function(r){return r.title;});
 }
-
+__name(searchPubMed, "searchPubMed");
+async function searchCrossref(env, query) {
+  var resp = await fetch("https://api.crossref.org/works?query=" + encodeURIComponent(query) + "&rows=8&select=title,URL,abstract,author,published,container-title&mailto=hello@identitypartners.uk");
+  if (!resp.ok) throw new Error("Crossref: " + resp.status);
+  var data = await resp.json();
+  return (data.message && data.message.items || []).map(function(item) {
+    var authors = (item.author || []).map(function(a) {
+      return (a.given || "") + " " + (a.family || "");
+    }).join(", ");
+    var year = item.published && item.published["date-parts"] && item.published["date-parts"][0] && item.published["date-parts"][0][0];
+    return {
+      title: item.title && item.title[0] || "",
+      url: item.URL || "",
+      content: (item.abstract || "").replace(/<[^>]+>/g, "").substring(0, 400),
+      authors,
+      year,
+      journal: item["container-title"] && item["container-title"][0] || "",
+      _type: "academic"
+    };
+  }).filter(function(r) {
+    return r.title;
+  });
+}
+__name(searchCrossref, "searchCrossref");
+async function searchOpenAlex(env, query) {
+  var resp = await fetch("https://api.openalex.org/works?search=" + encodeURIComponent(query) + "&per-page=8&select=title,doi,abstract_inverted_index,authorships,publication_year,primary_location&mailto=hello@identitypartners.uk");
+  if (!resp.ok) throw new Error("OpenAlex: " + resp.status);
+  var data = await resp.json();
+  return (data.results || []).map(function(item) {
+    var authors = (item.authorships || []).slice(0, 3).map(function(a) {
+      return a.author && a.author.display_name || "";
+    }).join(", ");
+    var url = item.doi ? "https://doi.org/" + item.doi.replace("https://doi.org/", "") : "";
+    return {
+      title: item.title || "",
+      url,
+      content: "",
+      authors,
+      year: item.publication_year,
+      _type: "academic"
+    };
+  }).filter(function(r) {
+    return r.title;
+  });
+}
+__name(searchOpenAlex, "searchOpenAlex");
+async function searchCORE(env, query) {
+  var resp = await fetch("https://api.core.ac.uk/v3/search/works?q=" + encodeURIComponent(query) + "&limit=8", {
+    headers: { "Content-Type": "application/json" }
+  });
+  if (!resp.ok) throw new Error("CORE: " + resp.status);
+  var data = await resp.json();
+  return (data.results || []).map(function(item) {
+    return {
+      title: item.title || "",
+      url: item.downloadUrl || item.sourceFulltextUrls && item.sourceFulltextUrls[0] || "https://core.ac.uk/works/" + item.id,
+      content: (item.abstract || "").substring(0, 400),
+      authors: (item.authors || []).map(function(a) {
+        return a.name || "";
+      }).join(", "),
+      year: item.yearPublished,
+      _type: "academic",
+      openAccess: true
+    };
+  }).filter(function(r) {
+    return r.title;
+  });
+}
+__name(searchCORE, "searchCORE");
 async function searchFirecrawl(env, query) {
   var key = env.FIRECRAWL_API_KEY || env.firecrawl_api_key;
-  if (!key) throw new Error('No Firecrawl key');
-  var resp = await fetch('https://api.firecrawl.dev/v1/search', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
-    body: JSON.stringify({query:query, limit:5, scrapeOptions:{formats:['markdown']}})
+  if (!key) throw new Error("No Firecrawl key");
+  var resp = await fetch("https://api.firecrawl.dev/v1/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
+    body: JSON.stringify({ query, limit: 5, scrapeOptions: { formats: ["markdown"] } })
   });
-  if (!resp.ok) throw new Error('Firecrawl: '+resp.status);
+  if (!resp.ok) throw new Error("Firecrawl: " + resp.status);
   var data = await resp.json();
-  return (data.data||[]).map(function(r){return {title:r.metadata&&r.metadata.title||r.url,url:r.url,content:(r.markdown||'').substring(0,400)};});
+  return (data.data || []).map(function(r) {
+    return { title: r.metadata && r.metadata.title || r.url, url: r.url, content: (r.markdown || "").substring(0, 400) };
+  });
 }
-
+__name(searchFirecrawl, "searchFirecrawl");
 async function searchPerplexity(env, query) {
   var key = env.PERPLEXITY_API_KEY || env.perplexity;
-  if (!key) throw new Error('No Perplexity key');
-  var resp = await fetch('https://api.perplexity.ai/chat/completions', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+key},
+  if (!key) throw new Error("No Perplexity key");
+  var resp = await fetch("https://api.perplexity.ai/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
     body: JSON.stringify({
-      model: 'llama-3.1-sonar-large-128k-online',
-      messages: [{role:'user',content:'Search for academic and professional information about: '+query+'. Provide 5 specific results with titles, URLs, and summaries. Focus on evidence-based sources.'}],
-      max_tokens: 2000,
+      model: "llama-3.1-sonar-large-128k-online",
+      messages: [{ role: "user", content: "Search for academic and professional information about: " + query + ". Provide 5 specific results with titles, URLs, and summaries. Focus on evidence-based sources." }],
+      max_tokens: 2e3,
       return_citations: true,
       return_related_questions: false
     })
   });
-  if (!resp.ok) throw new Error('Perplexity: '+resp.status);
+  if (!resp.ok) throw new Error("Perplexity: " + resp.status);
   var data = await resp.json();
-  var content = data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content||'';
+  var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || "";
   var citations = data.citations || [];
-  // Return citations as individual results + synthesis
-  var results = citations.slice(0,5).map(function(url, i) {
-    return {title:'Source '+(i+1)+': '+url, url:url, content:'', _type:'web', _source:'perplexity'};
+  var results = citations.slice(0, 5).map(function(url, i) {
+    return { title: "Source " + (i + 1) + ": " + url, url, content: "", _type: "web", _source: "perplexity" };
   });
-  results.unshift({title:'Perplexity AI Synthesis: '+query, url:'https://perplexity.ai', content:content, _type:'synthesis', _source:'perplexity'});
+  results.unshift({ title: "Perplexity AI Synthesis: " + query, url: "https://perplexity.ai", content, _type: "synthesis", _source: "perplexity" });
   return results;
 }
-
-
+__name(searchPerplexity, "searchPerplexity");
 async function searchArXiv(env, query) {
-  var resp = await fetch('https://export.arxiv.org/api/query?search_query=all:'+encodeURIComponent(query)+'&max_results=8&sortBy=relevance');
-  if (!resp.ok) throw new Error('arXiv: '+resp.status);
+  var resp = await fetch("https://export.arxiv.org/api/query?search_query=all:" + encodeURIComponent(query) + "&max_results=8&sortBy=relevance");
+  if (!resp.ok) throw new Error("arXiv: " + resp.status);
   var text = await resp.text();
   var results = [];
   var entries = text.match(/<entry>([\s\S]*?)<\/entry>/g) || [];
   entries.forEach(function(entry) {
-    var title = (entry.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
-    var summary = (entry.match(/<summary>([\s\S]*?)<\/summary>/) || [])[1] || '';
-    var id = (entry.match(/<id>([\s\S]*?)<\/id>/) || [])[1] || '';
-    var published = (entry.match(/<published>([\s\S]*?)<\/published>/) || [])[1] || '';
-    results.push({title:title.trim(),url:id.trim(),content:summary.trim().substring(0,400),year:published.substring(0,4),_type:'preprint'});
+    var title = (entry.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || "";
+    var summary = (entry.match(/<summary>([\s\S]*?)<\/summary>/) || [])[1] || "";
+    var id = (entry.match(/<id>([\s\S]*?)<\/id>/) || [])[1] || "";
+    var published = (entry.match(/<published>([\s\S]*?)<\/published>/) || [])[1] || "";
+    results.push({ title: title.trim(), url: id.trim(), content: summary.trim().substring(0, 400), year: published.substring(0, 4), _type: "preprint" });
   });
   return results;
 }
-
+__name(searchArXiv, "searchArXiv");
 async function searchEuropePMC(env, query) {
-  var resp = await fetch('https://www.ebi.ac.uk/europepmc/webservices/rest/search?query='+encodeURIComponent(query)+'&format=json&pageSize=8&resultType=core');
-  if (!resp.ok) throw new Error('Europe PMC: '+resp.status);
+  var resp = await fetch("https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=" + encodeURIComponent(query) + "&format=json&pageSize=8&resultType=core");
+  if (!resp.ok) throw new Error("Europe PMC: " + resp.status);
   var data = await resp.json();
-  return ((data.resultList&&data.resultList.result)||[]).map(function(r){return {
-    title:r.title||'',url:'https://europepmc.org/article/'+r.source+'/'+r.id,
-    content:(r.abstractText||'').substring(0,400),authors:r.authorString||'',year:r.pubYear,_type:'academic'
-  };});
+  return (data.resultList && data.resultList.result || []).map(function(r) {
+    return {
+      title: r.title || "",
+      url: "https://europepmc.org/article/" + r.source + "/" + r.id,
+      content: (r.abstractText || "").substring(0, 400),
+      authors: r.authorString || "",
+      year: r.pubYear,
+      _type: "academic"
+    };
+  });
 }
-
+__name(searchEuropePMC, "searchEuropePMC");
 async function searchZenodo(env, query) {
-  var resp = await fetch('https://zenodo.org/api/records?q='+encodeURIComponent(query)+'&size=8&sort=mostrecent');
-  if (!resp.ok) throw new Error('Zenodo: '+resp.status);
+  var resp = await fetch("https://zenodo.org/api/records?q=" + encodeURIComponent(query) + "&size=8&sort=mostrecent");
+  if (!resp.ok) throw new Error("Zenodo: " + resp.status);
   var data = await resp.json();
-  return ((data.hits&&data.hits.hits)||[]).map(function(r){return {
-    title:(r.metadata&&r.metadata.title)||'',
-    url:'https://zenodo.org/record/'+r.id,
-    content:(r.metadata&&r.metadata.description||'').replace(/<[^>]+>/g,'').substring(0,400),
-    year:r.metadata&&r.metadata.publication_date&&r.metadata.publication_date.substring(0,4),
-    _type:'data'
-  };});
+  return (data.hits && data.hits.hits || []).map(function(r) {
+    return {
+      title: r.metadata && r.metadata.title || "",
+      url: "https://zenodo.org/record/" + r.id,
+      content: (r.metadata && r.metadata.description || "").replace(/<[^>]+>/g, "").substring(0, 400),
+      year: r.metadata && r.metadata.publication_date && r.metadata.publication_date.substring(0, 4),
+      _type: "data"
+    };
+  });
 }
-
+__name(searchZenodo, "searchZenodo");
 async function searchWorldBank(env, query) {
-  var resp = await fetch('https://search.worldbank.org/api/v2/wds?qterm='+encodeURIComponent(query)+'&rows=8&format=json');
-  if (!resp.ok) throw new Error('World Bank: '+resp.status);
+  var resp = await fetch("https://search.worldbank.org/api/v2/wds?qterm=" + encodeURIComponent(query) + "&rows=8&format=json");
+  if (!resp.ok) throw new Error("World Bank: " + resp.status);
   var data = await resp.json();
-  return ((data.documents&&Object.values(data.documents))||[]).filter(function(d){return d.display_title;}).slice(0,8).map(function(d){return {
-    title:d.display_title||'',url:d.url||'',content:(d.abstract||'').substring(0,400),year:d.docdt&&d.docdt.substring(0,4),_type:'data'
-  };});
+  return (data.documents && Object.values(data.documents) || []).filter(function(d) {
+    return d.display_title;
+  }).slice(0, 8).map(function(d) {
+    return {
+      title: d.display_title || "",
+      url: d.url || "",
+      content: (d.abstract || "").substring(0, 400),
+      year: d.docdt && d.docdt.substring(0, 4),
+      _type: "data"
+    };
+  });
 }
-
+__name(searchWorldBank, "searchWorldBank");
 async function searchONS(env, query) {
-  var resp = await fetch('https://api.beta.ons.gov.uk/v1/search?q='+encodeURIComponent(query)+'&limit=8');
-  if (!resp.ok) throw new Error('ONS: '+resp.status);
+  var resp = await fetch("https://api.beta.ons.gov.uk/v1/search?q=" + encodeURIComponent(query) + "&limit=8");
+  if (!resp.ok) throw new Error("ONS: " + resp.status);
   var data = await resp.json();
-  return ((data.items)||[]).map(function(r){return {
-    title:r.description&&r.description.title||r.uri||'',
-    url:'https://www.ons.gov.uk'+r.uri,
-    content:(r.description&&r.description.summary||'').substring(0,400),
-    _type:'data',_source:'ons'
-  };});
+  return (data.items || []).map(function(r) {
+    return {
+      title: r.description && r.description.title || r.uri || "",
+      url: "https://www.ons.gov.uk" + r.uri,
+      content: (r.description && r.description.summary || "").substring(0, 400),
+      _type: "data",
+      _source: "ons"
+    };
+  });
 }
-
+__name(searchONS, "searchONS");
 async function searchDataGovUK(env, query) {
-  var resp = await fetch('https://data.gov.uk/api/3/action/package_search?q='+encodeURIComponent(query)+'&rows=8');
-  if (!resp.ok) throw new Error('data.gov.uk: '+resp.status);
+  var resp = await fetch("https://data.gov.uk/api/3/action/package_search?q=" + encodeURIComponent(query) + "&rows=8");
+  if (!resp.ok) throw new Error("data.gov.uk: " + resp.status);
   var data = await resp.json();
-  return ((data.result&&data.result.results)||[]).map(function(r){return {
-    title:r.title||'',url:'https://data.gov.uk/dataset/'+r.name,
-    content:(r.notes||'').substring(0,400),_type:'data',_source:'data.gov.uk'
-  };});
+  return (data.result && data.result.results || []).map(function(r) {
+    return {
+      title: r.title || "",
+      url: "https://data.gov.uk/dataset/" + r.name,
+      content: (r.notes || "").substring(0, 400),
+      _type: "data",
+      _source: "data.gov.uk"
+    };
+  });
 }
-
+__name(searchDataGovUK, "searchDataGovUK");
 async function searchSSRN(env, query) {
-  // SSRN via Exa (neural search for SSRN papers)
   var key = env.EXA_API_KEY || env.exa_api_key;
-  if (!key) throw new Error('No Exa key for SSRN');
-  var resp = await fetch('https://api.exa.ai/search', {
-    method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':key},
-    body:JSON.stringify({query:query+' site:ssrn.com',numResults:6,useAutoprompt:false,contents:{text:{maxCharacters:400}}})
+  if (!key) throw new Error("No Exa key for SSRN");
+  var resp = await fetch("https://api.exa.ai/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": key },
+    body: JSON.stringify({ query: query + " site:ssrn.com", numResults: 6, useAutoprompt: false, contents: { text: { maxCharacters: 400 } } })
   });
-  if (!resp.ok) throw new Error('SSRN via Exa: '+resp.status);
+  if (!resp.ok) throw new Error("SSRN via Exa: " + resp.status);
   var data = await resp.json();
-  return (data.results||[]).map(function(r){return {title:r.title,url:r.url,content:r.text||'',_type:'preprint',_source:'ssrn'};});
-}
-
-async function searchOurWorldInData(env, query) {
-  var resp = await fetch('https://ourworldindata.org/search?q='+encodeURIComponent(query));
-  // OWID doesn't have a public API — use Exa to search it
-  var key = env.EXA_API_KEY || env.exa_api_key;
-  if (!key) throw new Error('No Exa key for OWID');
-  var exaResp = await fetch('https://api.exa.ai/search', {
-    method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':key},
-    body:JSON.stringify({query:query+' site:ourworldindata.org',numResults:5,contents:{text:{maxCharacters:400}}})
+  return (data.results || []).map(function(r) {
+    return { title: r.title, url: r.url, content: r.text || "", _type: "preprint", _source: "ssrn" };
   });
-  if (!exaResp.ok) throw new Error('OWID: '+exaResp.status);
-  var data = await exaResp.json();
-  return (data.results||[]).map(function(r){return {title:r.title,url:r.url,content:r.text||'',_type:'data',_source:'ourworldindata'};});
 }
-
-// ── Routing philosophy ────────────────────────────────────────────────────────
-// Primary: Cerebras Gemma4 (fastest, free, multimodal)
-// Secondary: NVIDIA Nemotron, DeepSeek, Groq Gemma2/Llama
-// Long-context reasoning only: Gemini
-// OpenRouter: only for free access to models not otherwise available
-// Llama Scout 4: fallback only — only beats Gemma4 on encyclopaedic long-context
-// ─────────────────────────────────────────────────────────────────────────────
-var FALLBACK_CHAINS = {
-  'local': [
-    ['ollama','gemma4:12b'],
-    ['ollama','gemma4:e4b'],
-    ['ollama','phi4:latest'],
-    ['ollama','qwen2.5:7b'],
-    ['ollama','deepseek-r1:7b']
-  ],
-  'free': [
-    ['cerebras','gemma-4-9b-it'],          // Gemma4 on Cerebras — fastest free
-    ['cerebras','gemma-4-27b-it'],          // Gemma4 27B on Cerebras
-    ['groq','gemma2-9b-it'],               // Gemma2 on Groq
-    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1'], // NVIDIA free tier
-    ['deepseek','deepseek-chat'],           // DeepSeek V3
-    ['groq','llama-3.3-70b-versatile'],    // Groq Llama fallback
-    ['chutes','deepseek-ai/DeepSeek-V3-0324'],
-    ['sambanova',null],
-    ['ollama','gemma4:12b']                // Local last resort
-  ],
-  'balanced': [
-    ['cerebras','gemma-4-9b-it'],          // Gemma4 on Cerebras — primary
-    ['cerebras','gemma-4-27b-it'],          // Gemma4 27B
-    ['deepseek','deepseek-chat'],           // DeepSeek V3 for quality
-    ['groq','gemma2-9b-it'],               // Gemma2 on Groq
-    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1'],
-    ['groq','llama-3.3-70b-versatile'],
-    ['chutes','deepseek-ai/DeepSeek-V3-0324'],
-    ['ollama','gemma4:12b']
-  ],
-  'frontier-free': [
-    ['cerebras','gemma-4-27b-it'],          // Gemma4 27B on Cerebras
-    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1'],
-    ['deepseek','deepseek-chat'],
-    ['groq','gemma2-9b-it'],
-    ['gemini','gemini-2.0-flash'],          // Gemini for long-context only
-    ['ollama','gemma4:e4b']
-  ],
-  'frontier': [
-    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1'], // Nemotron Ultra 253B — 128K context + reasoning
-    ['deepseek','deepseek-reasoner'],       // DeepSeek R1
-    ['cerebras','gemma-4-27b-it'],
-    ['deepseek','deepseek-chat'],
-    ['gemini','gemini-2.0-flash'],          // Long-context only
-    ['ollama','gemma4:12b']
-  ],
-  'coding': [
-    ['cerebras','gemma-4-9b-it'],          // Gemma4 excellent at code
-    ['deepseek','deepseek-chat'],           // DeepSeek strong on code
-    ['groq','gemma2-9b-it'],
-    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1'],
-    ['groq','llama-3.3-70b-versatile'],
-    ['ollama','gemma4:12b']
-  ],
-  'reasoning': [
-    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1'], // Nemotron Ultra 253B — primary reasoning + 128K context
-    ['deepseek','deepseek-reasoner'],       // DeepSeek R1 — strong reasoning
-    ['groq','deepseek-r1-distill-llama-70b'],
-    ['cerebras','gemma-4-27b-it'],
-    ['gemini','gemini-2.0-flash'],          // Long-context fallback
-    ['ollama','deepseek-r1:7b']
-  ],
-  'fast': [
-    ['cerebras','gemma-4-9b-it'],          // Gemma4 9B — fastest option
-    ['groq','gemma2-9b-it'],               // Gemma2 on Groq — very fast
-    ['groq','llama-3.1-8b-instant'],       // Groq 8B instant
-    ['cerebras','llama-4-scout-17b-16e-instruct'] // Scout only as fast fallback
-  ],
-  'research': [
-    ['perplexity','llama-3.1-sonar-large-128k-online'], // Web-search augmented
-    ['cerebras','gemma-4-27b-it'],
-    ['deepseek','deepseek-chat'],
-    ['gemini','gemini-2.0-flash'],          // Long-context for research synthesis
-    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1']
-  ],
-  'multimodal': [
-    ['cerebras','gemma-4-27b-it'],          // Gemma4 is multimodal on Cerebras
-    ['gemini','gemini-2.0-flash'],          // Gemini multimodal
-    ['nvidia','nvidia/llama-3.1-nemotron-ultra-253b-v1'],
-    ['ollama','gemma4:12b']
-  ],
-};
-
-var PROVIDER_FNS = {
-  'cerebras':    callCerebras,
-  'groq':        callGroq,
-  'deepseek':    callDeepSeek,
-  'gemini':      callGemini,
-  'openrouter':  callOpenRouter,
-  'sambanova':   callSambaNova,
-  'nvidia':      callNvidia,
-  'mistral':     callMistral,
-  'together':    callTogether,
-  'fireworks':   callFireworks,
-  'zhipu':       callZhipu,
-  'chutes':      callChutes,
-  'nebius':      callNebius,
-  'kimi':        callKimi,
-  'ollama':      callOllama,
-  'huggingface': callHuggingFace,
-  'perplexity':  callPerplexity,
-  'anyapi':      callAnyAPI,
-  'imagerouter': callImageRouter,
-};
-
-// ─── ORCHESTRATOR ─────────────────────────────────────────────────────────────
+__name(searchSSRN, "searchSSRN");
+async function searchOurWorldInData(env, query) {
+  var resp = await fetch("https://ourworldindata.org/search?q=" + encodeURIComponent(query));
+  var key = env.EXA_API_KEY || env.exa_api_key;
+  if (!key) throw new Error("No Exa key for OWID");
+  var exaResp = await fetch("https://api.exa.ai/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": key },
+    body: JSON.stringify({ query: query + " site:ourworldindata.org", numResults: 5, contents: { text: { maxCharacters: 400 } } })
+  });
+  if (!exaResp.ok) throw new Error("OWID: " + exaResp.status);
+  var data = await exaResp.json();
+  return (data.results || []).map(function(r) {
+    return { title: r.title, url: r.url, content: r.text || "", _type: "data", _source: "ourworldindata" };
+  });
+}
+__name(searchOurWorldInData, "searchOurWorldInData");
 async function orchestrate(env, messages, profile, intent, threadId) {
-  var chain = (FALLBACK_CHAINS[profile] || FALLBACK_CHAINS['balanced']).slice();
-  if (intent === 'coding') chain = FALLBACK_CHAINS['coding'].slice();
-  else if (intent === 'reasoning') chain = FALLBACK_CHAINS['reasoning'].slice();
-  else if (intent === 'research') chain = FALLBACK_CHAINS['research'].slice();
-  else if (intent === 'multimodal' || intent === 'image_gen') chain = FALLBACK_CHAINS['multimodal'].slice();
-
-  var lastError = null;
-  var routingLog = [];
-
-  for (var i = 0; i < chain.length; i++) {
-    var provider = chain[i][0];
-    var model = chain[i][1];
-    var fn = PROVIDER_FNS[provider];
-    if (!fn) continue;
-    try {
-      routingLog.push({provider: provider, model: model});
-      var result = await fn(env, messages, model);
-      if (result && result.trim()) {
-        var cleaned = stripTropes(result);
-        if (env.PRISM_KV && threadId) {
-          await env.PRISM_KV.put('routing:'+threadId+':'+Date.now(), JSON.stringify({
-            provider: provider, model: model, intent: intent, profile: profile
-          }), {expirationTtl: 604800});
-        }
-        return {content: cleaned, provider: provider, model: model, routingLog: routingLog};
-      }
-    } catch(e) {
-      lastError = e;
-      routingLog[routingLog.length-1].error = e.message;
+  var log = [];
+  var t0 = Date.now();
+  messages = (messages || []).filter(function(m) {
+    return m && m.role && m.content;
+  });
+  if (messages.length === 0) return { content: "No valid messages provided.", provider: "none", error: true };
+  var kv2 = {};
+  try {
+    if (env.PRISM_KV) {
+      var raw = await env.PRISM_KV.get("__secrets__");
+      if (raw) kv2 = JSON.parse(raw);
+    }
+  } catch (e) {
+    log.push("KV load error: " + e.message);
+  }
+  function k(names) {
+    for (var i = 0; i < names.length; i++) {
+      var n = names[i];
+      var v = env[n] || env[n.toLowerCase()] || env[n.toUpperCase()];
+      if (v && v.length > 6) return v;
+      v = kv2[n] || kv2[n.toLowerCase()] || kv2[n.toUpperCase()];
+      if (v && v.length > 6) return v;
+    }
+    return null;
+  }
+  __name(k, "k");
+  var KEYS = {
+    // Cerebras — 4 free + 2 paid
+    cerebras: [
+      k(["cerebras_f1"]),
+      k(["cerebras_f2"]),
+      k(["cerebras_f3"]),
+      k(["cerebras_f4"]),
+      k(["cerebras_p1"]),
+      k(["cerebras_p2"])
+    ].filter(Boolean),
+    // Groq — 2 free + 1 paid
+    groq: [k(["groq_f1"]), k(["groq_f2"]), k(["groq_p1"])].filter(Boolean),
+    // Gemini AI Studio — free + paid
+    gemini_free: k(["gemini_f1"]),
+    gemini_paid: k(["gemini_p1"]),
+    // DeepSeek — 2 free + 3 paid
+    deepseek: k(["deepseek_p1", "deepseek_p2", "deepseek_p3"]),
+    deepseek_f1: k(["deepseek_f1"]),
+    deepseek_f2: k(["deepseek_f2"]),
+    // Kimi/Moonshot — paid ($15 credit)
+    kimi: k(["kimi_p1"]),
+    // Mistral — free
+    mistral: k(["mistral_f1"]),
+    // Cohere — paid
+    cohere: k(["cohere_p1"]),
+    // Together — paid
+    together: k(["together_p1"]),
+    // SambaNova — paid
+    sambanova: k(["sambanova_p1"]),
+    // Fireworks — paid
+    fireworks: k(["fireworks_p1"]),
+    // Chutes — paid
+    chutes: k(["chutes_p1"]),
+    // AnyAPI — paid
+    anyapi: k(["anyapi_p1"]),
+    // NVIDIA NIM — 2 paid
+    nvidia: k(["nvidia_p1"]),
+    nvidia2: k(["nvidia_p2"]),
+    // xAI Grok — paid
+    xai: k(["xai_p1"]),
+    // Muse/LLM7 — paid
+    muse: k(["muse_p1"]),
+    llm7: k(["llm7_p1", "llm7_p2"]),
+    // Nebius — paid
+    nebius: k(["nebius_p1"]),
+    // ModelsLab — paid
+    modelslab: k(["modelslab_p1"]),
+    // OpenRouter — paid
+    openrouter: k(["openrouter_p1"]),
+    // HuggingFace — paid
+    huggingface: k(["huggingface_p1"]),
+    // Pollinations — 4 keys (pollen credits)
+    pollinations: k(["pollinations_p1", "pollinations_p2", "pollinations_p3", "pollinations_p4"]),
+    // KIE.ai — aggregator
+    kie: k(["kie_p1"]),
+    // Perplexity — 3 paid
+    perplexity: k(["perplexity_p1", "perplexity_p2", "perplexity_p3"]),
+    // Zhipu/GLM — paid
+    zhipu: k(["zhipu_p1"]),
+    // Image search
+    pexels: k(["pexels_p1"]),
+    pixabay: k(["pixabay_p1"]),
+    unsplash: k(["unsplash_p1"]),
+    // Image gen
+    fal: k(["fal_p1"]),
+    stability: k(["stability_p1"]),
+    ideogram: k(["ideogram_p1"]),
+    imagerouter: k(["imagerouter_p1"]),
+    // Voice
+    elevenlabs: k(["elevenlabs_p1"]),
+    fishaudio: k(["fishaudio_p1"]),
+    cartesia: k(["cartesia_p1"]),
+    deepgram: k(["deepgram_p1", "deepgram_p2"]),
+    smallestai: k(["smallestai_p1"]),
+    // Search
+    tavily: k(["tavily_p1"]),
+    exa: k(["exa_p1"]),
+    brave: k(["brave_p1"]),
+    semanticscholar: k(["semanticscholar_p1"]),
+    ncbi: k(["ncbi_p1"]),
+    firecrawl: k(["firecrawl_p1"]),
+    // Social
+    bluesky_handle: k(["bluesky_p1"]),
+    bluesky_password: k(["bluesky_p2"]),
+    telegram_token: k(["telegram_p1"]),
+    telegram_chat: k(["telegram_p2"]),
+    buffer: k(["buffer_p1"]),
+    tumblr_key: k(["tumblr_p1"]),
+    tumblr_secret: k(["tumblr_p2"]),
+    mastodon_key: k(["mastodon_p1"]),
+    mastodon_secret: k(["mastodon_p2"]),
+    mastodon_token: k(["mastodon_p3"]),
+    // Tools
+    browserless: k(["browserless_p1"]),
+    ocrspace: k(["ocrspace_p1"]),
+    notion_token: k(["notion_p1"]),
+    notion_db: k(["notion_p2"]),
+    github: k(["github_p1"]),
+    // Zoho
+    zoho_client_id: k(["zoho_p1"]),
+    zoho_client_secret: k(["zoho_p2"]),
+    zoho_auth_code: k(["zoho_p3"]),
+    // LinkedIn
+    linkedin_client_id: k(["linkedin_p1"]),
+    linkedin_client_secret: k(["linkedin_p2"]),
+    // Whop
+    whop: k(["whop_p1"]),
+    // KIE.ai
+    kie: k(["kie_p1"])
+  };
+  ;
+  var chain = [];
+  function addCerebras(model) {
+    KEYS.cerebras.forEach(function(key) {
+      chain.push({ p: "cerebras", key, m: model });
+    });
+  }
+  __name(addCerebras, "addCerebras");
+  function addKIE(model) {
+    if (KEYS.kie) chain.push({ p: "kie", key: KEYS.kie, m: model });
+  }
+  __name(addKIE, "addKIE");
+  function addGroq(model) {
+    KEYS.groq.forEach(function(key) {
+      chain.push({ p: "groq", key, m: model });
+    });
+  }
+  __name(addGroq, "addGroq");
+  if (profile === "reasoning" || profile === "frontier") {
+    if (KEYS.nvidia) chain.push({ p: "nvidia", key: KEYS.nvidia, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1" });
+    if (KEYS.nvidia2) chain.push({ p: "nvidia", key: KEYS.nvidia2, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1" });
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-reasoner" });
+    if (KEYS.gemini_free) chain.push({ p: "gemini", key: KEYS.gemini_free, m: "gemini-2.5-flash" });
+    chain.push({ p: "gemini", key: KEYS.gemini_free, m: "gemma-4-31b-it" });
+    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-32k" });
+    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-a-03-2025" });
+    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat-v3-0324:free" });
+  }
+  var lastMsg = "";
+  for (var mi = messages.length - 1; mi >= 0; mi--) {
+    if (messages[mi].role === "user") {
+      lastMsg = messages[mi].content || "";
+      break;
     }
   }
-  throw new Error('All providers failed. Last: '+(lastError ? lastError.message : 'unknown'));
+  var msgLen = lastMsg.length;
+  var detectedIntent = intent || "chat";
+  var isReasoning = /\b(reason|analyse|analyze|evaluate|assess|compare|critique|argue|debate|logic|proof|deduce|infer|why|explain why|how does|what causes)\b/i.test(lastMsg) || profile === "reasoning";
+  var isLongContext = msgLen > 8e3 || /\b(summarise|summarize|entire|whole|full|complete|all of|throughout|document|report|paper|article|transcript)\b/i.test(lastMsg);
+  var isCoding = /\b(code|function|script|program|debug|fix|implement|class|method|api|sql|python|javascript|typescript|bash|regex)\b/i.test(lastMsg);
+  var isCreative = /\b(write|draft|poem|story|essay|blog|article|newsletter|caption|tweet|post|copy|creative|narrative)\b/i.test(lastMsg);
+  var isFast = profile === "fast" || msgLen < 200;
+  if (isReasoning) {
+    if (KEYS.nvidia) chain.push({ p: "nvidia", key: KEYS.nvidia, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128e3, cost: 0, note: "Nemotron Ultra -- best free reasoning" });
+    if (KEYS.nvidia2) chain.push({ p: "nvidia", key: KEYS.nvidia2, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128e3, cost: 0, note: "Nemotron Ultra key 2" });
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-reasoner", ctx: 64e3, cost: 0.55, note: "DeepSeek R1 -- chain-of-thought" });
+    if (KEYS.gemini_paid) chain.push({ p: "gemini", key: KEYS.gemini_paid, m: "gemini-2.5-flash", ctx: 32e3, cost: 0, note: "Gemini thinking" });
+    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-32k", ctx: 32e3, cost: 0.12, note: "Kimi long-ctx reasoning" });
+    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus", ctx: 128e3, cost: 3, note: "Cohere R+ -- strong reasoning" });
+    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat-v3-0324:free", ctx: 64e3, cost: 0, note: "DeepSeek R1 free via OpenRouter" });
+  } else if (isLongContext) {
+    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-128k", ctx: 128e3, cost: 0.12, note: "Kimi 128K -- best long-ctx" });
+    if (KEYS.gemini_paid) chain.push({ p: "gemini", key: KEYS.gemini_paid, m: "gemini-2.5-pro", ctx: 1e6, cost: 3.5, note: "Gemini 1M ctx" });
+    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus", ctx: 128e3, cost: 3, note: "Cohere 128K" });
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64e3, cost: 0.14, note: "DeepSeek 64K" });
+    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "anthropic/claude-3-haiku:beta", ctx: 2e5, cost: 0.25, note: "Claude 200K via OpenRouter" });
+  } else if (isCoding) {
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64e3, cost: 0.14, note: "DeepSeek -- excellent at code" });
+    KEYS.cerebras.forEach(function(k2) {
+      chain.push({ p: "cerebras", key: k2, m: "gpt-oss-120b", ctx: 8192, cost: 0, note: "GPT-OSS 120B -- strong coder" });
+    });
+    KEYS.groq.forEach(function(k2) {
+      chain.push({ p: "groq", key: k2, m: "compound-mini", ctx: 8192, cost: 0, note: "Compound Mini -- good at code" });
+      chain.push({ p: "groq", key: k2, m: "openai/gpt-oss-120b", ctx: 8192, cost: 0, note: "GPT-OSS 120B -- strong coder" });
+    });
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "codestral-latest", ctx: 32e3, cost: 1, note: "Codestral -- code specialist" });
+    if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "meta-llama/Llama-3.3-70B-Instruct-Turbo", ctx: 131072, cost: 0.18, note: "Together Llama 70B" });
+  } else {
+    KEYS.cerebras.forEach(function(k2) {
+      chain.push({ p: "cerebras", key: k2, m: "gemma-4-31b", ctx: 8192, cost: 0, note: "Gemma4-31B -- confirmed working, free, fast" });
+      chain.push({ p: "cerebras", key: k2, m: "gemma-4-9b", ctx: 8192, cost: 0, note: "Gemma4-9B -- confirmed working, free, fastest" });
+    });
+    KEYS.groq.forEach(function(k2) {
+      chain.push({ p: "groq", key: k2, m: "compound-mini", ctx: 8192, cost: 0, note: "Compound Mini on Groq -- confirmed working" });
+      chain.push({ p: "groq", key: k2, m: "openai/gpt-oss-120b", ctx: 8192, cost: 0, note: "GPT-OSS 120B on Groq -- confirmed working" });
+    });
+    if (KEYS.kie) chain.push({ p: "kie", key: KEYS.kie, m: "gemini-3-flash", ctx: 32768, cost: 0.09, note: "Gemini 3 Flash via kie.ai -- 70% off" });
+    if (KEYS.kie) chain.push({ p: "kie", key: KEYS.kie, m: "gemini-2.5-flash", ctx: 32768, cost: 0.075, note: "Gemini 2.5 Flash via kie.ai -- 70% off" });
+    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-8k", ctx: 8e3, cost: 0.12, note: "Kimi -- capable, $15 credit" });
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64e3, cost: 0.14, note: "DeepSeek Chat -- excellent quality, 64K ctx" });
+    if (KEYS.deepseek_f1) chain.push({ p: "deepseek", key: KEYS.deepseek_f1, m: "deepseek-chat", ctx: 64e3, cost: 0, note: "DeepSeek Chat free key 1" });
+    if (KEYS.deepseek_f2) chain.push({ p: "deepseek", key: KEYS.deepseek_f2, m: "deepseek-chat", ctx: 64e3, cost: 0, note: "DeepSeek Chat free key 2" });
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-small-latest", ctx: 32e3, cost: 0.2, note: "Mistral Small -- EU, reliable" });
+    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r", ctx: 128e3, cost: 0.15, note: "Cohere R -- good value" });
+    if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "meta-llama/Llama-3.3-70B-Instruct-Turbo", ctx: 131072, cost: 0.18, note: "Together Llama 70B" });
+    if (KEYS.sambanova) chain.push({ p: "sambanova", key: KEYS.sambanova, m: "Meta-Llama-3.3-70B-Instruct", ctx: 8192, cost: 0, note: "SambaNova -- free tier" });
+    if (KEYS.fireworks) chain.push({ p: "fireworks", key: KEYS.fireworks, m: "accounts/fireworks/models/llama-v3p3-70b-instruct", ctx: 131072, cost: 0.2, note: "Fireworks Llama 70B" });
+    if (KEYS.gemini_paid) chain.push({ p: "gemini", key: KEYS.gemini_paid, m: "gemini-2.5-flash", ctx: 1e6, cost: 0.075, note: "Gemini Flash -- cheap, 1M ctx" });
+    if (KEYS.anyapi) chain.push({ p: "anyapi", key: KEYS.anyapi, m: "gpt-4o-mini", ctx: 128e3, cost: 0.15, note: "GPT-4o-mini via AnyAPI" });
+    if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-beta", ctx: 131072, cost: 5, note: "Grok -- last paid resort" });
+    if (KEYS.chutes) chain.push({ p: "chutes", key: KEYS.chutes, m: "deepseek-ai/DeepSeek-V3-0324", ctx: 64e3, cost: 0, note: "Chutes -- free DeepSeek V3" });
+    if (KEYS.gemini_free) chain.push({ p: "gemini", key: KEYS.gemini_free, m: "gemini-2.5-flash", ctx: 1e6, cost: 0, note: "Gemini Flash free" });
+    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "google/gemma-2-9b-it:free", ctx: 8192, cost: 0, note: "Gemma2 free via OpenRouter" });
+    if (KEYS.nebius) chain.push({ p: "nebius", key: KEYS.nebius, m: "meta-llama/Meta-Llama-3.1-70B-Instruct", ctx: 32768, cost: 0, note: "Nebius -- free tier" });
+    if (KEYS.muse) chain.push({ p: "muse", key: KEYS.muse, m: "auto", ctx: 8192, cost: 0, note: "Muse auto-routing" });
+    if (KEYS.llm7) chain.push({ p: "llm7", key: KEYS.llm7, m: "gpt-4o-mini", ctx: 128e3, cost: 0, note: "LLM7 -- free GPT-4o-mini" });
+    if (KEYS.huggingface) chain.push({ p: "huggingface", key: KEYS.huggingface, m: "meta-llama/Llama-3.1-8B-Instruct", ctx: 8192, cost: 0, note: "HuggingFace -- free, slow" });
+    if (KEYS.modelslab) chain.push({ p: "modelslab", key: KEYS.modelslab, m: "llama-3-8b-chat", ctx: 4096, cost: 0, note: "ModelsLab -- last resort" });
+  }
+  log.push("Intent: " + detectedIntent + (isReasoning ? " [reasoning]" : isCoding ? " [coding]" : isLongContext ? " [long-ctx]" : " [chat]") + " | msgLen: " + msgLen + " | profile: " + profile);
+  chain.push({ p: "pollinations", key: KEYS.pollinations, m: "openai" });
+  chain.push({ p: "pollinations", key: KEYS.pollinations, m: "mistral" });
+  chain.push({ p: "pollinations", key: null, m: "openai" });
+  for (var ci = 0; ci < chain.length; ci++) {
+    var entry = chain[ci];
+    var ta = Date.now();
+    try {
+      var result = await Promise.race([
+        callProvider(env, entry.p, entry.key, entry.m, messages),
+        new Promise(function(_, rej) {
+          setTimeout(function() {
+            rej(new Error("timeout 25s"));
+          }, 25e3);
+        })
+      ]);
+      if (result && result.content) {
+        var stripped = stripTropes(result.content);
+        if (!stripped || stripped.length < 2) {
+          log.push(entry.p + "/" + entry.m + ": content was only roleplay/tropes, skipping");
+          continue;
+        }
+        result.content = stripped;
+        result.provider = entry.p;
+        result.model = entry.m;
+        result.routingLog = log.concat([entry.p + "/" + entry.m + ": OK (" + (Date.now() - ta) + "ms)"]);
+        if (env.PRISM_KV) {
+          env.PRISM_KV.put("routing:last", JSON.stringify({
+            ts: (/* @__PURE__ */ new Date()).toISOString(),
+            winner: entry.p + "/" + entry.m,
+            log: result.routingLog,
+            totalMs: Date.now() - t0
+          }), { expirationTtl: 3600 }).catch(function() {
+          });
+        }
+        return result;
+      }
+      log.push(entry.p + "/" + entry.m + ": empty (" + (Date.now() - ta) + "ms)");
+    } catch (e) {
+      var ms = Date.now() - ta;
+      var err = e.message || "unknown";
+      var reason = err.includes("429") ? "rate-limited" : err.includes("402") ? "quota" : err.includes("401") ? "auth-error" : err.includes("404") ? "model-not-found" : err.includes("timeout") ? "timeout" : err.includes("403") ? "forbidden" : err.substring(0, 30);
+      log.push(entry.p + "/" + entry.m + ": " + reason + " (" + ms + "ms)");
+    }
+    if (Date.now() - t0 > 55e3) {
+      log.push("CPU limit approaching -- stopping chain");
+      break;
+    }
+  }
+  if (env.PRISM_KV) {
+    env.PRISM_KV.put("routing:last-failure", JSON.stringify({
+      ts: (/* @__PURE__ */ new Date()).toISOString(),
+      log,
+      totalMs: Date.now() - t0
+    }), { expirationTtl: 86400 }).catch(function() {
+    });
+  }
+  return {
+    content: "All providers unavailable (30s). Log: " + log.slice(-5).join(" | "),
+    provider: "none",
+    error: true,
+    routingLog: log
+  };
 }
-
-// ─── MEMORY ───────────────────────────────────────────────────────────────────
+__name(orchestrate, "orchestrate");
+async function callProvider(env, provider, key, model, messages) {
+  var systemMsg = messages.find(function(m) {
+    return m.role === "system";
+  });
+  var userMsgs = messages.filter(function(m) {
+    return m.role !== "system";
+  });
+  var system = systemMsg ? systemMsg.content : "";
+  if (provider === "cerebras") {
+    var r = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7 })
+    });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error("Cerebras " + r.status + ": " + e.substring(0, 100));
+    }
+    var d = await r.json();
+    var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+    if (content === null || content === void 0) throw new Error("No content from Cerebras: " + JSON.stringify(d).substring(0, 100));
+    return { content: content || "" };
+  }
+  if (provider === "groq") {
+    var r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7 })
+    });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error("Groq " + r.status + ": " + e.substring(0, 100));
+    }
+    var d = await r.json();
+    var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+    if (!content) throw new Error("No content from Groq");
+    return { content };
+  }
+  if (provider === "nvidia") {
+    var r = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7, stream: false })
+    });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error("NVIDIA " + r.status + ": " + e.substring(0, 100));
+    }
+    var d = await r.json();
+    var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+    if (!content) throw new Error("No content from NVIDIA");
+    content = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    return { content };
+  }
+  if (provider === "deepseek") {
+    var r = await fetch("https://api.deepseek.com/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7 })
+    });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error("DeepSeek " + r.status + ": " + e.substring(0, 100));
+    }
+    var d = await r.json();
+    var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+    if (!content) throw new Error("No content from DeepSeek");
+    content = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    return { content };
+  }
+  if (provider === "kimi") {
+    try {
+      var kimiR = await fetch("https://api.moonshot.cn/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+        body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7 })
+      });
+      if (kimiR.ok) {
+        var kimiD = await kimiR.json();
+        var kimiContent = kimiD.choices && kimiD.choices[0] && kimiD.choices[0].message && kimiD.choices[0].message.content;
+        if (kimiContent) return { content: kimiContent };
+      }
+      var kimiStatus = kimiR.status;
+      if (kimiStatus !== 403 && kimiStatus !== 0) {
+        var kimiErr = await kimiR.text();
+        throw new Error("Kimi " + kimiStatus + ": " + kimiErr.substring(0, 100));
+      }
+    } catch (kimiDirectErr) {
+      if (!kimiDirectErr.message.includes("403") && !kimiDirectErr.message.includes("geo") && !kimiDirectErr.message.includes("network")) {
+        throw kimiDirectErr;
+      }
+    }
+    var kieKeyForKimi = env["kie_p1"] || typeof kv !== "undefined" && kv["kie_p1"];
+    if (kieKeyForKimi) {
+      var kieKimiR = await fetch("https://api.kie.ai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + kieKeyForKimi, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "moonshot-v1-8k", messages, max_tokens: 2048 })
+      });
+      if (kieKimiR.ok) {
+        var kieKimiD = await kieKimiR.json();
+        var kieKimiContent = kieKimiD.choices && kieKimiD.choices[0] && kieKimiD.choices[0].message && kieKimiD.choices[0].message.content;
+        if (kieKimiContent) return { content: kieKimiContent };
+      }
+    }
+    throw new Error("Kimi unavailable (geo-blocked, KIE.ai fallback also failed)");
+  }
+  if (provider === "cohere") {
+    var cohereMessages = messages.filter(function(m) {
+      return m.role !== "system";
+    }).map(function(m) {
+      return { role: m.role === "user" ? "USER" : "CHATBOT", message: m.content };
+    });
+    var r = await fetch("https://api.cohere.ai/v1/chat", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, chat_history: cohereMessages.slice(0, -1), message: cohereMessages[cohereMessages.length - 1].message, preamble: system, max_tokens: 2048 })
+    });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error("Cohere " + r.status + ": " + e.substring(0, 100));
+    }
+    var d = await r.json();
+    var content = d.text;
+    if (!content) throw new Error("No content from Cohere");
+    return { content };
+  }
+  if (provider === "mistral") {
+    var r = await fetch("https://api.mistral.ai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7 })
+    });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error("Mistral " + r.status + ": " + e.substring(0, 100));
+    }
+    var d = await r.json();
+    var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+    if (!content) throw new Error("No content from Mistral");
+    return { content };
+  }
+  if (provider === "together" || provider === "sambanova" || provider === "fireworks" || provider === "anyapi") {
+    var baseUrls = {
+      together: "https://api.together.xyz/v1/chat/completions",
+      sambanova: "https://api.sambanova.ai/v1/chat/completions",
+      fireworks: "https://api.fireworks.ai/inference/v1/chat/completions",
+      anyapi: "https://api.anyapi.io/v1/chat/completions"
+    };
+    var r = await fetch(baseUrls[provider], {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7 })
+    });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error(provider + " " + r.status + ": " + e.substring(0, 100));
+    }
+    var d = await r.json();
+    var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+    if (!content) throw new Error("No content from " + provider);
+    return { content };
+  }
+  if (provider === "chutes") {
+    var r = await fetch("https://llm.chutes.ai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7, stream: false })
+    });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error("Chutes " + r.status + ": " + e.substring(0, 100));
+    }
+    var d = await r.json();
+    var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+    if (!content) throw new Error("No content from Chutes");
+    return { content };
+  }
+  if (provider === "gemini") {
+    var geminiMessages = messages.filter(function(m) {
+      return m.role !== "system";
+    }).map(function(m) {
+      var content2 = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+      return { role: m.role === "user" ? "user" : "model", parts: [{ text: content2 }] };
+    });
+    var geminiBody = { contents: geminiMessages, generationConfig: { maxOutputTokens: 2048, temperature: 0.7 } };
+    if (system) geminiBody.systemInstruction = { parts: [{ text: system }] };
+    var isAIStudioKey = key && key.startsWith("AQ.");
+    var geminiUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent" + (isAIStudioKey ? "" : "?key=" + key);
+    var geminiHeaders = { "Content-Type": "application/json" };
+    if (isAIStudioKey) geminiHeaders["x-goog-api-key"] = key;
+    var r = await fetch(geminiUrl, { method: "POST", headers: geminiHeaders, body: JSON.stringify(geminiBody) });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error("Gemini " + r.status + ": " + e.substring(0, 150));
+    }
+    var d = await r.json();
+    var content = d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts[0] && d.candidates[0].content.parts[0].text;
+    if (!content) throw new Error("No content from Gemini: " + JSON.stringify(d).substring(0, 100));
+    return { content };
+  }
+  if (provider === "openrouter") {
+    var r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json", "HTTP-Referer": "https://prism.identitypartners.uk", "X-Title": "Prism" },
+      body: JSON.stringify({ model, messages, max_tokens: 2048 })
+    });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error("OpenRouter " + r.status + ": " + e.substring(0, 100));
+    }
+    var d = await r.json();
+    var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+    if (!content) throw new Error("No content from OpenRouter");
+    return { content };
+  }
+  if (provider === "kie") {
+    var kieModel = model || "gemini-2.5-flash";
+    var kieR = await fetch("https://api.kie.ai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: kieModel, messages, max_tokens: 2048, temperature: 0.7 })
+    });
+    if (!kieR.ok) {
+      var kieErr = await kieR.text();
+      throw new Error("KIE.ai " + kieR.status + ": " + kieErr.substring(0, 100));
+    }
+    var kieD = await kieR.json();
+    var kieContent = kieD.choices && kieD.choices[0] && kieD.choices[0].message && kieD.choices[0].message.content;
+    if (!kieContent) throw new Error("No content from KIE.ai");
+    return { content: kieContent };
+  }
+  if (provider === "pollinations") {
+    var pollinationsMessages = messages.map(function(m) {
+      return { role: m.role, content: m.content };
+    });
+    var r = await fetch("https://text.pollinations.ai/openai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages: pollinationsMessages, max_tokens: 2048, temperature: 0.7 })
+    });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error("Pollinations " + r.status + ": " + e.substring(0, 100));
+    }
+    var d = await r.json();
+    var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+    if (!content) throw new Error("No content from Pollinations");
+    return { content };
+  }
+  if (provider === "kie") {
+    var r = await fetch("https://api.kie.ai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7 })
+    });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error("kie.ai " + r.status + ": " + e.substring(0, 100));
+    }
+    var d = await r.json();
+    var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+    if (!content) throw new Error("No content from kie.ai");
+    return { content };
+  }
+  throw new Error("Unknown provider: " + provider);
+}
+__name(callProvider, "callProvider");
 async function getMemories(env) {
   if (!env.PRISM_KV) return [];
   try {
-    var list = await env.PRISM_KV.list({prefix: 'memory:'});
+    var list = await env.PRISM_KV.list({ prefix: "memory:" });
     var memories = [];
     for (var i = 0; i < Math.min(list.keys.length, 10); i++) {
       var val = await env.PRISM_KV.get(list.keys[i].name);
       if (val) memories.push(JSON.parse(val));
     }
     return memories;
-  } catch(e) { return []; }
+  } catch (e) {
+    return [];
+  }
 }
-
+__name(getMemories, "getMemories");
 async function saveMemory(env, content, tags) {
   if (!env.PRISM_KV) return null;
-  var id = 'memory:'+Date.now();
-  await env.PRISM_KV.put(id, JSON.stringify({id: id, content: content, tags: tags||[], created: new Date().toISOString()}));
+  var id = "memory:" + Date.now();
+  await env.PRISM_KV.put(id, JSON.stringify({ id, content, tags: tags || [], created: (/* @__PURE__ */ new Date()).toISOString() }));
   return id;
 }
-
-// ─── THREADS ──────────────────────────────────────────────────────────────────
+__name(saveMemory, "saveMemory");
 async function getThread(env, threadId) {
   if (!env.PRISM_KV) return null;
-  var val = await env.PRISM_KV.get('thread:'+threadId);
+  var val = await env.PRISM_KV.get("thread:" + threadId);
   return val ? JSON.parse(val) : null;
 }
-
-async function saveThread(env, threadId, thread) {
-  if (!env.PRISM_KV) return;
-  await env.PRISM_KV.put('thread:'+threadId, JSON.stringify(thread));
-}
-
+__name(getThread, "getThread");
 async function listThreads(env) {
   if (!env.PRISM_KV) return [];
   try {
-    var list = await env.PRISM_KV.list({prefix: 'thread:'});
+    var list = await env.PRISM_KV.list({ prefix: "thread:" });
     var threads = [];
     for (var i = 0; i < Math.min(list.keys.length, 50); i++) {
       var val = await env.PRISM_KV.get(list.keys[i].name);
       if (val) {
         var t = JSON.parse(val);
-        threads.push({id: t.id, title: t.title, messageCount: (t.messages||[]).length, updated: t.updated});
+        threads.push({ id: t.id, title: t.title, messageCount: (t.messages || []).length, updated: t.updated });
       }
     }
-    return threads.sort(function(a,b){ return new Date(b.updated)-new Date(a.updated); });
-  } catch(e) { return []; }
+    return threads.sort(function(a, b) {
+      return new Date(b.updated) - new Date(a.updated);
+    });
+  } catch (e) {
+    return [];
+  }
 }
-
-// ─── IMAGE GENERATION ─────────────────────────────────────────────────────────
+__name(listThreads, "listThreads");
 async function generateImage(env, prompt, modelName) {
   var _falKey = env.FAL_API_KEY || env.fal_api_key;
   if (_falKey) {
     try {
       var falKey = env.FAL_API_KEY || env.fal_api_key;
-      var resp = await fetch('https://fal.run/fal-ai/flux/schnell', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json','Authorization':'Key '+falKey},
-        body: JSON.stringify({prompt: prompt, image_size: 'landscape_4_3', num_images: 1})
+      var resp = await fetch("https://fal.run/fal-ai/flux/schnell", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Key " + falKey },
+        body: JSON.stringify({ prompt, image_size: "landscape_4_3", num_images: 1 })
       });
       if (resp.ok) {
         var data = await resp.json();
-        if (data.images && data.images[0]) return {url: data.images[0].url, provider: 'fal'};
+        if (data.images && data.images[0]) return { url: data.images[0].url, provider: "fal" };
       }
-    } catch(e) {}
+    } catch (e) {
+    }
   }
   var encoded = encodeURIComponent(prompt);
-  return {url: 'https://image.pollinations.ai/prompt/'+encoded+'?width=1024&height=768&nologo=true&model='+(modelName||'flux'), provider: 'pollinations'};
+  return { url: "https://image.pollinations.ai/prompt/" + encoded + "?width=1024&height=768&nologo=true&model=" + (modelName || "flux"), provider: "pollinations" };
 }
-
-// ─── SEARCH ───────────────────────────────────────────────────────────────────
+__name(generateImage, "generateImage");
 async function searchTavily(env, query) {
   var key = env.TAVILY_API_KEY || env.TAVILY_API_KEY_2 || env.tavily_api_key;
   if (!key) return [];
-  var resp = await fetch('https://api.tavily.com/search', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({api_key: key, query: query, max_results: 5, include_answer: true})
+  var resp = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: key, query, max_results: 5, include_answer: true })
   });
   if (!resp.ok) return [];
   var data = await resp.json();
   return data.results || [];
 }
-
+__name(searchTavily, "searchTavily");
 async function searchBrave(env, query) {
   var key = env.BRAVE_API_KEY || env.BRAVE_API_KEY_2 || env.brave_api_key;
   if (!key) return [];
-  var resp = await fetch('https://api.search.brave.com/res/v1/web/search?q='+encodeURIComponent(query)+'&count=5', {
-    headers: {'Accept':'application/json','X-Subscription-Token': key}
+  var resp = await fetch("https://api.search.brave.com/res/v1/web/search?q=" + encodeURIComponent(query) + "&count=5", {
+    headers: { "Accept": "application/json", "X-Subscription-Token": key }
   });
   if (!resp.ok) return [];
   var data = await resp.json();
-  return (data.web && data.web.results) ? data.web.results : [];
+  return data.web && data.web.results ? data.web.results : [];
 }
-
-// ─── ATOMISE ──────────────────────────────────────────────────────────────────
+__name(searchBrave, "searchBrave");
 async function atomise(env, text, profile, variations) {
-  // Robust JSON array extractor — handles markdown code blocks, plain JSON, partial JSON
   function extractArray(raw) {
     if (!raw) return null;
-    // Strip markdown code blocks
-    var cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-    // Try direct parse
-    try { var p = JSON.parse(cleaned); if (Array.isArray(p)) return p; } catch(e) {}
-    // Try to find array in text
+    var cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+    try {
+      var p2 = JSON.parse(cleaned);
+      if (Array.isArray(p2)) return p2;
+    } catch (e) {
+    }
     var m = cleaned.match(/\[\s*[\s\S]*?\]/);
-    if (m) { try { var p2 = JSON.parse(m[0]); if (Array.isArray(p2)) return p2; } catch(e) {} }
-    // Try to find array of objects
+    if (m) {
+      try {
+        var p22 = JSON.parse(m[0]);
+        if (Array.isArray(p22)) return p22;
+      } catch (e) {
+      }
+    }
     var m2 = cleaned.match(/\[\s*\{[\s\S]*?\}\s*\]/);
-    if (m2) { try { var p3 = JSON.parse(m2[0]); if (Array.isArray(p3)) return p3; } catch(e) {} }
-    // Fall back: split by numbered items or newlines
-    var lines = cleaned.split(/\n+/).filter(function(l){return l.trim() && !l.match(/^[\[\]{}]/);});
-    if (lines.length > 0) return lines.map(function(l){return l.replace(/^\d+\.\s*/, '').replace(/^["']|["']$/g,'').trim();}).filter(Boolean);
+    if (m2) {
+      try {
+        var p3 = JSON.parse(m2[0]);
+        if (Array.isArray(p3)) return p3;
+      } catch (e) {
+      }
+    }
+    var lines = cleaned.split(/\n+/).filter(function(l) {
+      return l.trim() && !l.match(/^[\[\]{}]/);
+    });
+    if (lines.length > 0) return lines.map(function(l) {
+      return l.replace(/^\d+\.\s*/, "").replace(/^["']|["']$/g, "").trim();
+    }).filter(Boolean);
     return [cleaned];
   }
-
-  var sys = {role:'system', content:'You are a content strategist for Identity Partners. Write in British English. Professional, warm, evidence-based. No sycophancy. Always include a CTA to www.identitypartners.uk or the booking page at www.www.identitypartners.uk/contact IMPORTANT: When asked to return JSON arrays, return ONLY the raw JSON array with no markdown formatting, no code blocks, no explanation.'};
+  __name(extractArray, "extractArray");
+  var sys = { role: "system", content: "You are a content strategist for Identity Partners. Write in British English. Professional, warm, evidence-based. No sycophancy. Always include a CTA to www.identitypartners.uk or the booking page at www.identitypartners.uk/contact IMPORTANT: When asked to return JSON arrays, return ONLY the raw JSON array with no markdown formatting, no code blocks, no explanation." };
   var assets = {};
-  var p = profile || 'balanced';
+  var p = profile || "balanced";
   var wordCount = text.trim().split(/\s+/).length;
-  var isRich = wordCount > 600;
-  var isMedium = wordCount > 200;
-  // Scale post count proportionally: ~1 post per 50 words, min 3, max 20
+  var isRich = wordCount > 400;
+  var isMedium = wordCount > 80;
   var variations = variations || 3;
   var postCount = String(Math.min(20, Math.max(variations, Math.round(wordCount / 50) * variations)));
-  // Quote cards: ~1 per 100 words, min 3, max 10
   var qCount = String(Math.min(10, Math.max(3, Math.round(wordCount / 100))));
-  // Carousel slides: ~1 per 150 words, min 3, max 10
   var slideCount = String(Math.min(10, Math.max(3, Math.round(wordCount / 150))));
-  // Threads notes: ~1 per 100 words, min 2, max 8
   var threadCount = String(Math.min(8, Math.max(2, Math.round(wordCount / 100))));
-
-  // Detect topic for title card
-  assets.title = text.split(/[.!?]/)[0].trim().substring(0, 80) || 'Identity Partners';
-
-  // Helper to build prompt without embedded newlines
+  assets.title = text.split(/[.!?]/)[0].trim().split(" ").slice(0, 6).join(" ") || "Identity Partners";
   function prompt(instruction) {
-    return {role:'user', content: instruction + ' Source text: ' + text.substring(0, 1500)};
+    return { role: "user", content: instruction + " Source text: " + text.substring(0, 1500) };
   }
-
-  // Batch 1: Short-form (always generated)
+  __name(prompt, "prompt");
   await Promise.allSettled([
-    orchestrate(env, [sys, prompt('Extract ' + qCount + ' powerful standalone quotes, each 15-25 words, suitable for a visual quote card, no hashtags. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, 'drafting', null)
-      .then(function(r){ var _equotes=extractArray(r.content);assets.quotes=_equotes||[r.content]; }),
-
-    orchestrate(env, [sys, prompt('Write ' + postCount + ' standalone Bluesky posts, each under 280 characters, conversational, no hashtags in body, each works independently. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, 'drafting', null)
-      .then(function(r){ var _ebluesky=extractArray(r.content);assets.bluesky=_ebluesky||[r.content]; }),
-
-    orchestrate(env, [sys, prompt('Write ' + postCount + ' standalone X/Twitter posts, each strictly under 280 characters, punchy, 1-2 hashtags per post. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, 'drafting', null)
-      .then(function(r){ var _etwitter=extractArray(r.content);assets.twitter=_etwitter||[r.content]; }),
-
-    orchestrate(env, [sys, prompt('Write ' + threadCount + ' Threads notes, each under 500 characters, casual and authentic, no hashtags. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, 'drafting', null)
-      .then(function(r){ var _ethreads=extractArray(r.content);assets.threads=_ethreads||[r.content]; }),
+    orchestrate(env, [sys, prompt("Extract " + qCount + ' powerful standalone quotes, each 15-25 words, suitable for a visual quote card, no hashtags. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, "drafting", null).then(function(r) {
+      var _equotes = extractArray(r.content);
+      assets.quotes = _equotes || [r.content];
+    }),
+    orchestrate(env, [sys, prompt("Write " + postCount + ' standalone Bluesky posts, each under 280 characters, conversational, no hashtags in body, each works independently. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, "drafting", null).then(function(r) {
+      var _ebluesky = extractArray(r.content);
+      assets.bluesky = _ebluesky || [r.content];
+    }),
+    orchestrate(env, [sys, prompt("Write " + postCount + ' standalone X/Twitter posts, each strictly under 280 characters, punchy, 1-2 hashtags per post. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, "drafting", null).then(function(r) {
+      var _etwitter = extractArray(r.content);
+      assets.twitter = _etwitter || [r.content];
+    }),
+    orchestrate(env, [sys, prompt("Write " + threadCount + ' Threads notes, each under 500 characters, casual and authentic, no hashtags. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, "drafting", null).then(function(r) {
+      var _ethreads = extractArray(r.content);
+      assets.threads = _ethreads || [r.content];
+    })
   ]);
-
-  // Batch 2: LinkedIn + Instagram + Facebook
   await Promise.allSettled([
-    orchestrate(env, [sys, prompt('Write a LinkedIn post, 150-200 words, professional, hook in first line, 3-5 hashtags at end, clear CTA.')], p, 'drafting', null)
-      .then(function(r){ assets.linkedin_post = r.content; }),
-
-    orchestrate(env, [sys, prompt('Create a ' + slideCount + '-slide LinkedIn carousel. Return ONLY a raw JSON array like this: [{"title":"Slide title","body":"Slide body text"},{"title":"Next slide","body":"Body text"}]. No markdown, no code blocks, no explanation. Just the JSON array.')], p, 'drafting', null)
-      .then(function(r){ try{assets.linkedin_carousel=JSON.parse(r.content.match(/\[\s\S]*?\]/)[0]);}catch(e){assets.linkedin_carousel=[{title:'Key Insight',body:r.content}];} }),
-
-    orchestrate(env, [sys, prompt('Write an Instagram caption, 100-150 words, warm and engaging, end with 10 relevant hashtags on a new line, include CTA (link in bio).')], p, 'drafting', null)
-      .then(function(r){ assets.instagram = r.content; }),
-
-    orchestrate(env, [sys, prompt('Write a Facebook post, 100-150 words, conversational and community-focused, ask a question to encourage comments, include link to www.identitypartners.uk.')], p, 'drafting', null)
-      .then(function(r){ assets.facebook = r.content; }),
+    orchestrate(env, [sys, prompt("Write a LinkedIn post, 150-200 words, professional, hook in first line, 3-5 hashtags at end, clear CTA.")], p, "drafting", null).then(function(r) {
+      assets.linkedin_post = r.content;
+    }),
+    orchestrate(env, [sys, prompt("Create a " + slideCount + '-slide LinkedIn carousel. Return ONLY a raw JSON array like this: [{"title":"Slide title","body":"Slide body text"},{"title":"Next slide","body":"Body text"}]. No markdown, no code blocks, no explanation. Just the JSON array.')], p, "drafting", null).then(function(r) {
+      try {
+        var _cc = r.content.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+        var _cm = _cc.match(/\[\s*\{[\s\S]*?\}\s*\]/);
+        assets.linkedin_carousel = JSON.parse(_cm ? _cm[0] : _cc);
+        if (!Array.isArray(assets.linkedin_carousel)) throw new Error("not array");
+      } catch (e) {
+        assets.linkedin_carousel = [{ title: "Key Insight", body: (r.content || "").substring(0, 100) }];
+      }
+    }),
+    // Instagram posts = same as Bluesky (rendered on canvas in frontend)
+    // Instagram carousel
+    orchestrate(env, [sys, prompt('Create a 5-slide Instagram carousel. Each slide: short punchy title (max 6 words) and body (max 20 words). Warm, visual. Return ONLY a raw JSON array: [{"slide":1,"title":"Hook","body":"Opening"},{"slide":2,"title":"Point 1","body":"Detail"},{"slide":3,"title":"Point 2","body":"Detail"},{"slide":4,"title":"Point 3","body":"Detail"},{"slide":5,"title":"Save this","body":"Follow @identitypartners"}]. No markdown, no code blocks.')], p, "drafting", null).then(function(r) {
+      try {
+        var _ic = r.content.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+        var _im = _ic.match(/\[\s*\{[\s\S]*?\}\s*\]/);
+        assets.instagram_carousel = JSON.parse(_im ? _im[0] : _ic);
+        if (!Array.isArray(assets.instagram_carousel)) throw new Error("not array");
+      } catch (e) {
+        assets.instagram_carousel = [{ slide: 1, title: "Key Insight", body: (r.content || "").substring(0, 80) }];
+      }
+    }),
+    orchestrate(env, [sys, prompt("Write a Facebook post, 100-150 words, conversational and community-focused, ask a question to encourage comments, include link to www.identitypartners.uk.")], p, "drafting", null).then(function(r) {
+      assets.facebook = r.content;
+    }),
+    // LinkedIn 1/N thread (main post + comment replies)
+    orchestrate(env, [sys, prompt('Write a LinkedIn 1/N thread. A main post (under 200 words, professional, strong hook) followed by 4 comment replies that expand on it. Return ONLY this JSON: {"main":"main post text","comments":["comment 1 text","comment 2 text","comment 3 text","comment 4 text"]}. No markdown, no code blocks.')], p, "drafting", null).then(function(r) {
+      try {
+        var _lc = r.content.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+        var _lm = _lc.match(/\{[\s\S]*"main"[\s\S]*"comments"[\s\S]*\}/);
+        assets.linkedin_thread = JSON.parse(_lm ? _lm[0] : _lc);
+      } catch (e) {
+        assets.linkedin_thread = { main: (r.content || "").substring(0, 300), comments: [] };
+      }
+    })
   ]);
-
-  // Batch 3: Medium-form (200+ words input)
   if (isMedium) {
     await Promise.allSettled([
-      orchestrate(env, [sys, prompt('Write ' + threadCount + ' Substack Notes, each under 300 characters, teaser that makes people want to read more. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, 'drafting', null)
-        .then(function(r){ var _esubstack_note=extractArray(r.content);assets.substack_note=_esubstack_note||[r.content]; }),
-
-      orchestrate(env, [sys, prompt('Write a Tumblr post, 200-300 words, creative and thoughtful, include relevant tags at end in format #tag1 #tag2.')], p, 'drafting', null)
-        .then(function(r){ assets.tumblr = r.content; }),
-
-      orchestrate(env, [sys, prompt('Write an email newsletter snippet with subject line at top (Subject: ...), 100-150 words, warm tone, CTA at end.')], p, 'drafting', null)
-        .then(function(r){ assets.email = r.content; }),
-
-      orchestrate(env, [sys, prompt('Write a Pinterest pin description, 100-150 words, keyword-rich, helpful tone, CTA, end with 5 keywords.')], p, 'drafting', null)
-        .then(function(r){ assets.pinterest = r.content; }),
+      orchestrate(env, [sys, prompt("Write " + threadCount + ' Substack Notes, each under 300 characters, teaser that makes people want to read more. Return ONLY a raw JSON array of strings like ["post 1","post 2"]. No markdown, no code blocks, no explanation.')], p, "drafting", null).then(function(r) {
+        var _esubstack_note = extractArray(r.content);
+        assets.substack_note = _esubstack_note || [r.content];
+      }),
+      orchestrate(env, [sys, prompt("Write a Tumblr post, 200-300 words, creative and thoughtful, include relevant tags at end in format #tag1 #tag2.")], p, "drafting", null).then(function(r) {
+        assets.tumblr = r.content;
+      }),
+      orchestrate(env, [sys, prompt("Write an email newsletter snippet with subject line at top (Subject: ...), 100-150 words, warm tone, CTA at end.")], p, "drafting", null).then(function(r) {
+        assets.email = r.content;
+      }),
+      orchestrate(env, [sys, prompt("Write a Pinterest pin description, 100-150 words, keyword-rich, helpful tone, CTA, end with 5 keywords.")], p, "drafting", null).then(function(r) {
+        assets.pinterest = r.content;
+      })
     ]);
   }
-
-  // Batch 4: Long-form articles (600+ words input only)
   if (isRich) {
     await Promise.allSettled([
-      orchestrate(env, [sys, prompt('Write a LinkedIn article, 600-800 words, professional and evidence-based, compelling headline, introduction, 3-4 subheadings, conclusion with CTA to www.identitypartners.uk.')], p, 'drafting', null)
-        .then(function(r){ assets.linkedin_article = r.content; }),
-
-      orchestrate(env, [sys, prompt('Write a Substack newsletter article, 400-600 words, warm and personal, subject line, personal opening, 2-3 sections, closing reflection, CTA to www.identitypartners.uk/contact')], p, 'drafting', null)
-        .then(function(r){ assets.substack_article = r.content; }),
-
-      orchestrate(env, [sys, prompt('Write a Reddit post for r/mentalhealth or r/addiction, 150-250 words, community-first not promotional, share insight or ask a question, suggest a subreddit.')], p, 'drafting', null)
-        .then(function(r){ assets.reddit = r.content; }),
-
-      orchestrate(env, [sys, prompt('Write a WhatsApp/Telegram broadcast message, under 200 words, personal and direct, warm tone, include link to www.identitypartners.uk/contact')], p, 'drafting', null)
-        .then(function(r){ assets.broadcast = r.content; }),
+      orchestrate(env, [sys, prompt("Write a LinkedIn article, 600-800 words, professional and evidence-based, compelling headline, introduction, 3-4 subheadings, conclusion with CTA to www.identitypartners.uk.")], p, "drafting", null).then(function(r) {
+        assets.linkedin_article = r.content;
+      }),
+      orchestrate(env, [sys, prompt("Write a Substack newsletter article, 400-600 words, warm and personal, subject line, personal opening, 2-3 sections, closing reflection, CTA to www.identitypartners.uk/contact")], p, "drafting", null).then(function(r) {
+        assets.substack_article = r.content;
+      }),
+      orchestrate(env, [sys, prompt("Write a Reddit post for r/mentalhealth or r/addiction, 150-250 words, community-first not promotional, share insight or ask a question, suggest a subreddit.")], p, "drafting", null).then(function(r) {
+        assets.reddit = r.content;
+      }),
+      orchestrate(env, [sys, prompt("Write a WhatsApp/Telegram broadcast message, under 200 words, personal and direct, warm tone, include link to www.identitypartners.uk/contact")], p, "drafting", null).then(function(r) {
+        assets.broadcast = r.content;
+      })
     ]);
   }
-
+  assets.instagram = assets.bluesky;
+  assets.postsPerPlatform = parseInt(postCount);
+  assets.wordCount = wordCount;
   return assets;
 }
-
-
-async function postToBluesky(env, text) {
-  var handle = env.BLUESKY_HANDLE || 'identitypartners.bsky.social';
-  var password = env.BLUESKY_APP_PASSWORD;
-  if (!password) throw new Error('Bluesky app password not configured');
-  var sessionResp = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({identifier: handle, password: password})
-  });
-  if (!sessionResp.ok) throw new Error('Bluesky auth failed');
-  var session = await sessionResp.json();
-  var postResp = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+session.accessJwt},
-    body: JSON.stringify({repo: session.did, collection: 'app.bsky.feed.post', record: {text: text, createdAt: new Date().toISOString(), '$type': 'app.bsky.feed.post'}})
-  });
-  if (!postResp.ok) throw new Error('Bluesky post failed');
-  return await postResp.json();
+__name(atomise, "atomise");
+async function postViaBuffer(env, text, platforms, imageUrl) {
+  var bufferKey = env.BUFFER_API_KEY || env.buffer_api_key;
+  if (!bufferKey) return { results: {}, errors: { error: "BUFFER_API_KEY not set" } };
+  var channelMap = {};
+  try {
+    if (env.BUFFER_CHANNEL_MAP) channelMap = JSON.parse(env.BUFFER_CHANNEL_MAP);
+  } catch (e) {
+  }
+  if (Object.keys(channelMap).length === 0 && env.BUFFER_ORG_ID) {
+    try {
+      var chQ = JSON.stringify({ query: '{ channels(input:{organizationId:"' + env.BUFFER_ORG_ID + '"}) { id name service } }' });
+      var chR = await fetch("https://api.buffer.com/graphql", { method: "POST", headers: { "Authorization": "Bearer " + bufferKey, "Content-Type": "application/json" }, body: chQ });
+      var chD = await chR.json();
+      (chD.data && chD.data.channels || []).forEach(function(c) {
+        channelMap[c.service.toLowerCase()] = c.id;
+      });
+    } catch (e) {
+    }
+  }
+  var results = {};
+  var errors = {};
+  var aliases = { x: "twitter", twitter: "twitter", instagram: "instagram", facebook: "facebook", threads: "threads", linkedin: "linkedin" };
+  for (var pi = 0; pi < platforms.length; pi++) {
+    var platform = platforms[pi];
+    var service = aliases[platform] || platform;
+    var channelId = channelMap[service] || channelMap[platform];
+    if (!channelId) {
+      errors[platform] = platform + " not in Buffer -- add at publish.buffer.com/channels";
+      continue;
+    }
+    var postText = text;
+    if (service === "twitter") postText = text.substring(0, 280);
+    if (service === "instagram") postText = text.substring(0, 2200);
+    var metadataStr = "";
+    if (service === "instagram" && !imageUrl) {
+      errors[platform] = "Instagram requires an image URL. Pass imageUrl parameter or use /api/social/post-with-canvas.";
+      continue;
+    }
+    if (service === "facebook") {
+      metadataStr = ", metadata:{facebook:{type:post}}";
+    }
+    // Include image asset when imageUrl provided (fixes X/Twitter image attachment)
+    var assetsStr = imageUrl ? "assets:[{image:{url:" + JSON.stringify(imageUrl) + "}}]" : "assets:[]";
+    var cleanMetaStr = metadataStr;
+    if (!imageUrl && metadataStr.includes("assets:[{")) {
+      var assetMatch = metadataStr.match(/assets:\[\{[^\]]+\}\]/);
+      if (assetMatch) {
+        assetsStr = assetMatch[0];
+        cleanMetaStr = metadataStr.replace(/,\s*assets:\[\{[^\]]+\}\]/, "");
+      }
+    }
+    var mutation = JSON.stringify({
+      query: 'mutation{createPost(input:{channelId:"' + channelId + '",text:' + JSON.stringify(postText) + "," + assetsStr + ",mode:shareNow,needsApproval:false,schedulingType:automatic" + cleanMetaStr + "}){...on PostActionSuccess{post{id status}}...on MutationError{message}}}"
+    });
+    try {
+      var postR = await fetch("https://api.buffer.com/graphql", { method: "POST", headers: { "Authorization": "Bearer " + bufferKey, "Content-Type": "application/json" }, body: mutation });
+      var postD = await postR.json();
+      var cp = postD.data && postD.data.createPost || {};
+      if (cp.post) {
+        results[platform] = { success: true, id: cp.post.id, status: cp.post.status, via: "buffer" };
+      } else {
+        errors[platform] = "Buffer: " + (cp.message || (postD.errors || [{}])[0].message || "unknown");
+      }
+    } catch (pe) {
+      errors[platform] = "Buffer error: " + pe.message;
+    }
+  }
+  return { results, errors };
 }
+__name(postViaBuffer, "postViaBuffer");
+async function postToMastodon(env, text) {
+  // Rate limit: max 2 posts per day, minimum 30 minutes between posts (spec Section 4, item 17)
+  if (env.PRISM_KV) {
+    var now = Date.now();
+    var lastPostStr = await env.PRISM_KV.get("mastodon:last_post_time");
+    var dailyCountStr = await env.PRISM_KV.get("mastodon:daily_count:" + new Date().toISOString().slice(0,10));
+    var lastPost = lastPostStr ? parseInt(lastPostStr) : 0;
+    var dailyCount = dailyCountStr ? parseInt(dailyCountStr) : 0;
+    var minGapMs = 30 * 60 * 1000; // 30 minutes
+    if (now - lastPost < minGapMs) {
+      return { success: false, error: "Mastodon rate limit: minimum 30 minutes between posts. Next post allowed at " + new Date(lastPost + minGapMs).toISOString() };
+    }
+    if (dailyCount >= 2) {
+      return { success: false, error: "Mastodon rate limit: maximum 2 posts per day reached." };
+    }
+  }
 
-// ─── TELEGRAM ─────────────────────────────────────────────────────────────────
+  var token = env.MASTODON_ACCESS_TOKEN;
+  var instance = env.MASTODON_INSTANCE || "https://mastodon.social";
+  if (!token) return { error: "MASTODON_ACCESS_TOKEN not set" };
+  var postText = text.length > 500 ? text.substring(0, 497) + "..." : text;
+  try {
+    var r = await fetch(instance + "/api/v1/statuses", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({ status: postText, visibility: "public" })
+    });
+    var d = await r.json();
+    if (d.id) if (env.PRISM_KV) {
+      var nowTs = Date.now();
+      await env.PRISM_KV.put("mastodon:last_post_time", nowTs.toString(), { expirationTtl: 86400 });
+      var today = new Date().toISOString().slice(0,10);
+      var cnt = parseInt(await env.PRISM_KV.get("mastodon:daily_count:" + today) || "0");
+      await env.PRISM_KV.put("mastodon:daily_count:" + today, (cnt+1).toString(), { expirationTtl: 86400 });
+    }
+    return { success: true, id: d.id, url: d.url };
+    return { error: d.error || JSON.stringify(d).substring(0, 100) };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+__name(postToMastodon, "postToMastodon");
+async function postToBluesky(env, text, imageUrl) {
+  var handle = env.bluesky_handle || env.BLUESKY_HANDLE || "identitypartners.bsky.social";
+  var appPassword = env.bluesky_app_password || env.BLUESKY_APP_PASSWORD;
+  if (!appPassword) throw new Error("No Bluesky credentials");
+  var loginResp = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier: handle, password: appPassword })
+  });
+  var session = await loginResp.json();
+  if (!session.accessJwt) throw new Error("Bluesky login failed: " + JSON.stringify(session));
+  var postRecord = {
+    "$type": "app.bsky.feed.post",
+    text: text.substring(0, 300),
+    createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+    langs: ["en-GB"]
+  };
+  if (imageUrl) {
+    try {
+      var imgResp = await fetch(imageUrl);
+      if (imgResp.ok) {
+        var imgBuf = await imgResp.arrayBuffer();
+        var imgCt = imgResp.headers.get("content-type") || "image/png";
+        var blobResp = await fetch("https://bsky.social/xrpc/com.atproto.repo.uploadBlob", {
+          method: "POST",
+          headers: { "Content-Type": imgCt, "Authorization": "Bearer " + session.accessJwt },
+          body: imgBuf
+        });
+        var blobData = await blobResp.json();
+        if (blobData.blob) {
+          postRecord.embed = {
+            "$type": "app.bsky.embed.images",
+            images: [{ image: blobData.blob, alt: "Identity Partners" }]
+          };
+        }
+      }
+    } catch (imgErr) {
+    }
+  }
+  var postResp = await fetch("https://bsky.social/xrpc/com.atproto.repo.createRecord", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + session.accessJwt },
+    body: JSON.stringify({ repo: session.did, collection: "app.bsky.feed.post", record: postRecord })
+  });
+  var postData = await postResp.json();
+  if (postData.uri) return { success: true, uri: postData.uri, cid: postData.cid };
+  throw new Error("Bluesky post failed: " + JSON.stringify(postData));
+}
+__name(postToBluesky, "postToBluesky");
 async function sendTelegram(env, message) {
   var token = env.TELEGRAM_TOKEN;
   var chatId = env.TELEGRAM_CHAT_ID;
   if (!token || !chatId) return;
-  await fetch('https://api.telegram.org/bot'+token+'/sendMessage', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({chat_id: chatId, text: message, parse_mode: 'Markdown'})
+  await fetch("https://api.telegram.org/bot" + token + "/sendMessage", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: "Markdown" })
   });
 }
-
-// ─── CORS ─────────────────────────────────────────────────────────────────────
+__name(sendTelegram, "sendTelegram");
 function cors(origin) {
-  // Allow prism.identitypartners.uk and all subdomains, plus workers.dev for testing
-  var allowedOrigins = [
-    'https://prism.identitypartners.uk',
-    'https://prism-8ch.pages.dev',
-    'https://prism-api.identitypartners.workers.dev',
-  ];
-  var allowOrigin = '*';
-  if (origin) {
-    // Allow any prism-*.pages.dev subdomain and the main domain
-    if (origin.indexOf('identitypartners.uk') >= 0 || 
-        origin.indexOf('pages.dev') >= 0 ||
-        origin.indexOf('workers.dev') >= 0) {
-      allowOrigin = origin;
-    }
-  }
+  var allowOrigin = origin || "*";
   return {
-    'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Thread-ID, X-Profile',
-    'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Max-Age': '86400',
-    'Vary': 'Origin',
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Thread-ID, X-Profile",
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin"
   };
 }
-
+__name(cors, "cors");
 function json(data, status, origin) {
   return new Response(JSON.stringify(data), {
     status: status || 200,
-    headers: Object.assign({'Content-Type':'application/json'}, cors(origin))
+    headers: Object.assign({ "Content-Type": "application/json" }, cors(origin))
   });
 }
-
-// ─── DEV TEAM SYSTEM PROMPTS ──────────────────────────────────────────────────
+__name(json, "json");
 var DEV_TEAM_PROMPTS = {
-  pm: 'You are the Programme Manager for Prism (prism.identitypartners.uk). Worker: prism-api.identitypartners.workers.dev. Repo: IdentityPartners/prism. Pages deploys from main branch. JS rules: var not const/let at top level, no arrow functions in onclick, no innerHTML with mixed quotes, use document.createElement. You coordinate the dev team and maintain the roadmap. Direct, technical, concise. British English.',
-  troubleshooter: 'You are the Troubleshooter for Prism. Diagnose and fix issues systematically. Common issues: (1) const/let redeclaration — fix with var. (2) Arrow functions in onclick — fix with named functions. (3) innerHTML with mixed quotes — fix with createElement. (4) To push a fix: edit file, commit to main, Pages auto-deploys. (5) Worker secrets: Cloudflare dashboard > Workers > prism-api > Settings > Variables. Be precise.',
-  researcher: 'You are the Research Agent for Prism. Find information, synthesise research, produce structured reports. Focus on addiction, trauma, mental health, community wellbeing, social policy. British English. Cite sources.',
-  creator: 'You are the Creator Agent for Prism. Create content: social media posts, carousels, email newsletters, podcast scripts, worksheets. Identity Partners brand: warm, professional, evidence-based, focused on addiction and mental health. British English.',
-  api_champion: 'You are the API Champion for Prism. Monitor the model registry, track new model releases, update routing profiles, ensure all API keys are current. Know all providers: Cerebras, Groq, DeepSeek, Gemini, OpenRouter, SambaNova, NVIDIA NIM, Mistral, Together, Fireworks, Cohere, Kimi, Chutes, Nebius, Zhipu, Ollama. Report model updates concisely.',
+  pm: "You are the Programme Manager for Prism (prism.identitypartners.uk). Worker: prism-api.identitypartners.workers.dev. Repo: IdentityPartners/prism. Pages deploys from main branch. JS rules: var not const/let at top level, no arrow functions in onclick, no innerHTML with mixed quotes, use document.createElement. You coordinate the dev team and maintain the roadmap. Direct, technical, concise. British English.",
+  troubleshooter: "You are the Troubleshooter for Prism. Diagnose and fix issues systematically. Common issues: (1) const/let redeclaration -- fix with var. (2) Arrow functions in onclick -- fix with named functions. (3) innerHTML with mixed quotes -- fix with createElement. (4) To push a fix: edit file, commit to main, Pages auto-deploys. (5) Worker secrets: Cloudflare dashboard > Workers > prism-api > Settings > Variables. Be precise.",
+  researcher: "You are the Research Agent for Prism. Find information, synthesise research, produce structured reports. Focus on addiction, trauma, mental health, community wellbeing, social policy. British English. Cite sources.",
+  creator: "You are the Creator Agent for Prism. Create content: social media posts, carousels, email newsletters, podcast scripts, worksheets. Identity Partners brand: warm, professional, evidence-based, focused on addiction and mental health. British English.",
+  api_champion: "You are the API Champion for Prism. Monitor the model registry, track new model releases, update routing profiles, ensure all API keys are current. Know all providers: Cerebras, Groq, DeepSeek, Gemini, OpenRouter, SambaNova, NVIDIA NIM, Mistral, Together, Fireworks, Cohere, Kimi, Chutes, Nebius, Zhipu, Ollama. Report model updates concisely."
 };
-
-// ─── MAIN EXPORT (ES MODULE) ──────────────────────────────────────────────────
-export default {
+var index_default = {
+  async scheduled(event, env, ctx) {
+    var now = /* @__PURE__ */ new Date();
+    var hour = now.getUTCHours();
+    var minute = now.getUTCMinutes();
+    // Spec Section 7: 08:00, 13:00, 20:00 UTC — fire within a 10-minute window of each
+    var slot = (hour === 8 && minute < 10) ? "morning"
+             : (hour === 13 && minute < 10) ? "lunchtime"
+             : (hour === 20 && minute < 10) ? "evening"
+             : null;
+    if (slot) {
+      try {
+        var req = new Request("https://prism-api.identitypartners.workers.dev/api/daily-pipeline", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slot }) });
+        await this.fetch(req, env, ctx);
+      } catch (e) {
+      }
+    }
+    if (hour === 6) {
+      try {
+        var req2 = new Request("https://prism-api.identitypartners.workers.dev/api/champion/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+        await this.fetch(req2, env, ctx);
+      } catch (e) {
+      }
+      try {
+        await runWeeklyResearchScrape(env);
+      } catch (e) {
+      }
+    }
+    var dayOfWeek = (/* @__PURE__ */ new Date()).getUTCDay();
+    if (hour === 6 && dayOfWeek === 1) {
+      try {
+        var canvasReq = new Request("https://prism-api.identitypartners.workers.dev/api/agents/canvas-regen", { method: "POST", headers: { "Content-Type": "application/json", "Origin": "https://prism.identitypartners.uk" }, body: "{}" });
+        await this.fetch(canvasReq, env, ctx);
+      } catch (e) {
+      }
+    }
+  },
   async fetch(request, env, ctx) {
-    // Helper: get secret from env or KV fallback
-    async function S(name) {
-      if (env[name]) return env[name];
-      if (env[name.toUpperCase()]) return env[name.toUpperCase()];
+    async function S(name2) {
+      if (env[name2]) return env[name2];
+      if (env[name2.toUpperCase()]) return env[name2.toUpperCase()];
       if (env.PRISM_KV) {
         try {
-          var kv = await env.PRISM_KV.get('__secrets__');
-          if (kv) {
-            var p = JSON.parse(kv);
-            return p[name] || p[name.toUpperCase()] || p[name.toLowerCase()] || null;
+          var kv6 = await env.PRISM_KV.get("__secrets__");
+          if (kv6) {
+            var p = JSON.parse(kv6);
+            return p[name2] || p[name2.toUpperCase()] || p[name2.toLowerCase()] || null;
           }
-        } catch(e) {}
+        } catch (e) {
+        }
       }
       return null;
     }
-
+    __name(S, "S");
     var url = new URL(request.url);
     var path = url.pathname;
-    var origin = request.headers.get('Origin');
-
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {status: 204, headers: cors(origin)});
+    var origin = request.headers.get("Origin");
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: cors(origin) });
     }
-
-    // Health
-    if (path === '/' || path === '/health') {
-      return json({status:'ok', version:'1.0.0', worker:'prism-api', timestamp: new Date().toISOString()}, 200, origin);
+    if (path === "/" || path === "/health") {
+      return json({ status: "ok", version: "1.0.0", worker: "prism-api", timestamp: (/* @__PURE__ */ new Date()).toISOString() }, 200, origin);
     }
-
-    // Chat
-    if (path === '/api/chat' && request.method === 'POST') {
+    if (path === "/api/chat" && request.method === "POST") {
       try {
         var body = await request.json();
         var messages = body.messages || [];
-        var profile = body.profile || 'balanced';
-        var threadId = body.threadId || ('t'+Date.now());
-        var lastMsg = messages[messages.length-1];
-        var intent = body.intent || classifyIntent(lastMsg ? lastMsg.content : '');
-
-        // Inject memories
+        var profile = body.profile || "balanced";
+        var threadId = body.threadId || "t" + Date.now();
+        var antiRoleplay = " CRITICAL: Never use asterisks for actions or roleplay. No *sighs*, no *leans back*, no *raises eyebrow*. Speak directly. British English. NEVER invent calendar events, emails, social stats, engagement metrics, or any data you cannot verify. If you have no live data access, say so plainly.";
+        messages = (messages || []).filter(function(m2) {
+          return m2 && m2.role && m2.content;
+        });
+        var hasSystem = messages.length > 0 && messages[0] && messages[0].role === "system";
+        if (hasSystem) {
+          if (messages[0].content && !messages[0].content.includes("Never use asterisks")) {
+            messages = messages.slice();
+            messages[0] = { role: "system", content: messages[0].content + antiRoleplay };
+          }
+        } else {
+          messages = [{ role: "system", content: "You are a helpful assistant. British English. No sycophancy." + antiRoleplay }].concat(messages);
+        }
+        var lastMsg = messages[messages.length - 1];
+        var intent = body.intent || classifyIntent(lastMsg ? lastMsg.content : "");
         var memories = await getMemories(env);
         if (memories.length > 0) {
-          var memText = memories.slice(0,5).map(function(m){return m.content;}).join('\n');
-          var sysIdx = messages.findIndex(function(m){return m.role==='system';});
+          var memText = memories.slice(0, 5).map(function(m2) {
+            return m2.content;
+          }).join("\n");
+          var sysIdx = messages.findIndex(function(m2) {
+            return m2.role === "system";
+          });
           if (sysIdx >= 0) {
-            messages[sysIdx] = {role:'system', content: messages[sysIdx].content+'\n\nRelevant memories:\n'+memText};
+            messages[sysIdx] = { role: "system", content: messages[sysIdx].content + "\n\nRelevant memories:\n" + memText };
           } else {
-            messages = [{role:'system', content:'Relevant memories:\n'+memText}].concat(messages);
+            messages = [{ role: "system", content: "Relevant memories:\n" + memText }].concat(messages);
           }
         }
-
-        // Merge KV secrets into env for this request
         var kvRaw = null;
-        try { kvRaw = await env.PRISM_KV.get('__secrets__'); } catch(e) {}
+        try {
+          kvRaw = await env.PRISM_KV.get("__secrets__");
+        } catch (e) {
+        }
         var kvSecrets = {};
-        if (kvRaw) { try { kvSecrets = JSON.parse(kvRaw); } catch(e) {} }
-        var envPlus = new Proxy(env, {
-          get: function(target, prop) {
-            if (target[prop] !== undefined) return target[prop];
-            if (kvSecrets[prop] !== undefined) return kvSecrets[prop];
-            if (kvSecrets[prop.toUpperCase()] !== undefined) return kvSecrets[prop.toUpperCase()];
-            if (kvSecrets[prop.toLowerCase()] !== undefined) return kvSecrets[prop.toLowerCase()];
-            return undefined;
+        if (kvRaw) {
+          try {
+            kvSecrets = JSON.parse(kvRaw);
+          } catch (e) {
           }
+        }
+        var envPlus = new Proxy(env, {
+          get: /* @__PURE__ */ __name(function(target, prop) {
+            if (target[prop] !== void 0) return target[prop];
+            if (kvSecrets[prop] !== void 0) return kvSecrets[prop];
+            if (kvSecrets[prop.toUpperCase()] !== void 0) return kvSecrets[prop.toUpperCase()];
+            if (kvSecrets[prop.toLowerCase()] !== void 0) return kvSecrets[prop.toLowerCase()];
+            return void 0;
+          }, "get")
         });
-
-        // ORCHESTRATOR: inject live search results for research queries
-        if (intent === 'research' || intent === 'chat') {
-          var lastMsg = body.messages[body.messages.length-1];
-          var msgText = lastMsg ? lastMsg.content : '';
+        if (intent === "research" || intent === "chat") {
+          var lastMsg = body.messages[body.messages.length - 1];
+          var msgText = lastMsg ? lastMsg.content : "";
           var needsSearch = /\b(search|find|look up|what is|who is|latest|current|recent|news|today)\b/i.test(msgText);
           if (needsSearch && msgText.length > 10) {
             try {
-              var sr = await searchTavily(envPlus, msgText.substring(0,200));
+              var sr = await searchTavily(envPlus, msgText.substring(0, 200));
               if (sr && sr.length > 0) {
-                var sc = 'LIVE SEARCH RESULTS:\n\n' + sr.slice(0,3).map(function(r,i){return (i+1)+'. '+r.title+'\n'+(r.content||r.snippet||'').substring(0,300);}).join('\n\n');
-                var si = messages.findIndex(function(m){return m.role==='system';});
-                if (si>=0) messages[si]={role:'system',content:messages[si].content+'\n\n'+sc};
-                else messages.unshift({role:'system',content:sc});
+                var sc = "LIVE SEARCH RESULTS:\n\n" + sr.slice(0, 3).map(function(r2, i2) {
+                  return i2 + 1 + ". " + r2.title + "\n" + (r2.content || r2.snippet || "").substring(0, 300);
+                }).join("\n\n");
+                var si = messages.findIndex(function(m2) {
+                  return m2.role === "system";
+                });
+                if (si >= 0) messages[si] = { role: "system", content: messages[si].content + "\n\n" + sc };
+                else messages.unshift({ role: "system", content: sc });
               }
-            } catch(e) {}
+            } catch (e) {
+            }
           }
         }
-        // Handle vision/multimodal requests
         var images = body.images || [];
         if (images.length > 0) {
-          // Use Gemini for vision (supports base64 images)
           try {
-            var visionResult = await callGemini(envPlus, messages, 'gemini-2.0-flash', images);
-            var result = {content: stripTropes(visionResult), provider: 'gemini', model: 'gemini-2.0-flash-vision', intent: intent};
-          } catch(ve) {
-            // Fall back to text-only
+            var visionResult = await callGemini(envPlus, messages, "gemini-2.5-flash", images);
+            var result = { content: stripTropes(visionResult), provider: "gemini", model: "gemini-2.0-flash-vision", intent };
+          } catch (ve) {
             var result = await orchestrate(envPlus, messages, profile, intent, threadId);
           }
         } else {
           var result = await orchestrate(envPlus, messages, profile, intent, threadId);
         }
-
-        // Save thread
-        if (env.PRISM_KV) {
-          var thread = await getThread(env, threadId) || {id: threadId, messages: [], created: new Date().toISOString()};
-          thread.title = thread.title || (lastMsg ? lastMsg.content.substring(0,50) : 'Thread');
-          thread.messages = body.messages.concat([{role:'assistant', content: result.content}]);
-          thread.updated = new Date().toISOString();
-          await saveThread(env, threadId, thread);
+        var saveResult = result || {};
+        var saveContent = saveResult.content || "";
+        if (env.PRISM_KV && threadId) {
+          try {
+            await env.PRISM_KV.put("debug:last-save", JSON.stringify({
+              threadId,
+              hasContent: !!saveContent,
+              contentLen: saveContent.length,
+              ts: (/* @__PURE__ */ new Date()).toISOString()
+            }), { expirationTtl: 3600 });
+          } catch (dbgErr) {
+          }
+          try {
+            var tKey = "thread:" + threadId;
+            var existing = null;
+            try {
+              var ex = await env.PRISM_KV.get(tKey);
+              if (ex) existing = JSON.parse(ex);
+            } catch (e2) {
+            }
+            var msgs = existing ? existing.messages || [] : [];
+            var lastUser = messages[messages.length - 1];
+            if (lastUser && lastUser.role === "user") {
+              msgs.push({ role: "user", content: typeof lastUser.content === "string" ? lastUser.content : "[multimodal]" });
+            }
+            msgs.push({ role: "assistant", content: saveContent || "[no content]" });
+            if (msgs.length > 100) msgs = msgs.slice(-100);
+            var tTitle = existing ? existing.title : msgs[0] && msgs[0].content ? msgs[0].content.substring(0, 50) : "Thread";
+            var tData = { id: threadId, title: tTitle, messages: msgs, messageCount: msgs.length, updated: (/* @__PURE__ */ new Date()).toISOString(), created: existing ? existing.created : (/* @__PURE__ */ new Date()).toISOString() };
+            await env.PRISM_KV.put(tKey, JSON.stringify(tData), { expirationTtl: 86400 * 90 });
+            var idxKey = "threads:index";
+            var tidx = [];
+            try {
+              var ti = await env.PRISM_KV.get(idxKey);
+              if (ti) tidx = JSON.parse(ti);
+            } catch (e3) {
+            }
+            var existing_entry = tidx.find(function(t2) {
+              return t2.id === threadId;
+            });
+            if (existing_entry) {
+              existing_entry.title = tTitle;
+              existing_entry.messageCount = msgs.length;
+              existing_entry.updated = tData.updated;
+            } else {
+              tidx.unshift({ id: threadId, title: tTitle, messageCount: msgs.length, updated: tData.updated, created: tData.created });
+            }
+            if (tidx.length > 200) tidx = tidx.slice(0, 200);
+            await env.PRISM_KV.put(idxKey, JSON.stringify(tidx));
+          } catch (saveErr) {
+          }
+          try {
+            var d1Msgs = msgs || [];
+            var d1HasBinding = !!env.PRISM_D1;
+            if (env.PRISM_KV) {
+              await env.PRISM_KV.put("debug:d1-binding", JSON.stringify({ has: d1HasBinding, ts: (/* @__PURE__ */ new Date()).toISOString() }), { expirationTtl: 3600 });
+            }
+            if (d1HasBinding) {
+              var d1Tags = await saveThreadToD1(env, threadId, tTitle, d1Msgs, "Gerald", profile || "balanced");
+              if (env.PRISM_KV) {
+                await env.PRISM_KV.put("debug:d1-save", JSON.stringify({ success: true, tags: d1Tags, msgCount: d1Msgs.length, ts: (/* @__PURE__ */ new Date()).toISOString() }), { expirationTtl: 3600 });
+              }
+              if (d1Msgs.length >= 100 && d1Msgs.length % 50 === 0) {
+                archiveToNotion(env, threadId, tTitle, d1Msgs, d1Tags || []).catch(function() {
+                });
+              }
+            }
+          } catch (d1Err) {
+            if (env.PRISM_KV) {
+              await env.PRISM_KV.put("debug:d1-error", JSON.stringify({ error: d1Err.message, stack: d1Err.stack ? d1Err.stack.substring(0, 500) : "", ts: (/* @__PURE__ */ new Date()).toISOString() }), { expirationTtl: 3600 }).catch(function() {
+              });
+            }
+          }
         }
-
-        return json({content: result.content, provider: result.provider, model: result.model, intent: intent, threadId: threadId}, 200, origin);
-      } catch(e) {
-        return json({error: e.message}, 500, origin);
+        return json({ content: result.content, provider: result.provider, model: result.model, intent, threadId }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
       }
     }
-
-    // Threads list
-    if (path === '/api/threads' && request.method === 'GET') {
-      return json({threads: await listThreads(env)}, 200, origin);
+    if (path === "/api/threads" && request.method === "GET") {
+      try {
+        var url_t = new URL(request.url);
+        var limitT = parseInt(url_t.searchParams.get("limit") || "200");
+        var offsetT = parseInt(url_t.searchParams.get("offset") || "0");
+        var tagT = url_t.searchParams.get("tag") || null;
+        var d1T = await listThreadsFromD1(env, "simon", limitT, offsetT, tagT);
+        if (d1T.length > 0) return json({ threads: d1T, total: d1T.length, source: "d1" }, 200, origin);
+        return json({ threads: await listThreads(env) }, 200, origin);
+      } catch (e) {
+        return json({ threads: await listThreads(env) }, 200, origin);
+      }
     }
-
-    // Thread by ID
-    if (path.startsWith('/api/threads/') && request.method === 'GET') {
+    if (path === "/api/threads/tags" && request.method === "GET") {
+      try {
+        if (!env.PRISM_D1) return json({ tags: [] }, 200, origin);
+        var result = await env.PRISM_D1.prepare(
+          'SELECT auto_tags FROM threads WHERE archived = 0 AND auto_tags != "[]"'
+        ).all();
+        var tagCounts = {};
+        (result.results || []).forEach(function(row2) {
+          try {
+            JSON.parse(row2.auto_tags || "[]").forEach(function(tag2) {
+              tagCounts[tag2] = (tagCounts[tag2] || 0) + 1;
+            });
+          } catch (e) {
+          }
+        });
+        var tags = Object.keys(tagCounts).map(function(t2) {
+          return { tag: t2, count: tagCounts[t2] };
+        });
+        tags.sort(function(a, b) {
+          return b.count - a.count;
+        });
+        return json({ tags }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/threads/search" && request.method === "GET") {
+      try {
+        var url3 = new URL(request.url);
+        var q = url3.searchParams.get("q") || "";
+        var tag = url3.searchParams.get("tag") || "";
+        if (!env.PRISM_D1) return json({ threads: [] }, 200, origin);
+        var sql = "SELECT id, title, persona, message_count, auto_tags, updated_at FROM threads WHERE archived = 0";
+        var params = [];
+        if (q) {
+          sql += " AND (title LIKE ? OR auto_tags LIKE ?)";
+          params.push("%" + q + "%", "%" + q + "%");
+        }
+        if (tag) {
+          sql += " AND auto_tags LIKE ?";
+          params.push("%" + tag + "%");
+        }
+        sql += " ORDER BY updated_at DESC LIMIT 50";
+        var result;
+        if (params.length === 2) result = await env.PRISM_D1.prepare(sql).bind(params[0], params[1]).all();
+        else if (params.length === 3) result = await env.PRISM_D1.prepare(sql).bind(params[0], params[1], params[2]).all();
+        else result = await env.PRISM_D1.prepare(sql).bind(params[0], params[1]).all();
+        var threads = (result.results || []).map(function(t2) {
+          return { id: t2.id, title: t2.title, persona: t2.persona, messageCount: t2.message_count, tags: JSON.parse(t2.auto_tags || "[]"), updated: t2.updated_at };
+        });
+        return json({ threads, query: q, tag }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path.startsWith("/api/threads/") && request.method === "DELETE") {
+      try {
+        var delId = path.replace("/api/threads/", "");
+        if (env.PRISM_D1) await env.PRISM_D1.prepare("UPDATE threads SET archived = 1 WHERE id = ?").bind(delId).run();
+        if (env.PRISM_KV) await env.PRISM_KV.delete("thread:" + delId);
+        return json({ success: true }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path.startsWith("/api/threads/") && !path.includes("/delete") && request.method === "GET") {
+      try {
+        var tid = path.slice(13);
+        var d1Thread = await getThreadFromD1(env, tid);
+        if (d1Thread) return json(d1Thread, 200, origin);
+        var thread = await getThread(env, tid);
+        return thread ? json(thread, 200, origin) : json({ error: "Not found" }, 404, origin);
+      } catch (e) {
+        var tid2 = path.slice(13);
+        var thread2 = await getThread(env, tid2);
+        return thread2 ? json(thread2, 200, origin) : json({ error: "Not found" }, 404, origin);
+      }
+    }
+    if (path.startsWith("/api/threads/") && request.method === "DELETE") {
+      try {
+        var delId = path.slice(13);
+        if (env.PRISM_D1) await env.PRISM_D1.prepare("UPDATE threads SET archived = 1 WHERE id = ?").bind(delId).run();
+        if (env.PRISM_KV) await env.PRISM_KV.delete("thread:" + delId);
+        return json({ success: true }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path.startsWith("/api/threads/") && request.method === "DELETE") {
       var tid = path.slice(13);
-      var thread = await getThread(env, tid);
-      return thread ? json(thread, 200, origin) : json({error:'Not found'}, 404, origin);
+      if (env.PRISM_KV) await env.PRISM_KV.delete("thread:" + tid);
+      return json({ success: true }, 200, origin);
     }
-
-    // Delete thread
-    if (path.startsWith('/api/threads/') && request.method === 'DELETE') {
-      var tid = path.slice(13);
-      if (env.PRISM_KV) await env.PRISM_KV.delete('thread:'+tid);
-      return json({success:true}, 200, origin);
+    if (path === "/api/memory" && request.method === "GET") {
+      return json({ memories: await getMemories(env) }, 200, origin);
     }
-
-    // Memory
-    if (path === '/api/memory' && request.method === 'GET') {
-      return json({memories: await getMemories(env)}, 200, origin);
-    }
-    if (path === '/api/memory' && request.method === 'POST') {
+    if (path === "/api/memory" && request.method === "POST") {
       var body = await request.json();
       var id = await saveMemory(env, body.content, body.tags);
-      return json({success:true, id:id}, 200, origin);
+      return json({ success: true, id }, 200, origin);
     }
-    if (path.startsWith('/api/memory/') && request.method === 'DELETE') {
+    if (path.startsWith("/api/memory/") && request.method === "DELETE") {
       var mid = path.slice(12);
       if (env.PRISM_KV) await env.PRISM_KV.delete(mid);
-      return json({success:true}, 200, origin);
+      return json({ success: true }, 200, origin);
     }
-
-    // Image generation
-    if (path === '/api/image' && request.method === 'POST') {
+    if (path === "/api/image" && request.method === "POST") {
       try {
         var body = await request.json();
         var result = await generateImage(env, body.prompt, body.model);
         return json(result, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // Pollinations model list
-    if (path === '/api/image/models') {
+    if (path === "/api/image/models") {
       try {
-        var resp = await fetch('https://image.pollinations.ai/models');
+        var resp = await fetch("https://image.pollinations.ai/models");
         var models = await resp.json();
-        return json({models: models}, 200, origin);
-      } catch(e) { return json({models:['flux','turbo','gptimage']}, 200, origin); }
+        return json({ models }, 200, origin);
+      } catch (e) {
+        return json({ models: ["flux", "turbo", "gptimage"] }, 200, origin);
+      }
     }
-
-    // Search — comprehensive multi-source
-    if (path === '/api/search' && request.method === 'POST') {
+    if (path === "/api/search" && request.method === "POST") {
       try {
         var body = await request.json();
-        var query = body.query || '';
-        var sources = body.sources || ['tavily','brave'];
+        var query = body.query || "";
+        var sources = body.sources || ["tavily", "brave"];
         var results = {};
         var errors = {};
-
-        // Run all requested sources in parallel
         var promises = [];
-
-        if (sources.includes('tavily')) {
-          promises.push(searchTavily(env, query).then(function(r){results.tavily=r;}).catch(function(e){errors.tavily=e.message;}));
+        if (sources.includes("tavily")) {
+          promises.push(searchTavily(env, query).then(function(r2) {
+            results.tavily = r2;
+          }).catch(function(e) {
+            errors.tavily = e.message;
+          }));
         }
-        if (sources.includes('brave')) {
-          promises.push(searchBrave(env, query).then(function(r){results.brave=r;}).catch(function(e){errors.brave=e.message;}));
+        if (sources.includes("brave")) {
+          promises.push(searchBrave(env, query).then(function(r2) {
+            results.brave = r2;
+          }).catch(function(e) {
+            errors.brave = e.message;
+          }));
         }
-        if (sources.includes('exa') || sources.includes('exa_api')) {
-          promises.push(searchExa(env, query).then(function(r){results.exa=r;}).catch(function(e){errors.exa=e.message;}));
+        if (sources.includes("exa") || sources.includes("exa_api")) {
+          promises.push(searchExa(env, query).then(function(r2) {
+            results.exa = r2;
+          }).catch(function(e) {
+            errors.exa = e.message;
+          }));
         }
-        if (sources.includes('semantic_scholar') || sources.includes('semanticscholar')) {
-          promises.push(searchSemanticScholar(env, query).then(function(r){results.semantic_scholar=r;}).catch(function(e){errors.semantic_scholar=e.message;}));
+        if (sources.includes("semantic_scholar") || sources.includes("semanticscholar")) {
+          promises.push(searchSemanticScholar(env, query).then(function(r2) {
+            results.semantic_scholar = r2;
+          }).catch(function(e) {
+            errors.semantic_scholar = e.message;
+          }));
         }
-        if (sources.includes('pubmed') || sources.includes('ncbi')) {
-          promises.push(searchPubMed(env, query).then(function(r){results.pubmed=r;}).catch(function(e){errors.pubmed=e.message;}));
+        if (sources.includes("pubmed") || sources.includes("ncbi")) {
+          promises.push(searchPubMed(env, query).then(function(r2) {
+            results.pubmed = r2;
+          }).catch(function(e) {
+            errors.pubmed = e.message;
+          }));
         }
-        if (sources.includes('crossref')) {
-          promises.push(searchCrossref(env, query).then(function(r){results.crossref=r;}).catch(function(e){errors.crossref=e.message;}));
+        if (sources.includes("crossref")) {
+          promises.push(searchCrossref(env, query).then(function(r2) {
+            results.crossref = r2;
+          }).catch(function(e) {
+            errors.crossref = e.message;
+          }));
         }
-        if (sources.includes('openalex')) {
-          promises.push(searchOpenAlex(env, query).then(function(r){results.openalex=r;}).catch(function(e){errors.openalex=e.message;}));
+        if (sources.includes("openalex")) {
+          promises.push(searchOpenAlex(env, query).then(function(r2) {
+            results.openalex = r2;
+          }).catch(function(e) {
+            errors.openalex = e.message;
+          }));
         }
-        if (sources.includes('core')) {
-          promises.push(searchCORE(env, query).then(function(r){results.core=r;}).catch(function(e){errors.core=e.message;}));
+        if (sources.includes("core")) {
+          promises.push(searchCORE(env, query).then(function(r2) {
+            results.core = r2;
+          }).catch(function(e) {
+            errors.core = e.message;
+          }));
         }
-        if (sources.includes('firecrawl')) {
-          promises.push(searchFirecrawl(env, query).then(function(r){results.firecrawl=r;}).catch(function(e){errors.firecrawl=e.message;}));
+        if (sources.includes("firecrawl")) {
+          promises.push(searchFirecrawl(env, query).then(function(r2) {
+            results.firecrawl = r2;
+          }).catch(function(e) {
+            errors.firecrawl = e.message;
+          }));
         }
-        if (sources.includes('perplexity')) {
-          promises.push(searchPerplexity(env, query).then(function(r){results.perplexity=r;}).catch(function(e){errors.perplexity=e.message;}));
+        if (sources.includes("perplexity")) {
+          promises.push(searchPerplexity(env, query).then(function(r2) {
+            results.perplexity = r2;
+          }).catch(function(e) {
+            errors.perplexity = e.message;
+          }));
         }
-        if (sources.includes('arxiv')) {
-          promises.push(searchArXiv(env, query).then(function(r){results.arxiv=r;}).catch(function(e){errors.arxiv=e.message;}));
+        if (sources.includes("arxiv")) {
+          promises.push(searchArXiv(env, query).then(function(r2) {
+            results.arxiv = r2;
+          }).catch(function(e) {
+            errors.arxiv = e.message;
+          }));
         }
-        if (sources.includes('europe_pmc')) {
-          promises.push(searchEuropePMC(env, query).then(function(r){results.europe_pmc=r;}).catch(function(e){errors.europe_pmc=e.message;}));
+        if (sources.includes("europe_pmc")) {
+          promises.push(searchEuropePMC(env, query).then(function(r2) {
+            results.europe_pmc = r2;
+          }).catch(function(e) {
+            errors.europe_pmc = e.message;
+          }));
         }
-        if (sources.includes('zenodo')) {
-          promises.push(searchZenodo(env, query).then(function(r){results.zenodo=r;}).catch(function(e){errors.zenodo=e.message;}));
+        if (sources.includes("zenodo")) {
+          promises.push(searchZenodo(env, query).then(function(r2) {
+            results.zenodo = r2;
+          }).catch(function(e) {
+            errors.zenodo = e.message;
+          }));
         }
-        if (sources.includes('world_bank')) {
-          promises.push(searchWorldBank(env, query).then(function(r){results.world_bank=r;}).catch(function(e){errors.world_bank=e.message;}));
+        if (sources.includes("world_bank")) {
+          promises.push(searchWorldBank(env, query).then(function(r2) {
+            results.world_bank = r2;
+          }).catch(function(e) {
+            errors.world_bank = e.message;
+          }));
         }
-        if (sources.includes('ons')) {
-          promises.push(searchONS(env, query).then(function(r){results.ons=r;}).catch(function(e){errors.ons=e.message;}));
+        if (sources.includes("ons")) {
+          promises.push(searchONS(env, query).then(function(r2) {
+            results.ons = r2;
+          }).catch(function(e) {
+            errors.ons = e.message;
+          }));
         }
-        if (sources.includes('data_gov_uk')) {
-          promises.push(searchDataGovUK(env, query).then(function(r){results.data_gov_uk=r;}).catch(function(e){errors.data_gov_uk=e.message;}));
+        if (sources.includes("data_gov_uk")) {
+          promises.push(searchDataGovUK(env, query).then(function(r2) {
+            results.data_gov_uk = r2;
+          }).catch(function(e) {
+            errors.data_gov_uk = e.message;
+          }));
         }
-        if (sources.includes('ssrn')) {
-          promises.push(searchSSRN(env, query).then(function(r){results.ssrn=r;}).catch(function(e){errors.ssrn=e.message;}));
+        if (sources.includes("ssrn")) {
+          promises.push(searchSSRN(env, query).then(function(r2) {
+            results.ssrn = r2;
+          }).catch(function(e) {
+            errors.ssrn = e.message;
+          }));
         }
-        if (sources.includes('our_world_in_data')) {
-          promises.push(searchOurWorldInData(env, query).then(function(r){results.our_world_in_data=r;}).catch(function(e){errors.our_world_in_data=e.message;}));
+        if (sources.includes("our_world_in_data")) {
+          promises.push(searchOurWorldInData(env, query).then(function(r2) {
+            results.our_world_in_data = r2;
+          }).catch(function(e) {
+            errors.our_world_in_data = e.message;
+          }));
         }
-
         await Promise.all(promises);
-
-        // Flatten and deduplicate results
         var allResults = [];
         Object.keys(results).forEach(function(source) {
           var sourceResults = results[source] || [];
-          sourceResults.forEach(function(r) {
-            r._source = source;
-            allResults.push(r);
+          sourceResults.forEach(function(r2) {
+            r2._source = source;
+            allResults.push(r2);
           });
         });
-
-        // Deduplicate by URL
         var seen = {};
-        allResults = allResults.filter(function(r) {
-          var url = r.url || r.link || '';
-          if (seen[url]) return false;
-          seen[url] = true;
+        allResults = allResults.filter(function(r2) {
+          var url4 = r2.url || r2.link || "";
+          if (seen[url4]) return false;
+          seen[url4] = true;
           return true;
         });
-
-        return json({results: results, allResults: allResults, query: query, errors: errors, sourceCount: Object.keys(results).length}, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
+        return json({ results, allResults, query, errors, sourceCount: Object.keys(results).length }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // Atomise
-    if (path === '/api/atomise' && request.method === 'POST') {
+    if (path === "/api/atomise" && request.method === "POST") {
       try {
         var body = await request.json();
         var kvRaw3 = null;
-        try { kvRaw3 = await env.PRISM_KV.get('__secrets__'); } catch(e) {}
+        try {
+          kvRaw3 = await env.PRISM_KV.get("__secrets__");
+        } catch (e) {
+        }
         var kvSecrets3 = {};
-        if (kvRaw3) { try { kvSecrets3 = JSON.parse(kvRaw3); } catch(e) {} }
-        var envPlus3 = new Proxy(env, {
-          get: function(target, prop) {
-            if (target[prop] !== undefined) return target[prop];
-            if (kvSecrets3[prop] !== undefined) return kvSecrets3[prop];
-            if (kvSecrets3[prop.toUpperCase()] !== undefined) return kvSecrets3[prop.toUpperCase()];
-            if (kvSecrets3[prop.toLowerCase()] !== undefined) return kvSecrets3[prop.toLowerCase()];
-            return undefined;
+        if (kvRaw3) {
+          try {
+            kvSecrets3 = JSON.parse(kvRaw3);
+          } catch (e) {
           }
+        }
+        var envPlus3 = new Proxy(env, {
+          get: /* @__PURE__ */ __name(function(target, prop) {
+            if (target[prop] !== void 0) return target[prop];
+            if (kvSecrets3[prop] !== void 0) return kvSecrets3[prop];
+            if (kvSecrets3[prop.toUpperCase()] !== void 0) return kvSecrets3[prop.toUpperCase()];
+            if (kvSecrets3[prop.toLowerCase()] !== void 0) return kvSecrets3[prop.toLowerCase()];
+            return void 0;
+          }, "get")
         });
         var assets = await atomise(envPlus3, body.text, body.profile, body.variations || 3);
-        return json({assets: assets}, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
+        return json({ assets }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // Social queue
-    if (path === '/api/social/queue' && request.method === 'GET') {
-      if (!env.PRISM_KV) return json({queue:[], total:0}, 200, origin);
-      var status_filter = url.searchParams.get('status') || '';
-      var limit = parseInt(url.searchParams.get('limit') || '100');
-      var cursor = url.searchParams.get('cursor') || undefined;
-      var listOpts = {prefix:'queue:', limit: Math.min(limit, 100)};
+    if (path === "/api/social/queue" && request.method === "GET") {
+      if (!env.PRISM_KV) return json({ queue: [], total: 0 }, 200, origin);
+      var status_filter = url.searchParams.get("status") || "";
+      var limit = parseInt(url.searchParams.get("limit") || "100");
+      var cursor = url.searchParams.get("cursor") || void 0;
+      var listOpts = { prefix: "queue:", limit: Math.min(limit, 100) };
       if (cursor) listOpts.cursor = cursor;
       var list = await env.PRISM_KV.list(listOpts);
       var queue = [];
-      // Sequential reads to avoid overwhelming KV
       for (var i = 0; i < list.keys.length; i++) {
         try {
           var val = await env.PRISM_KV.get(list.keys[i].name);
@@ -1282,280 +2814,326 @@ export default {
             var item = JSON.parse(val);
             if (!status_filter || item.status === status_filter) queue.push(item);
           }
-        } catch(e) {}
+        } catch (e) {
+        }
       }
-      queue.sort(function(a,b){ return new Date(b.created||0) - new Date(a.created||0); });
-      return json({queue: queue, total: queue.length, has_more: !list.list_complete, cursor: list.cursor}, 200, origin);
+      queue.sort(function(a, b) {
+        return new Date(b.created || 0) - new Date(a.created || 0);
+      });
+      return json({ queue, total: queue.length, has_more: !list.list_complete, cursor: list.cursor }, 200, origin);
     }
-    if (path === '/api/social/queue' && request.method === 'POST') {
+    if (path === "/api/social/queue" && request.method === "POST") {
       var body = await request.json();
-      var id = 'queue:'+Date.now();
-      var item = Object.assign({id:id, created: new Date().toISOString(), status:'pending'}, body);
+      var id = "queue:" + Date.now();
+      var item = Object.assign({ id, created: (/* @__PURE__ */ new Date()).toISOString(), status: "pending" }, body);
       if (env.PRISM_KV) await env.PRISM_KV.put(id, JSON.stringify(item));
-      return json({success:true, id:id}, 200, origin);
+      return json({ success: true, id }, 200, origin);
     }
-
-    // ── X / Twitter OAuth + posting ──────────────────────────────────────────
-    if (path === '/oauth/x/callback') {
-      var code = url.searchParams.get('code');
-      var state = url.searchParams.get('state');
+    if (path === "/oauth/x/callback") {
+      var code = url.searchParams.get("code");
+      var state = url.searchParams.get("state");
       if (!code) {
-        // Initiate OAuth 2.0 PKCE flow
         var clientId = env.X_CLIENT_ID || env.x_client_id || env.TWITTER_CLIENT_ID;
-        if (!clientId) return json({error:'X client ID not configured. Add X_CLIENT_ID to Worker secrets.'}, 400, origin);
-        var redirectUri = 'https://prism.identitypartners.uk/oauth/x/callback';
-        var scope = 'tweet.read tweet.write users.read offline.access';
-        var authUrl = 'https://twitter.com/i/oauth2/authorize?response_type=code&client_id='+clientId+'&redirect_uri='+encodeURIComponent(redirectUri)+'&scope='+encodeURIComponent(scope)+'&state=prism&code_challenge=challenge&code_challenge_method=plain';
+        if (!clientId) return json({ error: "X client ID not configured. Add X_CLIENT_ID to Worker secrets." }, 400, origin);
+        var redirectUri = "https://prism.identitypartners.uk/oauth/x/callback";
+        var scope = "tweet.read tweet.write users.read offline.access";
+        var authUrl = "https://twitter.com/i/oauth2/authorize?response_type=code&client_id=" + clientId + "&redirect_uri=" + encodeURIComponent(redirectUri) + "&scope=" + encodeURIComponent(scope) + "&state=prism&code_challenge=challenge&code_challenge_method=plain";
         return Response.redirect(authUrl, 302);
       }
-      // Exchange code for token
       var clientId2 = env.X_CLIENT_ID || env.x_client_id;
       var clientSecret = env.X_CLIENT_SECRET || env.x_client_secret;
-      var tokenResp = await fetch('https://api.twitter.com/2/oauth2/token', {
-        method: 'POST',
-        headers: {'Content-Type':'application/x-www-form-urlencoded','Authorization':'Basic '+btoa(clientId2+':'+clientSecret)},
-        body: 'grant_type=authorization_code&code='+code+'&redirect_uri='+encodeURIComponent('https://prism.identitypartners.uk/oauth/x/callback')+'&code_verifier=challenge'
+      var tokenResp = await fetch("https://api.twitter.com/2/oauth2/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "Authorization": "Basic " + btoa(clientId2 + ":" + clientSecret) },
+        body: "grant_type=authorization_code&code=" + code + "&redirect_uri=" + encodeURIComponent("https://prism.identitypartners.uk/oauth/x/callback") + "&code_verifier=challenge"
       });
       var tokens = await tokenResp.json();
-      if (env.PRISM_KV) await env.PRISM_KV.put('oauth:x:tokens', JSON.stringify(tokens));
-      return new Response('<html><body><script>window.close();</script><p>X connected. You may close this window.</p></body></html>',{headers:{'Content-Type':'text/html'}});
+      if (env.PRISM_KV) await env.PRISM_KV.put("oauth:x:tokens", JSON.stringify(tokens));
+      return new Response("<html><body><script>window.close();<\/script><p>X connected. You may close this window.</p></body></html>", { headers: { "Content-Type": "text/html" } });
     }
-
-    // Post to X
-    if (path === '/api/social/post/x' && request.method === 'POST') {
+    if (path === "/api/social/post/x" && request.method === "POST") {
       try {
         var body = await request.json();
         var tokenData = null;
-        if (env.PRISM_KV) { var td = await env.PRISM_KV.get('oauth:x:tokens'); if (td) tokenData = JSON.parse(td); }
-        if (!tokenData || !tokenData.access_token) return json({error:'X not connected. Go to /oauth/x/callback to connect.'}, 401, origin);
-        var postResp = await fetch('https://api.twitter.com/2/tweets', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json','Authorization':'Bearer '+tokenData.access_token},
-          body: JSON.stringify({text: body.text})
+        if (env.PRISM_KV) {
+          var td = await env.PRISM_KV.get("oauth:x:tokens");
+          if (td) tokenData = JSON.parse(td);
+        }
+        if (!tokenData || !tokenData.access_token) return json({ error: "X not connected. Go to /oauth/x/callback to connect." }, 401, origin);
+        var postResp = await fetch("https://api.twitter.com/2/tweets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tokenData.access_token },
+          body: JSON.stringify({ text: body.text })
         });
         var postData = await postResp.json();
-        if (!postResp.ok) return json({error: postData.detail || 'X post failed', data: postData}, 400, origin);
-        return json({success:true, id: postData.data && postData.data.id}, 200, origin);
-      } catch(e) { return json({error:e.message},500,origin); }
+        if (!postResp.ok) return json({ error: postData.detail || "X post failed", data: postData }, 400, origin);
+        return json({ success: true, id: postData.data && postData.data.id }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // ── LinkedIn OAuth + posting ──────────────────────────────────────────────
-    if (path === '/oauth/linkedin/callback') {
-      var code = url.searchParams.get('code');
+    if (path === "/oauth/linkedin/callback") {
+      var code = url.searchParams.get("code");
       var clientId = env.LINKEDIN_CLIENT_ID || env.linkedin_client_id;
       var clientSecret = env.LINKEDIN_CLIENT_SECRET || env.linkedin_primary_client_secret || env.linkedin_client_secret;
       if (!code) {
-        if (!clientId) return json({error:'LinkedIn client ID not configured.'}, 400, origin);
-        var redirectUri = 'https://prism.identitypartners.uk/oauth/linkedin/callback';
-        var scope = 'openid profile email w_member_social';
-        var authUrl = 'https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id='+clientId+'&redirect_uri='+encodeURIComponent(redirectUri)+'&scope='+encodeURIComponent(scope)+'&state=prism';
+        if (!clientId) return json({ error: "LinkedIn client ID not configured." }, 400, origin);
+        var redirectUri = "https://prism.identitypartners.uk/oauth/linkedin/callback";
+        var scope = "openid profile email w_member_social";
+        var authUrl = "https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=" + clientId + "&redirect_uri=" + encodeURIComponent(redirectUri) + "&scope=" + encodeURIComponent(scope) + "&state=prism";
         return Response.redirect(authUrl, 302);
       }
-      var redirectUri2 = 'https://prism.identitypartners.uk/oauth/linkedin/callback';
-      var tokenResp = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
-        method: 'POST',
-        headers: {'Content-Type':'application/x-www-form-urlencoded'},
-        body: 'grant_type=authorization_code&code='+code+'&redirect_uri='+encodeURIComponent(redirectUri2)+'&client_id='+clientId+'&client_secret='+clientSecret
+      var redirectUri2 = "https://prism.identitypartners.uk/oauth/linkedin/callback";
+      var tokenResp = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "grant_type=authorization_code&code=" + code + "&redirect_uri=" + encodeURIComponent(redirectUri2) + "&client_id=" + clientId + "&client_secret=" + clientSecret
       });
       var tokens = await tokenResp.json();
-      if (env.PRISM_KV) await env.PRISM_KV.put('oauth:linkedin:tokens', JSON.stringify(tokens));
-      return new Response('<html><body><script>window.close();</script><p>LinkedIn connected.</p></body></html>',{headers:{'Content-Type':'text/html'}});
+      if (env.PRISM_KV) await env.PRISM_KV.put("oauth:linkedin:tokens", JSON.stringify(tokens));
+      return new Response("<html><body><script>window.close();<\/script><p>LinkedIn connected.</p></body></html>", { headers: { "Content-Type": "text/html" } });
     }
-
-    // Post to LinkedIn
-    if (path === '/api/social/post/linkedin' && request.method === 'POST') {
+    if (path === "/api/social/post/linkedin" && request.method === "POST") {
       try {
         var body = await request.json();
         var tokenData = null;
-        if (env.PRISM_KV) { var td = await env.PRISM_KV.get('oauth:linkedin:tokens'); if (td) tokenData = JSON.parse(td); }
-        if (!tokenData || !tokenData.access_token) return json({error:'LinkedIn not connected. Go to /oauth/linkedin/callback to connect.'}, 401, origin);
-        // Get person URN
-        var meResp = await fetch('https://api.linkedin.com/v2/userinfo', {headers:{'Authorization':'Bearer '+tokenData.access_token}});
+        if (env.PRISM_KV) {
+          var td = await env.PRISM_KV.get("oauth:linkedin:tokens");
+          if (td) tokenData = JSON.parse(td);
+        }
+        // Check token expiry (LinkedIn tokens expire after 60 days)
+        if (tokenData && tokenData.expires_at && Date.now() > tokenData.expires_at) {
+          // Attempt refresh if refresh_token available
+          if (tokenData.refresh_token && env.LINKEDIN_CLIENT_ID && env.LINKEDIN_CLIENT_SECRET) {
+            try {
+              var refreshResp = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(tokenData.refresh_token) +
+                      "&client_id=" + encodeURIComponent(env.LINKEDIN_CLIENT_ID || env.linkedin_client_id) +
+                      "&client_secret=" + encodeURIComponent(env.LINKEDIN_CLIENT_SECRET || env.linkedin_primary_client_secret)
+              });
+              if (refreshResp.ok) {
+                var refreshData = await refreshResp.json();
+                tokenData = {
+                  access_token: refreshData.access_token,
+                  refresh_token: refreshData.refresh_token || tokenData.refresh_token,
+                  expires_at: Date.now() + (refreshData.expires_in || 5184000) * 1000
+                };
+                if (env.PRISM_KV) await env.PRISM_KV.put("oauth:linkedin:tokens", JSON.stringify(tokenData));
+              } else {
+                tokenData = null; // Force reconnect
+              }
+            } catch (e) {
+              tokenData = null;
+            }
+          } else {
+            tokenData = null; // No refresh token — force reconnect
+          }
+        }
+        if (!tokenData || !tokenData.access_token) return json({ error: "LinkedIn not connected. Go to /oauth/linkedin/callback to connect." }, 401, origin);
+        var meResp = await fetch("https://api.linkedin.com/v2/userinfo", { headers: { "Authorization": "Bearer " + tokenData.access_token } });
         var me = await meResp.json();
-        var urn = 'urn:li:person:' + me.sub;
-        var postResp = await fetch('https://api.linkedin.com/v2/ugcPosts', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json','Authorization':'Bearer '+tokenData.access_token,'X-Restli-Protocol-Version':'2.0.0'},
-          body: JSON.stringify({author:urn,lifecycleState:'PUBLISHED',specificContent:{'com.linkedin.ugc.ShareContent':{shareCommentary:{text:body.text},shareMediaCategory:'NONE'}},visibility:{'com.linkedin.ugc.MemberNetworkVisibility':'PUBLIC'}})
+        var urn = "urn:li:person:" + me.sub;
+        var postResp = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tokenData.access_token, "X-Restli-Protocol-Version": "2.0.0" },
+          body: JSON.stringify({ author: urn, lifecycleState: "PUBLISHED", specificContent: { "com.linkedin.ugc.ShareContent": { shareCommentary: { text: body.text }, shareMediaCategory: "NONE" } }, visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" } })
         });
         var postData = await postResp.json();
-        if (!postResp.ok) return json({error:'LinkedIn post failed', data:postData}, 400, origin);
-        return json({success:true, id:postData.id}, 200, origin);
-      } catch(e) { return json({error:e.message},500,origin); }
+        if (!postResp.ok) return json({ error: "LinkedIn post failed", data: postData }, 400, origin);
+        return json({ success: true, id: postData.id }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // ── Meta (Facebook/Instagram) OAuth ──────────────────────────────────────
-    if (path === '/oauth/meta/callback') {
-      var code = url.searchParams.get('code');
+    if (path === "/oauth/meta/callback") {
+      var code = url.searchParams.get("code");
       var clientId = env.META_APP_ID || env.meta_app_id || env.FACEBOOK_APP_ID;
       var clientSecret = env.META_APP_SECRET || env.meta_app_secret || env.FACEBOOK_APP_SECRET;
       if (!code) {
-        if (!clientId) return json({error:'Meta App ID not configured. Add META_APP_ID to Worker secrets.'}, 400, origin);
-        var redirectUri = 'https://prism.identitypartners.uk/oauth/meta/callback';
-        var scope = 'pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,publish_to_groups';
-        var authUrl = 'https://www.facebook.com/v19.0/dialog/oauth?client_id='+clientId+'&redirect_uri='+encodeURIComponent(redirectUri)+'&scope='+encodeURIComponent(scope)+'&state=prism';
+        if (!clientId) return json({ error: "Meta App ID not configured. Add META_APP_ID to Worker secrets." }, 400, origin);
+        var redirectUri = "https://prism.identitypartners.uk/oauth/meta/callback";
+        var scope = "pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,publish_to_groups";
+        var authUrl = "https://www.facebook.com/v19.0/dialog/oauth?client_id=" + clientId + "&redirect_uri=" + encodeURIComponent(redirectUri) + "&scope=" + encodeURIComponent(scope) + "&state=prism";
         return Response.redirect(authUrl, 302);
       }
-      var redirectUri2 = 'https://prism.identitypartners.uk/oauth/meta/callback';
-      var tokenResp = await fetch('https://graph.facebook.com/v19.0/oauth/access_token?client_id='+clientId+'&redirect_uri='+encodeURIComponent(redirectUri2)+'&client_secret='+clientSecret+'&code='+code);
+      var redirectUri2 = "https://prism.identitypartners.uk/oauth/meta/callback";
+      var tokenResp = await fetch("https://graph.facebook.com/v19.0/oauth/access_token?client_id=" + clientId + "&redirect_uri=" + encodeURIComponent(redirectUri2) + "&client_secret=" + clientSecret + "&code=" + code);
       var tokens = await tokenResp.json();
-      if (env.PRISM_KV) await env.PRISM_KV.put('oauth:meta:tokens', JSON.stringify(tokens));
-      return new Response('<html><body><script>window.close();</script><p>Meta connected.</p></body></html>',{headers:{'Content-Type':'text/html'}});
+      if (env.PRISM_KV) await env.PRISM_KV.put("oauth:meta:tokens", JSON.stringify(tokens));
+      return new Response("<html><body><script>window.close();<\/script><p>Meta connected.</p></body></html>", { headers: { "Content-Type": "text/html" } });
     }
-
-    // ── Unified social post endpoint (routes to correct platform) ─────────────
-    if (path === '/api/social/post' && request.method === 'POST') {
+    if (path === "/api/social/post" && request.method === "POST") {
       try {
         var body = await request.json();
-        var text = body.text || '';
-        var platforms = body.platforms || ['bluesky'];
+        var text = body.text || "";
+        var platforms = body.platforms || ["bluesky"];
         var results = {};
-
         for (var pi = 0; pi < platforms.length; pi++) {
           var platform = platforms[pi];
           try {
-            if (platform === 'bluesky') {
-              results.bluesky = await postToBluesky(env, text);
-            } else if (platform === 'x' || platform === 'twitter') {
-              var xTokenData = null;
-              if (env.PRISM_KV) { var xtd = await env.PRISM_KV.get('oauth:x:tokens'); if (xtd) xTokenData = JSON.parse(xtd); }
-              if (xTokenData && xTokenData.access_token) {
-                var xResp = await fetch('https://api.twitter.com/2/tweets',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+xTokenData.access_token},body:JSON.stringify({text:text.substring(0,280)})});
-                results.x = await xResp.json();
-              } else { results.x = {error:'Not connected — visit /oauth/x/callback'}; }
-            } else if (platform === 'linkedin') {
-              var liTokenData = null;
-              if (env.PRISM_KV) { var litd = await env.PRISM_KV.get('oauth:linkedin:tokens'); if (litd) liTokenData = JSON.parse(litd); }
-              if (liTokenData && liTokenData.access_token) {
-                var meR = await fetch('https://api.linkedin.com/v2/userinfo',{headers:{'Authorization':'Bearer '+liTokenData.access_token}});
-                var meD = await meR.json();
-                var liResp = await fetch('https://api.linkedin.com/v2/ugcPosts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+liTokenData.access_token,'X-Restli-Protocol-Version':'2.0.0'},body:JSON.stringify({author:'urn:li:person:'+meD.sub,lifecycleState:'PUBLISHED',specificContent:{'com.linkedin.ugc.ShareContent':{shareCommentary:{text:text},shareMediaCategory:'NONE'}},visibility:{'com.linkedin.ugc.MemberNetworkVisibility':'PUBLIC'}})});
-                results.linkedin = await liResp.json();
-              } else { results.linkedin = {error:'Not connected — visit /oauth/linkedin/callback'}; }
-            } else {
-              results[platform] = {error:'Platform not yet connected — visit Platform Manager'};
+            if (platform === "x" || platform === "twitter" || platform === "facebook") {
+              var _bufP = platform === "x" ? "twitter" : platform;
+              var _bufR = await postViaBuffer(env, text, [_bufP]);
+              if (!results) results = {};
+              if (!errors) errors = {};
+              if (_bufR.results && _bufR.results[_bufP]) {
+                results[platform] = _bufR.results[_bufP];
+              } else {
+                errors[platform] = _bufR.errors && _bufR.errors[_bufP] || _bufR.error || platform + " not connected in Buffer";
+              }
+              continue;
             }
-          } catch(pe) { results[platform] = {error:pe.message}; }
+            if (platform === "mastodon") {
+              var _masR = await postToMastodon(env, text);
+              if (_masR.success) results.mastodon = _masR;
+              else errors.mastodon = _masR.error || "Mastodon post failed";
+              continue;
+            }
+            if (platform === "bluesky") {
+              results.bluesky = await postToBluesky(env, text);
+            } else if (platform === "x" || platform === "twitter") {
+              var bufXResult = await postViaBuffer(env, text, ["twitter"]);
+              if (bufXResult.results && (bufXResult.results.twitter || bufXResult.results.x)) {
+                results[platform] = bufXResult.results.twitter || bufXResult.results.x;
+              } else {
+                errors[platform] = bufXResult.errors && (bufXResult.errors.twitter || bufXResult.errors.x) || "X not connected in Buffer";
+              }
+            } else if (platform === "linkedin") {
+              var liTokenData = null;
+              if (env.PRISM_KV) {
+                var litd = await env.PRISM_KV.get("oauth:linkedin:tokens");
+                if (litd) liTokenData = JSON.parse(litd);
+              }
+              if (liTokenData && liTokenData.access_token) {
+                var meR = await fetch("https://api.linkedin.com/v2/userinfo", { headers: { "Authorization": "Bearer " + liTokenData.access_token } });
+                var meD = await meR.json();
+                var liResp = await fetch("https://api.linkedin.com/v2/ugcPosts", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + liTokenData.access_token, "X-Restli-Protocol-Version": "2.0.0" }, body: JSON.stringify({ author: "urn:li:person:" + meD.sub, lifecycleState: "PUBLISHED", specificContent: { "com.linkedin.ugc.ShareContent": { shareCommentary: { text }, shareMediaCategory: "NONE" } }, visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" } }) });
+                results.linkedin = await liResp.json();
+              } else {
+                results.linkedin = { error: "Not connected -- visit /oauth/linkedin/callback" };
+              }
+            } else {
+              results[platform] = { error: "Platform not yet connected -- visit Platform Manager" };
+            }
+          } catch (pe) {
+            results[platform] = { error: pe.message };
+          }
         }
-        return json({success:true, results:results}, 200, origin);
-      } catch(e) { return json({error:e.message},500,origin); }
+        return json({ success: true, results }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-
-
-    // Dev Team
-    if (path === '/api/devteam' && request.method === 'POST') {
+    if (path === "/api/devteam" && request.method === "POST") {
       try {
         var body = await request.json();
-        var agent = body.agent || 'pm';
-        var historyKey = 'devteam:'+agent+':history';
+        var agent = body.agent || "pm";
+        var historyKey = "devteam:" + agent + ":history";
         var history = [];
         if (env.PRISM_KV) {
           var stored = await env.PRISM_KV.get(historyKey);
           if (stored) history = JSON.parse(stored);
         }
-        var sysPrompt = DEV_TEAM_PROMPTS[agent] || DEV_TEAM_PROMPTS['pm'];
-        var messages = [{role:'system', content:sysPrompt}].concat(history).concat([{role:'user', content:body.message}]);
+        var sysPrompt = DEV_TEAM_PROMPTS[agent] || DEV_TEAM_PROMPTS["pm"];
+        var messages = [{ role: "system", content: sysPrompt }].concat(history).concat([{ role: "user", content: body.message }]);
         var kvRaw2 = null;
-        try { kvRaw2 = await env.PRISM_KV.get('__secrets__'); } catch(e) {}
+        try {
+          kvRaw2 = await env.PRISM_KV.get("__secrets__");
+        } catch (e) {
+        }
         var kvSecrets2 = {};
-        if (kvRaw2) { try { kvSecrets2 = JSON.parse(kvRaw2); } catch(e) {} }
-        var envPlus2 = new Proxy(env, {
-          get: function(target, prop) {
-            if (target[prop] !== undefined) return target[prop];
-            if (kvSecrets2[prop] !== undefined) return kvSecrets2[prop];
-            if (kvSecrets2[prop.toUpperCase()] !== undefined) return kvSecrets2[prop.toUpperCase()];
-            if (kvSecrets2[prop.toLowerCase()] !== undefined) return kvSecrets2[prop.toLowerCase()];
-            return undefined;
+        if (kvRaw2) {
+          try {
+            kvSecrets2 = JSON.parse(kvRaw2);
+          } catch (e) {
           }
+        }
+        var envPlus2 = new Proxy(env, {
+          get: /* @__PURE__ */ __name(function(target, prop) {
+            if (target[prop] !== void 0) return target[prop];
+            if (kvSecrets2[prop] !== void 0) return kvSecrets2[prop];
+            if (kvSecrets2[prop.toUpperCase()] !== void 0) return kvSecrets2[prop.toUpperCase()];
+            if (kvSecrets2[prop.toLowerCase()] !== void 0) return kvSecrets2[prop.toLowerCase()];
+            return void 0;
+          }, "get")
         });
-        var result = await orchestrate(envPlus2, messages, 'balanced', 'chat', null);
-        history.push({role:'user', content:body.message});
-        history.push({role:'assistant', content:result.content});
+        var result = await orchestrate(envPlus2, messages, "balanced", "chat", null);
+        history.push({ role: "user", content: body.message });
+        history.push({ role: "assistant", content: result.content });
         if (history.length > 40) history = history.slice(-40);
         if (env.PRISM_KV) await env.PRISM_KV.put(historyKey, JSON.stringify(history));
-        return json({content: result.content, provider: result.provider, agent: agent}, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
+        return json({ content: result.content, provider: result.provider, agent }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // CRM
-    if (path === '/api/crm/contacts' && request.method === 'GET') {
-      if (!env.PRISM_KV) return json({contacts:[]}, 200, origin);
-      var list = await env.PRISM_KV.list({prefix:'crm:contact:'});
+    if (path === "/api/crm/contacts" && request.method === "GET") {
+      if (!env.PRISM_KV) return json({ contacts: [] }, 200, origin);
+      var list = await env.PRISM_KV.list({ prefix: "crm:contact:" });
       var contacts = [];
       for (var i = 0; i < list.keys.length; i++) {
         var val = await env.PRISM_KV.get(list.keys[i].name);
         if (val) contacts.push(JSON.parse(val));
       }
-      return json({contacts: contacts}, 200, origin);
+      return json({ contacts }, 200, origin);
     }
-    if (path === '/api/crm/contacts' && request.method === 'POST') {
+    if (path === "/api/crm/contacts" && request.method === "POST") {
       var body = await request.json();
-      var id = 'crm:contact:'+Date.now();
-      var contact = Object.assign({id:id, created: new Date().toISOString()}, body);
+      var id = "crm:contact:" + Date.now();
+      var contact = Object.assign({ id, created: (/* @__PURE__ */ new Date()).toISOString() }, body);
       if (env.PRISM_KV) await env.PRISM_KV.put(id, JSON.stringify(contact));
-      return json({success:true, id:id, contact:contact}, 200, origin);
+      return json({ success: true, id, contact }, 200, origin);
     }
-
-    // Zoho OAuth handled by /api/zoho/token endpoint
-
-    // Telegram notify
-    if (path === '/api/notify' && request.method === 'POST') {
+    if (path === "/api/notify" && request.method === "POST") {
       try {
         var body = await request.json();
         await sendTelegram(env, body.message);
-        return json({success:true}, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
-    }
-
-    // KV list (diagnostics)
-    if (path === '/api/kv' && request.method === 'GET') {
-      if (!env.PRISM_KV) return json({keys:[]}, 200, origin);
-      var prefix = url.searchParams.get('prefix') || '';
-      var list = await env.PRISM_KV.list({prefix: prefix});
-      return json({keys: list.keys.map(function(k){return k.name;})}, 200, origin);
-    }
-
-
-    // RSS proxy (server-side fetch to avoid CORS)
-    if (path === '/api/rss' && request.method === 'GET') {
-      var feedUrl = url.searchParams.get('url');
-      if (!feedUrl) return json({error:'No URL provided'}, 400, origin);
-      try {
-        var rssResp = await fetch(feedUrl, {headers:{'User-Agent':'Prism/1.0 RSS Reader'}});
-        var rssText = await rssResp.text();
-        return new Response(rssText, {
-          headers: Object.assign({'Content-Type':'application/rss+xml; charset=utf-8'}, cors(origin))
-        });
-      } catch(e) {
-        return json({error:'RSS fetch failed: '+e.message}, 500, origin);
+        return json({ success: true }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
       }
     }
-
-
-    // Secret ingestion endpoint — accepts secrets and stores them in KV for immediate use
-    // Also proxies to CF API to persist them as Worker secrets
-    if (path === '/api/ingest-secrets' && request.method === 'POST') {
+    if (path === "/api/kv" && request.method === "GET") {
+      if (!env.PRISM_KV) return json({ keys: [] }, 200, origin);
+      var prefix = url.searchParams.get("prefix") || "";
+      var list = await env.PRISM_KV.list({ prefix });
+      return json({ keys: list.keys.map(function(k) {
+        return k.name;
+      }) }, 200, origin);
+    }
+    if (path === "/api/rss" && request.method === "GET") {
+      var feedUrl = url.searchParams.get("url");
+      if (!feedUrl) return json({ error: "No URL provided" }, 400, origin);
+      try {
+        var rssResp = await fetch(feedUrl, { headers: { "User-Agent": "Prism/1.0 RSS Reader" } });
+        var rssText = await rssResp.text();
+        return new Response(rssText, {
+          headers: Object.assign({ "Content-Type": "application/rss+xml; charset=utf-8" }, cors(origin))
+        });
+      } catch (e) {
+        return json({ error: "RSS fetch failed: " + e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/ingest-secrets" && request.method === "POST") {
       try {
         var body = await request.json();
-        var secrets = body.secrets || {}; // {KEY: value, ...}
+        var secrets = body.secrets || {};
         var cfToken = body.cfToken;
-        var accountId = body.accountId || 'd741de91f8cfff2306cc0f850a76ee07';
-        var workerName = body.workerName || 'prism-api';
-        var results = {ok: [], failed: []};
-
-        // Store in KV immediately for instant use (no redeploy needed)
+        var accountId = body.accountId || "d741de91f8cfff2306cc0f850a76ee07";
+        var workerName = body.workerName || "prism-api";
+        var results = { ok: [], failed: [] };
         if (env.PRISM_KV) {
           var kvSecrets = {};
           try {
-            var existing = await env.PRISM_KV.get('__secrets__');
+            var existing = await env.PRISM_KV.get("__secrets__");
             if (existing) kvSecrets = JSON.parse(existing);
-          } catch(e) {}
+          } catch (e) {
+          }
           Object.assign(kvSecrets, secrets);
-          await env.PRISM_KV.put('__secrets__', JSON.stringify(kvSecrets));
+          await env.PRISM_KV.put("__secrets__", JSON.stringify(kvSecrets));
         }
-
-        // Also push to CF API as proper Worker secrets if token provided
         if (cfToken) {
           var entries = Object.entries(secrets);
           for (var i = 0; i < entries.length; i++) {
@@ -1563,1571 +3141,1374 @@ export default {
             var val = entries[i][1];
             try {
               var r = await fetch(
-                'https://api.cloudflare.com/client/v4/accounts/' + accountId + '/workers/scripts/' + workerName + '/secrets',
+                "https://api.cloudflare.com/client/v4/accounts/" + accountId + "/workers/scripts/" + workerName + "/secrets",
                 {
-                  method: 'PUT',
-                  headers: {'Authorization': 'Bearer ' + cfToken, 'Content-Type': 'application/json'},
-                  body: JSON.stringify({name: key, text: val, type: 'secret_text'})
+                  method: "PUT",
+                  headers: { "Authorization": "Bearer " + cfToken, "Content-Type": "application/json" },
+                  body: JSON.stringify({ name: key, text: val, type: "secret_text" })
                 }
               );
               var rd = await r.json();
               if (rd.success) results.ok.push(key);
-              else results.failed.push({key: key, error: rd.errors && rd.errors[0] ? rd.errors[0].message : 'unknown'});
-            } catch(e) {
-              results.failed.push({key: key, error: e.message});
+              else results.failed.push({ key, error: rd.errors && rd.errors[0] ? rd.errors[0].message : "unknown" });
+            } catch (e) {
+              results.failed.push({ key, error: e.message });
             }
           }
         } else {
           results.ok = Object.keys(secrets);
         }
-
-        return json({success: true, kvStored: Object.keys(secrets).length, cfPushed: results.ok.length, failed: results.failed}, 200, origin);
-      } catch(e) {
-        return json({error: e.message}, 500, origin);
+        return json({ success: true, kvStored: Object.keys(secrets).length, cfPushed: results.ok.length, failed: results.failed }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
       }
     }
-
-    // Get a secret from KV store (for runtime use)
-    async function getSecret(env, name) {
-      // Check env first (proper Worker secrets)
-      if (env[name]) return env[name];
-      // Check uppercase variant
-      if (env[name.toUpperCase()]) return env[name.toUpperCase()];
-      // Fall back to KV secret store
-      if (env.PRISM_KV) {
+    async function getSecret(env2, name2) {
+      if (env2[name2]) return env2[name2];
+      if (env2[name2.toUpperCase()]) return env2[name2.toUpperCase()];
+      if (env2.PRISM_KV) {
         try {
-          var kvSecrets = await env.PRISM_KV.get('__secrets__');
-          if (kvSecrets) {
-            var parsed = JSON.parse(kvSecrets);
-            // Try exact match, then uppercase, then lowercase
-            return parsed[name] || parsed[name.toUpperCase()] || parsed[name.toLowerCase()] || null;
+          var kvSecrets4 = await env2.PRISM_KV.get("__secrets__");
+          if (kvSecrets4) {
+            var parsed2 = JSON.parse(kvSecrets4);
+            return parsed2[name2] || parsed2[name2.toUpperCase()] || parsed2[name2.toLowerCase()] || null;
           }
-        } catch(e) {}
+        } catch (e) {
+        }
       }
       return null;
     }
-
-
-    // Round Table — send to multiple models simultaneously, synthesise
-    if (path === '/api/roundtable' && request.method === 'POST') {
+    __name(getSecret, "getSecret");
+    if (path === "/api/roundtable" && request.method === "POST") {
       try {
+        let k2 = function(names2) {
+          for (var i2 = 0; i2 < names2.length; i2++) {
+            var n = names2[i2];
+            var v2 = env[n] || env[n.toLowerCase()] || env[n.toUpperCase()] || kv2[n] || kv2[n.toLowerCase()] || kv2[n.toUpperCase()];
+            if (v2 && v2.length > 6) return v2;
+          }
+          return null;
+        };
+        __name(k2, "k2");
         var body = await request.json();
         var messages = body.messages || [];
-        var models = body.models || ['cerebras-gemma4','nvidia-nemotron','deepseek-r1'];
+        var models = body.models || ["cerebras-qwen3", "groq-llama3", "gemini-free", "deepseek-chat", "kimi"];
         var synthesise = body.synthesise !== false;
-
-        // Load KV secrets
-        var kvRaw = null;
-        try { kvRaw = await env.PRISM_KV.get('__secrets__'); } catch(e) {}
-        var kvSecrets = {};
-        if (kvRaw) { try { kvSecrets = JSON.parse(kvRaw); } catch(e) {} }
-        var envPlus = new Proxy(env, {
-          get: function(target, prop) {
-            if (target[prop] !== undefined) return target[prop];
-            if (kvSecrets[prop] !== undefined) return kvSecrets[prop];
-            if (kvSecrets[prop.toUpperCase()] !== undefined) return kvSecrets[prop.toUpperCase()];
-            if (kvSecrets[prop.toLowerCase()] !== undefined) return kvSecrets[prop.toLowerCase()];
-            return undefined;
+        var responses = [];
+        var kv2 = {};
+        try {
+          if (env.PRISM_KV) {
+            var raw2 = await env.PRISM_KV.get("__secrets__");
+            if (raw2) kv2 = JSON.parse(raw2);
           }
+        } catch (e) {
+        }
+        var MODEL_REGISTRY = [
+          // Cerebras - use cerebras_api_key (old name) which works, not CEREBRAS_PAID_1 (402)
+          { id: "cerebras-qwen3", provider: "cerebras", model: "qwen-3.8-27b", key: k2(["cerebras_api_key", "CEREBRAS_PAID_2"]) },
+          { id: "cerebras-qwen36", provider: "cerebras", model: "qwen-3.6-27b", key: k2(["cerebras_api_key", "CEREBRAS_PAID_2"]) },
+          // Groq - current active models (verified Sep 2026)
+          { id: "groq-compound-mini", provider: "groq", model: "groq/compound-mini", key: k2(["GROQ_PAID_1", "groq_api_key"]) },
+          { id: "groq-gpt-oss", provider: "groq", model: "openai/gpt-oss-120b", key: k2(["GROQ_PAID_1", "groq_api_key"]) },
+          { id: "groq-compound", provider: "groq", model: "groq/compound", key: k2(["GROQ_PAID_1", "groq_api_key"]) },
+          // DeepSeek - confirmed working
+          { id: "deepseek-chat", provider: "deepseek", model: "deepseek-chat", key: k2(["DEEPSEEK_PAID_1", "deepseek_api_key"]) },
+          // Kimi/Moonshot
+          { id: "kimi", provider: "kimi", model: "moonshot-v1-8k", key: k2(["KIMI_PAID_1", "kimi_api_key"]) },
+          // Mistral
+          { id: "mistral", provider: "mistral", model: "mistral-small-latest", key: k2(["MISTRAL_PAID_1", "mistral_api_key"]) },
+          // Cohere
+          { id: "cohere", provider: "cohere", model: "command-a-03-2025", key: k2(["COHERE_PAID_1", "cohere_api_key"]) },
+          // NVIDIA Nemotron
+          { id: "nvidia-nemotron", provider: "nvidia", model: "nvidia/llama-3.1-nemotron-ultra-253b-v1", key: k2(["NVIDIA_PAID_1", "nvidia_build_api_key"]) },
+          // xAI Grok
+          { id: "xai-grok", provider: "xai", model: "grok-beta", key: k2(["XAI_PAID_1"]) },
+          // Gemini - use paid key with correct model
+          { id: "gemini", provider: "gemini", model: "gemini-2.5-flash", key: k2(["GEMINI_PAID_1", "GEMINI_FREE_1", "gemini_paid_api_key", "gemini_api_key"]) },
+          // Pollinations - always available
+          { id: "kie-gemma4", provider: "kie", model: "google/gemma-4-27b-it", key: k2(["KIE_AI", "kie_ai"]) },
+          { id: "kie-gemini", provider: "kie", model: "gemini-2.5-flash", key: k2(["KIE_AI", "kie_ai"]) },
+          { id: "pollinations", provider: "pollinations", model: "openai-large", key: k2(["POLLINATIONS_FREE_1", "pollinations_key"]) }
+        ];
+        var selectedModels = MODEL_REGISTRY.filter(function(m2) {
+          return models.indexOf(m2.id) >= 0 || models.indexOf("all") >= 0;
         });
-
-        var MODEL_MAP = {
-          'cerebras-gemma4':  function(m) { return callCerebras(envPlus, m, 'gemma-4-9b-it'); },
-          'cerebras-gemma4-27': function(m) { return callCerebras(envPlus, m, 'gemma-4-27b-it'); },
-          'nvidia-nemotron':  function(m) { return callNvidia(envPlus, m, 'nvidia/llama-3.1-nemotron-ultra-253b-v1'); },
-          'deepseek-r1':      function(m) { return callDeepSeek(envPlus, m, 'deepseek-reasoner'); },
-          'deepseek-v3':      function(m) { return callDeepSeek(envPlus, m, 'deepseek-chat'); },
-          'groq-gemma2':      function(m) { return callGroq(envPlus, m, 'gemma2-9b-it'); },
-          'groq-llama':       function(m) { return callGroq(envPlus, m, 'llama-3.3-70b-versatile'); },
-          'gemini':           function(m) { return callGemini(envPlus, m, 'gemini-2.0-flash'); },
-          'mistral':          function(m) { return callMistral(envPlus, m, null); },
-        };
-
-        // Run all models in parallel
-        var promises = models.map(function(modelId) {
-          var fn = MODEL_MAP[modelId];
-          if (!fn) return Promise.resolve({model: modelId, content: null, error: 'Unknown model'});
-          return fn(messages).then(function(content) {
-            return {model: modelId, content: stripTropes(content), error: null};
-          }).catch(function(e) {
-            return {model: modelId, content: null, error: e.message};
-          });
-        });
-
-        var responses = await Promise.all(promises);
-        var successful = responses.filter(function(r) { return r.content; });
-
-        // Synthesise if requested and we have multiple responses
-        var synthesis = null;
-        if (synthesise && successful.length > 1) {
-          var synthContext = successful.map(function(r) {
-            return '## ' + r.model + '\n' + r.content;
-          }).join('\n\n');
-          var synthMessages = [
-            {role:'system', content:'You are a synthesis engine. You have received responses from multiple AI models to the same prompt. Synthesise the key insights, note where models agree and disagree, and produce a single authoritative response. British English. No sycophancy. Be direct.'},
-            {role:'user', content:'Synthesise these responses:\n\n' + synthContext}
-          ];
+        if (selectedModels.length === 0) selectedModels = MODEL_REGISTRY.slice(0, 4);
+        var modelPromises = selectedModels.map(async function(modelDef) {
+          if (!modelDef.key && modelDef.provider !== "pollinations") {
+            return { model: modelDef.id, content: "", error: "No API key configured", provider: modelDef.provider };
+          }
           try {
-            synthesis = await callNvidia(envPlus, synthMessages, 'nvidia/llama-3.1-nemotron-ultra-253b-v1');
-            synthesis = stripTropes(synthesis);
-          } catch(e) {
-            try { synthesis = await callCerebras(envPlus, synthMessages, 'gemma-4-27b-it'); synthesis = stripTropes(synthesis); } catch(e2) {}
-          }
-        }
-
-        return json({responses: responses, synthesis: synthesis, modelsUsed: models}, 200, origin);
-      } catch(e) {
-        return json({error: e.message}, 500, origin);
-      }
-    }
-
-
-    // ── Calendar events (KV-backed + Zoho sync) ───────────────────────────────
-    if (path === '/api/zoho/calendar/events' && request.method === 'GET') {
-      try {
-        // Try Zoho Calendar API first
-        var zohoTokens = null;
-        if (env.PRISM_KV) { var zt = await env.PRISM_KV.get('zoho:tokens:calendar'); if (zt) zohoTokens = JSON.parse(zt); }
-        if (zohoTokens && zohoTokens.access_token) {
-          var now = new Date();
-          var from = now.toISOString().split('T')[0];
-          var to = new Date(now.getTime() + 30*86400000).toISOString().split('T')[0];
-          var calResp = await fetch('https://calendar.zoho.eu/api/v1/calendars/events?range_start='+from+'&range_end='+to, {
-            headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token}
-          });
-          if (calResp.ok) {
-            var calData = await calResp.json();
-            var events = (calData.events || []).map(function(ev) {
-              return {
-                id: ev.uid,
-                title: ev.title,
-                date: ev.dateandtime && ev.dateandtime.start ? ev.dateandtime.start.split('T')[0] : '',
-                time: ev.dateandtime && ev.dateandtime.start ? ev.dateandtime.start.split('T')[1].substring(0,5) : '',
-                type: ev.isprivate ? 'personal' : 'event',
-                notes: ev.description || ''
-              };
-            });
-            return json({events: events, source: 'zoho'}, 200, origin);
-          }
-        }
-        // Fall back to KV-stored events
-        var stored = null;
-        if (env.PRISM_KV) stored = await env.PRISM_KV.get('calendar:events');
-        var events = stored ? JSON.parse(stored) : [];
-        return json({events: events, source: 'kv', error: zohoTokens ? null : 'not connected'}, 200, origin);
-      } catch(e) {
-        return json({events: [], error: e.message}, 200, origin);
-      }
-    }
-
-    if (path === '/api/zoho/calendar/events' && request.method === 'POST') {
-      try {
-        var body = await request.json();
-        var events = [];
-        if (env.PRISM_KV) {
-          var stored = await env.PRISM_KV.get('calendar:events');
-          if (stored) events = JSON.parse(stored);
-        }
-        events.push(body);
-        if (env.PRISM_KV) await env.PRISM_KV.put('calendar:events', JSON.stringify(events));
-        // Also try to create in Zoho Calendar
-        var zohoTokens = null;
-        if (env.PRISM_KV) { var zt = await env.PRISM_KV.get('zoho:tokens:calendar'); if (zt) zohoTokens = JSON.parse(zt); }
-        if (zohoTokens && zohoTokens.access_token && body.date && body.time) {
-          var startDt = body.date + 'T' + body.time + ':00';
-          var endDt = body.date + 'T' + (parseInt(body.time.split(':')[0]) + 1) + ':00:00';
-          await fetch('https://calendar.zoho.eu/api/v1/calendars/events', {
-            method: 'POST',
-            headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token, 'Content-Type': 'application/json'},
-            body: JSON.stringify({title: body.title, dateandtime: {start: startDt, end: endDt}, description: body.notes || ''})
-          });
-        }
-        return json({success: true, event: body}, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
-    }
-
-    // ── Bookings ──────────────────────────────────────────────────────────────
-    if (path === '/api/bookings' && request.method === 'POST') {
-      try {
-        var body = await request.json();
-        // Store booking in KV
-        var bookingId = 'booking:' + Date.now();
-        if (env.PRISM_KV) await env.PRISM_KV.put(bookingId, JSON.stringify(body));
-        // Also store as calendar event
-        var events = [];
-        if (env.PRISM_KV) { var stored = await env.PRISM_KV.get('calendar:events'); if (stored) events = JSON.parse(stored); }
-        events.push({id: bookingId, title: body.clientName + ' — ' + body.sessionType, date: body.date, time: body.time, type: 'booking', clientEmail: body.clientEmail, notes: body.notes});
-        if (env.PRISM_KV) await env.PRISM_KV.put('calendar:events', JSON.stringify(events));
-        // Send confirmation via Telegram
-        var confirmMsg = 'New Booking! Client: ' + body.clientName + ' | Email: ' + body.clientEmail + ' | Date: ' + body.date + ' at ' + body.time + ' | Type: ' + body.sessionType + (body.notes ? ' | Notes: ' + body.notes : '');
-        await sendTelegram(env, confirmMsg);
-        return json({success: true, bookingId: bookingId}, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
-    }
-
-    if (path === '/api/bookings' && request.method === 'GET') {
-      try {
-        if (!env.PRISM_KV) return json({bookings: []}, 200, origin);
-        var list = await env.PRISM_KV.list({prefix: 'booking:'});
-        var bookings = [];
-        for (var i = 0; i < list.keys.length; i++) {
-          var val = await env.PRISM_KV.get(list.keys[i].name);
-          if (val) bookings.push(JSON.parse(val));
-        }
-        return json({bookings: bookings.sort(function(a,b){return new Date(a.date+' '+a.time)-new Date(b.date+' '+b.time);})}, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
-    }
-
-    // ── Social analytics ──────────────────────────────────────────────────────
-    if (path === '/api/social/analytics' && request.method === 'GET') {
-      try {
-        // Get Bluesky profile stats
-        var handle = env.BLUESKY_HANDLE || env.bluesky_handle || 'identitypartners.bsky.social';
-        var profileResp = await fetch('https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=' + handle);
-        if (profileResp.ok) {
-          var profile = await profileResp.json();
-          // Get recent posts count
-          var feedResp = await fetch('https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=' + handle + '&limit=30');
-          var posts = 0, impressions = 0, engagement = 0;
-          if (feedResp.ok) {
-            var feed = await feedResp.json();
-            posts = (feed.feed || []).length;
-            (feed.feed || []).forEach(function(item) {
-              var post = item.post;
-              impressions += (post.likeCount||0) + (post.repostCount||0) + (post.replyCount||0);
-              engagement += (post.likeCount||0) + (post.repostCount||0);
-            });
-          }
-          return json({
-            followers: profile.followersCount || 0,
-            following: profile.followsCount || 0,
-            posts: posts,
-            impressions: impressions,
-            engagement: posts > 0 ? Math.round(engagement/posts*10)/10 + ' avg' : '0',
-            clicks: '—',
-            visits: '—',
-            source: 'bluesky'
-          }, 200, origin);
-        }
-        return json({posts:'—',followers:'—',impressions:'—',engagement:'—',clicks:'—',visits:'—'}, 200, origin);
-      } catch(e) { return json({posts:'—',followers:'—',impressions:'—',engagement:'—',clicks:'—',visits:'—',error:e.message}, 200, origin); }
-    }
-
-
-    // ── CRM Deals ─────────────────────────────────────────────────────────────
-    if (path === '/api/crm/deals' && request.method === 'GET') {
-      if (!env.PRISM_KV) return json({deals:[]}, 200, origin);
-      var list = await env.PRISM_KV.list({prefix:'crm:deal:'});
-      var deals = [];
-      for (var i=0;i<list.keys.length;i++) {
-        var val = await env.PRISM_KV.get(list.keys[i].name);
-        if (val) deals.push(JSON.parse(val));
-      }
-      return json({deals: deals.sort(function(a,b){return new Date(b.created)-new Date(a.created);})}, 200, origin);
-    }
-
-    if (path === '/api/crm/deals' && request.method === 'POST') {
-      var body = await request.json();
-      var id = 'crm:deal:' + Date.now();
-      var deal = Object.assign({id:id, created:new Date().toISOString()}, body);
-      if (env.PRISM_KV) await env.PRISM_KV.put(id, JSON.stringify(deal));
-      return json({success:true, id:id, deal:deal}, 200, origin);
-    }
-
-    if (path.startsWith('/api/crm/deals/') && request.method === 'PUT') {
-      var dealId = path.slice(15);
-      var body = await request.json();
-      if (env.PRISM_KV) {
-        var existing = await env.PRISM_KV.get('crm:deal:' + dealId);
-        var deal = existing ? Object.assign(JSON.parse(existing), body) : body;
-        deal.updated = new Date().toISOString();
-        await env.PRISM_KV.put('crm:deal:' + dealId, JSON.stringify(deal));
-      }
-      return json({success:true}, 200, origin);
-    }
-
-    if (path.startsWith('/api/crm/deals/') && request.method === 'DELETE') {
-      var dealId = path.slice(15);
-      if (env.PRISM_KV) await env.PRISM_KV.delete('crm:deal:' + dealId);
-      return json({success:true}, 200, origin);
-    }
-
-    // ── CRM Notes ─────────────────────────────────────────────────────────────
-    if (path === '/api/crm/notes' && request.method === 'POST') {
-      var body = await request.json();
-      var id = 'crm:note:' + Date.now();
-      var note = Object.assign({id:id, created:new Date().toISOString()}, body);
-      if (env.PRISM_KV) await env.PRISM_KV.put(id, JSON.stringify(note));
-      return json({success:true, id:id}, 200, origin);
-    }
-
-    if (path === '/api/crm/notes' && request.method === 'GET') {
-      var contactId = url.searchParams.get('contactId');
-      if (!env.PRISM_KV) return json({notes:[]}, 200, origin);
-      var list = await env.PRISM_KV.list({prefix:'crm:note:'});
-      var notes = [];
-      for (var i=0;i<list.keys.length;i++) {
-        var val = await env.PRISM_KV.get(list.keys[i].name);
-        if (val) {
-          var note = JSON.parse(val);
-          if (!contactId || note.contactId === contactId) notes.push(note);
-        }
-      }
-      return json({notes: notes.sort(function(a,b){return new Date(b.created)-new Date(a.created);})}, 200, origin);
-    }
-
-    // ── Zoho CRM sync ─────────────────────────────────────────────────────────
-    if (path === '/api/zoho/crm/contacts' && request.method === 'GET') {
-      try {
-        var zohoTokens = null;
-        if (env.PRISM_KV) { var zt = await env.PRISM_KV.get('zoho:tokens:crm'); if (zt) zohoTokens = JSON.parse(zt); }
-        if (!zohoTokens || !zohoTokens.access_token) {
-          return json({contacts:[], error:'Zoho CRM not connected — visit /oauth/zoho/crm'}, 200, origin);
-        }
-        var crmResp = await fetch('https://www.zohoapis.eu/crm/v3/Contacts?fields=First_Name,Last_Name,Email,Phone,Account_Name,Lead_Source&per_page=200', {
-          headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token}
-        });
-        if (!crmResp.ok) return json({contacts:[], error:'Zoho CRM API error: ' + crmResp.status}, 200, origin);
-        var crmData = await crmResp.json();
-        var contacts = (crmData.data || []).map(function(c) {
-          return {
-            id: c.id,
-            name: (c.First_Name||'') + ' ' + (c.Last_Name||''),
-            first_name: c.First_Name || '',
-            last_name: c.Last_Name || '',
-            email: c.Email || '',
-            phone: c.Phone || '',
-            org: c.Account_Name || '',
-            source: c.Lead_Source || '',
-            type: 'contact',
-            created: c.Created_Time || new Date().toISOString()
-          };
-        });
-        // Cache in KV
-        if (env.PRISM_KV) {
-          for (var i=0;i<contacts.length;i++) {
-            await env.PRISM_KV.put('crm:contact:zoho:'+contacts[i].id, JSON.stringify(contacts[i]));
-          }
-        }
-        return json({contacts: contacts, source:'zoho'}, 200, origin);
-      } catch(e) {
-        return json({contacts:[], error:e.message}, 200, origin);
-      }
-    }
-
-    if (path === '/api/zoho/crm/leads' && request.method === 'GET') {
-      try {
-        var zohoTokens = null;
-        if (env.PRISM_KV) { var zt = await env.PRISM_KV.get('zoho:tokens:crm'); if (zt) zohoTokens = JSON.parse(zt); }
-        if (!zohoTokens || !zohoTokens.access_token) return json({leads:[], error:'not connected'}, 200, origin);
-        var leadsResp = await fetch('https://www.zohoapis.eu/crm/v3/Leads?fields=First_Name,Last_Name,Email,Phone,Lead_Source,Lead_Status&per_page=200', {
-          headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token}
-        });
-        if (!leadsResp.ok) return json({leads:[], error:'API error'}, 200, origin);
-        var leadsData = await leadsResp.json();
-        var leads = (leadsData.data || []).map(function(l) {
-          return {id:l.id, name:(l.First_Name||'')+' '+(l.Last_Name||''), email:l.Email||'', phone:l.Phone||'', source:l.Lead_Source||'', status:l.Lead_Status||'', type:'lead'};
-        });
-        return json({leads: leads, source:'zoho'}, 200, origin);
-      } catch(e) { return json({leads:[], error:e.message}, 200, origin); }
-    }
-
-    // Push new contact to Zoho CRM
-    if (path === '/api/zoho/crm/contacts' && request.method === 'POST') {
-      try {
-        var body = await request.json();
-        var zohoTokens = null;
-        if (env.PRISM_KV) { var zt = await env.PRISM_KV.get('zoho:tokens:crm'); if (zt) zohoTokens = JSON.parse(zt); }
-        if (zohoTokens && zohoTokens.access_token) {
-          var pushResp = await fetch('https://www.zohoapis.eu/crm/v3/Contacts', {
-            method: 'POST',
-            headers: {'Authorization': 'Zoho-oauthtoken ' + zohoTokens.access_token, 'Content-Type': 'application/json'},
-            body: JSON.stringify({data:[{First_Name:body.first_name||'', Last_Name:body.last_name||body.name||'', Email:body.email||'', Phone:body.phone||'', Lead_Source:body.source||'Website'}]})
-          });
-          var pushData = await pushResp.json();
-          return json({success:true, zoho:pushData}, 200, origin);
-        }
-        return json({success:false, error:'Zoho CRM not connected'}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
-    }
-
-
-    // ── Headless platform posting (via Cloudflare Browser Rendering) ──────────
-    if (path === '/api/headless/post' && request.method === 'POST') {
-      try {
-        var body = await request.json();
-        var platform = body.platform;
-        var text = body.text || '';
-        var credentials = null;
-
-        // Load stored credentials from KV
-        if (env.PRISM_KV) {
-          var creds = await env.PRISM_KV.get('platform:creds:' + platform);
-          if (creds) credentials = JSON.parse(creds);
-        }
-
-        if (!credentials) {
-          return json({success:false, error:'No credentials stored for ' + platform + '. Complete signup first via Platform Manager.'}, 200, origin);
-        }
-
-        // Route to platform-specific poster
-        var result = null;
-        if (platform === 'bluesky') {
-          result = await postToBluesky(env, text);
-        } else if (platform === 'x' || platform === 'twitter') {
-          var xTokens = null;
-          if (env.PRISM_KV) { var xt = await env.PRISM_KV.get('oauth:x:tokens'); if (xt) xTokens = JSON.parse(xt); }
-          if (xTokens && xTokens.access_token) {
-            var xr = await fetch('https://api.twitter.com/2/tweets', {method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+xTokens.access_token},body:JSON.stringify({text:text.substring(0,280)})});
-            result = await xr.json();
-          } else { return json({success:false, error:'X not connected. Visit /oauth/x/'}, 200, origin); }
-        } else if (platform === 'linkedin') {
-          var liTokens = null;
-          if (env.PRISM_KV) { var lt = await env.PRISM_KV.get('oauth:linkedin:tokens'); if (lt) liTokens = JSON.parse(lt); }
-          if (liTokens && liTokens.access_token) {
-            var meR = await fetch('https://api.linkedin.com/v2/userinfo',{headers:{'Authorization':'Bearer '+liTokens.access_token}});
-            var meD = await meR.json();
-            var liR = await fetch('https://api.linkedin.com/v2/ugcPosts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+liTokens.access_token,'X-Restli-Protocol-Version':'2.0.0'},body:JSON.stringify({author:'urn:li:person:'+meD.sub,lifecycleState:'PUBLISHED',specificContent:{'com.linkedin.ugc.ShareContent':{shareCommentary:{text:text},shareMediaCategory:'NONE'}},visibility:{'com.linkedin.ugc.MemberNetworkVisibility':'PUBLIC'}})});
-            result = await liR.json();
-          } else { return json({success:false, error:'LinkedIn not connected. Visit /oauth/linkedin/'}, 200, origin); }
-        } else {
-          return json({success:false, error:'Platform ' + platform + ' not yet supported for direct posting. Use the Social Queue to schedule.'}, 200, origin);
-        }
-
-        return json({success:true, platform:platform, result:result}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
-    }
-
-    // ── Platform credential storage ───────────────────────────────────────────
-    if (path === '/api/platform/credentials' && request.method === 'POST') {
-      try {
-        var body = await request.json();
-        var platform = body.platform;
-        var credentials = body.credentials;
-        if (!platform || !credentials) return json({error:'platform and credentials required'}, 400, origin);
-        if (env.PRISM_KV) await env.PRISM_KV.put('platform:creds:' + platform, JSON.stringify({...credentials, stored: new Date().toISOString()}));
-        return json({success:true, platform:platform}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
-    }
-
-    if (path === '/api/platform/credentials' && request.method === 'GET') {
-      try {
-        if (!env.PRISM_KV) return json({platforms:[]}, 200, origin);
-        var list = await env.PRISM_KV.list({prefix:'platform:creds:'});
-        var platforms = list.keys.map(function(k){return k.name.replace('platform:creds:','');});
-        return json({platforms:platforms}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
-    }
-
-    // ── Bulk social post (post same content to all connected platforms) ────────
-    if (path === '/api/social/broadcast' && request.method === 'POST') {
-      try {
-        var body = await request.json();
-        var text = body.text || '';
-        var platforms = body.platforms || ['bluesky'];
-        var results = {};
-        var errors = {};
-
-        var kvRaw = null;
-        try { kvRaw = await env.PRISM_KV.get('__secrets__'); } catch(e) {}
-        var kvSecrets = {};
-        if (kvRaw) { try { kvSecrets = JSON.parse(kvRaw); } catch(e) {} }
-        var envPlus = new Proxy(env, {
-          get: function(target, prop) {
-            if (target[prop] !== undefined) return target[prop];
-            if (kvSecrets[prop] !== undefined) return kvSecrets[prop];
-            if (kvSecrets[prop.toUpperCase()] !== undefined) return kvSecrets[prop.toUpperCase()];
-            if (kvSecrets[prop.toLowerCase()] !== undefined) return kvSecrets[prop.toLowerCase()];
-            return undefined;
+            var result2 = await Promise.race([
+              callProvider(env, modelDef.provider, modelDef.key, modelDef.model, messages),
+              new Promise(function(_, reject) {
+                setTimeout(function() {
+                  reject(new Error("timeout"));
+                }, 15e3);
+              })
+            ]);
+            return { model: modelDef.id, content: result2.content || "", provider: result2.provider || modelDef.provider, ms: Date.now() };
+          } catch (e) {
+            return { model: modelDef.id, content: "", error: e.message, provider: modelDef.provider };
           }
         });
-
-        for (var pi = 0; pi < platforms.length; pi++) {
-          var platform = platforms[pi];
-          try {
-            if (platform === 'bluesky') {
-              var bskyText = text.length > 300 ? text.substring(0,297)+'...' : text;
-              results.bluesky = await postToBluesky(envPlus, bskyText);
-            } else if (platform === 'x') {
-              var xTokens = null;
-              if (env.PRISM_KV) { var xt = await env.PRISM_KV.get('oauth:x:tokens'); if (xt) xTokens = JSON.parse(xt); }
-              if (xTokens && xTokens.access_token) {
-                var xText = text.length > 280 ? text.substring(0,277)+'...' : text;
-                var xr = await fetch('https://api.twitter.com/2/tweets',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+xTokens.access_token},body:JSON.stringify({text:xText})});
-                results.x = await xr.json();
-              } else { errors.x = 'Not connected'; }
-            } else if (platform === 'linkedin') {
-              var liTokens = null;
-              if (env.PRISM_KV) { var lt = await env.PRISM_KV.get('oauth:linkedin:tokens'); if (lt) liTokens = JSON.parse(lt); }
-              if (liTokens && liTokens.access_token) {
-                var meR = await fetch('https://api.linkedin.com/v2/userinfo',{headers:{'Authorization':'Bearer '+liTokens.access_token}});
-                var meD = await meR.json();
-                var liR = await fetch('https://api.linkedin.com/v2/ugcPosts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+liTokens.access_token,'X-Restli-Protocol-Version':'2.0.0'},body:JSON.stringify({author:'urn:li:person:'+meD.sub,lifecycleState:'PUBLISHED',specificContent:{'com.linkedin.ugc.ShareContent':{shareCommentary:{text:text},shareMediaCategory:'NONE'}},visibility:{'com.linkedin.ugc.MemberNetworkVisibility':'PUBLIC'}})});
-                results.linkedin = await liR.json();
-              } else { errors.linkedin = 'Not connected'; }
-            } else {
-              errors[platform] = 'Not yet supported';
+        var settled = await Promise.allSettled(modelPromises);
+        settled.forEach(function(r2) {
+          if (r2.status === "fulfilled") {
+            if (r2.value.content && r2.value.content.length > 0) {
+              responses.push(r2.value);
+            } else if (r2.value.error) {
+              responses.push({ model: r2.value.model, content: "[Error: " + r2.value.error + "]", provider: r2.value.provider, isError: true });
             }
-          } catch(pe) { errors[platform] = pe.message; }
-        }
-
-        // Log to queue as posted
-        var queueId = 'queue:broadcast:' + Date.now();
-        if (env.PRISM_KV) await env.PRISM_KV.put(queueId, JSON.stringify({
-          id: queueId, content: text, platforms: platforms,
-          results: results, errors: errors,
-          status: Object.keys(errors).length === 0 ? 'posted' : 'partial',
-          created: new Date().toISOString()
-        }));
-
-        return json({success:true, results:results, errors:errors, posted:Object.keys(results).length, failed:Object.keys(errors).length}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
-    }
-
-
-
-    // ── Zoho token exchange (CRITICAL — called by OAuth callback pages) ───────
-    if (path === '/api/zoho/token' && request.method === 'POST') {
-      try {
-        var body = await request.json();
-        var service = body.service;
-        var code = body.code;
-        var redirectUri = body.redirectUri;
-        var clientId = env.ZOHO_CLIENT_ID || env.Zoho_Client_ID;
-        var clientSecret = env.ZOHO_CLIENT_SECRET || env.Zoho_Client_Secret;
-        if (!clientId) return json({success:false,error:'ZOHO_CLIENT_ID not set in Worker secrets'}, 200, origin);
-        if (!clientSecret) return json({success:false,error:'ZOHO_CLIENT_SECRET not set in Worker secrets'}, 200, origin);
-        if (!code) return json({success:false,error:'No code provided'}, 200, origin);
-        if (!redirectUri) redirectUri = 'https://prism.identitypartners.uk/oauth/zoho/' + service;
-        var tokenResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {
-          method: 'POST',
-          headers: {'Content-Type':'application/x-www-form-urlencoded'},
-          body: [
-            'grant_type=authorization_code',
-            'client_id=' + encodeURIComponent(clientId),
-            'client_secret=' + encodeURIComponent(clientSecret),
-            'redirect_uri=' + encodeURIComponent(redirectUri),
-            'code=' + encodeURIComponent(code),
-            'access_type=offline'
-          ].join('&')
+          } else if (r2.status === "rejected") {
+            responses.push({ model: "unknown", content: "[Rejected: " + r2.reason + "]", provider: "none", isError: true });
+          }
         });
-        var tokens = await tokenResp.json();
-        if (tokens.error) return json({success:false,error:tokens.error+': '+(tokens.error_description||'')}, 200, origin);
-        if (!tokens.access_token) return json({success:false,error:'No access_token in response: '+JSON.stringify(tokens)}, 200, origin);
-        if (env.PRISM_KV) await env.PRISM_KV.put('zoho:tokens:'+service, JSON.stringify(tokens));
-        return json({success:true,service:service,expires_in:tokens.expires_in}, 200, origin);
-      } catch(e) { return json({success:false,error:e.message}, 500, origin); }
-    }
-
-    // ── Zoho credential diagnostic ────────────────────────────────────────────
-    if (path === '/api/zoho/test' && request.method === 'GET') {
-      var clientId = env.ZOHO_CLIENT_ID || env.Zoho_Client_ID;
-      var clientSecret = env.ZOHO_CLIENT_SECRET || env.Zoho_Client_Secret;
-      var hasTokens = {};
-      if (env.PRISM_KV) {
-        for (var svc of ['mail','calendar','crm','social']) {
-          var t = await env.PRISM_KV.get('zoho:tokens:'+svc);
-          hasTokens[svc] = t ? 'stored' : 'not connected';
+        var synthesis = null;
+        if (synthesise && responses.length > 1) {
+          var synthKey = k2(["NVIDIA_PAID_1", "nvidia_build_api_key"]) || k2(["GEMINI_PAID_1", "gemini_paid_api_key"]);
+          var synthProvider = synthKey === k2(["NVIDIA_PAID_1", "nvidia_build_api_key"]) ? "nvidia" : "gemini";
+          var synthModel = synthProvider === "nvidia" ? "nvidia/llama-3.1-nemotron-ultra-253b-v1" : "gemini-2.5-pro";
+          try {
+            var synthMessages = messages.concat([{ role: "user", content: "You are a synthesis engine. The following are responses from multiple AI models to the same question. Synthesise them into a single authoritative, balanced answer that captures the best insights from each. Be concise. British English.\n\n" + responses.map(function(r2) {
+              return r2.model + ": " + r2.content;
+            }).join("\n\n") }]);
+            var synthResult = await callProvider(env, synthProvider, synthKey, synthModel, synthMessages);
+            synthesis = synthResult.content;
+          } catch (e) {
+            synthesis = null;
+          }
         }
+        return json({ responses, synthesis, modelCount: responses.length, availableModels: MODEL_REGISTRY.map(function(m2) {
+          return { id: m2.id, available: !!(m2.key || m2.provider === "pollinations") };
+        }) }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
       }
-      return json({
-        clientId: clientId ? clientId.substring(0,20)+'...' : 'MISSING',
-        clientSecret: clientSecret ? 'present ('+clientSecret.length+' chars)' : 'MISSING',
-        redirectUris: {
-          mail: 'https://prism.identitypartners.uk/oauth/zoho/mail',
-          calendar: 'https://prism.identitypartners.uk/oauth/zoho/calendar',
-          crm: 'https://prism.identitypartners.uk/oauth/zoho/crm',
-          social: 'https://prism.identitypartners.uk/oauth/zoho/social',
-        },
-        authEndpoint: 'https://accounts.zoho.eu/oauth/v2/auth',
-        tokenEndpoint: 'https://accounts.zoho.eu/oauth/v2/token',
-        tokens: hasTokens
-      }, 200, origin);
     }
-
-
-    // ── Zoho Mail send ────────────────────────────────────────────────────────
-    if (path === '/api/zoho/mail/send' && request.method === 'POST') {
+    if (path === "/api/canvas/render" && request.method === "POST") {
       try {
         var body = await request.json();
-        var tokens = null;
-        if (env.PRISM_KV) { var t = await env.PRISM_KV.get('zoho:tokens:mail'); if (t) tokens = JSON.parse(t); }
-        if (!tokens || !tokens.access_token) return json({success:false, error:'Zoho Mail not connected. Visit /oauth/zoho/mail to connect.'}, 200, origin);
+        var text = (body.text || "").substring(0, 280);
+        var template = body.template || "quote-teal";
+        var cacheKey = body.cacheKey || ("canvas-" + Date.now() + ".png");
+        var browserlessKey = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO;
 
-        // Get account ID first
-        var accountsResp = await fetch('https://mail.zoho.eu/api/accounts', {
-          headers: {'Authorization': 'Zoho-oauthtoken ' + tokens.access_token}
-        });
-        if (!accountsResp.ok) return json({success:false, error:'Could not fetch Zoho Mail accounts: ' + accountsResp.status}, 200, origin);
-        var accountsData = await accountsResp.json();
-        var accountId = accountsData.data && accountsData.data[0] && accountsData.data[0].accountId;
-        if (!accountId) return json({success:false, error:'No Zoho Mail account found'}, 200, origin);
+        // Option B: pre-baked R2 template (immediate, always works)
+        // Use when Browserless key absent or caller requests it explicitly
+        if (!browserlessKey || body.usePrebaked) {
+          var ti = Math.floor(Math.random() * 150);
+          var prebakedUrl = "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-" + ti + ".png";
+          return json({ success: true, url: prebakedUrl, method: "prebaked", index: ti }, 200, origin);
+        }
 
-        // Send email
-        var sendResp = await fetch('https://mail.zoho.eu/api/accounts/' + accountId + '/messages', {
-          method: 'POST',
-          headers: {'Authorization': 'Zoho-oauthtoken ' + tokens.access_token, 'Content-Type': 'application/json'},
+        // Option A: HTML/CSS via Browserless (no JS canvas element — eliminates render timeout)
+        // generateCanvasHtml now returns proper HTML with base64-embedded background
+        var html = await generateCanvasHtml(text, template, env);
+
+        var browserlessResp = await fetch("https://chrome.browserless.io/screenshot?token=" + browserlessKey, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            fromAddress: body.from || 'simon@identitypartners.uk',
-            toAddress: body.to,
-            subject: body.subject,
-            content: body.body,
-            mailFormat: 'plaintext'
+            html,
+            options: {
+              type: "png",
+              clip: { x: 0, y: 0, width: 1080, height: 1080 },
+              fullPage: false
+            },
+            waitForFunction: {
+              fn: "() => document.title === 'READY'",
+              timeout: 10000
+            },
+            waitForTimeout: 12000
           })
         });
-        var sendData = await sendResp.json();
-        if (!sendResp.ok) return json({success:false, error:'Send failed: ' + JSON.stringify(sendData)}, 200, origin);
-        return json({success:true, messageId: sendData.data && sendData.data.messageId}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
-    }
 
-    // ── Zoho Mail inbox ───────────────────────────────────────────────────────
-    if (path === '/api/zoho/mail/inbox' && request.method === 'GET') {
-      try {
-        var tokens = null;
-        if (env.PRISM_KV) { var t = await env.PRISM_KV.get('zoho:tokens:mail'); if (t) tokens = JSON.parse(t); }
-        if (!tokens || !tokens.access_token) return json({messages:[], error:'not connected'}, 200, origin);
-        var accountsResp = await fetch('https://mail.zoho.eu/api/accounts', {headers:{'Authorization':'Zoho-oauthtoken '+tokens.access_token}});
-        if (!accountsResp.ok) return json({messages:[], error:'accounts fetch failed'}, 200, origin);
-        var accountsData = await accountsResp.json();
-        var accountId = accountsData.data && accountsData.data[0] && accountsData.data[0].accountId;
-        if (!accountId) return json({messages:[], error:'no account'}, 200, origin);
-        var inboxResp = await fetch('https://mail.zoho.eu/api/accounts/'+accountId+'/messages/view?limit=20&sortorder=false', {headers:{'Authorization':'Zoho-oauthtoken '+tokens.access_token}});
-        if (!inboxResp.ok) return json({messages:[], error:'inbox fetch failed'}, 200, origin);
-        var inboxData = await inboxResp.json();
-        return json({messages: inboxData.data || [], accountId: accountId}, 200, origin);
-      } catch(e) { return json({messages:[], error:e.message}, 200, origin); }
-    }
-
-    // ── Zoho token refresh ────────────────────────────────────────────────────
-    if (path === '/api/zoho/refresh' && request.method === 'POST') {
-      try {
-        var body = await request.json();
-        var service = body.service;
-        var tokens = null;
-        if (env.PRISM_KV) { var t = await env.PRISM_KV.get('zoho:tokens:'+service); if (t) tokens = JSON.parse(t); }
-        if (!tokens || !tokens.refresh_token) return json({success:false, error:'No refresh token for '+service}, 200, origin);
-        var clientId = env.ZOHO_CLIENT_ID || env.Zoho_Client_ID;
-        var clientSecret = env.ZOHO_CLIENT_SECRET || env.Zoho_Client_Secret;
-        var refreshResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {
-          method: 'POST',
-          headers: {'Content-Type':'application/x-www-form-urlencoded'},
-          body: 'grant_type=refresh_token&client_id='+encodeURIComponent(clientId)+'&client_secret='+encodeURIComponent(clientSecret)+'&refresh_token='+encodeURIComponent(tokens.refresh_token)
-        });
-        var newTokens = await refreshResp.json();
-        if (newTokens.access_token) {
-          newTokens.refresh_token = newTokens.refresh_token || tokens.refresh_token;
-          if (env.PRISM_KV) await env.PRISM_KV.put('zoho:tokens:'+service, JSON.stringify(newTokens));
-          return json({success:true, expires_in:newTokens.expires_in}, 200, origin);
-        }
-        return json({success:false, error:newTokens.error||'Refresh failed'}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
-    }
-
-
-    // ── Zoho OAuth — initiation and callback ─────────────────────────────────
-    // Zoho OAuth: handled by Pages pages + /api/zoho/token Worker endpoint
-
-
-
-    // ── AI-directed browser automation for platform signup ─────────────────
-    // Uses Gemma4 to analyse pages and fill forms intelligently
-    if (path === '/api/headless/signup' && request.method === 'POST') {
-      try {
-        var body = await request.json();
-        var platformName = body.platform || '';
-        var browserlessKey = env['BROWSERLESS.IO'] || env.BROWSERLESS_IO;
-
-        // Load profile from KV (editable via Settings → Platform Signup Profile)
-        var savedProfile = null;
-        if (env.PRISM_KV) {
-          try { var sp = await env.PRISM_KV.get('profile:signup'); if (sp) savedProfile = JSON.parse(sp); } catch(e) {}
-        }
-        var profile = Object.assign({
-          name: 'Simon Johnson',
-          displayName: 'Identity Partners',
-          email: 'hello@identitypartners.uk',
-          personalEmail: 'simon@identitypartners.uk',
-          website: 'https://www.identitypartners.uk',
-          bookingUrl: 'https://www.identitypartners.uk/contact',
-          bio: 'Non-clinical listening, coaching, mentoring and relational practice. Evidence-based support for addiction, trauma, mental health, and community wellbeing. Based in the UK.',
-          shortBio: 'Relational practice for addiction, trauma & mental health. Non-clinical. Evidence-based.',
-          tagline: 'Understand your past. Appreciate the present. Define your future.',
-          rates: {consultation:'Free (20 minutes)', session:'£50 per hour', group:'£25 per session', monthly:'£150 per month (4 sessions)'},
-          socials: {bluesky:'@identitypartners.bsky.social', linkedin:'identitypartners', instagram:'@identitypartners', twitter:'@identitypartners'},
-          categories: ['Life Coaching','Mental Health','Addiction Recovery','Trauma Support','ADHD Coaching','Accountability'],
-          keywords: ['addiction recovery','trauma-informed','mental health','relational practice','non-clinical','accountability','ADHD','neurodivergent'],
-          logoUrl: 'https://prism.identitypartners.uk/shared/assets/logo-square.png',
-          password: 'IPrism2026!Secure'
-        }, savedProfile || {}, body || {});
-        // Ensure password is always set
-        if (!profile.password) profile.password = 'IPrism2026!Secure';
-
-        // Find platform URL from our platform list
-        var platformData = null;
-        var PLATFORMS = [{"name": "Rent a Cyber Friend", "cat": "companionship", "model": "Per-minute conversation", "status": "D,P,R", "url": "rentacyberfriend.com"}, {"name": "RentAFriend", "cat": "companionship", "model": "Hourly companionship", "status": "D,R", "url": "rentafriend.com"}, {"name": "FriendPC", "cat": "companionship", "model": "Virtual-friend listings", "status": "D,P,R", "url": "friendpc.com"}, {"name": "Companiions", "cat": "companionship", "model": "UK paid companionship", "status": "D,V,UK", "url": "companiions.com"}, {"name": "Premium.Chat", "cat": "companionship", "model": "Paid text/audio/video", "status": "F,P", "url": "premium.chat"}, {"name": "Popcall", "cat": "companionship", "model": "Paid calls and messages", "status": "F,P", "url": "popcall.com"}, {"name": "TrunkCall", "cat": "companionship", "model": "Expert calls/sessions/groups", "status": "D/F,P", "url": "trunkcall.com"}, {"name": "Talkspresso", "cat": "companionship", "model": "Paid consultations", "status": "D/F", "url": "talkspresso.com"}, {"name": "Intro", "cat": "companionship", "model": "Bookable paid video", "status": "D/F,V", "url": "intro.co"}, {"name": "Minnect", "cat": "companionship", "model": "Paid messages/consultations", "status": "D/F,V", "url": "minnect.com"}, {"name": "Fiverr", "cat": "freelance", "model": "Productised gigs", "status": "D,P", "url": "fiverr.com"}, {"name": "Upwork", "cat": "freelance", "model": "Contracts", "status": "D", "url": "upwork.com"}, {"name": "PeoplePerHour", "cat": "freelance", "model": "Hourly/packaged", "status": "D,UK", "url": "peopleperhour.com"}, {"name": "Freelancer.com", "cat": "freelance", "model": "Project bids", "status": "D", "url": "freelancer.com"}, {"name": "Bark", "cat": "freelance", "model": "Lead acquisition", "status": "D,UK", "url": "bark.com"}, {"name": "Airtasker", "cat": "freelance", "model": "Remote support tasks", "status": "D,UK", "url": "airtasker.com"}, {"name": "TaskRabbit", "cat": "freelance", "model": "Local/remote assistance", "status": "D,V,UK", "url": "taskrabbit.co.uk"}, {"name": "Guru", "cat": "freelance", "model": "Project marketplace", "status": "D", "url": "guru.com"}, {"name": "Contra", "cat": "freelance", "model": "Independent work", "status": "D", "url": "contra.com"}, {"name": "Malt", "cat": "freelance", "model": "Freelance marketplace", "status": "D", "url": "malt.com"}, {"name": "YunoJuno", "cat": "freelance", "model": "Freelance marketplace", "status": "D,UK", "url": "yunojuno.com"}, {"name": "Kounselly", "cat": "freelance", "model": "Coaching/consulting", "status": "D", "url": "kounselly.com"}, {"name": "Topmate", "cat": "mentoring", "model": "Paid sessions", "status": "D/F", "url": "topmate.io"}, {"name": "Superpeer", "cat": "mentoring", "model": "Paid calls", "status": "D/F", "url": "superpeer.com"}, {"name": "MentorCruise", "cat": "mentoring", "model": "Ongoing mentoring", "status": "D,V", "url": "mentorcruise.com"}, {"name": "GrowthMentor", "cat": "mentoring", "model": "Expert mentoring", "status": "D,V", "url": "growthmentor.com"}, {"name": "Sessions.us", "cat": "mentoring", "model": "Paid sessions", "status": "D/F", "url": "sessions.us"}, {"name": "Nas.io", "cat": "mentoring", "model": "Paid sessions/communities", "status": "D/F", "url": "nas.io"}, {"name": "Pensight", "cat": "mentoring", "model": "Paid calls", "status": "F", "url": "pensight.com"}, {"name": "Stan", "cat": "mentoring", "model": "Paid consultations", "status": "F", "url": "stan.store"}, {"name": "Beacons", "cat": "mentoring", "model": "Paid appointments", "status": "F", "url": "beacons.ai"}, {"name": "Directly.live", "cat": "mentoring", "model": "Expert access", "status": "D/F", "url": "directly.live"}, {"name": "Noomii", "cat": "coaching", "model": "Coach discovery", "status": "D,UK", "url": "noomii.com"}, {"name": "Life Coach Directory", "cat": "coaching", "model": "UK coach directory", "status": "D,V,UK", "url": "lifecoachdirectory.org.uk"}, {"name": "Life Coach Hub", "cat": "coaching", "model": "Coach marketplace", "status": "D", "url": "lifecoachhub.com"}, {"name": "Coach.me", "cat": "coaching", "model": "Habit/coaching", "status": "D", "url": "coach.me"}, {"name": "Approach a Coach", "cat": "coaching", "model": "Coach directory", "status": "D,UK", "url": "approachacoach.com"}, {"name": "CoachCompare", "cat": "coaching", "model": "Coach comparison", "status": "D,UK", "url": "coachcompare.com"}, {"name": "CoachMatching", "cat": "coaching", "model": "Coach matching", "status": "D", "url": "coachmatching.com"}, {"name": "ADHD UK Marketplace", "cat": "adhd", "model": "ADHD coach marketplace", "status": "D,C,V,UK", "url": "adhduk.co.uk"}, {"name": "Shimmer", "cat": "adhd", "model": "ADHD coaching", "status": "D,C,V", "url": "shimmer.care"}, {"name": "ADHD Coaching Agency", "cat": "adhd", "model": "ADHD coaching", "status": "D,C,V", "url": "adhdcoachingagency.com"}, {"name": "Focusmate", "cat": "adhd", "model": "Body doubling", "status": "F", "url": "focusmate.com"}, {"name": "Coacherly", "cat": "recovery", "model": "Recovery coaching", "status": "D,C", "url": "coacherly.com"}, {"name": "Superprof", "cat": "tutoring", "model": "Tutoring marketplace", "status": "D,UK", "url": "superprof.co.uk"}, {"name": "Tutorful", "cat": "tutoring", "model": "UK tutoring", "status": "D,V,UK", "url": "tutorful.co.uk"}, {"name": "Preply", "cat": "tutoring", "model": "Online tutoring", "status": "D,V", "url": "preply.com"}, {"name": "Udemy", "cat": "courses", "model": "Course marketplace", "status": "D", "url": "udemy.com"}, {"name": "Skillshare", "cat": "courses", "model": "Course platform", "status": "D", "url": "skillshare.com"}, {"name": "Maven", "cat": "courses", "model": "Cohort courses", "status": "D", "url": "maven.com"}, {"name": "Reed Courses", "cat": "courses", "model": "UK course marketplace", "status": "D,UK", "url": "reed.co.uk/courses"}, {"name": "Mighty Networks", "cat": "community", "model": "Paid community", "status": "F", "url": "mightynetworks.com"}, {"name": "Circle", "cat": "community", "model": "Community platform", "status": "F", "url": "circle.so"}, {"name": "Skool", "cat": "community", "model": "Community + courses", "status": "F", "url": "skool.com"}, {"name": "Whop", "cat": "community", "model": "Community + products", "status": "F", "url": "whop.com"}, {"name": "Bettermode", "cat": "community", "model": "Community platform", "status": "F", "url": "bettermode.com"}, {"name": "Disco", "cat": "community", "model": "Learning community", "status": "F", "url": "disco.co"}, {"name": "Hivebrite", "cat": "community", "model": "Community platform", "status": "F", "url": "hivebrite.com"}, {"name": "Patreon", "cat": "creator", "model": "Membership/subscriptions", "status": "F", "url": "patreon.com"}, {"name": "Ko-fi", "cat": "creator", "model": "Donations/memberships", "status": "F", "url": "ko-fi.com"}, {"name": "Buy Me a Coffee", "cat": "creator", "model": "Donations/memberships", "status": "F", "url": "buymeacoffee.com"}, {"name": "Substack", "cat": "creator", "model": "Newsletter/subscriptions", "status": "F", "url": "substack.com"}, {"name": "Ghost", "cat": "creator", "model": "Newsletter/memberships", "status": "F", "url": "ghost.org"}, {"name": "beehiiv", "cat": "creator", "model": "Newsletter platform", "status": "F", "url": "beehiiv.com"}, {"name": "Gumroad", "cat": "creator", "model": "Digital products", "status": "F", "url": "gumroad.com"}, {"name": "Payhip", "cat": "creator", "model": "Digital products", "status": "F", "url": "payhip.com"}, {"name": "Lemon Squeezy", "cat": "creator", "model": "Digital products", "status": "F", "url": "lemonsqueezy.com"}, {"name": "Fourthwall", "cat": "creator", "model": "Creator storefront", "status": "F", "url": "fourthwall.com"}, {"name": "Locals", "cat": "creator", "model": "Creator community", "status": "F", "url": "locals.com"}, {"name": "Memberful", "cat": "creator", "model": "Membership platform", "status": "F", "url": "memberful.com"}, {"name": "Teachable", "cat": "courses", "model": "Course platform", "status": "F", "url": "teachable.com"}, {"name": "Thinkific", "cat": "courses", "model": "Course platform", "status": "F", "url": "thinkific.com"}, {"name": "Kajabi", "cat": "courses", "model": "All-in-one platform", "status": "F", "url": "kajabi.com"}, {"name": "Podia", "cat": "courses", "model": "Course/community", "status": "F", "url": "podia.com"}, {"name": "LearnWorlds", "cat": "courses", "model": "Course platform", "status": "F", "url": "learnworlds.com"}, {"name": "Systeme.io", "cat": "courses", "model": "All-in-one", "status": "F", "url": "systeme.io"}, {"name": "Heights Platform", "cat": "courses", "model": "Course platform", "status": "F", "url": "heightsplatform.com"}, {"name": "Xperiencify", "cat": "courses", "model": "Gamified courses", "status": "F", "url": "xperiencify.com"}, {"name": "Medium", "cat": "writing", "model": "Partner program", "status": "D", "url": "medium.com"}, {"name": "Vocal Media", "cat": "writing", "model": "Paid writing", "status": "D", "url": "vocal.media"}, {"name": "Buttondown", "cat": "writing", "model": "Newsletter", "status": "F", "url": "buttondown.email"}, {"name": "Supercast", "cat": "podcast", "model": "Private podcast", "status": "F", "url": "supercast.com"}, {"name": "Podbean Patron", "cat": "podcast", "model": "Podcast subscriptions", "status": "F", "url": "podbean.com"}, {"name": "Buzzsprout", "cat": "podcast", "model": "Podcast hosting", "status": "F", "url": "buzzsprout.com"}, {"name": "Captivate", "cat": "podcast", "model": "Private podcasts", "status": "F", "url": "captivate.fm"}, {"name": "Transistor", "cat": "podcast", "model": "Private podcasts", "status": "F", "url": "transistor.fm"}, {"name": "Hello Audio", "cat": "podcast", "model": "Private audio", "status": "F", "url": "helloaudio.fm"}, {"name": "RedCircle", "cat": "podcast", "model": "Podcast subscriptions", "status": "F", "url": "redcircle.com"}, {"name": "Sellfy", "cat": "digital", "model": "Digital storefront", "status": "F", "url": "sellfy.com"}, {"name": "SendOwl", "cat": "digital", "model": "Digital delivery", "status": "F", "url": "sendowl.com"}, {"name": "ThriveCart", "cat": "digital", "model": "Cart/checkout", "status": "F", "url": "thrivecart.com"}, {"name": "SamCart", "cat": "digital", "model": "Cart/checkout", "status": "F", "url": "samcart.com"}, {"name": "Etsy", "cat": "digital", "model": "Digital resources", "status": "D", "url": "etsy.com"}, {"name": "Creative Market", "cat": "digital", "model": "Templates/journals", "status": "D", "url": "creativemarket.com"}, {"name": "Teachers Pay Teachers", "cat": "digital", "model": "Educational materials", "status": "D", "url": "teacherspayteachers.com"}, {"name": "Eventbrite", "cat": "events", "model": "Paid events", "status": "D,UK", "url": "eventbrite.co.uk"}, {"name": "Humanitix", "cat": "events", "model": "Ethical ticketing", "status": "D", "url": "humanitix.com"}, {"name": "Ticket Tailor", "cat": "events", "model": "Event ticketing", "status": "F,UK", "url": "tickettailor.com"}, {"name": "Luma", "cat": "events", "model": "Event platform", "status": "D/F", "url": "lu.ma"}, {"name": "Meetup", "cat": "events", "model": "Group events", "status": "D", "url": "meetup.com"}, {"name": "Crowdcast", "cat": "events", "model": "Online events", "status": "F", "url": "crowdcast.io"}, {"name": "Airmeet", "cat": "events", "model": "Virtual events", "status": "F", "url": "airmeet.com"}, {"name": "Butter", "cat": "events", "model": "Workshop platform", "status": "F", "url": "butter.us"}, {"name": "Demio", "cat": "events", "model": "Webinars", "status": "F", "url": "demio.com"}, {"name": "Paperbell", "cat": "booking", "model": "Coaching practice", "status": "F", "url": "paperbell.com"}, {"name": "CoachAccountable", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "coachaccountable.com"}, {"name": "Simply.Coach", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "simply.coach"}, {"name": "CoachVantage", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "coachvantage.com"}, {"name": "Practice.do", "cat": "booking", "model": "Practice management", "status": "F", "url": "practice.do"}, {"name": "Coachli", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "coachli.com"}, {"name": "UpCoach", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "upcoach.com"}, {"name": "HoneyBook", "cat": "booking", "model": "Client management", "status": "F", "url": "honeybook.com"}, {"name": "Calendly", "cat": "booking", "model": "Scheduling + payments", "status": "F", "url": "calendly.com"}, {"name": "Cal.com", "cat": "booking", "model": "Open source scheduling", "status": "F", "url": "cal.com"}, {"name": "Acuity Scheduling", "cat": "booking", "model": "Scheduling", "status": "F", "url": "acuityscheduling.com"}, {"name": "SimplyBook.me", "cat": "booking", "model": "Booking system", "status": "F", "url": "simplybook.me"}, {"name": "Setmore", "cat": "booking", "model": "Booking system", "status": "F,UK", "url": "setmore.com"}, {"name": "YouCanBookMe", "cat": "booking", "model": "Booking system", "status": "F,UK", "url": "youcanbook.me"}, {"name": "TidyCal", "cat": "booking", "model": "Scheduling", "status": "F", "url": "tidycal.com"}, {"name": "Zoho Bookings", "cat": "booking", "model": "Booking system", "status": "F,UK", "url": "zoho.com/bookings"}, {"name": "Book Like A Boss", "cat": "booking", "model": "Booking + payments", "status": "F", "url": "booklikeaboss.com"}, {"name": "Appointy", "cat": "booking", "model": "Appointment scheduling", "status": "F", "url": "appointy.com"}, {"name": "10to8", "cat": "booking", "model": "Appointment scheduling", "status": "F,UK", "url": "10to8.com"}, {"name": "GoCardless", "cat": "booking", "model": "Recurring UK payments", "status": "F,UK", "url": "gocardless.com"}, {"name": "SumUp", "cat": "booking", "model": "Payment links", "status": "F,UK", "url": "sumup.com"}];
-        for (var i = 0; i < PLATFORMS.length; i++) {
-          if (PLATFORMS[i].name.toLowerCase().replace(/[^a-z0-9]/g,'-') === platformName.toLowerCase().replace(/[^a-z0-9]/g,'-') ||
-              PLATFORMS[i].name.toLowerCase() === platformName.toLowerCase()) {
-            platformData = PLATFORMS[i];
-            break;
-          }
-        }
-
-        var signupUrl = platformData ? 'https://' + platformData.url : body.signupUrl || ('https://' + platformName + '.com/signup');
-
-        if (!browserlessKey) {
-          // No Browserless — return profile data for manual use
+        if (!browserlessResp.ok) {
+          var errText = await browserlessResp.text();
+          // Browserless failed — fall back to pre-baked template
+          var ti2 = Math.floor(Math.random() * 150);
+          var fallbackUrl = "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-" + ti2 + ".png";
           return json({
             success: true,
-            platform: platformName,
-            status: 'manual_required',
-            signupUrl: signupUrl,
-            profile: profile,
-            instructions: 'Visit ' + signupUrl + ' and use the profile data below to complete signup.'
+            url: fallbackUrl,
+            method: "prebaked-fallback",
+            browserlessError: "Browserless " + browserlessResp.status + ": " + errText.substring(0, 100)
           }, 200, origin);
         }
 
-        // Step 1: Take screenshot of signup page
-        var screenshotResp = await fetch('https://chrome.browserless.io/screenshot?token=' + browserlessKey, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({url: signupUrl, options: {type:'jpeg', quality:60, fullPage:false}})
-        });
+        var pngBuffer = await browserlessResp.arrayBuffer();
+        var pngSize = pngBuffer.byteLength;
 
-        var pageAnalysis = 'Could not load page';
-        if (screenshotResp.ok) {
-          var screenshotBuf = await screenshotResp.arrayBuffer();
-          var screenshotB64 = btoa(String.fromCharCode(...new Uint8Array(screenshotBuf)));
+        // Sanity check: blank images are typically < 5KB
+        if (pngSize < 5000) {
+          var ti3 = Math.floor(Math.random() * 150);
+          var tinyFallback = "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-" + ti3 + ".png";
+          return json({
+            success: true,
+            url: tinyFallback,
+            method: "prebaked-fallback",
+            browserlessError: "PNG too small (" + pngSize + " bytes) — likely blank"
+          }, 200, origin);
+        }
 
-          // Step 2: Ask Gemma4 to analyse the page and generate fill instructions
-          var kvRaw = null;
-          try { kvRaw = await env.PRISM_KV.get('__secrets__'); } catch(e) {}
-          var kvSecrets = {};
-          if (kvRaw) { try { kvSecrets = JSON.parse(kvRaw); } catch(e) {} }
-          var envPlus = new Proxy(env, {
-            get: function(target, prop) {
-              if (target[prop] !== undefined) return target[prop];
-              if (kvSecrets[prop] !== undefined) return kvSecrets[prop];
-              if (kvSecrets[prop.toUpperCase()] !== undefined) return kvSecrets[prop.toUpperCase()];
-              if (kvSecrets[prop.toLowerCase()] !== undefined) return kvSecrets[prop.toLowerCase()];
-              return undefined;
-            }
+        // Upload to R2 (not Imgur — spec Section 3.2 mandates R2)
+        var r2Url = null;
+        if (env.PRISM_ASSETS) {
+          await env.PRISM_ASSETS.put(cacheKey, pngBuffer, {
+            httpMetadata: { contentType: "image/png" },
+            expirationTtl: 86400 * 30
           });
-
-          var analysisResult = await callGemini(envPlus, [
-            {role: 'system', content: 'You are an expert at web automation. Analyse signup page screenshots and generate precise Puppeteer instructions to fill in forms. Return a JSON object with: {steps: [{action, selector, value, description}], notes: string}'},
-            {role: 'user', content: 'Analyse this signup page for ' + platformName + ' and generate Puppeteer steps to fill in the signup form with this profile: ' + JSON.stringify({email:profile.email, name:profile.displayName, bio:profile.shortBio, website:profile.website}) + '. Return JSON only.'}
-          ], 'gemini-2.0-flash', [{data:'data:image/jpeg;base64,'+screenshotB64, mimeType:'image/jpeg'}]);
-
-          pageAnalysis = analysisResult;
-        }
-
-        // Step 3: Execute AI-generated steps via Browserless function
-        var steps = [];
-        try {
-          var parsed = JSON.parse(pageAnalysis.match(/\{[\s\S]*\}/)[0]);
-          steps = parsed.steps || [];
-        } catch(e) {
-          // Fallback: generic form filling
-          steps = [
-            {action:'type', selector:'input[type="email"], input[name="email"], #email', value:profile.email, description:'Fill email'},
-            {action:'type', selector:'input[name="name"], input[name="displayName"], #name, #display_name', value:profile.displayName, description:'Fill name'},
-            {action:'type', selector:'input[name="password"], input[type="password"]', value:profile.password, description:'Fill password'},
-            {action:'type', selector:'textarea[name="bio"], textarea[name="description"], #bio', value:profile.shortBio, description:'Fill bio'},
-            {action:'type', selector:'input[name="website"], input[name="url"], #website', value:profile.website, description:'Fill website'},
-          ];
-        }
-
-        // Build Puppeteer script from AI steps
-        var puppeteerCode = 'module.exports = async ({ page }) => {\n';
-        puppeteerCode += '  const results = [];\n';
-        puppeteerCode += '  await page.goto(' + JSON.stringify(signupUrl) + ', {waitUntil:"networkidle2", timeout:30000});\n';
-        puppeteerCode += '  await page.waitForTimeout(2000);\n';
-
-        steps.forEach(function(step) {
-          if (step.action === 'type' && step.selector && step.value) {
-            puppeteerCode += '  try {\n';
-            puppeteerCode += '    const el = await page.$(' + JSON.stringify(step.selector) + ');\n';
-            puppeteerCode += '    if (el) { await el.click({clickCount:3}); await el.type(' + JSON.stringify(step.value) + '); results.push({done:' + JSON.stringify(step.description||step.selector) + '}); }\n';
-            puppeteerCode += '  } catch(e) { results.push({skip:' + JSON.stringify(step.description||step.selector) + ', reason:e.message}); }\n';
-          } else if (step.action === 'click' && step.selector) {
-            puppeteerCode += '  try {\n';
-            puppeteerCode += '    await page.click(' + JSON.stringify(step.selector) + ');\n';
-            puppeteerCode += '    await page.waitForTimeout(1000);\n';
-            puppeteerCode += '    results.push({clicked:' + JSON.stringify(step.description||step.selector) + '});\n';
-            puppeteerCode += '  } catch(e) { results.push({skip:' + JSON.stringify(step.description||step.selector) + ', reason:e.message}); }\n';
-          }
-        });
-
-        puppeteerCode += '  const url = page.url();\n';
-        puppeteerCode += '  return {results, finalUrl:url, platform:' + JSON.stringify(platformName) + '};\n';
-        puppeteerCode += '};\n';
-
-        var execResp = await fetch('https://chrome.browserless.io/function?token=' + browserlessKey, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({code: puppeteerCode})
-        });
-
-        var execResult = {status:'attempted'};
-        if (execResp.ok) {
-          execResult = await execResp.json();
-        }
-
-        // Store signup record
-        if (env.PRISM_KV) {
-          await env.PRISM_KV.put('signup:' + platformName, JSON.stringify({
-            platform: platformName,
-            email: profile.email,
-            status: execResult.finalUrl ? 'form_submitted' : 'attempted',
-            result: execResult,
-            aiSteps: steps.length,
-            created: new Date().toISOString()
-          }));
+          r2Url = "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/" + cacheKey;
         }
 
         return json({
           success: true,
-          platform: platformName,
-          signupUrl: signupUrl,
-          status: execResult.finalUrl ? 'form_submitted' : 'attempted',
-          stepsExecuted: steps.length,
-          result: execResult,
-          note: 'Check hello@identitypartners.uk for verification emails. Some platforms require manual email confirmation.'
+          url: r2Url || ("data:image/png;base64," + btoa(String.fromCharCode(...new Uint8Array(pngBuffer)))),
+          method: "browserless-html",
+          sizeBytes: pngSize,
+          cacheKey
         }, 200, origin);
 
-      } catch(e) { return json({error: e.message, platform: body.platform}, 500, origin); }
+      } catch (e) {
+        // Last resort: pre-baked template
+        var ti4 = Math.floor(Math.random() * 150);
+        return json({
+          success: true,
+          url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-" + ti4 + ".png",
+          method: "prebaked-error-fallback",
+          error: e.message
+        }, 200, origin);
+      }
     }
-
-    // ── Headless signup status check ──────────────────────────────────────────
-    if (path === '/api/headless/status' && request.method === 'GET') {
+        if (path === "/api/social/post-with-canvas" && request.method === "POST") {
       try {
-        if (!env.PRISM_KV) return json({signups:[]}, 200, origin);
-        var list = await env.PRISM_KV.list({prefix:'signup:'});
+        var body = await request.json();
+        var text = (body.text || "").substring(0, 2200);
+        var platforms = body.platforms || ["instagram"];
+        var template = body.template || "quote-teal";
+
+        var bufferKey = env.BUFFER_API_KEY || env.buffer;
+        var igChannelId = env.BUFFER_IG_CHANNEL || env.buffer_ig_channel || "6a97edce065799be46722eab";
+        var fbChannelId = env.BUFFER_FB_CHANNEL || env.buffer_fb_channel || "6a97ea40065799be46721fdd";
+
+        // ── Step 1: Resolve image URL ─────────────────────────────────────
+        var pngUrl = body.prebuiltImageUrl || null;
+
+        if (!pngUrl) {
+          // Call our own canvas render endpoint (now uses HTML/CSS + R2 fallback)
+          var renderReq = new Request("https://prism-api.identitypartners.workers.dev/api/canvas/render", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Origin": "https://prism.identitypartners.uk" },
+            body: JSON.stringify({ text, template, cacheKey: "social-canvas-" + Date.now() + ".png" })
+          });
+          var renderResp = await fetch(renderReq);
+          if (renderResp.ok) {
+            var renderData = await renderResp.json();
+            pngUrl = renderData.url || null;
+          }
+        }
+
+        // Final fallback: random pre-baked R2 template
+        if (!pngUrl) {
+          var ti = Math.floor(Math.random() * 150);
+          pngUrl = "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-" + ti + ".png";
+        }
+
+        var results = {};
+        var errors = {};
+        var caption = text + "\n\nhello@identitypartners.uk | www.identitypartners.uk/contact\n#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing";
+
+        // ── Step 2: Post to each platform via Buffer GraphQL ─────────────
+        for (var pi = 0; pi < platforms.length; pi++) {
+          var platform = platforms[pi];
+
+          if (platform === "instagram" && bufferKey) {
+            var igCaption = caption.substring(0, 2200);
+            var igMutation = JSON.stringify({
+              query: "mutation{createPost(input:{channelId:\"" + igChannelId + "\",text:" +
+                JSON.stringify(igCaption) +
+                ",assets:[{image:{url:" + JSON.stringify(pngUrl) + "}}]," +
+                "mode:shareNow,needsApproval:false,schedulingType:automatic," +
+                "metadata:{instagram:{type:post,shouldShareToFeed:true}}})" +
+                "{...on PostActionSuccess{post{id status}}...on MutationError{message}}}"
+            });
+            var igR = await fetch("https://api.buffer.com/graphql", {
+              method: "POST",
+              headers: { "Authorization": "Bearer " + bufferKey, "Content-Type": "application/json" },
+              body: igMutation
+            });
+            var igD = await igR.json();
+            var igCp = ((igD.data || {}).createPost || {});
+            if (igCp.post) {
+              results.instagram = { success: true, id: igCp.post.id, imageUrl: pngUrl };
+            } else {
+              errors.instagram = igCp.message || ((igD.errors || [{}])[0].message || "Buffer Instagram error");
+            }
+          }
+
+          if (platform === "facebook" && bufferKey) {
+            var fbCaption = caption.substring(0, 63206);
+            var fbMutation = JSON.stringify({
+              query: "mutation{createPost(input:{channelId:\"" + fbChannelId + "\",text:" +
+                JSON.stringify(fbCaption) +
+                ",assets:[{image:{url:" + JSON.stringify(pngUrl) + "}}]," +
+                "mode:shareNow,needsApproval:false,schedulingType:automatic," +
+                "metadata:{facebook:{type:post}}})" +
+                "{...on PostActionSuccess{post{id status}}...on MutationError{message}}}"
+            });
+            var fbR = await fetch("https://api.buffer.com/graphql", {
+              method: "POST",
+              headers: { "Authorization": "Bearer " + bufferKey, "Content-Type": "application/json" },
+              body: fbMutation
+            });
+            var fbD = await fbR.json();
+            var fbCp = ((fbD.data || {}).createPost || {});
+            if (fbCp.post) {
+              results.facebook = { success: true, id: fbCp.post.id, imageUrl: pngUrl };
+            } else {
+              errors.facebook = fbCp.message || ((fbD.errors || [{}])[0].message || "Buffer Facebook error");
+            }
+          }
+        }
+
+        return json({ success: true, results, errors, imageUrl: pngUrl }, 200, origin);
+
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/penpot-url" && request.method === "GET") {
+      var penpotUrl = env.Penpot_url || env.PENPOT_URL || env.Penpot || env.penpot_url || "https://design.penpot.app";
+      var baseUrl = penpotUrl.replace(/\/login\/?$/, "").replace(/\/$/, "");
+      return json({ url: baseUrl, configured: true }, 200, origin);
+    }
+    if (path.startsWith("/api/penpot/") && request.method !== "OPTIONS") {
+      try {
+        var penpotBase = env.Penpot_url || env.PENPOT_URL || env.Penpot || env.penpot_url || "";
+        penpotBase = penpotBase.replace(/\/login\/?$/, "").replace(/\/$/, "");
+        if (!penpotBase) return json({ error: "Penpot URL not configured" }, 200, origin);
+        var penpotPath = path.replace("/api/penpot", "/api/rpc/command");
+        var penpotReq = await fetch(penpotBase + penpotPath, {
+          method: request.method,
+          headers: {
+            "Content-Type": request.headers.get("Content-Type") || "application/json",
+            "Authorization": request.headers.get("Authorization") || ""
+          },
+          body: request.method !== "GET" ? await request.text() : void 0
+        });
+        var penpotData = await penpotReq.text();
+        return new Response(penpotData, {
+          status: penpotReq.status,
+          headers: {
+            "Content-Type": penpotReq.headers.get("Content-Type") || "application/json",
+            "Access-Control-Allow-Origin": origin
+          }
+        });
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/polotno-key" && request.method === "GET") {
+      var key = env.POLOTNO_KEY || env.polotno_key || "nFA5H9elEytDyPyvKL7T";
+      return json({ key }, 200, origin);
+    }
+    if (path === "/api/zoho/test" && request.method === "GET") {
+      var clientId = env.ZOHO_CLIENT_ID || env.Zoho_Client_ID;
+      var clientSecret = env.ZOHO_CLIENT_SECRET || env.Zoho_Client_Secret;
+      var hasTokens = {};
+      if (env.PRISM_KV) {
+        for (var svc of ["mail", "calendar", "crm", "social"]) {
+          var t = await env.PRISM_KV.get("zoho:tokens:" + svc);
+          hasTokens[svc] = t ? "stored" : "not connected";
+        }
+      }
+      return json({
+        clientId: clientId ? clientId.substring(0, 20) + "..." : "MISSING",
+        clientSecret: clientSecret ? "present (" + clientSecret.length + " chars)" : "MISSING",
+        redirectUris: {
+          mail: "https://prism.identitypartners.uk/oauth/zoho/mail",
+          calendar: "https://prism.identitypartners.uk/oauth/zoho/calendar",
+          crm: "https://prism.identitypartners.uk/oauth/zoho/crm",
+          social: "https://prism.identitypartners.uk/oauth/zoho/social"
+        },
+        authEndpoint: "https://accounts.zoho.eu/oauth/v2/auth",
+        tokenEndpoint: "https://accounts.zoho.eu/oauth/v2/token",
+        tokens: hasTokens
+      }, 200, origin);
+    }
+    if (path === "/api/zoho/mail/send" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var tokens = null;
+        if (env.PRISM_KV) {
+          var t = await env.PRISM_KV.get("zoho:tokens:mail");
+          if (t) tokens = JSON.parse(t);
+        }
+        if (!tokens || !tokens.access_token) return json({ success: false, error: "Zoho Mail not connected. Visit /oauth/zoho/mail to connect." }, 200, origin);
+        var accountsResp = await fetch("https://mail.zoho.eu/api/accounts", {
+          headers: { "Authorization": "Zoho-oauthtoken " + tokens.access_token }
+        });
+        if (!accountsResp.ok) return json({ success: false, error: "Could not fetch Zoho Mail accounts: " + accountsResp.status }, 200, origin);
+        var accountsData = await accountsResp.json();
+        var accountId = accountsData.data && accountsData.data[0] && accountsData.data[0].accountId;
+        if (!accountId) return json({ success: false, error: "No Zoho Mail account found" }, 200, origin);
+        var sendResp = await fetch("https://mail.zoho.eu/api/accounts/" + accountId + "/messages", {
+          method: "POST",
+          headers: { "Authorization": "Zoho-oauthtoken " + tokens.access_token, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fromAddress: body.from || "simon@identitypartners.uk",
+            toAddress: body.to,
+            subject: body.subject,
+            content: body.body,
+            mailFormat: "plaintext"
+          })
+        });
+        var sendData = await sendResp.json();
+        if (!sendResp.ok) return json({ success: false, error: "Send failed: " + JSON.stringify(sendData) }, 200, origin);
+        return json({ success: true, messageId: sendData.data && sendData.data.messageId }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/zoho/mail/inbox" && request.method === "GET") {
+      try {
+        var tokens = null;
+        if (env.PRISM_KV) {
+          var t = await env.PRISM_KV.get("zoho:tokens:mail");
+          if (t) tokens = JSON.parse(t);
+        }
+        if (!tokens || !tokens.access_token) return json({ messages: [], error: "not connected" }, 200, origin);
+        var accountsResp = await fetch("https://mail.zoho.eu/api/accounts", { headers: { "Authorization": "Zoho-oauthtoken " + tokens.access_token } });
+        if (!accountsResp.ok) return json({ messages: [], error: "accounts fetch failed" }, 200, origin);
+        var accountsData = await accountsResp.json();
+        var accountId = accountsData.data && accountsData.data[0] && accountsData.data[0].accountId;
+        if (!accountId) return json({ messages: [], error: "no account" }, 200, origin);
+        var inboxResp = await fetch("https://mail.zoho.eu/api/accounts/" + accountId + "/messages/view?limit=20&sortorder=false", { headers: { "Authorization": "Zoho-oauthtoken " + tokens.access_token } });
+        if (!inboxResp.ok) return json({ messages: [], error: "inbox fetch failed" }, 200, origin);
+        var inboxData = await inboxResp.json();
+        return json({ messages: inboxData.data || [], accountId }, 200, origin);
+      } catch (e) {
+        return json({ messages: [], error: e.message }, 200, origin);
+      }
+    }
+    if (path === "/api/zoho/refresh" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var service = body.service;
+        var tokens = null;
+        if (env.PRISM_KV) {
+          var t = await env.PRISM_KV.get("zoho:tokens:" + service);
+          if (t) tokens = JSON.parse(t);
+        }
+        if (!tokens || !tokens.refresh_token) return json({ success: false, error: "No refresh token for " + service }, 200, origin);
+        var clientId = env.ZOHO_CLIENT_ID || env.Zoho_Client_ID;
+        var clientSecret = env.ZOHO_CLIENT_SECRET || env.Zoho_Client_Secret;
+        var refreshResp = await fetch("https://accounts.zoho.eu/oauth/v2/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "grant_type=refresh_token&client_id=" + encodeURIComponent(clientId) + "&client_secret=" + encodeURIComponent(clientSecret) + "&refresh_token=" + encodeURIComponent(tokens.refresh_token)
+        });
+        var newTokens = await refreshResp.json();
+        if (newTokens.access_token) {
+          newTokens.refresh_token = newTokens.refresh_token || tokens.refresh_token;
+          if (env.PRISM_KV) await env.PRISM_KV.put("zoho:tokens:" + service, JSON.stringify(newTokens));
+          return json({ success: true, expires_in: newTokens.expires_in }, 200, origin);
+        }
+        return json({ success: false, error: newTokens.error || "Refresh failed" }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/headless/signup" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var platformName = body.platform || "";
+        var browserlessKey = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO;
+        var savedProfile = null;
+        if (env.PRISM_KV) {
+          try {
+            var sp = await env.PRISM_KV.get("profile:signup");
+            if (sp) savedProfile = JSON.parse(sp);
+          } catch (e) {
+          }
+        }
+        var profile = Object.assign({
+          name: "Simon Johnson",
+          displayName: "Identity Partners",
+          email: "hello@identitypartners.uk",
+          personalEmail: "simon@identitypartners.uk",
+          website: "https://www.identitypartners.uk",
+          bookingUrl: "https://www.identitypartners.uk/contact",
+          bio: "Non-clinical listening, coaching, mentoring and relational practice. Evidence-based support for addiction, trauma, mental health, and community wellbeing. Based in the UK.",
+          shortBio: "Relational practice for addiction, trauma & mental health. Non-clinical. Evidence-based.",
+          tagline: "Understand your past. Appreciate the present. Define your future.",
+          rates: { consultation: "Free (20 minutes)", session: "50 per hour", group: "25 per session", monthly: "150 per month (4 sessions)" },
+          socials: { bluesky: "identitypartners.bsky.social", linkedin: "identitypartners", instagram: "@identitypartners", twitter: "@identitypartners" },
+          categories: ["Life Coaching", "Mental Health", "Addiction Recovery", "Trauma Support", "ADHD Coaching", "Accountability"],
+          keywords: ["addiction recovery", "trauma-informed", "mental health", "relational practice", "non-clinical", "accountability", "ADHD", "neurodivergent"],
+          logoUrl: "https://prism.identitypartners.uk/shared/assets/logo-square.png",
+          password: "IPrism2026!Secure"
+        }, savedProfile || {}, body || {});
+        if (!profile.password) profile.password = "IPrism2026!Secure";
+        var platformData = null;
+        var PLATFORMS = [{ "name": "Rent a Cyber Friend", "cat": "companionship", "model": "Per-minute conversation", "status": "D,P,R", "url": "rentacyberfriend.com" }, { "name": "RentAFriend", "cat": "companionship", "model": "Hourly companionship", "status": "D,R", "url": "rentafriend.com" }, { "name": "FriendPC", "cat": "companionship", "model": "Virtual-friend listings", "status": "D,P,R", "url": "friendpc.com" }, { "name": "Companiions", "cat": "companionship", "model": "UK paid companionship", "status": "D,V,UK", "url": "companiions.com" }, { "name": "Premium.Chat", "cat": "companionship", "model": "Paid text/audio/video", "status": "F,P", "url": "premium.chat" }, { "name": "Popcall", "cat": "companionship", "model": "Paid calls and messages", "status": "F,P", "url": "popcall.com" }, { "name": "TrunkCall", "cat": "companionship", "model": "Expert calls/sessions/groups", "status": "D/F,P", "url": "trunkcall.com" }, { "name": "Talkspresso", "cat": "companionship", "model": "Paid consultations", "status": "D/F", "url": "talkspresso.com" }, { "name": "Intro", "cat": "companionship", "model": "Bookable paid video", "status": "D/F,V", "url": "intro.co" }, { "name": "Minnect", "cat": "companionship", "model": "Paid messages/consultations", "status": "D/F,V", "url": "minnect.com" }, { "name": "Fiverr", "cat": "freelance", "model": "Productised gigs", "status": "D,P", "url": "fiverr.com" }, { "name": "Upwork", "cat": "freelance", "model": "Contracts", "status": "D", "url": "upwork.com" }, { "name": "PeoplePerHour", "cat": "freelance", "model": "Hourly/packaged", "status": "D,UK", "url": "peopleperhour.com" }, { "name": "Freelancer.com", "cat": "freelance", "model": "Project bids", "status": "D", "url": "freelancer.com" }, { "name": "Bark", "cat": "freelance", "model": "Lead acquisition", "status": "D,UK", "url": "bark.com" }, { "name": "Airtasker", "cat": "freelance", "model": "Remote support tasks", "status": "D,UK", "url": "airtasker.com" }, { "name": "TaskRabbit", "cat": "freelance", "model": "Local/remote assistance", "status": "D,V,UK", "url": "taskrabbit.co.uk" }, { "name": "Guru", "cat": "freelance", "model": "Project marketplace", "status": "D", "url": "guru.com" }, { "name": "Contra", "cat": "freelance", "model": "Independent work", "status": "D", "url": "contra.com" }, { "name": "Malt", "cat": "freelance", "model": "Freelance marketplace", "status": "D", "url": "malt.com" }, { "name": "YunoJuno", "cat": "freelance", "model": "Freelance marketplace", "status": "D,UK", "url": "yunojuno.com" }, { "name": "Kounselly", "cat": "freelance", "model": "Coaching/consulting", "status": "D", "url": "kounselly.com" }, { "name": "Topmate", "cat": "mentoring", "model": "Paid sessions", "status": "D/F", "url": "topmate.io" }, { "name": "Superpeer", "cat": "mentoring", "model": "Paid calls", "status": "D/F", "url": "superpeer.com" }, { "name": "MentorCruise", "cat": "mentoring", "model": "Ongoing mentoring", "status": "D,V", "url": "mentorcruise.com" }, { "name": "GrowthMentor", "cat": "mentoring", "model": "Expert mentoring", "status": "D,V", "url": "growthmentor.com" }, { "name": "Sessions.us", "cat": "mentoring", "model": "Paid sessions", "status": "D/F", "url": "sessions.us" }, { "name": "Nas.io", "cat": "mentoring", "model": "Paid sessions/communities", "status": "D/F", "url": "nas.io" }, { "name": "Pensight", "cat": "mentoring", "model": "Paid calls", "status": "F", "url": "pensight.com" }, { "name": "Stan", "cat": "mentoring", "model": "Paid consultations", "status": "F", "url": "stan.store" }, { "name": "Beacons", "cat": "mentoring", "model": "Paid appointments", "status": "F", "url": "beacons.ai" }, { "name": "Directly.live", "cat": "mentoring", "model": "Expert access", "status": "D/F", "url": "directly.live" }, { "name": "Noomii", "cat": "coaching", "model": "Coach discovery", "status": "D,UK", "url": "noomii.com" }, { "name": "Life Coach Directory", "cat": "coaching", "model": "UK coach directory", "status": "D,V,UK", "url": "lifecoachdirectory.org.uk" }, { "name": "Life Coach Hub", "cat": "coaching", "model": "Coach marketplace", "status": "D", "url": "lifecoachhub.com" }, { "name": "Coach.me", "cat": "coaching", "model": "Habit/coaching", "status": "D", "url": "coach.me" }, { "name": "Approach a Coach", "cat": "coaching", "model": "Coach directory", "status": "D,UK", "url": "approachacoach.com" }, { "name": "CoachCompare", "cat": "coaching", "model": "Coach comparison", "status": "D,UK", "url": "coachcompare.com" }, { "name": "CoachMatching", "cat": "coaching", "model": "Coach matching", "status": "D", "url": "coachmatching.com" }, { "name": "ADHD UK Marketplace", "cat": "adhd", "model": "ADHD coach marketplace", "status": "D,C,V,UK", "url": "adhduk.co.uk" }, { "name": "Shimmer", "cat": "adhd", "model": "ADHD coaching", "status": "D,C,V", "url": "shimmer.care" }, { "name": "ADHD Coaching Agency", "cat": "adhd", "model": "ADHD coaching", "status": "D,C,V", "url": "adhdcoachingagency.com" }, { "name": "Focusmate", "cat": "adhd", "model": "Body doubling", "status": "F", "url": "focusmate.com" }, { "name": "Coacherly", "cat": "recovery", "model": "Recovery coaching", "status": "D,C", "url": "coacherly.com" }, { "name": "Superprof", "cat": "tutoring", "model": "Tutoring marketplace", "status": "D,UK", "url": "superprof.co.uk" }, { "name": "Tutorful", "cat": "tutoring", "model": "UK tutoring", "status": "D,V,UK", "url": "tutorful.co.uk" }, { "name": "Preply", "cat": "tutoring", "model": "Online tutoring", "status": "D,V", "url": "preply.com" }, { "name": "Udemy", "cat": "courses", "model": "Course marketplace", "status": "D", "url": "udemy.com" }, { "name": "Skillshare", "cat": "courses", "model": "Course platform", "status": "D", "url": "skillshare.com" }, { "name": "Maven", "cat": "courses", "model": "Cohort courses", "status": "D", "url": "maven.com" }, { "name": "Reed Courses", "cat": "courses", "model": "UK course marketplace", "status": "D,UK", "url": "reed.co.uk/courses" }, { "name": "Mighty Networks", "cat": "community", "model": "Paid community", "status": "F", "url": "mightynetworks.com" }, { "name": "Circle", "cat": "community", "model": "Community platform", "status": "F", "url": "circle.so" }, { "name": "Skool", "cat": "community", "model": "Community + courses", "status": "F", "url": "skool.com" }, { "name": "Whop", "cat": "community", "model": "Community + products", "status": "F", "url": "whop.com" }, { "name": "Bettermode", "cat": "community", "model": "Community platform", "status": "F", "url": "bettermode.com" }, { "name": "Disco", "cat": "community", "model": "Learning community", "status": "F", "url": "disco.co" }, { "name": "Hivebrite", "cat": "community", "model": "Community platform", "status": "F", "url": "hivebrite.com" }, { "name": "Patreon", "cat": "creator", "model": "Membership/subscriptions", "status": "F", "url": "patreon.com" }, { "name": "Ko-fi", "cat": "creator", "model": "Donations/memberships", "status": "F", "url": "ko-fi.com" }, { "name": "Buy Me a Coffee", "cat": "creator", "model": "Donations/memberships", "status": "F", "url": "buymeacoffee.com" }, { "name": "Substack", "cat": "creator", "model": "Newsletter/subscriptions", "status": "F", "url": "substack.com" }, { "name": "Ghost", "cat": "creator", "model": "Newsletter/memberships", "status": "F", "url": "ghost.org" }, { "name": "beehiiv", "cat": "creator", "model": "Newsletter platform", "status": "F", "url": "beehiiv.com" }, { "name": "Gumroad", "cat": "creator", "model": "Digital products", "status": "F", "url": "gumroad.com" }, { "name": "Payhip", "cat": "creator", "model": "Digital products", "status": "F", "url": "payhip.com" }, { "name": "Lemon Squeezy", "cat": "creator", "model": "Digital products", "status": "F", "url": "lemonsqueezy.com" }, { "name": "Fourthwall", "cat": "creator", "model": "Creator storefront", "status": "F", "url": "fourthwall.com" }, { "name": "Locals", "cat": "creator", "model": "Creator community", "status": "F", "url": "locals.com" }, { "name": "Memberful", "cat": "creator", "model": "Membership platform", "status": "F", "url": "memberful.com" }, { "name": "Teachable", "cat": "courses", "model": "Course platform", "status": "F", "url": "teachable.com" }, { "name": "Thinkific", "cat": "courses", "model": "Course platform", "status": "F", "url": "thinkific.com" }, { "name": "Kajabi", "cat": "courses", "model": "All-in-one platform", "status": "F", "url": "kajabi.com" }, { "name": "Podia", "cat": "courses", "model": "Course/community", "status": "F", "url": "podia.com" }, { "name": "LearnWorlds", "cat": "courses", "model": "Course platform", "status": "F", "url": "learnworlds.com" }, { "name": "Systeme.io", "cat": "courses", "model": "All-in-one", "status": "F", "url": "systeme.io" }, { "name": "Heights Platform", "cat": "courses", "model": "Course platform", "status": "F", "url": "heightsplatform.com" }, { "name": "Xperiencify", "cat": "courses", "model": "Gamified courses", "status": "F", "url": "xperiencify.com" }, { "name": "Medium", "cat": "writing", "model": "Partner program", "status": "D", "url": "medium.com" }, { "name": "Vocal Media", "cat": "writing", "model": "Paid writing", "status": "D", "url": "vocal.media" }, { "name": "Buttondown", "cat": "writing", "model": "Newsletter", "status": "F", "url": "buttondown.email" }, { "name": "Supercast", "cat": "podcast", "model": "Private podcast", "status": "F", "url": "supercast.com" }, { "name": "Podbean Patron", "cat": "podcast", "model": "Podcast subscriptions", "status": "F", "url": "podbean.com" }, { "name": "Buzzsprout", "cat": "podcast", "model": "Podcast hosting", "status": "F", "url": "buzzsprout.com" }, { "name": "Captivate", "cat": "podcast", "model": "Private podcasts", "status": "F", "url": "captivate.fm" }, { "name": "Transistor", "cat": "podcast", "model": "Private podcasts", "status": "F", "url": "transistor.fm" }, { "name": "Hello Audio", "cat": "podcast", "model": "Private audio", "status": "F", "url": "helloaudio.fm" }, { "name": "RedCircle", "cat": "podcast", "model": "Podcast subscriptions", "status": "F", "url": "redcircle.com" }, { "name": "Sellfy", "cat": "digital", "model": "Digital storefront", "status": "F", "url": "sellfy.com" }, { "name": "SendOwl", "cat": "digital", "model": "Digital delivery", "status": "F", "url": "sendowl.com" }, { "name": "ThriveCart", "cat": "digital", "model": "Cart/checkout", "status": "F", "url": "thrivecart.com" }, { "name": "SamCart", "cat": "digital", "model": "Cart/checkout", "status": "F", "url": "samcart.com" }, { "name": "Etsy", "cat": "digital", "model": "Digital resources", "status": "D", "url": "etsy.com" }, { "name": "Creative Market", "cat": "digital", "model": "Templates/journals", "status": "D", "url": "creativemarket.com" }, { "name": "Teachers Pay Teachers", "cat": "digital", "model": "Educational materials", "status": "D", "url": "teacherspayteachers.com" }, { "name": "Eventbrite", "cat": "events", "model": "Paid events", "status": "D,UK", "url": "eventbrite.co.uk" }, { "name": "Humanitix", "cat": "events", "model": "Ethical ticketing", "status": "D", "url": "humanitix.com" }, { "name": "Ticket Tailor", "cat": "events", "model": "Event ticketing", "status": "F,UK", "url": "tickettailor.com" }, { "name": "Luma", "cat": "events", "model": "Event platform", "status": "D/F", "url": "lu.ma" }, { "name": "Meetup", "cat": "events", "model": "Group events", "status": "D", "url": "meetup.com" }, { "name": "Crowdcast", "cat": "events", "model": "Online events", "status": "F", "url": "crowdcast.io" }, { "name": "Airmeet", "cat": "events", "model": "Virtual events", "status": "F", "url": "airmeet.com" }, { "name": "Butter", "cat": "events", "model": "Workshop platform", "status": "F", "url": "butter.us" }, { "name": "Demio", "cat": "events", "model": "Webinars", "status": "F", "url": "demio.com" }, { "name": "Paperbell", "cat": "booking", "model": "Coaching practice", "status": "F", "url": "paperbell.com" }, { "name": "CoachAccountable", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "coachaccountable.com" }, { "name": "Simply.Coach", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "simply.coach" }, { "name": "CoachVantage", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "coachvantage.com" }, { "name": "Practice.do", "cat": "booking", "model": "Practice management", "status": "F", "url": "practice.do" }, { "name": "Coachli", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "coachli.com" }, { "name": "UpCoach", "cat": "booking", "model": "Coaching platform", "status": "F", "url": "upcoach.com" }, { "name": "HoneyBook", "cat": "booking", "model": "Client management", "status": "F", "url": "honeybook.com" }, { "name": "Calendly", "cat": "booking", "model": "Scheduling + payments", "status": "F", "url": "calendly.com" }, { "name": "Cal.com", "cat": "booking", "model": "Open source scheduling", "status": "F", "url": "cal.com" }, { "name": "Acuity Scheduling", "cat": "booking", "model": "Scheduling", "status": "F", "url": "acuityscheduling.com" }, { "name": "SimplyBook.me", "cat": "booking", "model": "Booking system", "status": "F", "url": "simplybook.me" }, { "name": "Setmore", "cat": "booking", "model": "Booking system", "status": "F,UK", "url": "setmore.com" }, { "name": "YouCanBookMe", "cat": "booking", "model": "Booking system", "status": "F,UK", "url": "youcanbook.me" }, { "name": "TidyCal", "cat": "booking", "model": "Scheduling", "status": "F", "url": "tidycal.com" }, { "name": "Zoho Bookings", "cat": "booking", "model": "Booking system", "status": "F,UK", "url": "zoho.com/bookings" }, { "name": "Book Like A Boss", "cat": "booking", "model": "Booking + payments", "status": "F", "url": "booklikeaboss.com" }, { "name": "Appointy", "cat": "booking", "model": "Appointment scheduling", "status": "F", "url": "appointy.com" }, { "name": "10to8", "cat": "booking", "model": "Appointment scheduling", "status": "F,UK", "url": "10to8.com" }, { "name": "GoCardless", "cat": "booking", "model": "Recurring UK payments", "status": "F,UK", "url": "gocardless.com" }, { "name": "SumUp", "cat": "booking", "model": "Payment links", "status": "F,UK", "url": "sumup.com" }];
+        for (var i = 0; i < PLATFORMS.length; i++) {
+          if (PLATFORMS[i].name.toLowerCase().replace(/[^a-z0-9]/g, "-") === platformName.toLowerCase().replace(/[^a-z0-9]/g, "-") || PLATFORMS[i].name.toLowerCase() === platformName.toLowerCase()) {
+            platformData = PLATFORMS[i];
+            break;
+          }
+        }
+        var signupUrl = platformData ? "https://" + platformData.url : body.signupUrl || "https://" + platformName + ".com/signup";
+        if (!browserlessKey) {
+          return json({
+            success: true,
+            platform: platformName,
+            status: "manual_required",
+            signupUrl,
+            profile,
+            instructions: "Visit " + signupUrl + " and use the profile data below to complete signup."
+          }, 200, origin);
+        }
+        var screenshotResp = await fetch("https://chrome.browserless.io/screenshot?token=" + browserlessKey, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: signupUrl, options: { type: "jpeg", quality: 60, fullPage: false } })
+        });
+        var pageAnalysis = "Could not load page";
+        if (screenshotResp.ok) {
+          var screenshotBuf = await screenshotResp.arrayBuffer();
+          var screenshotB64 = btoa(String.fromCharCode(...new Uint8Array(screenshotBuf)));
+          var kvRaw = null;
+          try {
+            kvRaw = await env.PRISM_KV.get("__secrets__");
+          } catch (e) {
+          }
+          var kvSecrets = {};
+          if (kvRaw) {
+            try {
+              kvSecrets = JSON.parse(kvRaw);
+            } catch (e) {
+            }
+          }
+          var envPlus = new Proxy(env, {
+            get: /* @__PURE__ */ __name(function(target, prop) {
+              if (target[prop] !== void 0) return target[prop];
+              if (kvSecrets[prop] !== void 0) return kvSecrets[prop];
+              if (kvSecrets[prop.toUpperCase()] !== void 0) return kvSecrets[prop.toUpperCase()];
+              if (kvSecrets[prop.toLowerCase()] !== void 0) return kvSecrets[prop.toLowerCase()];
+              return void 0;
+            }, "get")
+          });
+          var analysisResult = await callGemini(envPlus, [
+            { role: "system", content: "You are an expert at web automation. Analyse signup page screenshots and generate precise Puppeteer instructions to fill in forms. Return a JSON object with: {steps: [{action, selector, value, description}], notes: string}" },
+            { role: "user", content: "Analyse this signup page for " + platformName + " and generate Puppeteer steps to fill in the signup form with this profile: " + JSON.stringify({ email: profile.email, name: profile.displayName, bio: profile.shortBio, website: profile.website }) + ". Return JSON only." }
+          ], "gemini-2.5-flash", [{ data: "data:image/jpeg;base64," + screenshotB64, mimeType: "image/jpeg" }]);
+          pageAnalysis = analysisResult;
+        }
+        var steps = [];
+        try {
+          var parsed = JSON.parse(pageAnalysis.match(/\{[\s\S]*\}/)[0]);
+          steps = parsed.steps || [];
+        } catch (e) {
+          steps = [
+            { action: "type", selector: 'input[type="email"], input[name="email"], #email', value: profile.email, description: "Fill email" },
+            { action: "type", selector: 'input[name="name"], input[name="displayName"], #name, #display_name', value: profile.displayName, description: "Fill name" },
+            { action: "type", selector: 'input[name="password"], input[type="password"]', value: profile.password, description: "Fill password" },
+            { action: "type", selector: 'textarea[name="bio"], textarea[name="description"], #bio', value: profile.shortBio, description: "Fill bio" },
+            { action: "type", selector: 'input[name="website"], input[name="url"], #website', value: profile.website, description: "Fill website" }
+          ];
+        }
+        var puppeteerCode = "module.exports = async ({ page }) => {\n";
+        puppeteerCode += "  const results = [];\n";
+        puppeteerCode += "  await page.goto(" + JSON.stringify(signupUrl) + ', {waitUntil:"networkidle2", timeout:30000});\n';
+        puppeteerCode += "  await page.waitForTimeout(2000);\n";
+        steps.forEach(function(step) {
+          if (step.action === "type" && step.selector && step.value) {
+            puppeteerCode += "  try {\n";
+            puppeteerCode += "    const el = await page.$(" + JSON.stringify(step.selector) + ");\n";
+            puppeteerCode += "    if (el) { await el.click({clickCount:3}); await el.type(" + JSON.stringify(step.value) + "); results.push({done:" + JSON.stringify(step.description || step.selector) + "}); }\n";
+            puppeteerCode += "  } catch(e) { results.push({skip:" + JSON.stringify(step.description || step.selector) + ", reason:e.message}); }\n";
+          } else if (step.action === "click" && step.selector) {
+            puppeteerCode += "  try {\n";
+            puppeteerCode += "    await page.click(" + JSON.stringify(step.selector) + ");\n";
+            puppeteerCode += "    await page.waitForTimeout(1000);\n";
+            puppeteerCode += "    results.push({clicked:" + JSON.stringify(step.description || step.selector) + "});\n";
+            puppeteerCode += "  } catch(e) { results.push({skip:" + JSON.stringify(step.description || step.selector) + ", reason:e.message}); }\n";
+          }
+        });
+        puppeteerCode += "  const url = page.url();\n";
+        puppeteerCode += "  return {results, finalUrl:url, platform:" + JSON.stringify(platformName) + "};\n";
+        puppeteerCode += "};\n";
+        var execResp = await fetch("https://chrome.browserless.io/function?token=" + browserlessKey, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: puppeteerCode })
+        });
+        var execResult = { status: "attempted" };
+        if (execResp.ok) {
+          execResult = await execResp.json();
+        }
+        if (env.PRISM_KV) {
+          await env.PRISM_KV.put("signup:" + platformName, JSON.stringify({
+            platform: platformName,
+            email: profile.email,
+            status: execResult.finalUrl ? "form_submitted" : "attempted",
+            result: execResult,
+            aiSteps: steps.length,
+            created: (/* @__PURE__ */ new Date()).toISOString()
+          }));
+        }
+        return json({
+          success: true,
+          platform: platformName,
+          signupUrl,
+          status: execResult.finalUrl ? "form_submitted" : "attempted",
+          stepsExecuted: steps.length,
+          result: execResult,
+          note: "Check hello@identitypartners.uk for verification emails. Some platforms require manual email confirmation."
+        }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message, platform: body.platform }, 500, origin);
+      }
+    }
+    if (path === "/api/headless/status" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ signups: [] }, 200, origin);
+        var list = await env.PRISM_KV.list({ prefix: "signup:" });
         var signups = [];
         for (var i = 0; i < list.keys.length; i++) {
           var val = await env.PRISM_KV.get(list.keys[i].name);
           if (val) {
             var s = JSON.parse(val);
-            signups.push({platform:s.platform, email:s.email, status:s.status, created:s.created});
+            signups.push({ platform: s.platform, email: s.email, status: s.status, created: s.created });
           }
         }
-        return json({signups: signups.sort(function(a,b){return new Date(b.created)-new Date(a.created);})}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        return json({ signups: signups.sort(function(a, b) {
+          return new Date(b.created) - new Date(a.created);
+        }) }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // ── OLD headless signup (kept for compatibility) ───────────────────────────
-    if (path === '/api/headless/signup-old' && request.method === 'POST') {
+    if (path === "/api/headless/signup-old" && request.method === "POST") {
       try {
         var body = await request.json();
         var platform = body.platform;
-        var email = body.email || 'hello@identitypartners.uk';
-        var name = body.name || 'Identity Partners';
-        var bio = body.bio || 'Evidence-based support for addiction, trauma, and mental health. Based in the UK.';
-        var website = body.website || 'https://identitypartners.uk';
-
-        // Platform-specific signup URLs and field mappings
+        var email = body.email || "hello@identitypartners.uk";
+        var name = body.name || "Identity Partners";
+        var bio = body.bio || "Evidence-based support for addiction, trauma, and mental health. Based in the UK.";
+        var website = body.website || "https://identitypartners.uk";
         var PLATFORM_CONFIGS = {
-          'ko-fi': {
-            signupUrl: 'https://ko-fi.com/account/register',
-            fields: {email:email, name:name, username:'identitypartners'},
-            postUrl: 'https://ko-fi.com/api/posts',
-            method: 'api'
+          "ko-fi": {
+            signupUrl: "https://ko-fi.com/account/register",
+            fields: { email, name, username: "identitypartners" },
+            postUrl: "https://ko-fi.com/api/posts",
+            method: "api"
           },
-          'substack': {
-            signupUrl: 'https://substack.com/account/signup',
-            fields: {email:email, name:name, subdomain:'identitypartners'},
-            postUrl: 'https://identitypartners.substack.com/api/v1/posts',
-            method: 'api'
+          "substack": {
+            signupUrl: "https://substack.com/account/signup",
+            fields: { email, name, subdomain: "identitypartners" },
+            postUrl: "https://identitypartners.substack.com/api/v1/posts",
+            method: "api"
           },
-          'medium': {
-            signupUrl: 'https://medium.com/m/signin',
-            fields: {email:email},
-            method: 'oauth'
+          "medium": {
+            signupUrl: "https://medium.com/m/signin",
+            fields: { email },
+            method: "oauth"
           },
-          'reddit': {
-            signupUrl: 'https://www.reddit.com/register',
-            fields: {email:email, username:'IdentityPartners', password:'auto-generate'},
-            method: 'api'
+          "reddit": {
+            signupUrl: "https://www.reddit.com/register",
+            fields: { email, username: "IdentityPartners", password: "auto-generate" },
+            method: "api"
           },
-          'quora': {
-            signupUrl: 'https://www.quora.com/signup',
-            fields: {email:email, name:name},
-            method: 'headless'
+          "quora": {
+            signupUrl: "https://www.quora.com/signup",
+            fields: { email, name },
+            method: "headless"
           },
-          'pinterest': {
-            signupUrl: 'https://www.pinterest.co.uk/business/create/',
-            fields: {email:email, name:name, website:website},
-            method: 'headless'
+          "pinterest": {
+            signupUrl: "https://www.pinterest.co.uk/business/create/",
+            fields: { email, name, website },
+            method: "headless"
           },
-          'tiktok': {
-            signupUrl: 'https://www.tiktok.com/signup',
-            fields: {email:email},
-            method: 'headless'
+          "tiktok": {
+            signupUrl: "https://www.tiktok.com/signup",
+            fields: { email },
+            method: "headless"
           },
-          'youtube': {
-            signupUrl: 'https://accounts.google.com/signup',
-            fields: {email:email},
-            method: 'oauth'
+          "youtube": {
+            signupUrl: "https://accounts.google.com/signup",
+            fields: { email },
+            method: "oauth"
           },
-          'spotify-podcasters': {
-            signupUrl: 'https://podcasters.spotify.com/pod/signup',
-            fields: {email:email, name:name},
-            method: 'headless'
+          "spotify-podcasters": {
+            signupUrl: "https://podcasters.spotify.com/pod/signup",
+            fields: { email, name },
+            method: "headless"
           },
-          'patreon': {
-            signupUrl: 'https://www.patreon.com/signup',
-            fields: {email:email, name:name},
-            method: 'oauth'
+          "patreon": {
+            signupUrl: "https://www.patreon.com/signup",
+            fields: { email, name },
+            method: "oauth"
           },
-          'gumroad': {
-            signupUrl: 'https://app.gumroad.com/signup',
-            fields: {email:email, name:name},
-            method: 'api'
+          "gumroad": {
+            signupUrl: "https://app.gumroad.com/signup",
+            fields: { email, name },
+            method: "api"
           },
-          'buymeacoffee': {
-            signupUrl: 'https://www.buymeacoffee.com/signup',
-            fields: {email:email, name:name, username:'identitypartners'},
-            method: 'headless'
+          "buymeacoffee": {
+            signupUrl: "https://www.buymeacoffee.com/signup",
+            fields: { email, name, username: "identitypartners" },
+            method: "headless"
           },
-          'teachable': {
-            signupUrl: 'https://app.teachable.com/users/sign_up',
-            fields: {email:email, name:name},
-            method: 'api'
+          "teachable": {
+            signupUrl: "https://app.teachable.com/users/sign_up",
+            fields: { email, name },
+            method: "api"
           },
-          'podchaser': {
-            signupUrl: 'https://www.podchaser.com/signup',
-            fields: {email:email, name:name},
-            method: 'headless'
+          "podchaser": {
+            signupUrl: "https://www.podchaser.com/signup",
+            fields: { email, name },
+            method: "headless"
           },
-          'academia': {
-            signupUrl: 'https://www.academia.edu/signup',
-            fields: {email:email, name:name},
-            method: 'headless'
+          "academia": {
+            signupUrl: "https://www.academia.edu/signup",
+            fields: { email, name },
+            method: "headless"
           },
-          'researchgate': {
-            signupUrl: 'https://www.researchgate.net/signup',
-            fields: {email:email, name:name},
-            method: 'headless'
-          },
+          "researchgate": {
+            signupUrl: "https://www.researchgate.net/signup",
+            fields: { email, name },
+            method: "headless"
+          }
         };
-
         var config = PLATFORM_CONFIGS[platform];
-        if (!config) return json({success:false, error:'Platform not supported: '+platform}, 200, origin);
-
-        // Store signup intent in KV
+        if (!config) return json({ success: false, error: "Platform not supported: " + platform }, 200, origin);
         var signupRecord = {
-          platform: platform,
-          email: email,
-          name: name,
-          bio: bio,
-          website: website,
-          config: config,
-          status: 'pending',
-          created: new Date().toISOString()
+          platform,
+          email,
+          name,
+          bio,
+          website,
+          config,
+          status: "pending",
+          created: (/* @__PURE__ */ new Date()).toISOString()
         };
-        if (env.PRISM_KV) await env.PRISM_KV.put('signup:'+platform, JSON.stringify(signupRecord));
-
-        // For API-based platforms, attempt direct signup
-        if (config.method === 'api') {
+        if (env.PRISM_KV) await env.PRISM_KV.put("signup:" + platform, JSON.stringify(signupRecord));
+        if (config.method === "api") {
           return json({
             success: true,
-            platform: platform,
-            method: 'api',
+            platform,
+            method: "api",
             signupUrl: config.signupUrl,
-            instructions: 'Visit ' + config.signupUrl + ' with email ' + email,
-            status: 'pending_manual'
+            instructions: "Visit " + config.signupUrl + " with email " + email,
+            status: "pending_manual"
           }, 200, origin);
         }
-
-        // For headless platforms, return the signup URL and field mapping
         return json({
           success: true,
-          platform: platform,
+          platform,
           method: config.method,
           signupUrl: config.signupUrl,
           fields: config.fields,
-          instructions: 'Automated signup queued. Visit ' + config.signupUrl + ' to complete if automation fails.',
-          status: 'queued'
+          instructions: "Automated signup queued. Visit " + config.signupUrl + " to complete if automation fails.",
+          status: "queued"
         }, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // ── Headless post to platform ─────────────────────────────────────────────
-    if (path === '/api/headless/post-to-platform' && request.method === 'POST') {
+    if (path === "/api/headless/post-to-platform" && request.method === "POST") {
       try {
         var body = await request.json();
         var platform = body.platform;
-        var content = body.content || '';
+        var content = body.content || "";
         var mediaUrl = body.mediaUrl || null;
-
-        // Load stored credentials
         var creds = null;
         if (env.PRISM_KV) {
-          var c = await env.PRISM_KV.get('platform:creds:'+platform);
+          var c = await env.PRISM_KV.get("platform:creds:" + platform);
           if (c) creds = JSON.parse(c);
         }
-
-        // Route to appropriate posting method
-        if (platform === 'bluesky') {
-          var text = content.length > 300 ? content.substring(0,297)+'...' : content;
+        if (platform === "bluesky") {
+          var text = content.length > 300 ? content.substring(0, 297) + "..." : content;
           var result = await postToBluesky(env, text);
-          return json({success:true, platform:'bluesky', result:result}, 200, origin);
+          return json({ success: true, platform: "bluesky", result }, 200, origin);
         }
-
-        if (platform === 'x' || platform === 'twitter') {
+        if (platform === "x" || platform === "twitter") {
           var xTokens = null;
-          if (env.PRISM_KV) { var xt = await env.PRISM_KV.get('oauth:x:tokens'); if (xt) xTokens = JSON.parse(xt); }
-          if (!xTokens || !xTokens.access_token) return json({success:false, error:'X not connected. Visit /oauth/x/ to connect.'}, 200, origin);
-          var xText = content.length > 280 ? content.substring(0,277)+'...' : content;
-          var xResp = await fetch('https://api.twitter.com/2/tweets', {
-            method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+xTokens.access_token},
-            body:JSON.stringify({text:xText})
+          if (env.PRISM_KV) {
+            var xt = await env.PRISM_KV.get("oauth:x:tokens");
+            if (xt) xTokens = JSON.parse(xt);
+          }
+          if (!xTokens || !xTokens.access_token) return json({ success: false, error: "X not connected. Visit /oauth/x/ to connect." }, 200, origin);
+          var xText = content.length > 280 ? content.substring(0, 277) + "..." : content;
+          var xResp = await fetch("https://api.twitter.com/2/tweets", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": "Bearer " + xTokens.access_token },
+            body: JSON.stringify({ text: xText })
           });
           var xData = await xResp.json();
-          return json({success:xResp.ok, platform:'x', result:xData}, 200, origin);
+          return json({ success: xResp.ok, platform: "x", result: xData }, 200, origin);
         }
-
-        if (platform === 'linkedin') {
+        if (platform === "linkedin") {
           var liTokens = null;
-          if (env.PRISM_KV) { var lt = await env.PRISM_KV.get('oauth:linkedin:tokens'); if (lt) liTokens = JSON.parse(lt); }
-          if (!liTokens || !liTokens.access_token) return json({success:false, error:'LinkedIn not connected. Visit /oauth/linkedin/ to connect.'}, 200, origin);
-          var meResp = await fetch('https://api.linkedin.com/v2/userinfo', {headers:{'Authorization':'Bearer '+liTokens.access_token}});
+          if (env.PRISM_KV) {
+            var lt = await env.PRISM_KV.get("oauth:linkedin:tokens");
+            if (lt) liTokens = JSON.parse(lt);
+          }
+          if (!liTokens || !liTokens.access_token) return json({ success: false, error: "LinkedIn not connected. Visit /oauth/linkedin/ to connect." }, 200, origin);
+          var meResp = await fetch("https://api.linkedin.com/v2/userinfo", { headers: { "Authorization": "Bearer " + liTokens.access_token } });
           var meData = await meResp.json();
-          var liResp = await fetch('https://api.linkedin.com/v2/ugcPosts', {
-            method:'POST',
-            headers:{'Content-Type':'application/json','Authorization':'Bearer '+liTokens.access_token,'X-Restli-Protocol-Version':'2.0.0'},
-            body:JSON.stringify({author:'urn:li:person:'+meData.sub,lifecycleState:'PUBLISHED',specificContent:{'com.linkedin.ugc.ShareContent':{shareCommentary:{text:content},shareMediaCategory:'NONE'}},visibility:{'com.linkedin.ugc.MemberNetworkVisibility':'PUBLIC'}})
+          var liResp = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": "Bearer " + liTokens.access_token, "X-Restli-Protocol-Version": "2.0.0" },
+            body: JSON.stringify({ author: "urn:li:person:" + meData.sub, lifecycleState: "PUBLISHED", specificContent: { "com.linkedin.ugc.ShareContent": { shareCommentary: { text: content }, shareMediaCategory: "NONE" } }, visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" } })
           });
           var liData = await liResp.json();
-          return json({success:liResp.ok, platform:'linkedin', result:liData}, 200, origin);
+          return json({ success: liResp.ok, platform: "linkedin", result: liData }, 200, origin);
         }
-
-        // For platforms without API access, queue for manual/headless posting
-        var queueId = 'headless:queue:'+Date.now();
+        var queueId = "headless:queue:" + Date.now();
         if (env.PRISM_KV) await env.PRISM_KV.put(queueId, JSON.stringify({
-          id:queueId, platform:platform, content:content, mediaUrl:mediaUrl,
-          status:'queued', created:new Date().toISOString()
+          id: queueId,
+          platform,
+          content,
+          mediaUrl,
+          status: "queued",
+          created: (/* @__PURE__ */ new Date()).toISOString()
         }));
-
         return json({
           success: true,
-          platform: platform,
-          status: 'queued',
-          message: 'Post queued for ' + platform + '. Connect via Platform Manager to enable direct posting.',
-          queueId: queueId
+          platform,
+          status: "queued",
+          message: "Post queued for " + platform + ". Connect via Platform Manager to enable direct posting.",
+          queueId
         }, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // ── Get headless queue ────────────────────────────────────────────────────
-    if (path === '/api/headless/queue' && request.method === 'GET') {
-      if (!env.PRISM_KV) return json({queue:[]}, 200, origin);
-      var list = await env.PRISM_KV.list({prefix:'headless:queue:'});
+    if (path === "/api/headless/queue" && request.method === "GET") {
+      if (!env.PRISM_KV) return json({ queue: [] }, 200, origin);
+      var list = await env.PRISM_KV.list({ prefix: "headless:queue:" });
       var queue = [];
-      for (var i=0;i<list.keys.length;i++) {
+      for (var i = 0; i < list.keys.length; i++) {
         var val = await env.PRISM_KV.get(list.keys[i].name);
         if (val) queue.push(JSON.parse(val));
       }
-      return json({queue:queue.sort(function(a,b){return new Date(b.created)-new Date(a.created);})}, 200, origin);
+      return json({ queue: queue.sort(function(a, b) {
+        return new Date(b.created) - new Date(a.created);
+      }) }, 200, origin);
     }
-
-
-    // ── Browserless.io headless browser posting ───────────────────────────────
-    if (path === '/api/browserless/post' && request.method === 'POST') {
+    if (path === "/api/browserless/post" && request.method === "POST") {
       try {
         var body = await request.json();
         var platform = body.platform;
-        var postText = body.text || '';
-        var browserlessKey = env['BROWSERLESS.IO'] || env.BROWSERLESS_IO || env.BROWSERLESS_KEY;
-        if (!browserlessKey) return json({success:false, error:'BROWSERLESS.IO key not configured'}, 200, origin);
-
-        // Platform-specific posting scripts
+        var postText = body.text || "";
+        var browserlessKey = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO || env.BROWSERLESS_KEY;
+        if (!browserlessKey) return json({ success: false, error: "BROWSERLESS.IO key not configured" }, 200, origin);
         var scripts = {
-          'tumblr': async function() {
-            // Tumblr has an API — use it directly
-            var tKey = env.TUMBLR_API_KEY || env.tumblr_api_key;
+          "tumblr": /* @__PURE__ */ __name(async function() {
+            var tKey2 = env.TUMBLR_API_KEY || env.tumblr_api_key;
             var tSecret = env.TUMBLR_API_SECRET || env.tumblr_api_secret;
             var tToken = env.TUMBLR_TOKEN || env.tumblr_token;
             var tTokenSecret = env.TUMBLR_TOKEN_SECRET || env.tumblr_token_secret;
-            var blogName = env.TUMBLR_BLOG || 'identitypartners';
-            if (!tToken) return {success:false, error:'Tumblr not connected. Add TUMBLR_TOKEN via ingester.'};
-            // Tumblr OAuth 1.0a is complex — queue for now
-            return {success:false, error:'Tumblr OAuth 1.0a — use Buffer or Twitterflow for X/Tumblr cross-posting'};
-          },
-          'reddit': async function() {
+            var blogName = env.TUMBLR_BLOG || "identitypartners";
+            if (!tToken) return { success: false, error: "Tumblr not connected. Add TUMBLR_TOKEN via ingester." };
+            return { success: false, error: "Tumblr OAuth 1.0a -- use Buffer or Twitterflow for X/Tumblr cross-posting" };
+          }, "tumblr"),
+          "reddit": /* @__PURE__ */ __name(async function() {
             var rToken = env.REDDIT_ACCESS_TOKEN || env.reddit_access_token;
-            var subreddit = body.subreddit || 'mentalhealth';
-            if (!rToken) return {success:false, error:'Reddit not connected. Add REDDIT_ACCESS_TOKEN via ingester.'};
-            var resp = await fetch('https://oauth.reddit.com/api/submit', {
-              method:'POST',
-              headers:{'Authorization':'Bearer '+rToken,'Content-Type':'application/x-www-form-urlencoded','User-Agent':'Prism/1.0'},
-              body:'sr='+subreddit+'&kind=self&title='+encodeURIComponent(postText.substring(0,300))+'&text='+encodeURIComponent(postText)+'&resubmit=true'
+            var subreddit2 = body.subreddit || "mentalhealth";
+            if (!rToken) return { success: false, error: "Reddit not connected. Add REDDIT_ACCESS_TOKEN via ingester." };
+            var resp2 = await fetch("https://oauth.reddit.com/api/submit", {
+              method: "POST",
+              headers: { "Authorization": "Bearer " + rToken, "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Prism/1.0" },
+              body: "sr=" + subreddit2 + "&kind=self&title=" + encodeURIComponent(postText.substring(0, 300)) + "&text=" + encodeURIComponent(postText) + "&resubmit=true"
             });
-            var data = await resp.json();
-            return {success:resp.ok, data:data};
-          },
-          'discord': async function() {
-            var webhookUrl = env.DISCORD_WEBHOOK || env.discord_webhook;
-            if (!webhookUrl) return {success:false, error:'Discord webhook not configured. Add DISCORD_WEBHOOK via ingester.'};
-            var resp = await fetch(webhookUrl, {
-              method:'POST',
-              headers:{'Content-Type':'application/json'},
-              body:JSON.stringify({content:postText, username:'Identity Partners'})
+            var data2 = await resp2.json();
+            return { success: resp2.ok, data: data2 };
+          }, "reddit"),
+          "discord": /* @__PURE__ */ __name(async function() {
+            var webhookUrl2 = env.DISCORD_WEBHOOK || env.discord_webhook;
+            if (!webhookUrl2) return { success: false, error: "Discord webhook not configured. Add DISCORD_WEBHOOK via ingester." };
+            var resp2 = await fetch(webhookUrl2, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ content: postText, username: "Identity Partners" })
             });
-            return {success:resp.ok, status:resp.status};
-          },
-          'whop': async function() {
-            var whopKey = env.WHOP_API_KEY || env.whop_api_key;
+            return { success: resp2.ok, status: resp2.status };
+          }, "discord"),
+          "whop": /* @__PURE__ */ __name(async function() {
+            var whopKey4 = env.WHOP_API_KEY || env.whop_api_key;
             var whopCompany = env.WHOP_COMPANY_ID || env.whop_company_id;
-            if (!whopKey) return {success:false, error:'Whop not connected. Add WHOP_API_KEY via ingester.'};
-            var resp = await fetch('https://api.whop.com/api/v2/posts', {
-              method:'POST',
-              headers:{'Authorization':'Bearer '+whopKey,'Content-Type':'application/json'},
-              body:JSON.stringify({company_id:whopCompany, body:postText, visibility:'public'})
+            if (!whopKey4) return { success: false, error: "Whop not connected. Add WHOP_API_KEY via ingester." };
+            var resp2 = await fetch("https://api.whop.com/api/v2/posts", {
+              method: "POST",
+              headers: { "Authorization": "Bearer " + whopKey4, "Content-Type": "application/json" },
+              body: JSON.stringify({ company_id: whopCompany, body: postText, visibility: "public" })
             });
-            var data = await resp.json();
-            return {success:resp.ok, data:data};
-          },
+            var data2 = await resp2.json();
+            return { success: resp2.ok, data: data2 };
+          }, "whop")
         };
-
-        // For platforms needing headless browser (no API)
-        var headlessPlatforms = ['pinterest','tiktok','quora','buymeacoffee','academia','researchgate'];
+        var headlessPlatforms = ["pinterest", "tiktok", "quora", "buymeacoffee", "academia", "researchgate"];
         if (headlessPlatforms.includes(platform)) {
-          // Use Browserless.io to automate posting
-          var browserlessResp = await fetch('https://chrome.browserless.io/function?token='+browserlessKey, {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
+          var browserlessResp = await fetch("https://chrome.browserless.io/function?token=" + browserlessKey, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
               code: `
                 module.exports = async ({ page }) => {
                   // Platform-specific automation would go here
                   // For now, return the post URL for manual completion
-                  return { platform: '${platform}', text: ${JSON.stringify(postText.substring(0,500))}, status: 'queued' };
+                  return { platform: '${platform}', text: ${JSON.stringify(postText.substring(0, 500))}, status: 'queued' };
                 };
               `,
-              context: {platform:platform, text:postText}
+              context: { platform, text: postText }
             })
           });
           if (browserlessResp.ok) {
             var bData = await browserlessResp.json();
-            // Store in queue
-            if (env.PRISM_KV) await env.PRISM_KV.put('headless:queue:'+Date.now(), JSON.stringify({
-              platform:platform, content:postText, status:'queued_browserless', created:new Date().toISOString()
+            if (env.PRISM_KV) await env.PRISM_KV.put("headless:queue:" + Date.now(), JSON.stringify({
+              platform,
+              content: postText,
+              status: "queued_browserless",
+              created: (/* @__PURE__ */ new Date()).toISOString()
             }));
-            return json({success:true, platform:platform, status:'queued', data:bData}, 200, origin);
+            return json({ success: true, platform, status: "queued", data: bData }, 200, origin);
           }
-          return json({success:false, error:'Browserless failed: '+browserlessResp.status}, 200, origin);
+          return json({ success: false, error: "Browserless failed: " + browserlessResp.status }, 200, origin);
         }
-
-        // API-based platforms
         var scriptFn = scripts[platform];
         if (scriptFn) {
           var result = await scriptFn();
           return json(result, 200, origin);
         }
-
-        return json({success:false, error:'Platform not supported: '+platform}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        return json({ success: false, error: "Platform not supported: " + platform }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // ── Tumblr OAuth ──────────────────────────────────────────────────────────
-    if (path === '/api/tumblr/post' && request.method === 'POST') {
+    if (path === "/api/tumblr/post" && request.method === "POST") {
       try {
         var body = await request.json();
-        // Tumblr v2 API with Bearer token
         var token = env.TUMBLR_TOKEN || env.tumblr_token;
-        var blog = env.TUMBLR_BLOG || 'identitypartners';
-        if (!token) return json({success:false, error:'Add TUMBLR_TOKEN via ingester. Get it at tumblr.com/oauth/apps'}, 200, origin);
-        var resp = await fetch('https://api.tumblr.com/v2/blog/'+blog+'/posts', {
-          method:'POST',
-          headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-          body:JSON.stringify({content:[{type:'text',text:body.text}],state:'published'})
+        var blog = env.TUMBLR_BLOG || "identitypartners";
+        if (!token) return json({ success: false, error: "Add TUMBLR_TOKEN via ingester. Get it at tumblr.com/oauth/apps" }, 200, origin);
+        var resp = await fetch("https://api.tumblr.com/v2/blog/" + blog + "/posts", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify({ content: [{ type: "text", text: body.text }], state: "published" })
         });
         var data = await resp.json();
-        return json({success:resp.ok, data:data}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        return json({ success: resp.ok, data }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // ── Discord webhook post ──────────────────────────────────────────────────
-    if (path === '/api/discord/post' && request.method === 'POST') {
+    if (path === "/api/discord/post" && request.method === "POST") {
       try {
         var body = await request.json();
         var webhookUrl = env.DISCORD_WEBHOOK || env.discord_webhook;
-        if (!webhookUrl) return json({success:false, error:'Add DISCORD_WEBHOOK via ingester. Create a webhook in your Discord server settings.'}, 200, origin);
+        if (!webhookUrl) return json({ success: false, error: "Add DISCORD_WEBHOOK via ingester. Create a webhook in your Discord server settings." }, 200, origin);
         var resp = await fetch(webhookUrl, {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({content:body.text, username:'Identity Partners', avatar_url:'https://prism.identitypartners.uk/shared/logo.png'})
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: body.text, username: "Identity Partners", avatar_url: "https://prism.identitypartners.uk/shared/logo.png" })
         });
-        return json({success:resp.ok, status:resp.status}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        return json({ success: resp.ok, status: resp.status }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // ── Whop post ─────────────────────────────────────────────────────────────
-    if (path === '/api/whop/post' && request.method === 'POST') {
+    if (path === "/api/whop/post" && request.method === "POST") {
       try {
         var body = await request.json();
         var key = env.WHOP_API_KEY || env.whop_api_key;
         var companyId = env.WHOP_COMPANY_ID || env.whop_company_id;
-        if (!key) return json({success:false, error:'Add WHOP_API_KEY via ingester. Get it at whop.com/settings/developer'}, 200, origin);
-        var resp = await fetch('https://api.whop.com/api/v2/posts', {
-          method:'POST',
-          headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
-          body:JSON.stringify({company_id:companyId, body:body.text, visibility:'public'})
+        if (!key) return json({ success: false, error: "Add WHOP_API_KEY via ingester. Get it at whop.com/settings/developer" }, 200, origin);
+        var resp = await fetch("https://api.whop.com/api/v2/posts", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+          body: JSON.stringify({ company_id: companyId, body: body.text, visibility: "public" })
         });
         var data = await resp.json();
-        return json({success:resp.ok, data:data}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        return json({ success: resp.ok, data }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // ── Reddit post ───────────────────────────────────────────────────────────
-    if (path === '/api/reddit/post' && request.method === 'POST') {
+    if (path === "/api/reddit/post" && request.method === "POST") {
       try {
         var body = await request.json();
         var token = env.REDDIT_ACCESS_TOKEN || env.reddit_access_token;
-        if (!token) return json({success:false, error:'Add REDDIT_ACCESS_TOKEN via ingester. Create app at reddit.com/prefs/apps'}, 200, origin);
-        var subreddit = body.subreddit || 'mentalhealth';
-        var resp = await fetch('https://oauth.reddit.com/api/submit', {
-          method:'POST',
-          headers:{'Authorization':'Bearer '+token,'Content-Type':'application/x-www-form-urlencoded','User-Agent':'Prism/1.0 by IdentityPartners'},
-          body:'sr='+encodeURIComponent(subreddit)+'&kind=self&title='+encodeURIComponent((body.title||body.text).substring(0,300))+'&text='+encodeURIComponent(body.text)+'&resubmit=true&nsfw=false&spoiler=false'
+        if (!token) return json({ success: false, error: "Add REDDIT_ACCESS_TOKEN via ingester. Create app at reddit.com/prefs/apps" }, 200, origin);
+        var subreddit = body.subreddit || "mentalhealth";
+        var resp = await fetch("https://oauth.reddit.com/api/submit", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + token, "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Prism/1.0 by IdentityPartners" },
+          body: "sr=" + encodeURIComponent(subreddit) + "&kind=self&title=" + encodeURIComponent((body.title || body.text).substring(0, 300)) + "&text=" + encodeURIComponent(body.text) + "&resubmit=true&nsfw=false&spoiler=false"
         });
         var data = await resp.json();
-        return json({success:resp.ok, data:data}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        return json({ success: resp.ok, data }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // ── Browserless screenshot/scrape ─────────────────────────────────────────
-    if (path === '/api/browserless/screenshot' && request.method === 'POST') {
+    if (path === "/api/browserless/screenshot" && request.method === "POST") {
       try {
         var body = await request.json();
-        var key = env['BROWSERLESS.IO'] || env.BROWSERLESS_IO;
-        if (!key) return json({error:'BROWSERLESS.IO key not configured'}, 400, origin);
-        var resp = await fetch('https://chrome.browserless.io/screenshot?token='+key, {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({url:body.url, options:{fullPage:true,type:'png'}})
+        var key = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO;
+        if (!key) return json({ error: "BROWSERLESS.IO key not configured" }, 400, origin);
+        var resp = await fetch("https://chrome.browserless.io/screenshot?token=" + key, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: body.url, options: { fullPage: true, type: "png" } })
         });
-        if (!resp.ok) return json({error:'Screenshot failed: '+resp.status}, 500, origin);
+        if (!resp.ok) return json({ error: "Screenshot failed: " + resp.status }, 500, origin);
         var buf = await resp.arrayBuffer();
         var b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-        return json({success:true, screenshot:'data:image/png;base64,'+b64}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        return json({ success: true, screenshot: "data:image/png;base64," + b64 }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-
-    // ── Buffer API — post to X, LinkedIn, Instagram, Facebook, Pinterest ──────
-    if (path === '/api/buffer/post' && request.method === 'POST') {
+    if (path === "/api/buffer/post" && request.method === "POST") {
       try {
         var body = await request.json();
         var bufferKey = env.BUFFER_API_KEY || env.buffer_api_key || env.BUFFER_KEY;
-        if (!bufferKey) return json({success:false, error:'Add BUFFER_API_KEY via ingester. Get it at buffer.com/developers'}, 200, origin);
-
-        var text = body.text || '';
+        if (!bufferKey) return json({ success: false, error: "Add BUFFER_API_KEY via ingester. Get it at buffer.com/developers" }, 200, origin);
+        var text = body.text || "";
         var profileIds = body.profile_ids || [];
         var mediaUrl = body.media_url || null;
         var scheduledAt = body.scheduled_at || null;
-
-        // If no profile IDs specified, get all connected profiles
         if (profileIds.length === 0) {
-          var profilesResp = await fetch('https://api.bufferapp.com/1/profiles.json?access_token='+bufferKey);
+          var profilesResp = await fetch("https://api.bufferapp.com/1/profiles.json?access_token=" + bufferKey);
           if (profilesResp.ok) {
             var profiles = await profilesResp.json();
-            profileIds = profiles.map(function(p){return p.id;});
+            profileIds = profiles.map(function(p) {
+              return p.id;
+            });
           }
         }
-
-        if (profileIds.length === 0) return json({success:false, error:'No Buffer profiles connected. Connect your social accounts at buffer.com'}, 200, origin);
-
-        // Build update payload
-        var updateBody = 'text='+encodeURIComponent(text)+'&access_token='+bufferKey+'&now='+(scheduledAt?'false':'true');
-        profileIds.forEach(function(id) { updateBody += '&profile_ids[]='+id; });
-        if (scheduledAt) updateBody += '&scheduled_at='+encodeURIComponent(scheduledAt);
-        if (mediaUrl) updateBody += '&media[link]='+encodeURIComponent(mediaUrl);
-
-        var updateResp = await fetch('https://api.bufferapp.com/1/updates/create.json', {
-          method: 'POST',
-          headers: {'Content-Type':'application/x-www-form-urlencoded'},
+        if (profileIds.length === 0) return json({ success: false, error: "No Buffer profiles connected. Connect your social accounts at buffer.com" }, 200, origin);
+        var updateBody = "text=" + encodeURIComponent(text) + "&access_token=" + bufferKey + "&now=" + (scheduledAt ? "false" : "true");
+        profileIds.forEach(function(id2) {
+          updateBody += "&profile_ids[]=" + id2;
+        });
+        if (scheduledAt) updateBody += "&scheduled_at=" + encodeURIComponent(scheduledAt);
+        if (mediaUrl) updateBody += "&media[link]=" + encodeURIComponent(mediaUrl);
+        var updateResp = await fetch("https://api.bufferapp.com/1/updates/create.json", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: updateBody
         });
         var updateData = await updateResp.json();
-        if (!updateResp.ok) return json({success:false, error:'Buffer error: '+JSON.stringify(updateData)}, 200, origin);
-        return json({success:true, updates:updateData.updates, profileCount:profileIds.length}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        if (!updateResp.ok) return json({ success: false, error: "Buffer error: " + JSON.stringify(updateData) }, 200, origin);
+        return json({ success: true, updates: updateData.updates, profileCount: profileIds.length }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // ── Buffer profiles list ──────────────────────────────────────────────────
-    if (path === '/api/buffer/profiles' && request.method === 'GET') {
+    if (path === "/api/buffer/profiles" && request.method === "GET") {
       try {
         var bufferKey = env.BUFFER_API_KEY || env.buffer_api_key || env.BUFFER_KEY;
-        if (!bufferKey) return json({profiles:[], error:'BUFFER_API_KEY not configured'}, 200, origin);
-        var resp = await fetch('https://api.bufferapp.com/1/profiles.json?access_token='+bufferKey);
-        if (!resp.ok) return json({profiles:[], error:'Buffer API error: '+resp.status}, 200, origin);
+        if (!bufferKey) return json({ profiles: [], error: "BUFFER_API_KEY not configured" }, 200, origin);
+        var resp = await fetch("https://api.bufferapp.com/1/profiles.json?access_token=" + bufferKey);
+        if (!resp.ok) return json({ profiles: [], error: "Buffer API error: " + resp.status }, 200, origin);
         var profiles = await resp.json();
-        return json({profiles: profiles.map(function(p){return {id:p.id, service:p.service, name:p.formatted_username, avatar:p.avatar_https};})}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        return json({ profiles: profiles.map(function(p) {
+          return { id: p.id, service: p.service, name: p.formatted_username, avatar: p.avatar_https };
+        }) }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // ── Buffer schedule (add to queue, not post now) ──────────────────────────
-    if (path === '/api/buffer/schedule' && request.method === 'POST') {
+    if (path === "/api/buffer/schedule" && request.method === "POST") {
       try {
         var body = await request.json();
         var bufferKey = env.BUFFER_API_KEY || env.buffer_api_key || env.BUFFER_KEY;
-        if (!bufferKey) return json({success:false, error:'BUFFER_API_KEY not configured'}, 200, origin);
+        if (!bufferKey) return json({ success: false, error: "BUFFER_API_KEY not configured" }, 200, origin);
         var profileIds = body.profile_ids || [];
         if (profileIds.length === 0) {
-          var pr = await fetch('https://api.bufferapp.com/1/profiles.json?access_token='+bufferKey);
-          if (pr.ok) { var prData = await pr.json(); profileIds = prData.map(function(p){return p.id;}); }
+          var pr = await fetch("https://api.bufferapp.com/1/profiles.json?access_token=" + bufferKey);
+          if (pr.ok) {
+            var prData = await pr.json();
+            profileIds = prData.map(function(p) {
+              return p.id;
+            });
+          }
         }
-        var updateBody = 'text='+encodeURIComponent(body.text||'')+'&access_token='+bufferKey+'&now=false';
-        profileIds.forEach(function(id){updateBody+='&profile_ids[]='+id;});
-        if (body.scheduled_at) updateBody += '&scheduled_at='+encodeURIComponent(body.scheduled_at);
-        var resp = await fetch('https://api.bufferapp.com/1/updates/create.json',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:updateBody});
+        var updateBody = "text=" + encodeURIComponent(body.text || "") + "&access_token=" + bufferKey + "&now=false";
+        profileIds.forEach(function(id2) {
+          updateBody += "&profile_ids[]=" + id2;
+        });
+        if (body.scheduled_at) updateBody += "&scheduled_at=" + encodeURIComponent(body.scheduled_at);
+        var resp = await fetch("https://api.bufferapp.com/1/updates/create.json", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: updateBody });
         var data = await resp.json();
-        return json({success:resp.ok, data:data}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        return json({ success: resp.ok, data }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-
-    if (path === '/api/zoho/status' && request.method === 'GET') {
+    if (path === "/api/zoho/status" && request.method === "GET") {
       var status = {};
       if (env.PRISM_KV) {
-        for (var svc of ['mail','calendar','crm','social']) {
-          var t = await env.PRISM_KV.get('zoho:tokens:'+svc);
-          status[svc] = t ? {connected:true} : {connected:false};
+        for (var svc of ["mail", "calendar", "crm", "social"]) {
+          var t = await env.PRISM_KV.get("zoho:tokens:" + svc);
+          status[svc] = t ? { connected: true } : { connected: false };
         }
       }
-      return json({status:status}, 200, origin);
+      return json({ status }, 200, origin);
     }
-
-    if (path === '/api/podcast/generate-audio' && request.method === 'POST') {
+    if (path === "/api/podcast/generate-audio" && request.method === "POST") {
       try {
         var body = await request.json();
-        var script = body.script || '';
-        var voice = body.voice || 'rachel';
-        var provider = body.provider || 'elevenlabs';
-        if (!script) return json({error:'No script provided'}, 400, origin);
-        var chunk = script.substring(0, 4000);
-        if (provider === 'elevenlabs') {
+        var script = body.script || "";
+        var voice = body.voice || "rachel";
+        var provider = body.provider || "elevenlabs";
+        if (!script) return json({ error: "No script provided" }, 400, origin);
+        var chunk = script.substring(0, 4e3);
+        if (provider === "elevenlabs") {
           var elKey = env.ELEVENLABS_API_KEY || env.elevenlabs_api_key;
-          if (!elKey) return json({error:'ElevenLabs API key not configured. Add ELEVENLABS_API_KEY via ingester.'}, 200, origin);
-          var voicesResp = await fetch('https://api.elevenlabs.io/v1/voices', {headers:{'xi-api-key':elKey}});
+          if (!elKey) return json({ error: "ElevenLabs API key not configured. Add ELEVENLABS_API_KEY via ingester." }, 200, origin);
+          var voicesResp = await fetch("https://api.elevenlabs.io/v1/voices", { headers: { "xi-api-key": elKey } });
           var voicesData = await voicesResp.json();
           var voices = voicesData.voices || [];
-          var selectedVoice = voices.find(function(v){return v.name.toLowerCase()===voice.toLowerCase();}) || voices[0];
-          if (!selectedVoice) return json({error:'No voices available'}, 200, origin);
-          var ttsResp = await fetch('https://api.elevenlabs.io/v1/text-to-speech/'+selectedVoice.voice_id, {
-            method:'POST',
-            headers:{'xi-api-key':elKey,'Content-Type':'application/json','Accept':'audio/mpeg'},
-            body:JSON.stringify({text:chunk,model_id:'eleven_multilingual_v2',voice_settings:{stability:0.5,similarity_boost:0.75}})
+          var selectedVoice = voices.find(function(v2) {
+            return v2.name.toLowerCase() === voice.toLowerCase();
+          }) || voices[0];
+          if (!selectedVoice) return json({ error: "No voices available" }, 200, origin);
+          var ttsResp = await fetch("https://api.elevenlabs.io/v1/text-to-speech/" + selectedVoice.voice_id, {
+            method: "POST",
+            headers: { "xi-api-key": elKey, "Content-Type": "application/json", "Accept": "audio/mpeg" },
+            body: JSON.stringify({ text: chunk, model_id: "eleven_multilingual_v2", voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
           });
-          if (!ttsResp.ok) return json({error:'ElevenLabs error: '+ttsResp.status}, 200, origin);
+          if (!ttsResp.ok) return json({ error: "ElevenLabs error: " + ttsResp.status }, 200, origin);
           var buf = await ttsResp.arrayBuffer();
           var b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-          return json({success:true,provider:'elevenlabs',voice:selectedVoice.name,audioBase64:b64,note:script.length>4000?'Script truncated to 4000 chars':'Full script generated'}, 200, origin);
+          return json({ success: true, provider: "elevenlabs", voice: selectedVoice.name, audioBase64: b64, note: script.length > 4e3 ? "Script truncated to 4000 chars" : "Full script generated" }, 200, origin);
         }
-        if (provider === 'cartesia') {
+        if (provider === "cartesia") {
           var cartKey = env.CARTESIA_API_KEY || env.cartesia_api_key;
-          if (!cartKey) return json({error:'Cartesia API key not configured'}, 200, origin);
-          var cartResp = await fetch('https://api.cartesia.ai/tts/bytes', {
-            method:'POST',
-            headers:{'X-API-Key':cartKey,'Content-Type':'application/json','Cartesia-Version':'2024-06-10'},
-            body:JSON.stringify({transcript:chunk,model_id:'sonic-english',voice:{mode:'id',id:'a0e99841-438c-4a64-b679-ae501e7d6091'},output_format:{container:'mp3',encoding:'mp3',sample_rate:44100}})
+          if (!cartKey) return json({ error: "Cartesia API key not configured" }, 200, origin);
+          var cartResp = await fetch("https://api.cartesia.ai/tts/bytes", {
+            method: "POST",
+            headers: { "X-API-Key": cartKey, "Content-Type": "application/json", "Cartesia-Version": "2024-06-10" },
+            body: JSON.stringify({ transcript: chunk, model_id: "sonic-english", voice: { mode: "id", id: "a0e99841-438c-4a64-b679-ae501e7d6091" }, output_format: { container: "mp3", encoding: "mp3", sample_rate: 44100 } })
           });
-          if (!cartResp.ok) return json({error:'Cartesia error: '+cartResp.status}, 200, origin);
+          if (!cartResp.ok) return json({ error: "Cartesia error: " + cartResp.status }, 200, origin);
           var cartBuf = await cartResp.arrayBuffer();
           var cartB64 = btoa(String.fromCharCode(...new Uint8Array(cartBuf)));
-          return json({success:true,provider:'cartesia',audioBase64:cartB64}, 200, origin);
+          return json({ success: true, provider: "cartesia", audioBase64: cartB64 }, 200, origin);
         }
-        return json({error:'Unknown provider: '+provider}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        return json({ error: "Unknown provider: " + provider }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    if (path === '/api/podcast/voices' && request.method === 'GET') {
+    if (path === "/api/podcast/voices" && request.method === "GET") {
       try {
         var elKey = env.ELEVENLABS_API_KEY || env.elevenlabs_api_key;
-        if (!elKey) return json({voices:[],error:'ElevenLabs not configured'}, 200, origin);
-        var resp = await fetch('https://api.elevenlabs.io/v1/voices', {headers:{'xi-api-key':elKey}});
+        if (!elKey) return json({ voices: [], error: "ElevenLabs not configured" }, 200, origin);
+        var resp = await fetch("https://api.elevenlabs.io/v1/voices", { headers: { "xi-api-key": elKey } });
         var data = await resp.json();
-        return json({voices:(data.voices||[]).map(function(v){return {id:v.voice_id,name:v.name,category:v.category};})}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        return json({ voices: (data.voices || []).map(function(v2) {
+          return { id: v2.voice_id, name: v2.name, category: v2.category };
+        }) }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    if (path.startsWith('/api/social/queue/') && request.method === 'DELETE') {
+    if (path.startsWith("/api/social/queue/") && request.method === "DELETE") {
       var qid = path.slice(18);
-      if (env.PRISM_KV) await env.PRISM_KV.delete('queue:' + qid);
-      return json({success:true}, 200, origin);
+      if (env.PRISM_KV) await env.PRISM_KV.delete("queue:" + qid);
+      return json({ success: true }, 200, origin);
     }
-
-    // Mark queue item as posted
-    if (path.startsWith('/api/social/queue/') && request.method === 'PATCH') {
+    if (path.startsWith("/api/social/queue/") && request.method === "PATCH") {
       var qid = path.slice(18);
       try {
         var body = await request.json();
         if (env.PRISM_KV) {
-          var existing = await env.PRISM_KV.get('queue:' + qid);
+          var existing = await env.PRISM_KV.get("queue:" + qid);
           if (existing) {
             var item = JSON.parse(existing);
             Object.assign(item, body);
-            await env.PRISM_KV.put('queue:' + qid, JSON.stringify(item));
+            await env.PRISM_KV.put("queue:" + qid, JSON.stringify(item));
           }
         }
-        return json({success:true}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        return json({ success: true }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-
-    // ── Scheduled research scrape ─────────────────────────────────────────────
-    // Runs keyword-optimised searches across all sources
-    // Uses Phi4 (local) for parsing, Gemma4 for keyword optimisation
-    if (path === '/api/research/scheduled' && request.method === 'POST') {
+    if (path === "/api/research/scheduled" && request.method === "POST") {
       try {
         var body = await request.json();
         var keywords = body.keywords || [];
-        var sources = body.sources || ['tavily','semantic_scholar','pubmed','exa'];
-        var profile = body.profile || 'research';
-
-        if (keywords.length === 0) return json({error:'No keywords provided'}, 400, origin);
-
-        // Step 1: Optimise keywords using Gemma4
+        var sources = body.sources || ["tavily", "semantic_scholar", "pubmed", "exa"];
+        var profile = body.profile || "research";
+        if (keywords.length === 0) return json({ error: "No keywords provided" }, 400, origin);
         var kvRaw = null;
-        try { kvRaw = await env.PRISM_KV.get('__secrets__'); } catch(e) {}
+        try {
+          kvRaw = await env.PRISM_KV.get("__secrets__");
+        } catch (e) {
+        }
         var kvSecrets = {};
-        if (kvRaw) { try { kvSecrets = JSON.parse(kvRaw); } catch(e) {} }
-        var envPlus = new Proxy(env, {
-          get: function(target, prop) {
-            if (target[prop] !== undefined) return target[prop];
-            if (kvSecrets[prop] !== undefined) return kvSecrets[prop];
-            if (kvSecrets[prop.toUpperCase()] !== undefined) return kvSecrets[prop.toUpperCase()];
-            if (kvSecrets[prop.toLowerCase()] !== undefined) return kvSecrets[prop.toLowerCase()];
-            return undefined;
+        if (kvRaw) {
+          try {
+            kvSecrets = JSON.parse(kvRaw);
+          } catch (e) {
           }
+        }
+        var envPlus = new Proxy(env, {
+          get: /* @__PURE__ */ __name(function(target, prop) {
+            if (target[prop] !== void 0) return target[prop];
+            if (kvSecrets[prop] !== void 0) return kvSecrets[prop];
+            if (kvSecrets[prop.toUpperCase()] !== void 0) return kvSecrets[prop.toUpperCase()];
+            if (kvSecrets[prop.toLowerCase()] !== void 0) return kvSecrets[prop.toLowerCase()];
+            return void 0;
+          }, "get")
         });
-
         var keywordOptResult = await orchestrate(envPlus, [
-          {role:'system', content:'You are a research keyword optimiser. Given a list of research topics, generate an optimised set of search queries that will find the most relevant academic and professional sources. Include Boolean operators, synonyms, and related terms. Return as a JSON array of query strings only.'},
-          {role:'user', content:'Optimise these research keywords for academic search: ' + keywords.join(', ')}
-        ], 'fast', 'research', null);
-
-        var optimisedQueries = keywords; // fallback
+          { role: "system", content: "You are a research keyword optimiser. Given a list of research topics, generate an optimised set of search queries that will find the most relevant academic and professional sources. Include Boolean operators, synonyms, and related terms. Return as a JSON array of query strings only." },
+          { role: "user", content: "Optimise these research keywords for academic search: " + keywords.join(", ") }
+        ], "fast", "research", null);
+        var optimisedQueries = keywords;
         try {
           var m = keywordOptResult.content.match(/\[\s*[\s\S]*?\]/);
           if (m) optimisedQueries = JSON.parse(m[0]);
-        } catch(e) {}
-
-        // Step 2: Run searches across all sources in parallel
+        } catch (e) {
+        }
         var allResults = [];
-        var searchPromises = optimisedQueries.slice(0, 5).map(function(query) {
-          var promises = [];
-          if (sources.includes('tavily')) promises.push(searchTavily(envPlus, query).then(function(r){r.forEach(function(i){i._query=query;i._source='tavily';allResults.push(i);});}));
-          if (sources.includes('semantic_scholar')) promises.push(searchSemanticScholar(envPlus, query).then(function(r){r.forEach(function(i){i._query=query;allResults.push(i);});}));
-          if (sources.includes('pubmed')) promises.push(searchPubMed(envPlus, query).then(function(r){r.forEach(function(i){i._query=query;allResults.push(i);});}));
-          if (sources.includes('exa')) promises.push(searchExa(envPlus, query).then(function(r){r.forEach(function(i){i._query=query;allResults.push(i);});}));
-          if (sources.includes('crossref')) promises.push(searchCrossref(envPlus, query).then(function(r){r.forEach(function(i){i._query=query;allResults.push(i);});}));
-          return Promise.allSettled(promises);
+        var searchPromises = optimisedQueries.slice(0, 5).map(function(query2) {
+          var promises2 = [];
+          if (sources.includes("tavily")) promises2.push(searchTavily(envPlus, query2).then(function(r2) {
+            r2.forEach(function(i2) {
+              i2._query = query2;
+              i2._source = "tavily";
+              allResults.push(i2);
+            });
+          }));
+          if (sources.includes("semantic_scholar")) promises2.push(searchSemanticScholar(envPlus, query2).then(function(r2) {
+            r2.forEach(function(i2) {
+              i2._query = query2;
+              allResults.push(i2);
+            });
+          }));
+          if (sources.includes("pubmed")) promises2.push(searchPubMed(envPlus, query2).then(function(r2) {
+            r2.forEach(function(i2) {
+              i2._query = query2;
+              allResults.push(i2);
+            });
+          }));
+          if (sources.includes("exa")) promises2.push(searchExa(envPlus, query2).then(function(r2) {
+            r2.forEach(function(i2) {
+              i2._query = query2;
+              allResults.push(i2);
+            });
+          }));
+          if (sources.includes("crossref")) promises2.push(searchCrossref(envPlus, query2).then(function(r2) {
+            r2.forEach(function(i2) {
+              i2._query = query2;
+              allResults.push(i2);
+            });
+          }));
+          return Promise.allSettled(promises2);
         });
         await Promise.allSettled(searchPromises);
-
-        // Step 3: Deduplicate by URL
         var seen = {};
-        allResults = allResults.filter(function(r) {
-          var url = r.url || r.link || '';
-          if (seen[url]) return false;
-          seen[url] = true;
+        allResults = allResults.filter(function(r2) {
+          var url4 = r2.url || r2.link || "";
+          if (seen[url4]) return false;
+          seen[url4] = true;
           return true;
         });
-
-        // Step 4: Synthesise with Nemotron Ultra (128K context)
         var synthesis = null;
         if (allResults.length > 0) {
-          var context = allResults.slice(0, 20).map(function(r, i) {
-            return (i+1) + '. ' + (r.title||'') + '\n' + (r.url||'') + '\n' + (r.content||r.snippet||'').substring(0,300);
-          }).join('\n\n');
+          var context = allResults.slice(0, 20).map(function(r2, i2) {
+            return i2 + 1 + ". " + (r2.title || "") + "\n" + (r2.url || "") + "\n" + (r2.content || r2.snippet || "").substring(0, 300);
+          }).join("\n\n");
           var synthResult = await orchestrate(envPlus, [
-            {role:'system', content:'You are Toby, a research associate specialising in addiction, trauma, mental health, and social policy. Synthesise these search results into a structured research brief. British English. Label inferences. Cite sources by number.'},
-            {role:'user', content:'Synthesise these results for the keywords: ' + keywords.join(', ') + '\n\n' + context}
-          ], 'reasoning', 'research', null);
+            { role: "system", content: "You are Toby, a research associate specialising in addiction, trauma, mental health, and social policy. Synthesise these search results into a structured research brief. British English. Label inferences. Cite sources by number." },
+            { role: "user", content: "Synthesise these results for the keywords: " + keywords.join(", ") + "\n\n" + context }
+          ], "reasoning", "research", null);
           synthesis = synthResult.content;
         }
-
-        // Step 5: Save to KV as a research run
-        var runId = 'research:run:' + Date.now();
+        var runId = "research:run:" + Date.now();
         var run = {
           id: runId,
-          keywords: keywords,
-          optimisedQueries: optimisedQueries,
-          sources: sources,
+          keywords,
+          optimisedQueries,
+          sources,
           resultCount: allResults.length,
           results: allResults.slice(0, 50),
-          synthesis: synthesis,
-          created: new Date().toISOString()
+          synthesis,
+          created: (/* @__PURE__ */ new Date()).toISOString()
         };
         if (env.PRISM_KV) await env.PRISM_KV.put(runId, JSON.stringify(run));
-
         return json({
           success: true,
-          runId: runId,
-          keywords: keywords,
-          optimisedQueries: optimisedQueries,
+          runId,
+          keywords,
+          optimisedQueries,
           resultCount: allResults.length,
-          synthesis: synthesis,
+          synthesis,
           results: allResults.slice(0, 20)
         }, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // ── Get saved research runs ───────────────────────────────────────────────
-    if (path === '/api/research/runs' && request.method === 'GET') {
+    if (path === "/api/research/runs" && request.method === "GET") {
       try {
-        if (!env.PRISM_KV) return json({runs:[]}, 200, origin);
-        var list = await env.PRISM_KV.list({prefix:'research:run:'});
+        if (!env.PRISM_KV) return json({ runs: [] }, 200, origin);
+        var list = await env.PRISM_KV.list({ prefix: "research:run:" });
         var runs = [];
         for (var i = 0; i < Math.min(list.keys.length, 20); i++) {
           var val = await env.PRISM_KV.get(list.keys[i].name);
           if (val) {
             var run = JSON.parse(val);
-            runs.push({id:run.id, keywords:run.keywords, resultCount:run.resultCount, created:run.created});
+            runs.push({ id: run.id, keywords: run.keywords, resultCount: run.resultCount, created: run.created });
           }
         }
-        return json({runs: runs.sort(function(a,b){return new Date(b.created)-new Date(a.created);})}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        return json({ runs: runs.sort(function(a, b) {
+          return new Date(b.created) - new Date(a.created);
+        }) }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    // ── Save research keywords for weekly scrape ──────────────────────────────
-    if (path === '/api/research/keywords' && request.method === 'POST') {
+    if (path === "/api/research/keywords" && request.method === "POST") {
       try {
         var body = await request.json();
         var keywords = body.keywords || [];
-        var schedule = body.schedule || 'weekly';
-        if (env.PRISM_KV) await env.PRISM_KV.put('research:keywords', JSON.stringify({keywords:keywords, schedule:schedule, updated:new Date().toISOString()}));
-        return json({success:true, keywords:keywords}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        var schedule = body.schedule || "weekly";
+        if (env.PRISM_KV) await env.PRISM_KV.put("research:keywords", JSON.stringify({ keywords, schedule, updated: (/* @__PURE__ */ new Date()).toISOString() }));
+        return json({ success: true, keywords }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    if (path === '/api/research/keywords' && request.method === 'GET') {
+    if (path === "/api/research/keywords" && request.method === "GET") {
       try {
-        if (!env.PRISM_KV) return json({keywords:[]}, 200, origin);
-        var stored = await env.PRISM_KV.get('research:keywords');
-        return json(stored ? JSON.parse(stored) : {keywords:[]}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        if (!env.PRISM_KV) return json({ keywords: [] }, 200, origin);
+        var stored = await env.PRISM_KV.get("research:keywords");
+        return json(stored ? JSON.parse(stored) : { keywords: [] }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-
-    // ── Worksheet to branded PDF ──────────────────────────────────────────────
-    if (path === '/api/worksheet/pdf' && request.method === 'POST') {
+    if (path === "/api/worksheet/pdf" && request.method === "POST") {
       try {
         var body = await request.json();
-        var content = body.content || '';
-        var title = body.title || 'Identity Partners Worksheet';
-        var browserlessKey = env['BROWSERLESS.IO'] || env.BROWSERLESS_IO;
-
+        var content = body.content || "";
+        var title = body.title || "Identity Partners Worksheet";
+        var browserlessKey = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO;
         if (!browserlessKey) {
-          return json({error:'Browserless.io key required for PDF generation. Add BROWSERLESS.IO via ingester.'}, 200, origin);
+          return json({ error: "Browserless.io key required for PDF generation. Add BROWSERLESS.IO via ingester." }, 200, origin);
         }
-
-        // Build branded HTML for PDF
         var html = `<!DOCTYPE html>
 <html>
 <head>
@@ -3163,7 +4544,7 @@ export default {
   <div class="header">
     <div class="logo-area">
       <div class="logo-name">Identity<span>Partners</span></div>
-      <div class="logo-tagline">Understand your past · Appreciate the present · Define your future</div>
+      <div class="logo-tagline">Understand your past . Appreciate the present . Define your future</div>
     </div>
     <div class="contact-info">
       www.identitypartners.uk<br>
@@ -3173,7 +4554,7 @@ export default {
   </div>
   <div class="doc-title">${title}</div>
   <div class="doc-date">Date: _________________ &nbsp;&nbsp; Name: _________________</div>
-  <div class="content">${content.replace(/\[Write here\.\.\.\]/g, '<div class="write-here"></div>').replace(/\n\n/g, '</p><p>').replace(/^/, '<p>').replace(/$/, '</p>')}</div>
+  <div class="content">${content.replace(/\[Write here\.\.\.\]/g, '<div class="write-here"></div>').replace(/\n\n/g, "</p><p>").replace(/^/, "<p>").replace(/$/, "</p>")}</div>
   <div class="footer">
     <div class="footer-logo">Identity<span>Partners</span></div>
     <div>This worksheet is for personal reflection only. Not a clinical document.</div>
@@ -3181,63 +4562,2036 @@ export default {
   </div>
 </body>
 </html>`;
-
-        // Use Browserless to generate PDF
-        var pdfResp = await fetch('https://chrome.browserless.io/pdf?token=' + browserlessKey, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+        var pdfResp = await fetch("https://chrome.browserless.io/pdf?token=" + browserlessKey, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            html: html,
+            html,
             options: {
-              format: 'A4',
-              margin: {top:'20mm', bottom:'20mm', left:'15mm', right:'15mm'},
+              format: "A4",
+              margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
               printBackground: true
             }
           })
         });
-
         if (!pdfResp.ok) {
-          return json({error:'PDF generation failed: ' + pdfResp.status}, 200, origin);
+          return json({ error: "PDF generation failed: " + pdfResp.status }, 200, origin);
         }
-
         var pdfBuffer = await pdfResp.arrayBuffer();
         var pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfBuffer)));
-
-        // Store in R2 if available
-        var pdfKey = 'worksheet-' + Date.now() + '.pdf';
+        var pdfKey = "worksheet-" + Date.now() + ".pdf";
         if (env.PRISM_ASSETS) {
-          await env.PRISM_ASSETS.put(pdfKey, pdfBuffer, {httpMetadata:{contentType:'application/pdf'}});
+          await env.PRISM_ASSETS.put(pdfKey, pdfBuffer, { httpMetadata: { contentType: "application/pdf" } });
         }
-
         return json({
           success: true,
-          pdfBase64: pdfBase64,
-          pdfKey: pdfKey,
+          pdfBase64,
+          pdfKey,
           size: pdfBuffer.byteLength
         }, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-
-    // ── Signup profile storage ────────────────────────────────────────────────
-    if (path === '/api/profile/signup' && request.method === 'POST') {
+    if (path === "/api/profile/signup" && request.method === "POST") {
       try {
         var body = await request.json();
-        if (env.PRISM_KV) await env.PRISM_KV.put('profile:signup', JSON.stringify(body));
-        return json({success:true}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        if (env.PRISM_KV) await env.PRISM_KV.put("profile:signup", JSON.stringify(body));
+        return json({ success: true }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    if (path === '/api/profile/signup' && request.method === 'GET') {
+    if (path === "/api/profile/signup" && request.method === "GET") {
       try {
-        if (!env.PRISM_KV) return json({profile:null}, 200, origin);
-        var stored = await env.PRISM_KV.get('profile:signup');
-        return json({profile: stored ? JSON.parse(stored) : null}, 200, origin);
-      } catch(e) { return json({error:e.message}, 500, origin); }
+        if (!env.PRISM_KV) return json({ profile: null }, 200, origin);
+        var stored = await env.PRISM_KV.get("profile:signup");
+        return json({ profile: stored ? JSON.parse(stored) : null }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
-
-    return json({error:'Not found', path:path}, 404, origin);
+    if (path === "/api/test-cerebras" && request.method === "POST") {
+      try {
+        var keys = [
+          env.CEREBRAS_PAID_1,
+          env.CEREBRAS_PAID_2,
+          env.cerebras_api_key,
+          env.CEREBRAS_API_KEY,
+          env.CEREBRAS_FREE_1,
+          env.CEREBRAS_FREE_2,
+          env.CEREBRAS_FREE_3,
+          env.CEREBRAS_FREE_4,
+          env.CEREBRAS_PAID,
+          env.cerebras_paid
+        ].filter(Boolean);
+        if (!keys.length) return json({ error: "No Cerebras keys found in env" }, 200, origin);
+        var key = keys[0];
+        var modelsResp = await fetch("https://api.cerebras.ai/v1/models", {
+          headers: { "Authorization": "Bearer " + key }
+        });
+        var modelsData = await modelsResp.json();
+        var modelIds = (modelsData.data || []).map(function(m2) {
+          return m2.id;
+        });
+        var completionResp = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "llama-4-scout-17b-16e-instruct", messages: [{ role: "user", content: "Reply: OK" }], max_tokens: 5 })
+        });
+        var completionData = await completionResp.json();
+        return json({
+          keysFound: keys.length,
+          keyPreview: key.substring(0, 8) + "...",
+          modelsStatus: modelsResp.status,
+          availableModels: modelIds,
+          completionStatus: completionResp.status,
+          completionResult: completionData.choices ? completionData.choices[0].message.content : null,
+          completionError: completionData.error || null
+        }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/news" && request.method === "GET") {
+      try {
+        var feeds = [
+          { url: "https://www.theguardian.com/society/rss", source: "Guardian Society" },
+          { url: "https://www.theguardian.com/society/mental-health/rss", source: "Guardian Mental Health" },
+          { url: "https://www.theguardian.com/society/addiction/rss", source: "Guardian Addiction" },
+          { url: "https://feeds.bbci.co.uk/news/health/rss.xml", source: "BBC Health" },
+          { url: "https://feeds.bbci.co.uk/news/uk/rss.xml", source: "BBC UK" }
+        ];
+        var allItems = [];
+        var fetchPromises = feeds.map(async function(feed) {
+          try {
+            var r2 = await fetch(feed.url, {
+              headers: {
+                "User-Agent": "Mozilla/5.0 (compatible; PrismBot/1.0)",
+                "Accept": "application/rss+xml, application/xml, text/xml, */*"
+              }
+            });
+            if (!r2.ok) return;
+            var xml = await r2.text();
+            var itemMatches = xml.match(/<item[^>]*>([\s\S]*?)<\/item>/g) || [];
+            itemMatches.slice(0, 6).forEach(function(item2) {
+              var titleM = item2.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
+              var title2 = titleM ? titleM[1].trim() : "";
+              var linkM = item2.match(/<link>([\s\S]*?)<\/link>/);
+              var link = linkM ? linkM[1].trim() : "";
+              var dateM = item2.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
+              var date = dateM ? dateM[1].trim() : "";
+              // Extract image: try media:thumbnail, media:content, enclosure, then inline URL
+              var imgM = item2.match(/<media:thumbnail[^>]+url="([^"]+)"/i)
+                      || item2.match(/<media:content[^>]+url="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i)
+                      || item2.match(/<enclosure[^>]+url="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i)
+                      || item2.match(/url="(https?:\/\/[^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i);
+              var image = imgM ? imgM[1] : null;
+              var descM = item2.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/);
+              var desc = descM ? descM[1].replace(/<[^>]+>/g, "").trim().substring(0, 200) : "";
+              if (title2 && link) allItems.push({ title: title2, link, date, source: feed.source, image, description: desc });
+            });
+          } catch (e) {
+          }
+        });
+        await Promise.allSettled(fetchPromises);
+        allItems.sort(function(a, b) {
+          return new Date(b.date || 0) - new Date(a.date || 0);
+        });
+        return json({ items: allItems.slice(0, 20), total: allItems.length }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message, items: [] }, 200, origin);
+      }
+    }
+    if (path === "/api/inbox" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var from = body.from || "system";
+        var content = body.content || "";
+        if (!content) return json({ error: "No content" }, 200, origin);
+        var msgId = "msg-" + from.replace(/[^a-z0-9]/gi, "-") + "-" + Date.now();
+        var msg = { id: msgId, from, to: "simon", content, timestamp: (/* @__PURE__ */ new Date()).toISOString(), read: false };
+        if (env.PRISM_KV) await env.PRISM_KV.put("msg:simon:" + msgId, JSON.stringify(msg));
+        var tgTok = env.TELEGRAM_TOKEN || env.telegram_token;
+        var tgCh = env.TELEGRAM_CHAT_ID || env.TELEGRAM_CHAT || env.telegram_chat_id;
+        if (tgTok && tgCh) {
+          await fetch("https://api.telegram.org/bot" + tgTok + "/sendMessage", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: tgCh, text: from + ":\n\n" + content.substring(0, 500) })
+          });
+        }
+        return json({ success: true, messageId: msgId }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/daily-pipeline" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var slot = body.slot || "morning";
+        var forceTopic = body.topic || "";
+        var IP_CTX = "You are writing for Identity Partners, a relational practice helping people make sense of the past, appreciate the present, and define their future. We work with addiction, trauma, identity, late-diagnosed ADHD, autism, PTSD, and life transitions. British English. No sycophancy. No wellness retreat language. Warm, direct, evidence-informed.";
+        var FALLBACK_TOPICS = ["identity and who we become after crisis", "imposter syndrome and the gap between how we feel and how we appear", "masking in autism and ADHD", "late-diagnosed ADHD in adults", "the difference between PTSD and complex PTSD", "how to know if you have PTSD", "narcissistic patterns in relationships", "the difference between selfishness and narcissism", "what recovery actually looks like day to day", "why human connection is the most evidence-based intervention we have", "the Jungian shadow", "identity reconstruction after addiction", "why people-pleasing is a trauma response", "the neuroscience of belonging", "what it means to truly know yourself"];
+        var SLOT_CFG = { morning: { label: "Morning Briefing", emoji: "\u2600\uFE0F", tone: "energising and grounding" }, lunchtime: { label: "Lunchtime Check-in", emoji: "\u2615", tone: "reflective and warm" }, evening: { label: "Evening Headlines", emoji: "\u{1F319}", tone: "thoughtful and synthesising" } };
+        var sc = SLOT_CFG[slot] || SLOT_CFG.morning;
+        var topic = forceTopic;
+        if (!topic) {
+          try {
+            var gR = await fetch("https://www.theguardian.com/society/rss", { headers: { "User-Agent": "Mozilla/5.0 (compatible; PrismBot/1.0)" } });
+            if (gR.ok) {
+              var gXml = await gR.text();
+              var gItems = gXml.match(/<item[^>]*>([\s\S]*?)<\/item>/g) || [];
+              for (var gi = 0; gi < gItems.length; gi++) {
+                var gTitle = (gItems[gi].match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/) || [])[1] || "";
+                if (gTitle.match(/addiction|recovery|mental health|trauma|adhd|autism|ptsd|anxiety|depression|loneliness|identity|wellbeing|neurodiverg/i)) {
+                  topic = "Today in the news: " + gTitle.trim();
+                  break;
+                }
+              }
+            }
+          } catch (e) {
+          }
+        }
+        if (!topic) topic = FALLBACK_TOPICS[Math.floor(Math.random() * FALLBACK_TOPICS.length)];
+        var bskyR = await orchestrate(env, [{ role: "system", content: IP_CTX }, { role: "user", content: "Write a " + sc.tone + " post about: " + topic + ". Under 280 characters. End with www.identitypartners.uk" }], "fast", "drafting", null);
+        var liR = await orchestrate(env, [{ role: "system", content: IP_CTX }, { role: "user", content: "Write a LinkedIn post about: " + topic + ". 150 words. Professional, warm. End with a question. 3 hashtags." }], "balanced", "drafting", null);
+        var quoteR = await orchestrate(env, [{ role: "system", content: IP_CTX }, { role: "user", content: "Write a powerful quote about: " + topic + ". 15-20 words. No cliches." }], "fast", "drafting", null);
+        var bskyText = bskyR.content || "";
+        var liText = liR.content || "";
+        var quoteText = quoteR.content || "";
+        var suffix = "\n\nhello@identitypartners.uk | www.identitypartners.uk/contact\n#IdentityPartners #MentalHealth #Recovery #Addiction #Wellbeing";
+        var canvasUrl = null;
+        var blKey = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO;
+        if (blKey && quoteText) {
+          var tpls = { morning: "quote-ivory", lunchtime: "quote-teal", evening: "quote-rose" };
+          var ths = { "quote-teal": { bg: "#0f3b3a", text: "#f7f3e9", accent: "#ddd0c8", overlay: "rgba(15,59,58,0.72)" }, "quote-rose": { bg: "#5c2d3f", text: "#f7f3e9", accent: "#ddd0c8", overlay: "rgba(92,45,63,0.72)" }, "quote-ivory": { bg: "#f7f3e9", text: "#0f3b3a", accent: "#5c2d3f", overlay: "rgba(247,243,233,0.80)" } };
+          var th = ths[tpls[slot]] || ths["quote-teal"];
+          var sq = quoteText.substring(0, 200).replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$/g, "\\$");
+          var imgs = ["https://images.pexels.com/photos/1287145/pexels-photo-1287145.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop", "https://images.pexels.com/photos/1624496/pexels-photo-1624496.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop", "https://images.pexels.com/photos/2559941/pexels-photo-2559941.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop", "https://images.pexels.com/photos/1906658/pexels-photo-1906658.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop", "https://images.pexels.com/photos/1024993/pexels-photo-1024993.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop"];
+          var bg = imgs[Math.floor(Math.random() * imgs.length)];
+          var ck = "daily-" + slot + "-" + Date.now() + ".png";
+          var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet"><style>*{margin:0;padding:0;}body{width:1080px;height:1080px;overflow:hidden;background:' + th.bg + ';}</style></head><body><canvas id="c" width="1080" height="1080" style="display:block;"></canvas><script>(function(){var cv=document.getElementById("c");var ctx=cv.getContext("2d");var W=1080,H=1080;function draw(){ctx.fillStyle="' + th.accent + '";ctx.globalAlpha=0.8;ctx.fillRect(0,0,W,10);ctx.fillRect(0,H-10,W,10);ctx.globalAlpha=0.3;ctx.fillRect(60,60,6,H-120);ctx.globalAlpha=1;ctx.font="italic 110px "Playfair Display",Georgia,serif";ctx.fillStyle="' + th.text + '";ctx.globalAlpha=0.12;ctx.fillText("\u201C",80,200);ctx.globalAlpha=1;var words=`' + sq + '`.split(" ");var lines=[],line="";ctx.font="italic 52px "Playfair Display",Georgia,serif";ctx.fillStyle="' + th.text + '";ctx.textAlign="center";words.forEach(function(w){var test=line+(line?" ":"")+w;if(ctx.measureText(test).width>860&&line){lines.push(line);line=w;}else line=test;});if(line)lines.push(line);if(lines.length>6)lines=lines.slice(0,5);var lh=72,sy=Math.max(200,Math.floor(H/2)-Math.floor(lines.length*lh/2));lines.forEach(function(l,i){ctx.fillText(l,W/2,sy+i*lh);});ctx.fillStyle="' + th.accent + '";ctx.globalAlpha=0.6;ctx.fillRect(W/2-160,sy+lines.length*lh+28,320,2);ctx.globalAlpha=1;ctx.font="500 30px "Inter",Arial,sans-serif";ctx.fillText("\u2014 Identity Partners",W/2,sy+lines.length*lh+70);ctx.font="18px "Inter",Arial,sans-serif";ctx.globalAlpha=0.8;ctx.fillText("www.identitypartners.uk \xB7 hello@identitypartners.uk",W/2,H-42);ctx.globalAlpha=1;}var bgImg=new Image();bgImg.crossOrigin="anonymous";bgImg.onload=function(){ctx.fillStyle="' + th.bg + '";ctx.fillRect(0,0,W,H);var s=Math.max(W/bgImg.naturalWidth,H/bgImg.naturalHeight);ctx.drawImage(bgImg,(W-bgImg.naturalWidth*s)/2,(H-bgImg.naturalHeight*s)/2,bgImg.naturalWidth*s,bgImg.naturalHeight*s);ctx.fillStyle="' + th.overlay + '";ctx.fillRect(0,0,W,H);draw();};bgImg.onerror=function(){ctx.fillStyle="' + th.bg + '";ctx.fillRect(0,0,W,H);draw();};bgImg.src="' + bg + '";})();<\/script></body></html>';
+          try {
+            var blR = await fetch("https://chrome.browserless.io/screenshot?token=" + blKey, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ html, options: { type: "png", clip: { x: 0, y: 0, width: 1080, height: 1080 }, fullPage: false }, waitForTimeout: 8e3 }) });
+            if (blR.ok) {
+              var pb = await blR.arrayBuffer();
+              if (pb.byteLength > 5e3 && env.PRISM_ASSETS) {
+                await env.PRISM_ASSETS.put(ck, pb, { httpMetadata: { contentType: "image/png" }, expirationTtl: 86400 * 30 });
+                canvasUrl = "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/" + ck;
+              }
+            }
+          } catch (e) {
+          }
+        }
+        var posted = {};
+        var errors = {};
+        var bufKey = env.BUFFER_API_KEY;
+        var igCh = "6a97edce065799be46722eab";
+        var fbCh = "6a97ea40065799be46721fdd";
+        var xCh = "6a97ebf1065799be46722744";
+        var imgUrl = canvasUrl || imgs[0];
+        try {
+          var bskyPost = await postToBluesky(env, bskyText, canvasUrl);
+          posted.bluesky = bskyPost;
+        } catch (e) {
+          errors.bluesky = e.message;
+        }
+        if (bufKey) {
+          try {
+            var xM = JSON.stringify({ query: 'mutation{createPost(input:{channelId:"' + xCh + '",text:' + JSON.stringify(bskyText.substring(0, 280)) + ",assets:[{image:{url:" + JSON.stringify(imgUrl) + "}}],mode:shareNow,needsApproval:false,schedulingType:automatic,metadata:{twitter:{type:post}}}){...on PostActionSuccess{post{id}}...on MutationError{message}}}" });
+            var xR = await fetch("https://api.buffer.com/graphql", { method: "POST", headers: { "Authorization": "Bearer " + bufKey, "Content-Type": "application/json" }, body: xM });
+            var xD = await xR.json();
+            var xCp = xD.data && xD.data.createPost || {};
+            if (xCp.post) posted.x = { success: true };
+            else errors.x = xCp.message || "Buffer error";
+          } catch (e) {
+            errors.x = e.message;
+          }
+          try {
+            var igM = JSON.stringify({ query: 'mutation{createPost(input:{channelId:"' + igCh + '",text:' + JSON.stringify(suffix.trim().substring(0, 2200)) + ",assets:[{image:{url:" + JSON.stringify(imgUrl) + "}}],mode:shareNow,needsApproval:false,schedulingType:automatic,metadata:{instagram:{type:post,shouldShareToFeed:true}}}){...on PostActionSuccess{post{id}}...on MutationError{message}}}" });
+            var igR = await fetch("https://api.buffer.com/graphql", { method: "POST", headers: { "Authorization": "Bearer " + bufKey, "Content-Type": "application/json" }, body: igM });
+            var igD = await igR.json();
+            var igCp = igD.data && igD.data.createPost || {};
+            if (igCp.post) posted.instagram = { success: true };
+            else errors.instagram = igCp.message || "Buffer error";
+          } catch (e) {
+            errors.instagram = e.message;
+          }
+          try {
+            var fbM = JSON.stringify({ query: 'mutation{createPost(input:{channelId:"' + fbCh + '",text:' + JSON.stringify((liText + suffix).substring(0, 3e3)) + ",assets:[{image:{url:" + JSON.stringify(imgUrl) + "}}],mode:shareNow,needsApproval:false,schedulingType:automatic,metadata:{facebook:{type:post}}}){...on PostActionSuccess{post{id}}...on MutationError{message}}}" });
+            var fbR = await fetch("https://api.buffer.com/graphql", { method: "POST", headers: { "Authorization": "Bearer " + bufKey, "Content-Type": "application/json" }, body: fbM });
+            var fbD = await fbR.json();
+            var fbCp = fbD.data && fbD.data.createPost || {};
+            if (fbCp.post) posted.facebook = { success: true };
+            else errors.facebook = fbCp.message || "Buffer error";
+          } catch (e) {
+            errors.facebook = e.message;
+          }
+        }
+        var liToken = null;
+        if (env.PRISM_KV) {
+          try {
+            var lt = await env.PRISM_KV.get("oauth:linkedin:tokens");
+            if (lt) liToken = JSON.parse(lt).access_token;
+          } catch (e) {
+          }
+        }
+        if (!liToken) liToken = env.LINKEDIN_PAID_1 || env.LINKEDIN_PAID_2;
+        if (liToken) {
+          try {
+            var meR = await fetch("https://api.linkedin.com/v2/userinfo", { headers: { "Authorization": "Bearer " + liToken } });
+            var meD = await meR.json();
+            if (meD.sub) {
+              var liBody = { author: "urn:li:person:" + meD.sub, lifecycleState: "PUBLISHED", specificContent: { "com.linkedin.ugc.ShareContent": { shareCommentary: { text: (liText + suffix).substring(0, 3e3) }, shareMediaCategory: "NONE" } }, visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" } };
+              var liR = await fetch("https://api.linkedin.com/v2/ugcPosts", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + liToken, "X-Restli-Protocol-Version": "2.0.0" }, body: JSON.stringify(liBody) });
+              if (liR.ok) posted.linkedin = { success: true };
+              else errors.linkedin = "HTTP " + liR.status;
+            }
+          } catch (e) {
+            errors.linkedin = e.message;
+          }
+        }
+        var tgTok = env.TELEGRAM_TOKEN || env.telegram_token;
+        var tgCh = env.TELEGRAM_CHAT_ID || env.TELEGRAM_CHAT || env.telegram_chat_id;
+        if (tgTok && tgCh) {
+          var pp = Object.keys(posted).filter(function(k) {
+            return posted[k] && posted[k].success;
+          });
+          await fetch("https://api.telegram.org/bot" + tgTok + "/sendMessage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: tgCh, text: sc.emoji + " " + sc.label + " posted!\n\nTopic: " + topic.substring(0, 100) + "\n\nPosted to: " + pp.join(", ") + "\n\n" + bskyText.substring(0, 200) }) });
+        }
+        return json({ success: true, slot, label: sc.label, topic: topic.substring(0, 100), posted, errors, canvasGenerated: !!canvasUrl, bluesky: bskyText.substring(0, 100), quote: quoteText }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/champion/update" && request.method === "POST") {
+      try {
+        var updates = [];
+        var errors3 = [];
+        var PROVIDERS = [
+          { name: "cerebras", keys: [env.CEREBRAS_PAID_1, env.CEREBRAS_PAID_2, env.cerebras_api_key, env.CEREBRAS_API_KEY].filter(Boolean), url: "https://api.cerebras.ai/v1/models" },
+          { name: "groq", keys: [env.GROQ_FREE_1, env.GROQ_FREE_2, env.GROQ_FREE_3, env.GROQ_API_KEY, env.groq_api_key].filter(Boolean), url: "https://api.groq.com/openai/v1/models", skipWords: ["whisper", "tts", "guard", "safeguard"] },
+          { name: "mistral", keys: [env.mistral_api_key, env.MISTRAL_API_KEY].filter(Boolean), url: "https://api.mistral.ai/v1/models" },
+          { name: "deepseek", keys: [env.DEEPSEEK_PAID, env.deepseek_paid, env.DEEPSEEK_FREE_1].filter(Boolean), url: "https://api.deepseek.com/models" },
+          { name: "openrouter", keys: [env.openrouter_api_key, env.OPENROUTER_API_KEY].filter(Boolean), url: "https://openrouter.ai/api/v1/models" },
+          { name: "together", keys: [env.together_api_key].filter(Boolean), url: "https://api.together.xyz/v1/models" },
+          { name: "cohere", keys: [env.cohere_api_key].filter(Boolean), url: "https://api.cohere.com/v1/models" },
+          { name: "kimi", keys: [env.kimi_api_key].filter(Boolean), url: "https://api.moonshot.cn/v1/models" },
+          { name: "nvidia", keys: [env.nvidia_build_api_key, env.nvidia_build_api_key_2].filter(Boolean), url: "https://integrate.api.nvidia.com/v1/models" },
+          { name: "gemini", keys: [env.gemini_paid_api_key, env.gemini_api_key].filter(Boolean), url: "https://generativelanguage.googleapis.com/v1beta/models", isGemini: true }
+        ];
+        for (var pi = 0; pi < PROVIDERS.length; pi++) {
+          var prov = PROVIDERS[pi];
+          if (!prov.keys.length) {
+            errors3.push(prov.name + ": no keys");
+            continue;
+          }
+          try {
+            var fetchUrl3 = prov.isGemini ? prov.url + "?key=" + prov.keys[0] : prov.url;
+            var headers3 = prov.isGemini ? {} : { "Authorization": "Bearer " + prov.keys[0] };
+            var pR = await fetch(fetchUrl3, { headers: headers3 });
+            if (!pR.ok) {
+              errors3.push(prov.name + ": HTTP " + pR.status);
+              continue;
+            }
+            var pD = await pR.json();
+            var models3 = (pD.data || pD.models || []).map(function(m2) {
+              return m2.id || m2.name || "";
+            }).filter(Boolean);
+            if (prov.skipWords) models3 = models3.filter(function(id2) {
+              return !prov.skipWords.some(function(w) {
+                return id2.includes(w);
+              });
+            });
+            if (env.PRISM_KV) await env.PRISM_KV.put("registry:" + prov.name, JSON.stringify({ models: models3, updated: (/* @__PURE__ */ new Date()).toISOString(), keyCount: prov.keys.length }));
+            updates.push(prov.name + " (" + models3.length + "): " + models3.slice(0, 3).join(", "));
+          } catch (e3) {
+            errors3.push(prov.name + ": " + e3.message);
+          }
+        }
+        var tgTok3 = env.TELEGRAM_TOKEN || env.telegram_token;
+        var tgCh3 = env.TELEGRAM_CHAT_ID || env.TELEGRAM_CHAT || env.telegram_chat_id;
+        if (tgTok3 && tgCh3) {
+          await fetch("https://api.telegram.org/bot" + tgTok3 + "/sendMessage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: tgCh3, text: "API Champion: Registry Updated\n\n" + updates.join("\n") + (errors3.length ? "\n\nFailed: " + errors3.join(", ") : "") + " \n\n" + (/* @__PURE__ */ new Date()).toISOString() }) });
+        }
+        return json({ success: true, updated: updates.length, failed: errors3.length, updates, errors: errors3, timestamp: (/* @__PURE__ */ new Date()).toISOString() }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/champion/registry" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ registry: {} }, 200, origin);
+        var providers = ["cerebras", "groq", "mistral", "deepseek", "nvidia"];
+        var registry = {};
+        for (var ri = 0; ri < providers.length; ri++) {
+          var rv = await env.PRISM_KV.get("registry:" + providers[ri]);
+          if (rv) {
+            try {
+              registry[providers[ri]] = JSON.parse(rv);
+            } catch (e) {
+            }
+          }
+        }
+        return json({ registry }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/whop/members" && request.method === "GET") {
+      try {
+        var whopKey = env.WHOP_API_KEY;
+        if (!whopKey) return json({ error: "WHOP_API_KEY not configured" }, 200, origin);
+        var whopResp = await fetch("https://api.whop.com/api/v2/memberships", {
+          headers: { "Authorization": "Bearer " + whopKey, "Content-Type": "application/json" }
+        });
+        var whopData = await whopResp.json();
+        return json({ success: true, members: whopData.data || whopData, total: (whopData.data || []).length }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/whop/products" && request.method === "GET") {
+      try {
+        var whopKey2 = env.WHOP_API_KEY;
+        if (!whopKey2) return json({ error: "WHOP_API_KEY not configured" }, 200, origin);
+        var whopResp2 = await fetch("https://api.whop.com/api/v2/products", {
+          headers: { "Authorization": "Bearer " + whopKey2 }
+        });
+        var whopData2 = await whopResp2.json();
+        return json({ success: true, products: whopData2.data || whopData2 }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/whop/company" && request.method === "GET") {
+      try {
+        var whopKey3 = env.WHOP_API_KEY;
+        if (!whopKey3) return json({ error: "WHOP_API_KEY not configured" }, 200, origin);
+        var whopResp3 = await fetch("https://api.whop.com/api/v2/me", {
+          headers: { "Authorization": "Bearer " + whopKey3 }
+        });
+        var whopData3 = await whopResp3.json();
+        return json({ success: true, company: whopData3 }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/omni" && (request.method === "POST" || request.method === "GET")) {
+      try {
+        var hour = (/* @__PURE__ */ new Date()).getUTCHours();
+        var tasks = [];
+        var results3 = {};
+        var minute = (/* @__PURE__ */ new Date()).getUTCMinutes();
+        if (hour === 7 && minute >= 55 || hour === 8 && minute <= 5) tasks.push("morning");
+        if (hour === 12 && minute >= 55 || hour === 13 && minute <= 5) tasks.push("lunchtime");
+        if (hour === 19 && minute >= 55 || hour === 20 && minute <= 5) tasks.push("evening");
+        if (hour === 5 && minute >= 55 || hour === 6 && minute <= 5) tasks.push("champion");
+        var dayOfWeek = (/* @__PURE__ */ new Date()).getUTCDay();
+        if (hour === 9 && dayOfWeek === 1) tasks.push("recycle");
+        if (tasks.length === 0) {
+          return json({ success: true, hour, message: "No tasks scheduled for this hour", tasks: [] }, 200, origin);
+        }
+        for (var ti = 0; ti < tasks.length; ti++) {
+          var task = tasks[ti];
+          try {
+            if (task === "morning" || task === "lunchtime" || task === "evening") {
+              var pipelineReq = new Request("https://prism-api.identitypartners.workers.dev/api/daily-pipeline", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Origin": "https://prism.identitypartners.uk" },
+                body: JSON.stringify({ slot: task })
+              });
+              var pipelineResp = await handleRequest(pipelineReq, env, ctx);
+              var pipelineData = await pipelineResp.json();
+              results3[task] = { success: pipelineData.success, posted: Object.keys(pipelineData.posted || {}).filter(function(k) {
+                return (pipelineData.posted || {})[k] && (pipelineData.posted || {})[k].success;
+              }), topic: (pipelineData.topic || "").substring(0, 60) };
+            } else if (task === "champion") {
+              var champReq = new Request("https://prism-api.identitypartners.workers.dev/api/champion/update", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Origin": "https://prism.identitypartners.uk" },
+                body: "{}"
+              });
+              var champResp = await handleRequest(champReq, env, ctx);
+              var champData = await champResp.json();
+              results3.champion = { updated: champData.updated, failed: champData.failed };
+            } else if (task === "recycle") {
+              var memList = await env.PRISM_KV.list({ prefix: "memory:" });
+              var mems = [];
+              for (var mi = 0; mi < Math.min(memList.keys.length, 20); mi++) {
+                var mv = await env.PRISM_KV.get(memList.keys[mi].name);
+                if (mv) {
+                  try {
+                    mems.push(JSON.parse(mv).content);
+                  } catch (e) {
+                  }
+                }
+              }
+              if (mems.length > 0) {
+                var recycleResult = await orchestrate(env, [
+                  { role: "system", content: "You are writing for Identity Partners. Take one insight from the provided memories and write a fresh social media post about it. British English. Under 280 characters. No cliches." },
+                  { role: "user", content: "Memories:\\n" + mems.slice(0, 5).join("\\n\\n") + "\\n\\nWrite one fresh post based on the most interesting insight." }
+                ], "fast", "drafting", null);
+                var recycleText = recycleResult.content || "";
+                if (recycleText) {
+                  var bskyRecycle = await postToBluesky(env, recycleText);
+                  results3.recycle = { success: true, posted: "bluesky", preview: recycleText.substring(0, 60) };
+                }
+              }
+            }
+          } catch (taskErr) {
+            results3[task] = { error: taskErr.message };
+          }
+        }
+        var tgTok = env.TELEGRAM_TOKEN || env.telegram_token;
+        var tgCh = env.TELEGRAM_CHAT_ID || env.TELEGRAM_CHAT || env.telegram_chat_id;
+        if (tgTok && tgCh && tasks.length > 0) {
+          var summary = "Omni-Agent ran at " + hour + ":00 UTC\n\nTasks: " + tasks.join(", ") + "\n\n";
+          tasks.forEach(function(t2) {
+            var r3 = results3[t2] || {};
+            if (r3.error) summary += t2 + ": ERROR - " + r3.error + "\n";
+            else if (r3.posted) summary += t2 + ": posted to " + r3.posted.join(", ") + "\n";
+            else summary += t2 + ": " + JSON.stringify(r3).substring(0, 50) + "\n";
+          });
+          await fetch("https://api.telegram.org/bot" + tgTok + "/sendMessage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: tgCh, text: summary }) });
+        }
+        return json({ success: true, hour, tasks, results: results3 }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message, hour: (/* @__PURE__ */ new Date()).getUTCHours() }, 500, origin);
+      }
+    }
+    if (path === "/api/buffer/channels" && request.method === "GET") {
+      try {
+        var bufKey = env.BUFFER_API_KEY;
+        if (!bufKey) return json({ error: "No Buffer key" }, 200, origin);
+        var orgResp = await fetch("https://api.buffer.com/graphql", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + bufKey, "Content-Type": "application/json" },
+          body: JSON.stringify({ query: "{account{id name organizations{id name}}}" })
+        });
+        var orgData = await orgResp.json();
+        var orgId = orgData.data && orgData.data.account && orgData.data.account.organizations && orgData.data.account.organizations[0] && orgData.data.account.organizations[0].id;
+        var channelQuery = orgId ? JSON.stringify({ query: 'query{channels(input:{organizationId:"' + orgId + '"}){id name service}}' }) : JSON.stringify({ query: "{account{id name}}" });
+        var r = await fetch("https://api.buffer.com/graphql", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + bufKey, "Content-Type": "application/json" },
+          body: channelQuery
+        });
+        var d = await r.json();
+        return json({ channels: d.data && d.data.channels || [], errors: d.errors || [] }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/x/post" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var text = body.text || "";
+        var imageUrl = body.imageUrl || null;
+        if (!text) return json({ error: "No text" }, 200, origin);
+        var blKey = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO;
+        if (!blKey) return json({ error: "No Browserless key" }, 200, origin);
+        var xScript = 'async function run() {const browser = await puppeteer.launch();const page = await browser.newPage();await page.goto("https://x.com/compose/tweet");await page.waitForSelector("[data-testid=tweetTextarea_0]", {timeout:10000});await page.type("[data-testid=tweetTextarea_0]", ' + JSON.stringify(text.substring(0, 280)) + ');await page.click("[data-testid=tweetButton]");await page.waitForTimeout(3000);await browser.close();return {success: true};}';
+        return json({
+          success: false,
+          message: "X direct posting requires OAuth tokens. Please reconnect X in Buffer at buffer.com/channels",
+          alternative: "The Buffer API key is valid but Buffer shows 0 channels -- reconnect X at buffer.com"
+        }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/agents" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        if (!body.id) body.id = "agent-" + Date.now();
+        body.updated = (/* @__PURE__ */ new Date()).toISOString();
+        if (!body.created) body.created = body.updated;
+        if (env.PRISM_KV) await env.PRISM_KV.put("agent:" + body.id, JSON.stringify(body));
+        return json({ success: true, agent: body }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/agents" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ agents: [] }, 200, origin);
+        var list = await env.PRISM_KV.list({ prefix: "agent:" });
+        var agents = [];
+        for (var i = 0; i < list.keys.length; i++) {
+          var v = await env.PRISM_KV.get(list.keys[i].name);
+          if (v) {
+            try {
+              agents.push(JSON.parse(v));
+            } catch (e) {
+            }
+          }
+        }
+        return json({ agents }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path.startsWith("/api/agents/") && !path.includes("/runs") && request.method === "DELETE") {
+      try {
+        var agentId = path.replace("/api/agents/", "");
+        if (env.PRISM_KV) await env.PRISM_KV.delete("agent:" + agentId);
+        return json({ success: true }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/agents/run" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var agentId = body.agentId;
+        var manualInput = body.input || "";
+        var agentRaw = env.PRISM_KV ? await env.PRISM_KV.get("agent:" + agentId) : null;
+        if (!agentRaw) return json({ error: "Agent not found: " + agentId }, 200, origin);
+        var agentDef = JSON.parse(agentRaw);
+        var runLog = [];
+        var outputs = {};
+        var startTime = Date.now();
+        var context = manualInput ? "USER INPUT: " + manualInput + " " : "";
+        var taskPrompt = agentDef.taskPrompt || "Complete your assigned task.";
+        if (context) taskPrompt = context + " Task: " + taskPrompt;
+        var result = await orchestrate(env, [
+          { role: "system", content: agentDef.systemPrompt || "You are an autonomous agent. Complete the task. Be concise." },
+          { role: "user", content: taskPrompt }
+        ], agentDef.profile || "balanced", "agent_task", null);
+        outputs.main = result.content;
+        runLog.push("Completed via " + result.provider);
+        var actions = agentDef.outputActions || [];
+        for (var ai = 0; ai < actions.length; ai++) {
+          var action = actions[ai];
+          if (action === "save-to-memory" && env.PRISM_KV) {
+            await env.PRISM_KV.put("memory:agent-" + agentId + "-" + Date.now(), JSON.stringify({ content: result.content, tags: ["agent", agentDef.name], created: (/* @__PURE__ */ new Date()).toISOString() }));
+            runLog.push("Saved to Memory");
+          } else if (action === "notify-inbox" && env.PRISM_KV) {
+            var msgId = "msg-agent-" + Date.now();
+            await env.PRISM_KV.put("msg:simon:" + msgId, JSON.stringify({ id: msgId, from: "agent:" + agentDef.name, to: "simon", content: "[" + agentDef.name + "] " + result.content.substring(0, 500), timestamp: (/* @__PURE__ */ new Date()).toISOString(), read: false }));
+            runLog.push("Sent to inbox");
+          } else if (action === "post-to-bluesky") {
+            await postToBluesky(env, result.content.substring(0, 300));
+            runLog.push("Posted to Bluesky");
+          } else if (action === "send-telegram") {
+            var tgT = env.TELEGRAM_TOKEN || env.telegram_token;
+            var tgC = env.TELEGRAM_CHAT_ID || env.TELEGRAM_CHAT || env.telegram_chat_id;
+            if (tgT && tgC) {
+              await fetch("https://api.telegram.org/bot" + tgT + "/sendMessage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: tgC, text: "[" + agentDef.name + "]\n\n" + result.content.substring(0, 500) }) });
+              runLog.push("Sent to Telegram");
+            }
+          }
+        }
+        var runRecord = { agentId, agentName: agentDef.name, runAt: (/* @__PURE__ */ new Date()).toISOString(), durationMs: Date.now() - startTime, log: runLog, outputs, provider: result.provider };
+        if (env.PRISM_KV) await env.PRISM_KV.put("agent-run:" + agentId + ":" + Date.now(), JSON.stringify(runRecord), { expirationTtl: 86400 * 30 });
+        return json({ success: true, run: runRecord }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path.startsWith("/api/agents/runs/") && request.method === "GET") {
+      try {
+        var agentId2 = path.replace("/api/agents/runs/", "");
+        if (!env.PRISM_KV) return json({ runs: [] }, 200, origin);
+        var runList = await env.PRISM_KV.list({ prefix: "agent-run:" + agentId2 + ":" });
+        var runs = [];
+        for (var ri = 0; ri < runList.keys.length; ri++) {
+          var rv = await env.PRISM_KV.get(runList.keys[ri].name);
+          if (rv) {
+            try {
+              runs.push(JSON.parse(rv));
+            } catch (e) {
+            }
+          }
+        }
+        runs.sort(function(a, b) {
+          return new Date(b.runAt) - new Date(a.runAt);
+        });
+        return json({ runs: runs.slice(0, 20) }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/canvas/url" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var text = (body.text || "").substring(0, 150);
+        var template = body.template || "quote-teal";
+        var encodedText = encodeURIComponent(text);
+        var canvasUrl = "https://prism-api.identitypartners.workers.dev/api/canvas/image?text=" + encodedText + "&template=" + template + "&t=" + Date.now();
+        return json({ success: true, url: canvasUrl }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/canvas/image" && request.method === "GET") {
+      try {
+        var url2 = new URL(request.url);
+        var text2 = url2.searchParams.get("text") || "Identity Partners";
+        var template2 = url2.searchParams.get("template") || "quote-teal";
+        var blKey2 = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO;
+        if (!blKey2) return new Response("No Browserless key", { status: 500 });
+        var html2 = await generateCanvasHtml(text2, template2, env);
+        if (!html2) return new Response("Canvas generation failed", { status: 500 });
+        var blR2 = await fetch("https://chrome.browserless.io/screenshot?token=" + blKey2, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ html: html2, options: { type: "png", clip: { x: 0, y: 0, width: 1080, height: 1080 }, fullPage: false }, waitForTimeout: 8e3 })
+        });
+        if (!blR2.ok) return new Response("Browserless error: " + blR2.status, { status: 500 });
+        var pngBuf2 = await blR2.arrayBuffer();
+        return new Response(pngBuf2, {
+          status: 200,
+          headers: {
+            "Content-Type": "image/png",
+            "Cache-Control": "public, max-age=3600",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+      } catch (e) {
+        return new Response("Error: " + e.message, { status: 500 });
+      }
+    }
+    if (path === "/api/canvas/image" && request.method === "GET") {
+      try {
+        var url3 = new URL(request.url);
+        var text3 = url3.searchParams.get("text") || "Identity Partners";
+        var template3 = url3.searchParams.get("template") || "quote-teal";
+        var blKey3 = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO;
+        if (!blKey3) return new Response("No Browserless key", { status: 500, headers: { "Access-Control-Allow-Origin": "*" } });
+        var html3 = await generateCanvasHtml(text3, template3, env);
+        if (!html3) return new Response("Canvas HTML failed", { status: 500, headers: { "Access-Control-Allow-Origin": "*" } });
+        var blR3 = await fetch("https://chrome.browserless.io/screenshot?token=" + blKey3, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ html: html3, options: { type: "png", clip: { x: 0, y: 0, width: 1080, height: 1080 }, fullPage: false }, waitForTimeout: 1e4 }) });
+        if (!blR3.ok) return new Response("Browserless " + blR3.status, { status: 500, headers: { "Access-Control-Allow-Origin": "*" } });
+        var pngBuf3 = await blR3.arrayBuffer();
+        return new Response(pngBuf3, { status: 200, headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "*" } });
+      } catch (e) {
+        return new Response("Error: " + e.message, { status: 500, headers: { "Access-Control-Allow-Origin": "*" } });
+      }
+    }
+    if (path === "/api/setmore/availability" && request.method === "GET") {
+      try {
+        return json({
+          bookingUrl: "https://identitypartners.setmore.com",
+          embedUrl: "https://identitypartners.setmore.com/embed",
+          services: [
+            { name: "Initial Consultation (Free)", duration: 20, price: 0 },
+            { name: "Individual Session", duration: 60, price: 80 },
+            { name: "Group Session", duration: 90, price: 40 }
+          ]
+        }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/canvas/store" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var key = body.key || "canvas-" + Date.now() + ".png";
+        var dataUrl = body.dataUrl || "";
+        if (!dataUrl) return json({ error: "No dataUrl" }, 200, origin);
+        var base64 = dataUrl.replace(/^data:image\/[a-z]+;base64,/, "");
+        var binaryStr = atob(base64);
+        var bytes = new Uint8Array(binaryStr.length);
+        for (var i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+        if (env.PRISM_KV) {
+          await env.PRISM_KV.put("canvas:" + key, bytes.buffer, {
+            metadata: { contentType: "image/png" },
+            expirationTtl: 86400 * 7
+          });
+          var serveUrl = "https://prism-api.identitypartners.workers.dev/api/canvas/kv/" + key;
+          return json({ success: true, url: serveUrl, key, size: bytes.length }, 200, origin);
+        }
+        return json({ error: "KV not available" }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path.startsWith("/api/canvas/kv/") && request.method === "GET") {
+      try {
+        var kvKey = path.replace("/api/canvas/kv/", "");
+        if (!env.PRISM_KV) return new Response("KV not available", { status: 500 });
+        var data = await env.PRISM_KV.getWithMetadata("canvas:" + kvKey, { type: "arrayBuffer" });
+        if (!data.value) return new Response("Not found", { status: 404 });
+        return new Response(data.value, {
+          status: 200,
+          headers: {
+            "Content-Type": "image/png",
+            "Cache-Control": "public, max-age=604800",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+      } catch (e) {
+        return new Response("Error: " + e.message, { status: 500 });
+      }
+    }
+    if (path === "/api/imgur/upload" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var imageBase64 = body.imageBase64 || body.dataUrl || "";
+        imageBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
+        if (!imageBase64) return json({ error: "No image data provided" }, 200, origin);
+        var result = await uploadToImgur(imageBase64, env);
+        if (result.success) {
+          if (env.PRISM_KV) {
+            await env.PRISM_KV.put("imgur:" + Date.now(), JSON.stringify({
+              url: result.url,
+              deleteHash: result.deleteHash,
+              created: (/* @__PURE__ */ new Date()).toISOString()
+            }), { expirationTtl: 86400 * 365 });
+          }
+        }
+        return json(result, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/image/host" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var dataUrl = body.dataUrl || "";
+        var title = body.title || "Identity Partners";
+        if (!dataUrl) return json({ error: "No image data" }, 200, origin);
+        var base64 = dataUrl.replace(/^data:image\/[a-z]+;base64,/, "");
+        var imgurClientId = env.IMGUR_CLIENT_ID || "a0b1c2d3e4f5678";
+        var imgurResp = await fetch("https://api.imgur.com/3/image", {
+          method: "POST",
+          headers: {
+            "Authorization": "Client-ID " + imgurClientId,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ image: base64, type: "base64", title, description: "Identity Partners social media asset" })
+        });
+        var imgurData = await imgurResp.json();
+        if (imgurData.success && imgurData.data && imgurData.data.link) {
+          var url = imgurData.data.link;
+          if (env.PRISM_KV) {
+            await env.PRISM_KV.put("hosted-image:" + Date.now(), JSON.stringify({ url, title, created: (/* @__PURE__ */ new Date()).toISOString() }), { expirationTtl: 86400 * 365 });
+          }
+          return json({ success: true, url, host: "imgur", deleteHash: imgurData.data.deletehash }, 200, origin);
+        }
+        var imgbbKey = env.IMGBB_API_KEY || env.imgbb_api_key;
+        if (imgbbKey) {
+          var formBody = "key=" + encodeURIComponent(imgbbKey) + "&image=" + encodeURIComponent(base64) + "&name=" + encodeURIComponent(title);
+          var imgbbResp = await fetch("https://api.imgbb.com/1/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: formBody
+          });
+          var imgbbData = await imgbbResp.json();
+          if (imgbbData.success && imgbbData.data && imgbbData.data.url) {
+            return json({ success: true, url: imgbbData.data.url, host: "imgbb" }, 200, origin);
+          }
+        }
+        var key = "hosted-" + Date.now() + ".png";
+        var binary = atob(base64);
+        var bytes = new Uint8Array(binary.length);
+        for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        if (env.PRISM_ASSETS) {
+          await env.PRISM_ASSETS.put(key, bytes.buffer, { httpMetadata: { contentType: "image/png" }, expirationTtl: 86400 * 365 });
+          return json({ success: true, url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/" + key, host: "r2" }, 200, origin);
+        }
+        return json({ error: "All image hosting options failed" }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/model-test" && request.method === "GET") {
+      try {
+        var testResult = await callCerebras(env, [{ role: "user", content: 'Say "OK" and nothing else.' }], "llama-4-scout-17b-16e-instruct");
+        var ok = testResult && (typeof testResult === "string" ? testResult.includes("OK") : testResult.content && testResult.content.includes("OK"));
+        return json({
+          success: ok,
+          model: "llama-4-scout-17b-16e-instruct",
+          provider: "cerebras",
+          response: typeof testResult === "string" ? testResult.substring(0, 50) : testResult && testResult.content ? testResult.content.substring(0, 50) : JSON.stringify(testResult).substring(0, 50),
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        }, 200, origin);
+      } catch (e) {
+        return json({ success: false, error: e.message }, 200, origin);
+      }
+    }
+    if (path === "/api/canvas/render-and-post" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var quote = (body.quote || body.text || "").substring(0, 200);
+        var template = body.template || "quote-teal";
+        var platforms = body.platforms || ["instagram", "facebook", "x", "bluesky"];
+        var igCaption = body.igCaption || "hello@identitypartners.uk | www.identitypartners.uk/contact\n#IdentityPartners #MentalHealth #Recovery #Addiction #Wellbeing";
+        var xCaption = body.xCaption || quote.substring(0, 220) + "\n\nwww.identitypartners.uk/contact\n#IdentityPartners #MentalHealth";
+        var fbCaption = body.fbCaption || quote + "\n\nhello@identitypartners.uk | www.identitypartners.uk/contact\n#IdentityPartners #MentalHealth #Recovery";
+        var browserlessKey = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO;
+        var bufferKey = env.BUFFER_API_KEY;
+        if (!quote) return json({ error: "No quote provided" }, 200, origin);
+        var results = {};
+        var imgUrl = null;
+        if (browserlessKey) {
+          var svgHtml = await generateCanvasHtml(quote, template, env);
+          var blResp = await fetch("https://chrome.browserless.io/screenshot?token=" + browserlessKey, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              html: svgHtml,
+              options: { type: "png", clip: { x: 0, y: 0, width: 1080, height: 1080 }, fullPage: false },
+              waitForFunction: { fn: "() => document.fonts && document.fonts.ready", timeout: 8e3 },
+              waitForTimeout: 2e3
+            })
+          });
+          if (blResp.ok) {
+            var pngBuf = await blResp.arrayBuffer();
+            if (pngBuf.byteLength > 1e4 && env.PRISM_ASSETS) {
+              var imgKey = "canvas-auto-" + Date.now() + ".png";
+              await env.PRISM_ASSETS.put(imgKey, pngBuf, { httpMetadata: { contentType: "image/png" }, expirationTtl: 86400 * 90 });
+              imgUrl = "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/" + imgKey;
+              results.canvas = { success: true, url: imgUrl, size: pngBuf.byteLength };
+            } else {
+              results.canvas = { success: false, error: "PNG too small: " + pngBuf.byteLength };
+            }
+          } else {
+            var blErr = await blResp.text();
+            results.canvas = { success: false, error: "Browserless " + blResp.status + ": " + blErr.substring(0, 100) };
+          }
+        }
+        var igCh = "6a97edce065799be46722eab";
+        var fbCh = "6a97ea40065799be46721fdd";
+        var xCh = "6a97ebf1065799be46722744";
+        for (var pi = 0; pi < platforms.length; pi++) {
+          var platform = platforms[pi];
+          try {
+            if (platform === "bluesky") {
+              var bskyResult = await postToBluesky(env, xCaption.substring(0, 300));
+              results.bluesky = bskyResult;
+            } else if (bufferKey && imgUrl) {
+              var channelId = platform === "instagram" ? igCh : platform === "facebook" ? fbCh : xCh;
+              var text = platform === "instagram" ? igCaption : platform === "facebook" ? fbCaption : xCaption.substring(0, 280);
+              var meta = platform === "instagram" ? { instagram: { type: "post", shouldShareToFeed: true } } : platform === "facebook" ? { facebook: { type: "post" } } : {};
+              var mutation = "mutation CreatePost($input: CreatePostInput!) { createPost(input: $input) { ... on PostActionSuccess { post { id status } } ... on MutationError { message } } }";
+              var vars = { input: { channelId, text, assets: [{ image: { url: imgUrl } }], mode: "shareNow", needsApproval: false, schedulingType: "automatic", metadata: meta } };
+              var bufResp = await fetch("https://api.buffer.com/graphql", {
+                method: "POST",
+                headers: { "Authorization": "Bearer " + bufferKey, "Content-Type": "application/json" },
+                body: JSON.stringify({ query: mutation, variables: vars })
+              });
+              var bufData = await bufResp.json();
+              var cp = bufData.data && bufData.data.createPost || {};
+              results[platform] = cp.post ? { success: true, id: cp.post.id } : { success: false, error: cp.message || "Buffer error" };
+            } else if (!imgUrl) {
+              results[platform] = { success: false, error: "No canvas image generated" };
+            }
+          } catch (pe) {
+            results[platform] = { success: false, error: pe.message };
+          }
+        }
+        return json({ success: true, quote, imageUrl: imgUrl, results }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/debug/keys" && request.method === "GET") {
+      try {
+        var availableKeys = [];
+        var testKeys = ["CEREBRAS_FREE_1", "CEREBRAS_FREE_2", "CEREBRAS_FREE_3", "CEREBRAS_FREE_4", "CEREBRAS_PAID", "CEREBRAS_PAID2", "GROQ_FREE_1", "GROQ_FREE_2", "GROQ_FREE_3", "cohere_api_key", "mistral_api_key", "kimi_api_key", "together_api_key", "sambanova_api_key", "gemini_paid_api_key", "gemini_api_key", "openrouter_api_key", "DEEPSEEK_PAID", "DEEPSEEK_FREE_1", "nvidia_build_api_key", "chutes_api_key", "fireworks_api_key"];
+        testKeys.forEach(function(k) {
+          if (env[k]) availableKeys.push(k + ":env");
+        });
+        var kvKeys = [];
+        if (env.PRISM_KV) {
+          try {
+            var raw = await env.PRISM_KV.get("__secrets__");
+            if (raw) {
+              var secrets = JSON.parse(raw);
+              Object.keys(secrets).forEach(function(k) {
+                kvKeys.push(k + ":kv");
+              });
+            }
+          } catch (e) {
+          }
+        }
+        return json({ envKeys: availableKeys, kvKeys: kvKeys.slice(0, 20), total: availableKeys.length + kvKeys.length }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/secrets/list" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ error: "No KV" }, 200, origin);
+        var raw = await env.PRISM_KV.get("__secrets__");
+        if (!raw) return json({ error: "No __secrets__ key found" }, 200, origin);
+        var secrets = JSON.parse(raw);
+        var names = Object.keys(secrets).sort();
+        var grouped = {};
+        names.forEach(function(name2) {
+          var parts = name2.toUpperCase().replace(/-/g, "_").split("_");
+          var provider2 = parts[0];
+          if (!grouped[provider2]) grouped[provider2] = [];
+          grouped[provider2].push(name2);
+        });
+        return json({ total: names.length, names, grouped }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/keys/push" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var secrets = body.secrets || {};
+        if (!env.PRISM_KV) return json({ error: "No KV" }, 200, origin);
+        var existing = {};
+        try {
+          var raw = await env.PRISM_KV.get("__secrets__");
+          if (raw) existing = JSON.parse(raw);
+        } catch (e) {
+        }
+        var merged = Object.assign({}, existing, secrets);
+        await env.PRISM_KV.put("__secrets__", JSON.stringify(merged));
+        return json({ success: true, total: Object.keys(merged).length, added: Object.keys(secrets).length }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/routing/log" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ error: "No KV" }, 200, origin);
+        var last = await env.PRISM_KV.get("routing:last");
+        var lastFail = await env.PRISM_KV.get("routing:last-failure");
+        return json({
+          lastSuccess: last ? JSON.parse(last) : null,
+          lastFailure: lastFail ? JSON.parse(lastFail) : null
+        }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/routing/chains" && request.method === "GET") {
+      var chains = {
+        chat: [
+          { pos: 1, provider: "cerebras", models: ["llama-4-scout-17b-16e-instruct", "qwen-3.8-27b", "gpt-oss-120b"], keys: 4, ctx: 8192, cost: "free", note: "4 keys x 3 models = 12 free attempts" },
+          { pos: 2, provider: "groq", models: ["gemma2-9b-it", "llama-3.3-70b-versatile", "mixtral-8x7b-32768"], keys: 3, ctx: 32768, cost: "free", note: "3 keys x 3 models = 9 free attempts" },
+          { pos: 3, provider: "chutes", models: ["DeepSeek-V3-0324"], keys: 1, ctx: 64e3, cost: "free", note: "DeepSeek V3 free -- world-class quality" },
+          { pos: 4, provider: "gemini", models: ["gemini-2.5-flash"], keys: 1, ctx: 1e6, cost: "free", note: "Gemini Flash free -- 1M ctx" },
+          { pos: 5, provider: "deepseek", models: ["deepseek-chat (f1,f2)"], keys: 2, ctx: 64e3, cost: "free", note: "DeepSeek Chat free keys" },
+          { pos: 6, provider: "sambanova", models: ["Meta-Llama-3.3-70B-Instruct"], keys: 1, ctx: 8192, cost: "free", note: "SambaNova free" },
+          { pos: 7, provider: "nebius", models: ["Meta-Llama-3.1-70B-Instruct"], keys: 1, ctx: 32768, cost: "free", note: "Nebius free -- 32K ctx" },
+          { pos: 8, provider: "openrouter", models: ["gemma-2-9b-it:free"], keys: 1, ctx: 8192, cost: "free", note: "OpenRouter free" },
+          { pos: 9, provider: "llm7", models: ["gpt-4o-mini"], keys: 2, ctx: 128e3, cost: "free", note: "LLM7 free -- 128K ctx" },
+          { pos: 10, provider: "kimi", models: ["moonshot-v1-8k"], keys: 1, ctx: 8e3, cost: "$0.12/1M", note: "Kimi paid -- $15 credit" },
+          { pos: 11, provider: "deepseek", models: ["deepseek-chat (paid)"], keys: 1, ctx: 64e3, cost: "$0.14/1M", note: "DeepSeek Chat paid" },
+          { pos: 12, provider: "mistral", models: ["mistral-small-latest"], keys: 1, ctx: 32e3, cost: "$0.20/1M", note: "Mistral paid -- EU" },
+          { pos: 13, provider: "cohere", models: ["command-r"], keys: 1, ctx: 128e3, cost: "$0.15/1M", note: "Cohere paid -- 128K ctx" },
+          { pos: 14, provider: "together", models: ["Llama-3.3-70B-Instruct-Turbo"], keys: 1, ctx: 131072, cost: "$0.18/1M", note: "Together paid" },
+          { pos: 15, provider: "fireworks", models: ["llama-v3p3-70b-instruct"], keys: 1, ctx: 131072, cost: "$0.20/1M", note: "Fireworks paid" },
+          { pos: 16, provider: "gemini", models: ["gemini-2.5-flash"], keys: 1, ctx: 1e6, cost: "$0.075/1M", note: "Gemini Flash paid -- 1M ctx" },
+          { pos: 17, provider: "anyapi", models: ["gpt-4o-mini"], keys: 1, ctx: 128e3, cost: "$0.15/1M", note: "AnyAPI paid" },
+          { pos: 18, provider: "muse", models: ["auto"], keys: 1, ctx: 8192, cost: "free", note: "Muse auto-routing" },
+          { pos: 19, provider: "huggingface", models: ["Llama-3.1-8B-Instruct"], keys: 1, ctx: 8192, cost: "free", note: "HuggingFace -- slow" },
+          { pos: 20, provider: "modelslab", models: ["llama-3-8b-chat"], keys: 1, ctx: 4096, cost: "free", note: "Small model" },
+          { pos: 21, provider: "xai", models: ["grok-beta"], keys: 1, ctx: 131072, cost: "$5/1M", note: "Grok -- expensive last resort" },
+          { pos: 22, provider: "pollinations", models: ["openai", "mistral", "llama"], keys: 3, ctx: 4096, cost: "free (Pollen)", note: "Guaranteed fallback" }
+        ],
+        reasoning: [
+          { pos: 1, provider: "nvidia", models: ["llama-3.1-nemotron-ultra-253b-v1"], keys: 2, ctx: 128e3, cost: "free", note: "Nemotron Ultra 253B -- best free reasoning" },
+          { pos: 2, provider: "deepseek", models: ["deepseek-reasoner"], keys: 1, ctx: 64e3, cost: "$0.55/1M", note: "DeepSeek R1 -- chain-of-thought" },
+          { pos: 3, provider: "gemini", models: ["gemini-2.5-flash"], keys: 1, ctx: 32e3, cost: "free", note: "Gemini thinking mode" },
+          { pos: 4, provider: "kimi", models: ["moonshot-v1-32k"], keys: 1, ctx: 32e3, cost: "$0.12/1M", note: "Kimi 32K" },
+          { pos: 5, provider: "cohere", models: ["command-r-plus"], keys: 1, ctx: 128e3, cost: "$3/1M", note: "Cohere R+ -- strong reasoning" },
+          { pos: 6, provider: "openrouter", models: ["deepseek/deepseek-chat-v3-0324:free"], keys: 1, ctx: 64e3, cost: "free", note: "DeepSeek R1 free via OpenRouter" }
+        ],
+        coding: [
+          { pos: 1, provider: "deepseek", models: ["deepseek-chat"], keys: 3, ctx: 64e3, cost: "$0.14/1M", note: "DeepSeek -- excellent at code" },
+          { pos: 2, provider: "cerebras", models: ["gpt-oss-120b"], keys: 4, ctx: 8192, cost: "free", note: "GPT-OSS 120B -- strong coder" },
+          { pos: 3, provider: "groq", models: ["llama-3.3-70b-versatile"], keys: 3, ctx: 32768, cost: "free", note: "Llama 70B on Groq" },
+          { pos: 4, provider: "mistral", models: ["codestral-latest"], keys: 1, ctx: 32e3, cost: "$1/1M", note: "Codestral -- code specialist" },
+          { pos: 5, provider: "together", models: ["Llama-3.3-70B-Instruct-Turbo"], keys: 1, ctx: 131072, cost: "$0.18/1M", note: "Together Llama 70B" }
+        ],
+        long_context: [
+          { pos: 1, provider: "kimi", models: ["moonshot-v1-128k"], keys: 1, ctx: 128e3, cost: "$0.12/1M", note: "Kimi 128K -- best long-ctx" },
+          { pos: 2, provider: "gemini", models: ["gemini-2.5-pro"], keys: 1, ctx: 1e6, cost: "$3.5/1M", note: "Gemini 1M context" },
+          { pos: 3, provider: "cohere", models: ["command-r-plus"], keys: 1, ctx: 128e3, cost: "$3/1M", note: "Cohere 128K" },
+          { pos: 4, provider: "deepseek", models: ["deepseek-chat"], keys: 3, ctx: 64e3, cost: "$0.14/1M", note: "DeepSeek 64K" },
+          { pos: 5, provider: "openrouter", models: ["anthropic/claude-3-haiku:beta"], keys: 1, ctx: 2e5, cost: "$0.25/1M", note: "Claude 200K via OpenRouter" }
+        ]
+      };
+      return json({ chains, total_providers: 21, total_models: 35, total_keys: 90 }, 200, origin);
+    }
+    if (path === "/api/d1/test" && request.method === "POST") {
+      try {
+        if (!env.PRISM_D1) return json({ error: "PRISM_D1 not bound" }, 200, origin);
+        var body = await request.json();
+        var testId = "diag-" + Date.now();
+        await env.PRISM_D1.prepare(
+          "INSERT INTO threads (id, title, persona, profile, message_count, auto_tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        ).bind(testId, "Diagnostic Test", "Gerald", "fast", 0, '["test"]', (/* @__PURE__ */ new Date()).toISOString(), (/* @__PURE__ */ new Date()).toISOString()).run();
+        var row = await env.PRISM_D1.prepare("SELECT * FROM threads WHERE id = ?").bind(testId).first();
+        await env.PRISM_D1.prepare("DELETE FROM threads WHERE id = ?").bind(testId).run();
+        return json({ success: true, inserted: !!row, row }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message, stack: e.stack ? e.stack.substring(0, 300) : "" }, 500, origin);
+      }
+    }
+    if (path === "/api/threads/cleanup-tests" && request.method === "POST") {
+      try {
+        var testPatterns = ["Say OK", "Say hi", "What is 2+2", "Hello Gerald", "Say hello", "test-thread", "test-d1", "final-test", "kv-debug", "debug-d1", "final-v3"];
+        var cleaned = 0;
+        if (env.PRISM_D1) {
+          for (var i = 0; i < testPatterns.length; i++) {
+            var r = await env.PRISM_D1.prepare(
+              'UPDATE threads SET archived = 1, auto_tags = json_insert(auto_tags, "$[#]", "test-cleanup") WHERE title LIKE ? AND archived = 0'
+            ).bind("%" + testPatterns[i] + "%").run();
+            cleaned += r.meta ? r.meta.changes || 0 : 0;
+          }
+        }
+        if (env.PRISM_KV) {
+          var idxRaw = await env.PRISM_KV.get("threads:index");
+          if (idxRaw) {
+            var idx = JSON.parse(idxRaw);
+            var before = idx.length;
+            idx = idx.filter(function(t2) {
+              return !testPatterns.some(function(p) {
+                return (t2.title || "").toLowerCase().includes(p.toLowerCase());
+              });
+            });
+            if (idx.length < before) {
+              await env.PRISM_KV.put("threads:index", JSON.stringify(idx));
+              cleaned += before - idx.length;
+            }
+          }
+        }
+        return json({ success: true, cleaned }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/notion-url" && request.method === "GET") {
+      var notionDb = env.NOTION_DB || env.NOTION_DB_ID;
+      if (notionDb) {
+        return json({ url: "https://www.notion.so/" + notionDb.replace(/-/g, "") }, 200, origin);
+      }
+      return json({ url: "https://www.notion.so" }, 200, origin);
+    }
+    if (path === "/api/morning-briefing" && request.method === "GET") {
+      try {
+        var contextParts = [];
+        if (env.PRISM_KV) {
+          try {
+            var qList = await env.PRISM_KV.list({ prefix: "queue:" });
+            var pending = (qList.keys || []).filter(function(k) {
+              return !k.name.includes(":posted");
+            }).length;
+            contextParts.push("Social queue: " + pending + " items queued.");
+          } catch (e) {
+          }
+        }
+        try {
+          var mailSummary = await getZohoInboxSummary(env);
+          if (mailSummary) {
+            contextParts.push("Email: " + mailSummary.unread + " unread in inbox.");
+            if (mailSummary.messages && mailSummary.messages.length > 0) {
+              var subjects = mailSummary.messages.slice(0, 2).map(function(m2) {
+                return '"' + (m2.subject || "").substring(0, 50) + '"';
+              }).join(", ");
+              contextParts.push("Recent: " + subjects);
+            }
+          }
+        } catch (e) {
+        }
+        if (env.PRISM_KV) {
+          try {
+            var lr = await env.PRISM_KV.get("research:latest");
+            if (lr) {
+              var lrd = JSON.parse(lr);
+              contextParts.push("Research: " + lrd.count + " findings scraped on " + new Date(lrd.runAt).toLocaleDateString("en-GB") + ".");
+            }
+          } catch (e) {
+          }
+        }
+        if (env.PRISM_D1) {
+          try {
+            var tc = await env.PRISM_D1.prepare("SELECT COUNT(*) as cnt FROM threads WHERE archived = 0").first();
+            if (tc) contextParts.push("Memory: " + tc.cnt + " conversation threads.");
+          } catch (e) {
+          }
+        }
+        var context = contextParts.length > 0 ? contextParts.join(" ") : "No live data available right now.";
+        return json({ context, parts: contextParts }, 200, origin);
+      } catch (e) {
+        return json({ context: "No data available.", error: e.message }, 200, origin);
+      }
+    }
+    if (path === "/api/canvas/templates" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        if (env.PRISM_KV) await env.PRISM_KV.put("canvas:templates", JSON.stringify(body));
+        return json({ success: true }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/canvas/templates" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ templates: [] }, 200, origin);
+        var raw = await env.PRISM_KV.get("canvas:templates");
+        if (raw) return json(JSON.parse(raw), 200, origin);
+        return json({ templates: [
+          { key: "ig-template-0.png", url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-0.png", name: "ip-teal-1" },
+          { key: "ig-template-1.png", url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-1.png", name: "ip-teal-2" },
+          { key: "ig-template-2.png", url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-2.png", name: "ip-teal-3" },
+          { key: "ig-template-3.png", url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-3.png", name: "ip-rose-1" },
+          { key: "ig-template-4.png", url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-4.png", name: "ip-rose-2" },
+          { key: "ig-template-5.png", url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-5.png", name: "ip-rose-3" },
+          { key: "ig-template-6.png", url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-6.png", name: "ip-ivory-1" },
+          { key: "ig-template-7.png", url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-7.png", name: "ip-ivory-2" },
+          { key: "ig-template-8.png", url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-8.png", name: "ip-ivory-3" },
+          { key: "ig-template-9.png", url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-9.png", name: "ip-dark-1" },
+          { key: "ig-template-10.png", url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-10.png", name: "ip-dark-2" },
+          { key: "ig-template-11.png", url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-11.png", name: "ip-dark-3" }
+        ] }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path.startsWith("/api/canvas/serve/") && request.method === "GET") {
+      try {
+        var key = path.replace("/api/canvas/serve/", "");
+        if (!key || !key.endsWith(".png")) return json({ error: "Invalid key" }, 400, origin);
+        if (!env.PRISM_ASSETS) return json({ error: "R2 not bound" }, 500, origin);
+        var obj = await env.PRISM_ASSETS.get(key);
+        if (!obj) return json({ error: "Not found: " + key }, 404, origin);
+        var buf = await obj.arrayBuffer();
+        return new Response(buf, {
+          status: 200,
+          headers: {
+            "Content-Type": "image/png",
+            "Cache-Control": "public, max-age=86400",
+            "Access-Control-Allow-Origin": "*",
+            "X-Key": key
+          }
+        });
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/agents/canvas-regen" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var quotes = body.quotes || null;
+        var browserlessKey = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO;
+        var geminiKey = env.gemini_paid_api_key || env.GEMINI_PAID_1 || env.gemini_api_key;
+        var log = [];
+        var approved = [];
+        var rejected = [];
+        if (!browserlessKey) return json({ error: "BROWSERLESS.IO key required" }, 200, origin);
+        if (!quotes || quotes.length === 0) {
+          log.push("Generating quotes from research + memory...");
+          var latestResearch = null;
+          if (env.PRISM_KV) {
+            try {
+              var lr = await env.PRISM_KV.get("research:latest");
+              if (lr) latestResearch = JSON.parse(lr);
+            } catch (e) {
+            }
+          }
+          var researchContext = latestResearch ? latestResearch.results.slice(0, 3).map(function(r2) {
+            return r2.title + ": " + r2.snippet;
+          }).join("\n") : "";
+          var quoteResult = await orchestrate(env, [
+            { role: "system", content: "You are a content creator for Identity Partners. Generate 12 powerful, distinct quotes about addiction recovery, trauma, identity, mental health, and human connection. Each quote should be 15-25 words. British English. No clichs. No yoga retreat language. Return as a JSON array of strings only." },
+            { role: "user", content: "Generate 12 quotes for social media canvas cards." + (researchContext ? "\n\nRecent research context:\n" + researchContext : "") }
+          ], "balanced", "drafting", null);
+          try {
+            var qm = quoteResult.content.match(/\[\s*"[\s\S]*"\s*\]/);
+            quotes = qm ? JSON.parse(qm[0]) : quoteResult.content.split("\n").filter(function(l) {
+              return l.trim().length > 20;
+            }).slice(0, 12);
+          } catch (e) {
+            quotes = [
+              "Recovery is not a destination. It is a way of living.",
+              "The most evidence-based intervention we have is genuine human connection.",
+              "Identity is not fixed. It is rebuilt in the presence of people who see us clearly.",
+              "Addiction is not a character flaw. It is what happens when pain has nowhere else to go.",
+              "Late diagnosis is not a label. It is a map -- finally showing you the terrain you have always been navigating.",
+              "Accountability in mental health is not about blame. It is about being honest enough to change.",
+              "We see risk not in the presence of an interpersonal relationship, but in the absence of one.",
+              "Understanding your past is not about blame. It is about finally making sense of yourself.",
+              "Recovery is anchored in real relationships -- the brain rewires when we feel seen, not just treated.",
+              "The gap between what we know about trauma and what our services do about it remains unconscionably wide.",
+              "Peer support is not a nice-to-have. It is the intervention with the strongest evidence base.",
+              "The relational space between coaching and therapy is where the most important work happens."
+            ];
+          }
+          log.push("Generated " + quotes.length + " quotes");
+        }
+        var THEMES = [
+          { bg: "#0f3b3a", text: "#f7f3e9", accent: "#ddd0c8", overlay: "rgba(15,59,58,0.78)", name: "teal" },
+          { bg: "#5c2d3f", text: "#f7f3e9", accent: "#ddd0c8", overlay: "rgba(92,45,63,0.78)", name: "rose" },
+          { bg: "#f7f3e9", text: "#0f3b3a", accent: "#5c2d3f", overlay: "rgba(247,243,233,0.85)", name: "ivory" },
+          { bg: "#1a1a1a", text: "#f7f3e9", accent: "#ddd0c8", overlay: "rgba(10,10,10,0.80)", name: "dark" }
+        ];
+        var BG_IMGS = [
+          "https://images.pexels.com/photos/1287145/pexels-photo-1287145.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop",
+          "https://images.pexels.com/photos/1624496/pexels-photo-1624496.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop",
+          "https://images.pexels.com/photos/2559941/pexels-photo-2559941.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop",
+          "https://images.pexels.com/photos/1906658/pexels-photo-1906658.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop",
+          "https://images.pexels.com/photos/1671325/pexels-photo-1671325.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop",
+          "https://images.pexels.com/photos/1761279/pexels-photo-1761279.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop",
+          "https://images.pexels.com/photos/1366919/pexels-photo-1366919.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop",
+          "https://images.pexels.com/photos/2325446/pexels-photo-2325446.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop",
+          "https://images.pexels.com/photos/1323550/pexels-photo-1323550.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop",
+          "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop",
+          "https://images.pexels.com/photos/3184418/pexels-photo-3184418.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop",
+          "https://images.pexels.com/photos/1591382/pexels-photo-1591382.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop"
+        ];
+        var limit = Math.min(quotes.length, 12);
+        log.push("Rendering " + limit + " canvases via Browserless...");
+        for (var i = 0; i < limit; i++) {
+          var quote = (quotes[i] || "").replace(/^["\u201c]|["\u201d]$/g, "").trim();
+          var theme = THEMES[i % THEMES.length];
+          var bgImg = BG_IMGS[i % BG_IMGS.length];
+          var safeQ = quote.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+          var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><style>*{margin:0;padding:0;box-sizing:border-box;}body{width:1080px;height:1080px;overflow:hidden;font-family:"Playfair Display",Georgia,serif;}.canvas{width:1080px;height:1080px;position:relative;background:' + theme.bg + ' url("' + bgImg + '") center/cover no-repeat;display:flex;flex-direction:column;align-items:center;justify-content:center;}.overlay{position:absolute;inset:0;background:' + theme.overlay + ";}.accent-top{position:absolute;top:0;left:0;right:0;height:10px;background:" + theme.accent + ";opacity:0.85;}.accent-bottom{position:absolute;bottom:0;left:0;right:0;height:10px;background:" + theme.accent + ";opacity:0.85;}.content{position:relative;z-index:10;text-align:center;padding:80px 100px;}.open-quote{font-size:130px;color:" + theme.text + ";opacity:0.1;line-height:0.7;margin-bottom:20px;}.quote{font-size:52px;font-style:italic;color:" + theme.text + ";line-height:1.45;font-weight:400;}.divider{width:320px;height:2px;background:" + theme.accent + ";opacity:0.65;margin:40px auto;}.wordmark{font-size:32px;font-weight:600;font-style:normal;letter-spacing:-0.5px;}.identity{color:#0f3b3a;}.partners{color:#5c2d3f;}.tagline{font-size:18px;font-style:italic;color:" + theme.accent + ";opacity:0.85;margin-top:8px;}.footer{position:absolute;bottom:28px;left:0;right:0;text-align:center;font-size:18px;color:" + theme.accent + ';font-family:"Inter",sans-serif;opacity:0.85;}.grid{position:absolute;top:30px;left:30px;width:100px;height:100px;display:grid;grid-template-columns:1fr 1fr;gap:4px;}.grid div{border-radius:6px;}.logo-area{position:absolute;top:30px;right:30px;width:130px;height:130px;display:flex;align-items:center;justify-content:center;}</style></head><body><div class="canvas"><div class="overlay"></div><div class="accent-top"></div><div class="accent-bottom"></div><div class="grid"><div style="background:#0f3b3a;"></div><div style="background:#5c2d3f;"></div><div style="background:#1a5550;"></div><div style="background:#7a4254;"></div></div><div class="logo-area"><svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;"><rect x="5" y="5" width="50" height="50" rx="10" fill="#0f3b3a" opacity="0.9"/><rect x="65" y="5" width="50" height="50" rx="10" fill="#5c2d3f" opacity="0.9"/><rect x="5" y="65" width="50" height="50" rx="10" fill="#5c2d3f" opacity="0.7"/><rect x="65" y="65" width="50" height="50" rx="10" fill="#0f3b3a" opacity="0.7"/><text x="60" y="68" font-family="Inter,sans-serif" font-size="14" fill="#f7f3e9" text-anchor="middle" font-weight="600">IP</text></svg></div><div class="content"><div class="open-quote">&ldquo;</div><div class="quote">' + safeQ + '</div><div class="divider"></div><div class="wordmark"><span class="identity">Identity</span><span class="partners">Partners</span></div><div class="tagline">Understand your past &middot; Appreciate the present &middot; Define your future</div></div><div class="footer">identitypartners.uk &nbsp;&middot;&nbsp; hello@identitypartners.uk</div></div></body></html>';
+          try {
+            var blResp = await fetch("https://chrome.browserless.io/screenshot?token=" + browserlessKey, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ html, options: { type: "png", clip: { x: 0, y: 0, width: 1080, height: 1080 }, fullPage: false }, waitForTimeout: 5e3 })
+            });
+            if (!blResp.ok) {
+              log.push("Canvas " + i + ": Browserless HTTP " + blResp.status);
+              continue;
+            }
+            var pngBuf = await blResp.arrayBuffer();
+            if (pngBuf.byteLength < 1e4) {
+              log.push("Canvas " + i + ": PNG too small (" + pngBuf.byteLength + " bytes)");
+              continue;
+            }
+            var qaPass = true;
+            var qaReason = "No vision model available -- auto-approved";
+            if (geminiKey) {
+              try {
+                var pngB64 = btoa(String.fromCharCode(...new Uint8Array(pngBuf)));
+                var qaResp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + geminiKey, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ contents: [{ parts: [
+                    { text: "You are a quality control agent for Identity Partners social media. Review this canvas image. Check: (1) Is the quote text clearly readable? (2) Is the logo visible in the top-right? (3) Is the colour grid visible in the top-left? (4) Does it look professional? Reply with PASS or FAIL followed by one sentence reason." },
+                    { inline_data: { mime_type: "image/png", data: pngB64.substring(0, 1e5) } }
+                  ] }] })
+                });
+                var qaData = await qaResp.json();
+                var qaText = qaData.candidates && qaData.candidates[0] && qaData.candidates[0].content && qaData.candidates[0].content.parts && qaData.candidates[0].content.parts[0] && qaData.candidates[0].content.parts[0].text || "";
+                qaPass = qaText.toUpperCase().startsWith("PASS") || qaText.toUpperCase().includes("PASS");
+                qaReason = qaText.substring(0, 100);
+              } catch (qaErr) {
+                qaReason = "Vision QA error: " + qaErr.message;
+              }
+            }
+            if (qaPass) {
+              var r2Key = "ig-template-" + i + ".png";
+              if (env.PRISM_ASSETS) {
+                await env.PRISM_ASSETS.put(r2Key, pngBuf, { httpMetadata: { contentType: "image/png" }, expirationTtl: 86400 * 90 });
+              }
+              approved.push({ index: i, key: r2Key, quote: quote.substring(0, 60), theme: theme.name, qa: qaReason, size: pngBuf.byteLength });
+              log.push("Canvas " + i + " (" + theme.name + "): APPROVED -- " + qaReason.substring(0, 60));
+            } else {
+              rejected.push({ index: i, quote: quote.substring(0, 60), reason: qaReason });
+              log.push("Canvas " + i + " (" + theme.name + "): REJECTED -- " + qaReason.substring(0, 60));
+            }
+          } catch (canvasErr) {
+            log.push("Canvas " + i + ": Error -- " + canvasErr.message);
+          }
+        }
+        var tgToken = env.TELEGRAM_TOKEN || env.telegram_bot_token;
+        var tgChat = env.TELEGRAM_CHAT || env.TELEGRAM_CHAT_ID;
+        if (tgToken && tgChat) {
+          var summary = " Canvas Regeneration Complete\n\n Approved: " + approved.length + "/" + limit + "\n Rejected: " + rejected.length + "\n\nApproved themes: " + approved.map(function(a) {
+            return a.theme;
+          }).join(", ") + "\n\nThese are now live for Instagram/Facebook posts.";
+          await fetch("https://api.telegram.org/bot" + tgToken + "/sendMessage", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: tgChat, text: summary })
+          });
+        }
+        return json({
+          success: true,
+          approved: approved.length,
+          rejected: rejected.length,
+          total: limit,
+          log,
+          approvedTemplates: approved,
+          rejectedTemplates: rejected
+        }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message, stack: e.stack ? e.stack.substring(0, 300) : "" }, 500, origin);
+      }
+    }
+    if (path === "/api/music/generate" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var prompt = body.prompt || "Calm ambient instrumental, therapeutic, warm";
+        var style = body.style || "ambient instrumental";
+        var instrumental = body.instrumental !== false;
+        var kieKey = env.KIE_AI || env.kie_ai;
+        if (!kieKey) return json({ error: "KIE_AI key not configured" }, 200, origin);
+        var result = await generateMusicKie(kieKey, prompt, style, instrumental);
+        var taskId = result.taskId;
+        if (!taskId) return json({ error: "No task ID from kie.ai" }, 200, origin);
+        for (var i = 0; i < 12; i++) {
+          await new Promise(function(r2) {
+            setTimeout(r2, 5e3);
+          });
+          var status = await getMusicStatusKie(kieKey, taskId);
+          if (status.status === "completed" || status.status === "success") {
+            var audioUrl = status.audio_url || status.data && status.data[0] && status.data[0].audio_url;
+            if (audioUrl) {
+              if (env.PRISM_KV) await env.PRISM_KV.put("music:" + taskId, JSON.stringify({ url: audioUrl, prompt, created: (/* @__PURE__ */ new Date()).toISOString() }), { expirationTtl: 86400 * 30 });
+              return json({ success: true, url: audioUrl, taskId, provider: "kie.ai/suno-v5.5" }, 200, origin);
+            }
+          }
+          if (status.status === "failed") return json({ error: "Music generation failed", status }, 200, origin);
+        }
+        return json({ success: false, taskId, message: "Still generating -- poll /api/music/status/" + taskId }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path.startsWith("/api/music/status/") && request.method === "GET") {
+      try {
+        var taskId2 = path.replace("/api/music/status/", "");
+        var kieKey2 = env.KIE_AI || env.kie_ai;
+        if (!kieKey2) return json({ error: "KIE_AI key not configured" }, 200, origin);
+        var status2 = await getMusicStatusKie(kieKey2, taskId2);
+        return json(status2, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/image/kie" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var prompt2 = body.prompt || "";
+        var model2 = body.model || "z-image";
+        var kieKey3 = env.KIE_AI || env.kie_ai;
+        if (!kieKey3) return json({ error: "KIE_AI key not configured" }, 200, origin);
+        var imgResult = await generateImageKie(kieKey3, model2, prompt2);
+        return json({ success: true, url: imgResult.url, provider: imgResult.provider }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/agent/pipeline" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var config = {
+          topic: body.topic || "addiction recovery",
+          spreadDays: body.spreadDays || 7,
+          scheduleFrom: body.scheduleFrom || null,
+          maxFindings: body.maxFindings || 20
+        };
+        if (!config.topic) return json({ error: "topic required" }, 400, origin);
+        var result = await runAgenticPipeline(env, config);
+        return json(result, 200, origin);
+      } catch (e) {
+        return json({ error: e.message, stack: e.stack ? e.stack.substring(0, 300) : "" }, 500, origin);
+      }
+    }
+    if (path === "/api/topics" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var topics = body.topics || [];
+        if (!Array.isArray(topics) || topics.length === 0) return json({ error: "topics array required" }, 400, origin);
+        var queue = {
+          topics: topics.map(function(t2, i2) {
+            return { id: "topic-" + i2, text: t2.trim(), status: "pending", runCount: 0, lastRun: null };
+          }),
+          currentIndex: 0,
+          created: (/* @__PURE__ */ new Date()).toISOString(),
+          updated: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        if (env.PRISM_KV) await env.PRISM_KV.put("topic-queue", JSON.stringify(queue));
+        return json({ success: true, count: topics.length, queue }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/topics" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ queue: null }, 200, origin);
+        var raw = await env.PRISM_KV.get("topic-queue");
+        if (!raw) return json({ queue: null, message: "No topic queue set" }, 200, origin);
+        return json({ queue: JSON.parse(raw) }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/topics/next" && request.method === "POST") {
+      try {
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 500, origin);
+        var raw = await env.PRISM_KV.get("topic-queue");
+        if (!raw) return json({ error: "No topic queue set. POST to /api/topics first." }, 200, origin);
+        var queue = JSON.parse(raw);
+        var topics = queue.topics || [];
+        if (topics.length === 0) return json({ error: "Topic queue is empty" }, 200, origin);
+        var idx = queue.currentIndex || 0;
+        var topic = topics[idx % topics.length];
+        queue.currentIndex = (idx + 1) % topics.length;
+        topic.runCount = (topic.runCount || 0) + 1;
+        topic.lastRun = (/* @__PURE__ */ new Date()).toISOString();
+        topic.status = "running";
+        queue.updated = (/* @__PURE__ */ new Date()).toISOString();
+        await env.PRISM_KV.put("topic-queue", JSON.stringify(queue));
+        return json({ topic: topic.text, index: idx, total: topics.length, nextIndex: queue.currentIndex }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/topics/reset" && request.method === "POST") {
+      try {
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 500, origin);
+        var raw = await env.PRISM_KV.get("topic-queue");
+        if (!raw) return json({ error: "No queue" }, 200, origin);
+        var queue = JSON.parse(raw);
+        queue.currentIndex = 0;
+        queue.topics.forEach(function(t2) {
+          t2.status = "pending";
+          t2.runCount = 0;
+          t2.lastRun = null;
+        });
+        queue.updated = (/* @__PURE__ */ new Date()).toISOString();
+        await env.PRISM_KV.put("topic-queue", JSON.stringify(queue));
+        return json({ success: true, message: "Queue reset to beginning" }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/topics/add" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var newTopic = (body.topic || "").trim();
+        if (!newTopic) return json({ error: "topic required" }, 400, origin);
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 500, origin);
+        var raw = await env.PRISM_KV.get("topic-queue");
+        var queue = raw ? JSON.parse(raw) : { topics: [], currentIndex: 0, created: (/* @__PURE__ */ new Date()).toISOString() };
+        queue.topics.push({ id: "topic-" + Date.now(), text: newTopic, status: "pending", runCount: 0, lastRun: null });
+        queue.updated = (/* @__PURE__ */ new Date()).toISOString();
+        await env.PRISM_KV.put("topic-queue", JSON.stringify(queue));
+        return json({ success: true, count: queue.topics.length }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/topics/remove" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var topicText = (body.topic || "").trim();
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 500, origin);
+        var raw = await env.PRISM_KV.get("topic-queue");
+        if (!raw) return json({ error: "No queue" }, 200, origin);
+        var queue = JSON.parse(raw);
+        var before = queue.topics.length;
+        queue.topics = queue.topics.filter(function(t2) {
+          return t2.text.toLowerCase() !== topicText.toLowerCase();
+        });
+        queue.currentIndex = Math.min(queue.currentIndex, Math.max(0, queue.topics.length - 1));
+        queue.updated = (/* @__PURE__ */ new Date()).toISOString();
+        await env.PRISM_KV.put("topic-queue", JSON.stringify(queue));
+        return json({ success: true, removed: before - queue.topics.length, remaining: queue.topics.length }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/models/test" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var provider = body.provider;
+        var model = body.model;
+        var key = body.key || null;
+        if (!key) {
+          let k3 = function(names2) {
+            for (var i2 = 0; i2 < names2.length; i2++) {
+              var n = names2[i2];
+              var v2 = env[n] || env[n.toLowerCase()] || env[n.toUpperCase()] || kv3[n] || kv3[n.toLowerCase()] || kv3[n.toUpperCase()];
+              if (v2 && v2.length > 6) return v2;
+            }
+            return null;
+          };
+          __name(k3, "k3");
+          var kv3 = {};
+          try {
+            if (env.PRISM_KV) {
+              var raw3 = await env.PRISM_KV.get("__secrets__");
+              if (raw3) kv3 = JSON.parse(raw3);
+            }
+          } catch (e) {
+          }
+          var keyMap = {
+            cerebras: k3(["cerebras_api_key", "CEREBRAS_PAID_1", "CEREBRAS_PAID_2"]),
+            groq: k3(["GROQ_PAID_1", "groq_api_key", "GROQ_API_KEY"]),
+            gemini: k3(["GEMINI_PAID_1", "GEMINI_FREE_1", "gemini_paid_api_key", "gemini_api_key"]),
+            deepseek: k3(["DEEPSEEK_PAID_1", "deepseek_api_key"]),
+            kimi: k3(["KIMI_PAID_1", "kimi_api_key"]),
+            mistral: k3(["MISTRAL_FREE_1", "MISTRAL_PAID_1", "mistral_api_key"]),
+            kie: k3(["KIE_AI", "kie_ai"]),
+            nvidia: k3(["NVIDIA_PAID_1", "nvidia_build_api_key"]),
+            cohere: k3(["COHERE_PAID_1", "cohere_api_key"]),
+            xai: k3(["XAI_PAID_1"]),
+            pollinations: k3(["POLLINATIONS_FREE_1", "pollinations_key"])
+          };
+          key = keyMap[provider];
+        }
+        if (!key && provider !== "pollinations") return json({ error: "No key for " + provider }, 200, origin);
+        try {
+          var result = await Promise.race([
+            callProvider(env, provider, key, model, [{ role: "user", content: "Say OK in one word." }]),
+            new Promise(function(_, reject) {
+              setTimeout(function() {
+                reject(new Error("timeout"));
+              }, 1e4);
+            })
+          ]);
+          return json({ success: true, provider, model, content: result.content.substring(0, 50) }, 200, origin);
+        } catch (e) {
+          return json({ success: false, provider, model, error: e.message.substring(0, 100) }, 200, origin);
+        }
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/models/groq" && request.method === "GET") {
+      try {
+        let k4 = function(names2) {
+          for (var i2 = 0; i2 < names2.length; i2++) {
+            var n = names2[i2];
+            var v2 = env[n] || env[n.toLowerCase()] || env[n.toUpperCase()] || kv4[n] || kv4[n.toLowerCase()] || kv4[n.toUpperCase()];
+            if (v2 && v2.length > 6) return v2;
+          }
+          return null;
+        };
+        __name(k4, "k4");
+        var kv4 = {};
+        try {
+          if (env.PRISM_KV) {
+            var raw4 = await env.PRISM_KV.get("__secrets__");
+            if (raw4) kv4 = JSON.parse(raw4);
+          }
+        } catch (e) {
+        }
+        var groqKey = k4(["GROQ_PAID_1", "groq_api_key"]);
+        if (!groqKey) return json({ error: "No Groq key" }, 200, origin);
+        var r = await fetch("https://api.groq.com/openai/v1/models", { headers: { "Authorization": "Bearer " + groqKey } });
+        if (!r.ok) return json({ error: "Groq HTTP " + r.status }, 200, origin);
+        var d = await r.json();
+        var models = (d.data || []).map(function(m2) {
+          return { id: m2.id, created: m2.created };
+        }).sort(function(a, b) {
+          return b.created - a.created;
+        });
+        return json({ models }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/models/gemini" && request.method === "GET") {
+      try {
+        let k5 = function(names2) {
+          for (var i2 = 0; i2 < names2.length; i2++) {
+            var n = names2[i2];
+            var v2 = env[n] || env[n.toLowerCase()] || env[n.toUpperCase()] || kv5[n] || kv5[n.toLowerCase()] || kv5[n.toUpperCase()];
+            if (v2 && v2.length > 6) return v2;
+          }
+          return null;
+        };
+        __name(k5, "k5");
+        var kv5 = {};
+        try {
+          if (env.PRISM_KV) {
+            var raw5 = await env.PRISM_KV.get("__secrets__");
+            if (raw5) kv5 = JSON.parse(raw5);
+          }
+        } catch (e) {
+        }
+        var gKey = k5(["GEMINI_PAID_1", "GEMINI_FREE_1", "gemini_paid_api_key", "gemini_api_key"]);
+        if (!gKey) return json({ error: "No Gemini key" }, 200, origin);
+        var isAIStudio = gKey.startsWith("AQ.");
+        var listUrl = isAIStudio ? "https://generativelanguage.googleapis.com/v1beta/models" : "https://generativelanguage.googleapis.com/v1beta/models?key=" + gKey;
+        var listHeaders = { "Content-Type": "application/json" };
+        if (isAIStudio) listHeaders["x-goog-api-key"] = gKey;
+        var r = await fetch(listUrl, { headers: listHeaders });
+        if (!r.ok) return json({ error: "Gemini list HTTP " + r.status, keyType: isAIStudio ? "AI Studio" : "API Key" }, 200, origin);
+        var d = await r.json();
+        var models = (d.models || []).filter(function(m2) {
+          return m2.supportedGenerationMethods && m2.supportedGenerationMethods.indexOf("generateContent") >= 0;
+        }).map(function(m2) {
+          return m2.name;
+        });
+        return json({ models, keyType: isAIStudio ? "AI Studio (AQ.)" : "API Key (AIzaSy)", total: models.length }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/models/gemini-list" && request.method === "GET") {
+      try {
+        let k5 = function(names2) {
+          for (var i2 = 0; i2 < names2.length; i2++) {
+            var n = names2[i2];
+            var v2 = env[n] || env[n.toLowerCase()] || env[n.toUpperCase()] || kv5[n] || kv5[n.toLowerCase()] || kv5[n.toUpperCase()];
+            if (v2 && v2.length > 6) return v2;
+          }
+          return null;
+        };
+        __name(k5, "k5");
+        var kv5 = {};
+        try {
+          if (env.PRISM_KV) {
+            var raw5 = await env.PRISM_KV.get("__secrets__");
+            if (raw5) kv5 = JSON.parse(raw5);
+          }
+        } catch (e) {
+        }
+        var gKey = k5(["GEMINI_PAID_1", "GEMINI_FREE_1", "gemini_paid_api_key", "gemini_api_key"]);
+        if (!gKey) return json({ error: "No Gemini key" }, 200, origin);
+        var isAIStudio = gKey.startsWith("AQ.");
+        var listUrl = isAIStudio ? "https://generativelanguage.googleapis.com/v1beta/models" : "https://generativelanguage.googleapis.com/v1beta/models?key=" + gKey;
+        var listHeaders = { "Content-Type": "application/json" };
+        if (isAIStudio) listHeaders["x-goog-api-key"] = gKey;
+        var r = await fetch(listUrl, { headers: listHeaders });
+        if (!r.ok) return json({ error: "HTTP " + r.status, key_type: isAIStudio ? "AI Studio" : "API Key" }, 200, origin);
+        var d = await r.json();
+        var models = (d.models || []).filter(function(m2) {
+          return m2.supportedGenerationMethods && m2.supportedGenerationMethods.indexOf("generateContent") >= 0;
+        }).map(function(m2) {
+          return m2.name;
+        });
+        return json({ models, key_type: isAIStudio ? "AI Studio" : "API Key", total: models.length }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/canvas/generate-and-store" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var text = (body.text || "").substring(0, 200);
+        var template = body.template || "quote-teal";
+        var key = body.key || "canvas-" + Date.now() + ".svg";
+        var svg = await generateCanvasHtml(text, template, env);
+        if (!svg) return json({ error: "SVG generation failed" }, 200, origin);
+        if (env.PRISM_ASSETS) {
+          await env.PRISM_ASSETS.put(key, svg, {
+            httpMetadata: { contentType: "image/svg+xml" },
+            expirationTtl: 86400 * 90
+          });
+        }
+        var serveUrl = "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/" + key;
+        return json({ success: true, url: serveUrl, key }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/site/crawl" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var targetUrl = body.url || "https://identitypartners.uk";
+        var fcKey = env.firecrawl_api_key || env.FIRECRAWL_API_KEY;
+        if (!fcKey) return json({ error: "firecrawl_api_key not configured" }, 200, origin);
+        var cr = await fetch("https://api.firecrawl.dev/v1/crawl", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + fcKey }, body: JSON.stringify({ url: targetUrl, limit: 50, scrapeOptions: { formats: ["markdown"], onlyMainContent: true } }) });
+        if (!cr.ok) return json({ error: "Firecrawl " + cr.status }, 200, origin);
+        var cd = await cr.json();
+        if (!cd.id) return json({ error: "No job ID" }, 200, origin);
+        var pages = [];
+        for (var att = 0; att < 12; att++) {
+          await new Promise(function(r2) {
+            setTimeout(r2, 5e3);
+          });
+          var sr = await fetch("https://api.firecrawl.dev/v1/crawl/" + cd.id, { headers: { "Authorization": "Bearer " + fcKey } });
+          var sd = await sr.json();
+          if (sd.status === "completed") {
+            pages = sd.data || [];
+            break;
+          }
+          if (sd.status === "failed") return json({ error: "Crawl failed" }, 200, origin);
+        }
+        if (!pages.length) return json({ error: "Crawl timed out", jobId: cd.id }, 200, origin);
+        var chunks = [];
+        for (var i = 0; i < pages.length; i++) {
+          var pg = pages[i];
+          var pgC = pg.markdown || pg.content || "";
+          var pgU = pg.metadata && pg.metadata.sourceURL || "";
+          var pgT = pg.metadata && pg.metadata.title || "";
+          var ws = pgC.split(/\s+/);
+          for (var j = 0; j < ws.length; j += 400) {
+            var ck = ws.slice(j, j + 400).join(" ");
+            if (ck.trim().length > 50) chunks.push({ url: pgU, title: pgT, chunk: ck });
+          }
+        }
+        var kb = { crawledAt: (/* @__PURE__ */ new Date()).toISOString(), siteUrl: targetUrl, pageCount: pages.length, chunkCount: chunks.length, chunks: chunks.slice(0, 200), rawPages: pages.slice(0, 20).map(function(p) {
+          return { url: p.metadata && p.metadata.sourceURL || "", title: p.metadata && p.metadata.title || "", content: (p.markdown || "").substring(0, 2e3) };
+        }) };
+        if (env.PRISM_KV) {
+          await env.PRISM_KV.put("site:knowledge-base", JSON.stringify(kb), { expirationTtl: 86400 * 7 });
+          await env.PRISM_KV.put("site:crawl-status", JSON.stringify({ lastCrawl: (/* @__PURE__ */ new Date()).toISOString(), pageCount: pages.length, chunkCount: chunks.length }));
+        }
+        return json({ success: true, pageCount: pages.length, chunkCount: chunks.length, jobId: cd.id }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/site/knowledge-base" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 200, origin);
+        var kbR = await env.PRISM_KV.get("site:knowledge-base");
+        var csR = await env.PRISM_KV.get("site:crawl-status");
+        if (!kbR) return json({ error: "No knowledge base. Run /api/site/crawl first." }, 200, origin);
+        var kbD = JSON.parse(kbR);
+        return json({ crawledAt: kbD.crawledAt, pageCount: kbD.pageCount, chunkCount: kbD.chunkCount, status: csR ? JSON.parse(csR) : null }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/site/generate-profiles" && request.method === "POST") {
+      try {
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 200, origin);
+        var kbR = await env.PRISM_KV.get("site:knowledge-base");
+        if (!kbR) return json({ error: "No knowledge base. Run /api/site/crawl first." }, 200, origin);
+        var kb = JSON.parse(kbR);
+        var sCtx = kb.rawPages ? kb.rawPages.map(function(p) {
+          return p.title + ": " + p.content;
+        }).join(" --- ").substring(0, 8e3) : "";
+        var pR = await orchestrate(env, [{ role: "system", content: "Audience intelligence analyst for Identity Partners. British English. Psychologically precise." }, { role: "user", content: "Generate 6 audience profiles as JSON array. Each: label,psychological_state,language_used,fears,click_triggers,trust_signals,search_queries. Website: " + sCtx }], "balanced", "research", null);
+        var profiles = [];
+        try {
+          var jm = pR.content.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          if (jm) profiles = JSON.parse(jm[0]);
+          else profiles = [{ raw: pR.content }];
+        } catch (e) {
+          profiles = [{ raw: pR.content }];
+        }
+        var pData = { generatedAt: (/* @__PURE__ */ new Date()).toISOString(), profiles, provider: pR.provider };
+        if (env.PRISM_KV) await env.PRISM_KV.put("site:audience-profiles", JSON.stringify(pData), { expirationTtl: 86400 * 30 });
+        return json({ success: true, profileCount: profiles.length, profiles, provider: pR.provider }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/site/audience-profiles" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 200, origin);
+        var raw = await env.PRISM_KV.get("site:audience-profiles");
+        if (!raw) return json({ error: "No profiles. Run /api/site/generate-profiles first." }, 200, origin);
+        return json(JSON.parse(raw), 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/pipeline/morning" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var platforms = body.platforms || ["bluesky", "instagram", "facebook", "x", "linkedin"];
+        var bufKey = env.BUFFER_API_KEY;
+        var results = {};
+        var errors = {};
+        var pCtx = "";
+        var bCtx = "";
+        if (env.PRISM_KV) {
+          var pRaw = await env.PRISM_KV.get("site:audience-profiles");
+          if (pRaw) {
+            var pd = JSON.parse(pRaw);
+            pCtx = "Audience: " + (pd.profiles || []).slice(0, 3).map(function(p) {
+              return (p.label || "Profile") + ": " + (p.psychological_state || "").substring(0, 100);
+            }).join("; ");
+          }
+          var kRaw = await env.PRISM_KV.get("site:knowledge-base");
+          if (kRaw) {
+            var kd = JSON.parse(kRaw);
+            bCtx = "Brand: " + (kd.rawPages || []).slice(0, 2).map(function(p) {
+              return p.content.substring(0, 300);
+            }).join(" ");
+          }
+        }
+        var tvKey = env.tavily_api_key || env.TAVILY_API_KEY;
+        var news = [];
+        if (tvKey) {
+          var terms = ["mental health UK news today", "addiction recovery research 2026", "neurodivergence ADHD identity", "trauma therapy evidence"];
+          for (var si = 0; si < terms.length; si++) {
+            try {
+              var sr = await fetch("https://api.tavily.com/search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ api_key: tvKey, query: terms[si], max_results: 3, search_depth: "basic", days: 1 }) });
+              if (sr.ok) {
+                var sd = await sr.json();
+                (sd.results || []).forEach(function(r2) {
+                  news.push({ title: r2.title, snippet: (r2.content || "").substring(0, 300) });
+                });
+              }
+            } catch (e) {
+            }
+          }
+        }
+        var nCtx = news.slice(0, 6).map(function(n) {
+          return n.title + ": " + n.snippet;
+        }).join(" ||| ");
+        var IPS = "You are the content voice for Identity Partners, a relational practice between coaching and therapy. British English. No sycophancy. No wellness retreat language. Direct, warm, evidence-informed.";
+        var aR = await orchestrate(env, [{ role: "system", content: IPS }, { role: "user", content: "Today news: " + nCtx + " " + pCtx + " " + bCtx + " Select the most resonant story and write a position on it. 150-200 words. British English." }], "balanced", "drafting", null);
+        var anchor = aR.content || "";
+        var qR = await orchestrate(env, [{ role: "system", content: "Extract the single most striking standalone sentence. 15-25 words. No hashtags. Return only the sentence." }, { role: "user", content: anchor }], "fast", "drafting", null);
+        var quote = (qR.content || "").replace(/^["\u201c]|["\u201d]$/g, "").trim();
+        var bskyR = await orchestrate(env, [{ role: "system", content: IPS }, { role: "user", content: "Write a Bluesky post. Under 280 chars. Sharp, direct. No hashtags in body. End with identitypartners.uk. Anchor: " + anchor.substring(0, 500) }], "fast", "drafting", null);
+        var xR = await orchestrate(env, [{ role: "system", content: IPS }, { role: "user", content: "Write an X post. Under 240 chars. Hook in first 5 words. identitypartners.uk at end. 1-2 hashtags. Anchor: " + anchor.substring(0, 500) }], "fast", "drafting", null);
+        var liR = await orchestrate(env, [{ role: "system", content: IPS }, { role: "user", content: "Write a LinkedIn post. 150-200 words. Professional reflection. Question at end. 3 hashtags. CTA to identitypartners.uk/contact. Anchor: " + anchor }], "balanced", "drafting", null);
+        var fbR = await orchestrate(env, [{ role: "system", content: IPS }, { role: "user", content: "Write a Facebook post. 100-150 words. Full thought. Question at end. Link to identitypartners.uk/contact. Anchor: " + anchor }], "fast", "drafting", null);
+        var canvasUrl = null;
+        var blKey = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO;
+        var tNames = ["quote-teal", "quote-rose", "quote-ivory"];
+        var tmpl = tNames[(/* @__PURE__ */ new Date()).getDay() % 3];
+        var tMap = { "quote-teal": { bg: "#0f3b3a", text: "#f7f3e9", accent: "#ddd0c8", overlay: "rgba(15,59,58,0.78)" }, "quote-rose": { bg: "#5c2d3f", text: "#f7f3e9", accent: "#ddd0c8", overlay: "rgba(92,45,63,0.78)" }, "quote-ivory": { bg: "#f7f3e9", text: "#0f3b3a", accent: "#5c2d3f", overlay: "rgba(247,243,233,0.85)" } };
+        var t = tMap[tmpl];
+        var bgImgs = ["https://images.pexels.com/photos/1287145/pexels-photo-1287145.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop", "https://images.pexels.com/photos/1624496/pexels-photo-1624496.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop", "https://images.pexels.com/photos/2559941/pexels-photo-2559941.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop", "https://images.pexels.com/photos/1906658/pexels-photo-1906658.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop", "https://images.pexels.com/photos/1671325/pexels-photo-1671325.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1080&fit=crop"];
+        var bgUrl = bgImgs[(/* @__PURE__ */ new Date()).getDate() % bgImgs.length];
+        var safeQ = quote.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        if (blKey && quote) {
+          var hp = '<!DOCTYPE html><html><head><meta charset="UTF-8"><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><style>*{margin:0;padding:0;box-sizing:border-box;}body{width:1080px;height:1080px;overflow:hidden;}.c{width:1080px;height:1080px;position:relative;background:' + t.bg + ' url("' + bgUrl + '") center/cover no-repeat;display:flex;flex-direction:column;align-items:center;justify-content:center;}.o{position:absolute;inset:0;background:' + t.overlay + ";}.at{position:absolute;top:0;left:0;right:0;height:10px;background:" + t.accent + ";opacity:0.85;}.ab{position:absolute;bottom:0;left:0;right:0;height:10px;background:" + t.accent + ";opacity:0.85;}.g{position:absolute;top:30px;left:30px;width:96px;height:96px;display:grid;grid-template-columns:1fr 1fr;gap:4px;}.g div{border-radius:6px;}.ct{position:relative;z-index:10;text-align:center;padding:80px 100px;}.oq{font-size:120px;color:" + t.text + ";opacity:0.1;line-height:0.7;margin-bottom:20px;font-family:Georgia,serif;}.q{font-size:52px;font-style:italic;color:" + t.text + ';line-height:1.45;font-weight:400;font-family:"Playfair Display",Georgia,serif;}.d{width:320px;height:2px;background:' + t.accent + ';opacity:0.65;margin:40px auto;}.wm{font-size:30px;font-weight:600;font-style:normal;font-family:"Playfair Display",Georgia,serif;}.i{color:#0f3b3a;}.p{color:#5c2d3f;}.tg{font-size:18px;color:' + t.accent + ';opacity:0.85;margin-top:8px;font-family:"Inter",sans-serif;}.f{position:absolute;bottom:28px;left:0;right:0;text-align:center;font-size:18px;color:' + t.accent + ';font-family:"Inter",sans-serif;opacity:0.85;}</style></head><body><div class="c"><div class="o"></div><div class="at"></div><div class="ab"></div><div class="g"><div style="background:#0f3b3a;"></div><div style="background:#5c2d3f;"></div><div style="background:#5c2d3f;"></div><div style="background:#0f3b3a;"></div></div><div class="ct"><div class="oq">&ldquo;</div><div class="q">' + safeQ + '</div><div class="d"></div><div class="wm"><span class="i">Identity</span><span class="p">Partners</span></div><div class="tg">Understand your past &middot; Appreciate the present &middot; Define your future</div></div><div class="f">identitypartners.uk &nbsp;&middot;&nbsp; hello@identitypartners.uk</div></div></body></html>';
+          try {
+            var blResp = await fetch("https://chrome.browserless.io/screenshot?token=" + blKey, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ html: hp, options: { type: "png", clip: { x: 0, y: 0, width: 1080, height: 1080 }, fullPage: false }, waitForTimeout: 8e3 }) });
+            if (blResp.ok) {
+              var pngBuf = await blResp.arrayBuffer();
+              if (pngBuf.byteLength > 5e3 && env.PRISM_ASSETS) {
+                var ck = "morning-canvas-" + (/* @__PURE__ */ new Date()).toISOString().split("T")[0] + ".png";
+                await env.PRISM_ASSETS.put(ck, pngBuf, { httpMetadata: { contentType: "image/png" }, expirationTtl: 86400 * 30 });
+                canvasUrl = "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/" + ck;
+              }
+            }
+          } catch (blErr2) {
+            errors._canvas = blErr2.message;
+          }
+        }
+        if (!canvasUrl) {
+          canvasUrl = "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-" + (/* @__PURE__ */ new Date()).getDate() % 150 + ".png";
+        }
+        var caption = "hello@identitypartners.uk | identitypartners.uk/contact\n#IdentityPartners #MentalHealth #Recovery #Addiction #Wellbeing #Trauma";
+        var igCh = "6a97edce065799be46722eab";
+        var fbCh = "6a97ea40065799be46721fdd";
+        var xCh = "6a97ebf1065799be46722744";
+        for (var pli = 0; pli < platforms.length; pli++) {
+          var plat = platforms[pli];
+          try {
+            if (plat === "bluesky") {
+              results.bluesky = await postToBluesky(env, (bskyR.content || quote).substring(0, 280) + " identitypartners.uk");
+            } else if ((plat === "instagram" || plat === "facebook") && bufKey) {
+              var chId = plat === "instagram" ? igCh : fbCh;
+              var pTxt = plat === "instagram" ? caption : (fbR.content || anchor).substring(0, 500) + "\n\n" + caption;
+              var mStr = plat === "instagram" ? ",metadata:{instagram:{type:post,shouldShareToFeed:true}}" : ",metadata:{facebook:{type:post}}";
+              var mut = JSON.stringify({ query: 'mutation{createPost(input:{channelId:"' + chId + '",text:' + JSON.stringify(pTxt) + ",assets:[{image:{url:" + JSON.stringify(canvasUrl) + "}}],mode:shareNow,needsApproval:false,schedulingType:automatic" + mStr + "}){...on PostActionSuccess{post{id status}}...on MutationError{message}}}" });
+              var bR = await fetch("https://api.buffer.com/graphql", { method: "POST", headers: { "Authorization": "Bearer " + bufKey, "Content-Type": "application/json" }, body: mut });
+              var bD = await bR.json();
+              var cp = (bD.data || {}).createPost || {};
+              if (cp.post) results[plat] = { success: true, id: cp.post.id, imageUrl: canvasUrl };
+              else errors[plat] = cp.message || "Buffer error";
+            } else if (plat === "x" && bufKey) {
+              var xTxt = xR.content || quote.substring(0, 220) + " identitypartners.uk #IdentityPartners #MentalHealth";
+              var xMut = JSON.stringify({ query: 'mutation{createPost(input:{channelId:"' + xCh + '",text:' + JSON.stringify(xTxt) + ",assets:[{image:{url:" + JSON.stringify(canvasUrl) + "}}],mode:shareNow,needsApproval:false,schedulingType:automatic}){...on PostActionSuccess{post{id status}}...on MutationError{message}}}" });
+              var xResp = await fetch("https://api.buffer.com/graphql", { method: "POST", headers: { "Authorization": "Bearer " + bufKey, "Content-Type": "application/json" }, body: xMut });
+              var xD = await xResp.json();
+              var xCp = (xD.data || {}).createPost || {};
+              if (xCp.post) results.x = { success: true, id: xCp.post.id, imageUrl: canvasUrl };
+              else errors.x = xCp.message || "Buffer error";
+            } else if (plat === "linkedin") {
+              var liTok = null;
+              if (env.PRISM_KV) {
+                var lt = await env.PRISM_KV.get("oauth:linkedin:tokens");
+                if (lt) {
+                  try {
+                    liTok = JSON.parse(lt).access_token;
+                  } catch (e) {
+                  }
+                }
+              }
+              if (!liTok) liTok = env.LINKEDIN_PAID_1 || env.LINKEDIN_PAID_2;
+              if (liTok) {
+                var meR = await fetch("https://api.linkedin.com/v2/userinfo", { headers: { "Authorization": "Bearer " + liTok } });
+                var meD = await meR.json();
+                if (meD.sub) {
+                  var liBody = { author: "urn:li:person:" + meD.sub, lifecycleState: "PUBLISHED", specificContent: { "com.linkedin.ugc.ShareContent": { shareCommentary: { text: (liR.content || anchor).substring(0, 3e3) }, shareMediaCategory: "NONE" } }, visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" } };
+                  var liResp = await fetch("https://api.linkedin.com/v2/ugcPosts", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + liTok, "X-Restli-Protocol-Version": "2.0.0" }, body: JSON.stringify(liBody) });
+                  var liD = await liResp.json();
+                  if (liResp.ok) results.linkedin = { success: true, id: liD.id };
+                  else errors.linkedin = JSON.stringify(liD).substring(0, 100);
+                }
+              }
+            }
+          } catch (pe) {
+            errors[plat] = pe.message;
+          }
+        }
+        var runRec = { runAt: (/* @__PURE__ */ new Date()).toISOString(), type: "morning", anchorContent: anchor.substring(0, 500), quoteText: quote, canvasUrl, newsCount: news.length, results, errors };
+        if (env.PRISM_KV) await env.PRISM_KV.put("pipeline:last-morning-run", JSON.stringify(runRec), { expirationTtl: 86400 * 7 });
+        var tgTok = env.TELEGRAM_TOKEN || env.telegram_bot_token;
+        var tgCh = env.TELEGRAM_CHAT || env.TELEGRAM_CHAT_ID;
+        if (tgTok && tgCh) {
+          var posted = Object.keys(results).filter(function(k) {
+            return results[k] && results[k].success;
+          });
+          await fetch("https://api.telegram.org/bot" + tgTok + "/sendMessage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: tgCh, text: "\u2600\uFE0F Morning pipeline\n\nPosted: " + posted.join(", ") + "\n\n" + anchor.substring(0, 200) + "..." }) });
+        }
+        return json({ success: true, results, errors, anchorContent: anchor.substring(0, 300), quoteText: quote, canvasUrl, newsCount: news.length }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/analytics/feedback" && request.method === "POST") {
+      try {
+        var bufKey = env.BUFFER_API_KEY;
+        if (!bufKey) return json({ error: "BUFFER_API_KEY not configured" }, 200, origin);
+        var aR = await fetch("https://api.buffer.com/graphql", { method: "POST", headers: { "Authorization": "Bearer " + bufKey, "Content-Type": "application/json" }, body: JSON.stringify({ query: '{organizations{channels{id name service analytics(period:"week"){metrics{label value}}}}}' }) });
+        var aD = await aR.json();
+        var channels = ((aD.data || {}).organizations || [{}])[0].channels || [];
+        var metrics = {};
+        for (var ci = 0; ci < channels.length; ci++) {
+          var ch = channels[ci];
+          var chM = {};
+          (ch.analytics && ch.analytics.metrics || []).forEach(function(m2) {
+            chM[m2.label] = m2.value;
+          });
+          metrics[ch.service || ch.name] = chM;
+        }
+        var insR = await orchestrate(env, [{ role: "system", content: "Analytics analyst for Identity Partners. British English." }, { role: "user", content: "Analyse this week. Return JSON: {topPlatform,insights:[],recommendations:[]}. Metrics: " + JSON.stringify(metrics) }], "balanced", "research", null);
+        var insights = {};
+        try {
+          var jm2 = insR.content.match(/\{[\s\S]*\}/);
+          if (jm2) insights = JSON.parse(jm2[0]);
+          else insights = { raw: insR.content };
+        } catch (e) {
+          insights = { raw: insR.content };
+        }
+        var fbRec = { analysedAt: (/* @__PURE__ */ new Date()).toISOString(), metrics, insights };
+        if (env.PRISM_KV) {
+          await env.PRISM_KV.put("analytics:weekly-feedback", JSON.stringify(fbRec), { expirationTtl: 86400 * 14 });
+          if (insights.topPlatform) await env.PRISM_KV.put("analytics:top-platform", insights.topPlatform, { expirationTtl: 86400 * 7 });
+        }
+        return json({ success: true, metrics, insights }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    if (path === "/api/pipeline/status" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 200, origin);
+        var mR = await env.PRISM_KV.get("pipeline:last-morning-run");
+        var csR = await env.PRISM_KV.get("site:crawl-status");
+        var psR = await env.PRISM_KV.get("site:audience-profiles");
+        var arR = await env.PRISM_KV.get("analytics:weekly-feedback");
+        var pInfo = null;
+        if (psR) {
+          var pd2 = JSON.parse(psR);
+          pInfo = { generatedAt: pd2.generatedAt, count: (pd2.profiles || []).length };
+        }
+        return json({ morning: mR ? JSON.parse(mR) : null, crawl: csR ? JSON.parse(csR) : null, profiles: pInfo, analytics: arR ? { analysedAt: JSON.parse(arR).analysedAt } : null }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+    return json({ error: "Not found", path }, 404, origin);
   }
 };
-// This file is complete — the append below adds the RSS endpoint
-// (appended at build time, not runtime)
+export {
+  index_default as default
+};
+//# sourceMappingURL=index.js.map
+
