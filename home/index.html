@@ -162,6 +162,7 @@
 <div class="home-hero-bg" id="hero-bg"></div>
 <button class="hero-cycle-btn" onclick="cycleHeroImage()" title="Next background image">Next image</button>
 <div class="home-hero-content">
+<div style="font-family:'Playfair Display',Georgia,serif;margin-bottom:6px;"><span style="font-size:20px;font-weight:600;color:#7ecfcd;">Identity</span><span style="font-size:20px;font-weight:600;color:#d4899a;">Partners</span><div style="font-size:10px;color:#f7f3e9;opacity:0.75;margin-top:2px;">Understand your past &middot; Appreciate the present &middot; Define your future</div></div>
 <div class="home-hero-greeting" id="hero-greeting">Good morning, Simon.</div>
 <div class="home-hero-date" id="hero-date"></div>
 </div>
@@ -271,13 +272,7 @@
 <script src="/shared/prism.js"></script>
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
-var heroImages = [
-  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&q=80',
-  'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=1200&q=80',
-  'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1200&q=80',
-  'https://images.unsplash.com/photo-1518173946687-a4c8892bbd9f?w=1200&q=80',
-  'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=1200&q=80',
-];
+var heroImages = [];
 var heroIdx = 0;
 var todos = [];
 var calYear = 2026;
@@ -305,7 +300,9 @@ function setGreeting() {
 
 function setHeroImage() {
   var bg = document.getElementById('hero-bg');
-  if (bg) bg.style.backgroundImage = 'url(' + heroImages[heroIdx] + ')';
+  if (!bg) return;
+  bg.style.backgroundImage = 'linear-gradient(135deg, #0f3b3a 0%, #1a5c5a 45%, #5c2d3f 100%)';
+  bg.style.opacity = '1';
 }
 
 function cycleHeroImage() {
