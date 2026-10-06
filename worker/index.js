@@ -1453,7 +1453,7 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     chain.push({ p: "gemini", key: KEYS.gemini_free, m: "gemma-4-31b-it" });
     if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-32k" });
     if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-a-03-2025" });
-    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat-v3-0324:free" });
+    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat" });
   }
   var lastMsg = "";
   for (var mi = messages.length - 1; mi >= 0; mi--) {
@@ -1475,12 +1475,12 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-reasoner", ctx: 64e3, cost: 0.55, note: "DeepSeek R1 -- chain-of-thought" });
     if (KEYS.gemini_paid) chain.push({ p: "gemini", key: KEYS.gemini_paid, m: "gemini-2.5-flash", ctx: 32e3, cost: 0, note: "Gemini thinking" });
     if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-32k", ctx: 32e3, cost: 0.12, note: "Kimi long-ctx reasoning" });
-    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus", ctx: 128e3, cost: 3, note: "Cohere R+ -- strong reasoning" });
-    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat-v3-0324:free", ctx: 64e3, cost: 0, note: "DeepSeek R1 free via OpenRouter" });
+    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128e3, cost: 3, note: "Cohere R+ -- strong reasoning" });
+    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 64e3, cost: 0, note: "DeepSeek R1 free via OpenRouter" });
   } else if (isLongContext) {
     if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-128k", ctx: 128e3, cost: 0.12, note: "Kimi 128K -- best long-ctx" });
     if (KEYS.gemini_paid) chain.push({ p: "gemini", key: KEYS.gemini_paid, m: "gemini-2.5-pro", ctx: 1e6, cost: 3.5, note: "Gemini 1M ctx" });
-    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus", ctx: 128e3, cost: 3, note: "Cohere 128K" });
+    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128e3, cost: 3, note: "Cohere 128K" });
     if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64e3, cost: 0.14, note: "DeepSeek 64K" });
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "anthropic/claude-3-haiku:beta", ctx: 2e5, cost: 0.25, note: "Claude 200K via OpenRouter" });
   } else if (isCoding) {
@@ -1795,7 +1795,7 @@ async function callProvider(env, provider, key, model, messages) {
   if (provider === "openrouter") {
     var r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
-      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json", "HTTP-Referer": "https://prism.identitypartners.uk", "X-Title": "Prism" },
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json", "HTTP-Referer": "https://prism.identitypartners.uk", "X-Title": "Argentica" },
       body: JSON.stringify({ model, messages, max_tokens: 2048 })
     });
     if (!r.ok) {
@@ -3148,7 +3148,7 @@ var index_default = {
       var feedUrl = url.searchParams.get("url");
       if (!feedUrl) return json({ error: "No URL provided" }, 400, origin);
       try {
-        var rssResp = await fetch(feedUrl, { headers: { "User-Agent": "Prism/1.0 RSS Reader" } });
+        var rssResp = await fetch(feedUrl, { headers: { "User-Agent": "Argentica/1.0 RSS Reader" } });
         var rssText = await rssResp.text();
         return new Response(rssText, {
           headers: Object.assign({ "Content-Type": "application/rss+xml; charset=utf-8" }, cors(origin))
@@ -4064,7 +4064,7 @@ var index_default = {
             if (!rToken) return { success: false, error: "Reddit not connected. Add REDDIT_ACCESS_TOKEN via ingester." };
             var resp2 = await fetch("https://oauth.reddit.com/api/submit", {
               method: "POST",
-              headers: { "Authorization": "Bearer " + rToken, "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Prism/1.0" },
+              headers: { "Authorization": "Bearer " + rToken, "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Argentica/1.0" },
               body: "sr=" + subreddit2 + "&kind=self&title=" + encodeURIComponent(postText.substring(0, 300)) + "&text=" + encodeURIComponent(postText) + "&resubmit=true"
             });
             var data2 = await resp2.json();
@@ -4188,7 +4188,7 @@ var index_default = {
         var subreddit = body.subreddit || "mentalhealth";
         var resp = await fetch("https://oauth.reddit.com/api/submit", {
           method: "POST",
-          headers: { "Authorization": "Bearer " + token, "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Prism/1.0 by IdentityPartners" },
+          headers: { "Authorization": "Bearer " + token, "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Argentica/1.0 by IdentityPartners" },
           body: "sr=" + encodeURIComponent(subreddit) + "&kind=self&title=" + encodeURIComponent((body.title || body.text).substring(0, 300)) + "&text=" + encodeURIComponent(body.text) + "&resubmit=true&nsfw=false&spoiler=false"
         });
         var data = await resp.json();
@@ -4708,7 +4708,7 @@ var index_default = {
           try {
             var r2 = await fetch(feed.url, {
               headers: {
-                "User-Agent": "Mozilla/5.0 (compatible; PrismBot/1.0)",
+                "User-Agent": "Mozilla/5.0 (compatible; ArgenticaBot/1.0)",
                 "Accept": "application/rss+xml, application/xml, text/xml, */*"
               }
             });
@@ -4778,7 +4778,7 @@ var index_default = {
         var topic = forceTopic;
         if (!topic) {
           try {
-            var gR = await fetch("https://www.theguardian.com/society/rss", { headers: { "User-Agent": "Mozilla/5.0 (compatible; PrismBot/1.0)" } });
+            var gR = await fetch("https://www.theguardian.com/society/rss", { headers: { "User-Agent": "Mozilla/5.0 (compatible; ArgenticaBot/1.0)" } });
             if (gR.ok) {
               var gXml = await gR.text();
               var gItems = gXml.match(/<item[^>]*>([\s\S]*?)<\/item>/g) || [];
@@ -5690,8 +5690,8 @@ var index_default = {
           { pos: 2, provider: "deepseek", models: ["deepseek-reasoner"], keys: 1, ctx: 64e3, cost: "$0.55/1M", note: "DeepSeek R1 -- chain-of-thought" },
           { pos: 3, provider: "gemini", models: ["gemini-2.5-flash"], keys: 1, ctx: 32e3, cost: "free", note: "Gemini thinking mode" },
           { pos: 4, provider: "kimi", models: ["moonshot-v1-32k"], keys: 1, ctx: 32e3, cost: "$0.12/1M", note: "Kimi 32K" },
-          { pos: 5, provider: "cohere", models: ["command-r-plus"], keys: 1, ctx: 128e3, cost: "$3/1M", note: "Cohere R+ -- strong reasoning" },
-          { pos: 6, provider: "openrouter", models: ["deepseek/deepseek-chat-v3-0324:free"], keys: 1, ctx: 64e3, cost: "free", note: "DeepSeek R1 free via OpenRouter" }
+          { pos: 5, provider: "cohere", models: ["command-r-plus-08-2024"], keys: 1, ctx: 128e3, cost: "$3/1M", note: "Cohere R+ -- strong reasoning" },
+          { pos: 6, provider: "openrouter", models: ["deepseek/deepseek-chat"], keys: 1, ctx: 64e3, cost: "free", note: "DeepSeek R1 free via OpenRouter" }
         ],
         coding: [
           { pos: 1, provider: "deepseek", models: ["deepseek-chat"], keys: 3, ctx: 64e3, cost: "$0.14/1M", note: "DeepSeek -- excellent at code" },
@@ -5703,7 +5703,7 @@ var index_default = {
         long_context: [
           { pos: 1, provider: "kimi", models: ["moonshot-v1-128k"], keys: 1, ctx: 128e3, cost: "$0.12/1M", note: "Kimi 128K -- best long-ctx" },
           { pos: 2, provider: "gemini", models: ["gemini-2.5-pro"], keys: 1, ctx: 1e6, cost: "$3.5/1M", note: "Gemini 1M context" },
-          { pos: 3, provider: "cohere", models: ["command-r-plus"], keys: 1, ctx: 128e3, cost: "$3/1M", note: "Cohere 128K" },
+          { pos: 3, provider: "cohere", models: ["command-r-plus-08-2024"], keys: 1, ctx: 128e3, cost: "$3/1M", note: "Cohere 128K" },
           { pos: 4, provider: "deepseek", models: ["deepseek-chat"], keys: 3, ctx: 64e3, cost: "$0.14/1M", note: "DeepSeek 64K" },
           { pos: 5, provider: "openrouter", models: ["anthropic/claude-3-haiku:beta"], keys: 1, ctx: 2e5, cost: "$0.25/1M", note: "Claude 200K via OpenRouter" }
         ]
@@ -7066,6 +7066,140 @@ var index_default = {
         ],
         count: 12
       }, 200, origin);
+    }
+
+    // Image search — Pexels, Unsplash, Wikimedia
+    if (path === "/api/image-search" && request.method === "GET") {
+      try {
+        var q = url.searchParams.get("q") || "landscape";
+        var source = url.searchParams.get("source") || "pexels";
+        var perPage = parseInt(url.searchParams.get("per_page") || "12");
+        var images = [];
+
+        if (source === "pexels") {
+          var pexelsKey = env.pexels_api_key || env.PEXELS_API_KEY || env.pexels || "";
+          if (pexelsKey) {
+            var pR = await fetch(
+              "https://api.pexels.com/v1/search?query=" + encodeURIComponent(q) + "&per_page=" + perPage + "&orientation=landscape",
+              { headers: { "Authorization": pexelsKey } }
+            );
+            if (pR.ok) {
+              var pD = await pR.json();
+              images = (pD.photos || []).map(function(p) {
+                return { url: p.src.large2x || p.src.large, thumb: p.src.medium, alt: p.alt, photographer: p.photographer, source: "pexels" };
+              });
+            }
+          }
+        } else if (source === "unsplash") {
+          var unsplashKey = env.unsplash_api_key || env.UNSPLASH_API_KEY || env.unsplash || "";
+          if (unsplashKey) {
+            var uR = await fetch(
+              "https://api.unsplash.com/search/photos?query=" + encodeURIComponent(q) + "&per_page=" + perPage + "&orientation=landscape",
+              { headers: { "Authorization": "Client-ID " + unsplashKey } }
+            );
+            if (uR.ok) {
+              var uD = await uR.json();
+              images = (uD.results || []).map(function(p) {
+                return { url: p.urls.regular, thumb: p.urls.thumb, alt: p.alt_description || q, photographer: p.user.name, source: "unsplash" };
+              });
+            }
+          }
+        } else if (source === "wikimedia") {
+          var wR = await fetch(
+            "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=" + encodeURIComponent(q) +
+            "&gsrnamespace=6&gsrlimit=" + perPage + "&prop=imageinfo&iiprop=url|thumburl|extmetadata&iiurlwidth=400&format=json&origin=*"
+          );
+          if (wR.ok) {
+            var wD = await wR.json();
+            var pages = Object.values((wD.query || {}).pages || {});
+            images = pages.filter(function(p) {
+              var url2 = ((p.imageinfo || [])[0] || {}).url || "";
+              return /\.(jpg|jpeg|png|webp)/i.test(url2);
+            }).map(function(p) {
+              var ii = (p.imageinfo || [])[0] || {};
+              return { url: ii.url, thumb: ii.thumburl || ii.url, alt: p.title.replace("File:", ""), source: "wikimedia" };
+            });
+          }
+        }
+
+        return json({ images, count: images.length, source, query: q }, 200, origin);
+      } catch(e) {
+        return json({ error: e.message, images: [] }, 200, origin);
+      }
+    }
+
+    // Voice generation — ElevenLabs, Cartesia, Fish Audio
+    if (path === "/api/voice/generate" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var text = (body.text || "").substring(0, 5000);
+        var provider = body.provider || "elevenlabs";
+        var voiceId = body.voice_id || "pNInz6obpgDQGcFmaJgB";
+        var model = body.model || "eleven_turbo_v2_5";
+
+        if (provider === "elevenlabs") {
+          var elKey = env.elevenlabs_api_key || env.ELEVENLABS_API_KEY || env.elevenlabs || "";
+          if (!elKey) return json({ error: "ElevenLabs key not configured" }, 200, origin);
+          var elResp = await fetch("https://api.elevenlabs.io/v1/text-to-speech/" + voiceId, {
+            method: "POST",
+            headers: { "xi-api-key": elKey, "Content-Type": "application/json", "Accept": "audio/mpeg" },
+            body: JSON.stringify({ text, model_id: model, voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
+          });
+          if (!elResp.ok) {
+            var errT = await elResp.text();
+            return json({ error: "ElevenLabs " + elResp.status + ": " + errT.substring(0, 200) }, 200, origin);
+          }
+          var audioBuf = await elResp.arrayBuffer();
+          var audioB64 = btoa(String.fromCharCode(...new Uint8Array(audioBuf)));
+          // Upload to R2 for persistent URL
+          var audioKey = "podcast-audio-" + Date.now() + ".mp3";
+          if (env.PRISM_ASSETS) {
+            await env.PRISM_ASSETS.put(audioKey, audioBuf, { httpMetadata: { contentType: "audio/mpeg" }, expirationTtl: 86400 * 7 });
+            return json({ url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/" + audioKey, provider: "elevenlabs" }, 200, origin);
+          }
+          return json({ audio_base64: audioB64, provider: "elevenlabs" }, 200, origin);
+
+        } else if (provider === "cartesia") {
+          var carKey = env.cartesia_api_key || env.CARTESIA_API_KEY || env.cartesia || "";
+          if (!carKey) return json({ error: "Cartesia key not configured" }, 200, origin);
+          var carResp = await fetch("https://api.cartesia.ai/tts/bytes", {
+            method: "POST",
+            headers: { "X-API-Key": carKey, "Content-Type": "application/json", "Cartesia-Version": "2024-06-10" },
+            body: JSON.stringify({ transcript: text, model_id: "sonic-english", voice: { mode: "id", id: voiceId === "sonic-english" ? "a0e99841-438c-4a64-b679-ae501e7d6091" : voiceId }, output_format: { container: "mp3", encoding: "mp3", sample_rate: 44100 } })
+          });
+          if (!carResp.ok) return json({ error: "Cartesia " + carResp.status }, 200, origin);
+          var carBuf = await carResp.arrayBuffer();
+          var carKey2 = "podcast-audio-" + Date.now() + ".mp3";
+          if (env.PRISM_ASSETS) {
+            await env.PRISM_ASSETS.put(carKey2, carBuf, { httpMetadata: { contentType: "audio/mpeg" }, expirationTtl: 86400 * 7 });
+            return json({ url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/" + carKey2, provider: "cartesia" }, 200, origin);
+          }
+          var carB64 = btoa(String.fromCharCode(...new Uint8Array(carBuf)));
+          return json({ audio_base64: carB64, provider: "cartesia" }, 200, origin);
+
+        } else if (provider === "fishaudio") {
+          var fishKey = env.fish_audio_api_key || env.FISH_AUDIO_API_KEY || env.fishaudio || "";
+          if (!fishKey) return json({ error: "Fish Audio key not configured" }, 200, origin);
+          var fishResp = await fetch("https://api.fish.audio/v1/tts", {
+            method: "POST",
+            headers: { "Authorization": "Bearer " + fishKey, "Content-Type": "application/json" },
+            body: JSON.stringify({ text, reference_id: voiceId, format: "mp3", mp3_bitrate: 128 })
+          });
+          if (!fishResp.ok) return json({ error: "Fish Audio " + fishResp.status }, 200, origin);
+          var fishBuf = await fishResp.arrayBuffer();
+          var fishKey2 = "podcast-audio-" + Date.now() + ".mp3";
+          if (env.PRISM_ASSETS) {
+            await env.PRISM_ASSETS.put(fishKey2, fishBuf, { httpMetadata: { contentType: "audio/mpeg" }, expirationTtl: 86400 * 7 });
+            return json({ url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/" + fishKey2, provider: "fishaudio" }, 200, origin);
+          }
+          var fishB64 = btoa(String.fromCharCode(...new Uint8Array(fishBuf)));
+          return json({ audio_base64: fishB64, provider: "fishaudio" }, 200, origin);
+        }
+
+        return json({ error: "Unknown provider: " + provider }, 400, origin);
+      } catch(e) {
+        return json({ error: e.message }, 500, origin);
+      }
     }
 
 return json({ error: "Not found", path }, 404, origin);
