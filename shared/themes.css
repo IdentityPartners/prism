@@ -2,22 +2,27 @@
 /* Each theme is a distinct visual identity, not just a colour swap */
 
 /* ── Theme 1: Parchment & Rose (default — defined in prism.css) ─────────────── */
-[data-theme="parchment"] {
-  --bg-primary:   #f7f3e9;
-  --bg-surface:   #f0e9e0;
+[data-theme="parchment"],
+[data-theme="argentica"] {
+  /* Argentica — silver-blue, clean, professional */
+  --bg-primary:   #f0f4f8;
+  --bg-surface:   #e8eef4;
   --bg-elevated:  #ffffff;
-  --fg-primary:   #5c2d3f;
-  --fg-secondary: #7a4254;
-  --fg-muted:     #a88792;
-  --border:       #ddd0c8;
-  --accent:       #0f3b3a;
-  --accent-hover: #1a5550;
-  --accent-light: #e8f4f4;
-  --rose:         #5c2d3f;
-  --rose-light:   #f5e8ec;
+  --bg-sunken:    #dde5ed;
+  --fg-primary:   #1a2332;
+  --fg-secondary: #2d3f55;
+  --fg-muted:     #5a6a7e;
+  --border:       #c8d4e0;
+  --accent:       #2d6a9f;
+  --accent-hover: #1e5080;
+  --accent-light: #e8f0f8;
+  --rose:         #4a7a9f;
+  --rose-light:   #e0ecf8;
   --font-ui:      'Inter', sans-serif;
   --font-heading: 'Playfair Display', Georgia, serif;
-  --radius:       12px;
+  --radius:       8px;
+  --topbar-h:     48px;
+  --sidebar-w:    220px;
 }
 
 /* ── Theme 2: Teal & Rose Reversed ─────────────────────────────────────────── */
@@ -78,22 +83,27 @@
 }
 
 /* ── Theme 5: Midnight Teal ─────────────────────────────────────────────────── */
-[data-theme="midnight-teal"] {
-  --bg-primary:   #0d1f1e;
-  --bg-surface:   #152a29;
-  --bg-elevated:  #1e3836;
-  --fg-primary:   #e8f4f4;
-  --fg-secondary: #a8d4d2;
-  --fg-muted:     #5a8e8c;
-  --border:       #2a4a48;
-  --accent:       #4ecdc4;
-  --accent-hover: #6eddd4;
-  --accent-light: #1a3a38;
-  --rose:         #e8a0b0;
-  --rose-light:   #2a1a20;
+[data-theme="midnight-teal"],
+[data-theme="argentica-dark"] {
+  /* Argentica Dark — deep navy, steel blue */
+  --bg-primary:   #0d1520;
+  --bg-surface:   #0a1018;
+  --bg-elevated:  #162030;
+  --bg-sunken:    #080e18;
+  --fg-primary:   #e8f0f8;
+  --fg-secondary: #b8cce0;
+  --fg-muted:     #7a9ab8;
+  --border:       #2a3d52;
+  --accent:       #4a9fd4;
+  --accent-hover: #6ab8e8;
+  --accent-light: #1a2d4a;
+  --rose:         #6ab0cc;
+  --rose-light:   #1a3050;
   --font-ui:      'Inter', sans-serif;
-  --font-heading: 'Inter', sans-serif;
-  --radius:       10px;
+  --font-heading: 'Playfair Display', Georgia, serif;
+  --radius:       8px;
+  --topbar-h:     48px;
+  --sidebar-w:    220px;
 }
 [data-theme="midnight-teal"] .sidebar { background: #0a1817; border-color: #1e3836; }
 [data-theme="midnight-teal"] .topbar { background: #152a29; border-color: #2a4a48; }
