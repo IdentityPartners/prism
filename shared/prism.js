@@ -13,7 +13,8 @@
     '--fg:#e8f0f8;--fg-muted:#7a9ab8;--border:#2a3d52;',
     '--accent:#4a9fd4;--accent-hover:#6ab8e8;--rose:#7ab0cc;',
     '--radius:8px;--topbar-h:48px;}'
-  ].join('');
+  ,
+    '\n/* Auto-grow textarea */\n.chat-textarea, .devteam-textarea, #ocr-result {\n  field-sizing: content;\n  min-height: 80px;\n  max-height: 400px;\n  resize: vertical;\n}\n/* Larger writing box */\n#ocr-result {\n  min-height: 200px;\n  font-size: 14px;\n  line-height: 1.6;\n}\n'].join('');
   document.head.appendChild(style);
 })();
 
@@ -378,6 +379,20 @@ var OSK = (function() {
   var ctrlOn = false;
   var altOn = false;
 
+  // Shift character map — what each key produces when Shift is held
+  var SHIFT_MAP = {
+    '`':'~', '1':'!', '2':'"', '3':'£', '4':'$', '5':'%',
+    '6':'^', '7':'&', '8':'*', '9':'(', '0':')', '-':'_', '=':'+',
+    '[':'{', ']':'}', '\\':'|', ';':':', "'":'"', ',':'<', '.':'>', '/':'?',
+    '2':'@', '3':'#'
+  };
+  // British English shift layer overrides
+  var SHIFT_MAP_UK = {
+    '`':'¬', '1':'!', '2':'"', '3':'£', '4':'$', '5':'%',
+    '6':'^', '7':'&', '8':'*', '9':'(', '0':')', '-':'_', '=':'+',
+    '[':'{', ']':'}', '\\':'|', ';':':', "'":"@", '#':'~', ',':'<', '.':'>', '/':'?'
+  };
+
   function setTarget(el) { currentTarget = el; }
 
   function insertAtCursor(el, text) {
@@ -464,7 +479,15 @@ var OSK = (function() {
       else if (key === 'z') { /* undo — browser handles */ }
       ctrlOn = false; updateMod('ctrl', false);
     } else {
-      var ch = (shiftOn || capsOn) ? key.toUpperCase() : key;
+      var ch;
+      if (shiftOn) {
+        // Use British shift map first, then uppercase
+        ch = SHIFT_MAP_UK[key] || SHIFT_MAP[key] || key.toUpperCase();
+      } else if (capsOn) {
+        ch = key.toUpperCase();
+      } else {
+        ch = key;
+      }
       insertAtCursor(target, ch);
       if (shiftOn) { shiftOn = false; updateShift(); }
     }
@@ -474,9 +497,25 @@ var OSK = (function() {
 
   function updateShift() {
     var btns = document.querySelectorAll('.osk-key');
-    for (var i=0;i<btns.length;i++) {
-      if (btns[i].textContent === 'Shift') btns[i].style.background = shiftOn ? 'var(--accent)' : '';
-      if (btns[i].style.background === 'var(--accent)' && btns[i].textContent !== 'Shift' && btns[i].textContent !== 'Send') btns[i].style.background = '';
+    for (var i = 0; i < btns.length; i++) {
+      var btn = btns[i];
+      var base = btn.getAttribute('data-base') || btn.textContent;
+      if (!btn.getAttribute('data-base') && base.length === 1) {
+        btn.setAttribute('data-base', base);
+      }
+      if (btn.textContent === 'Shift' || btn.getAttribute('data-base') === 'Shift') {
+        btn.style.background = shiftOn ? 'var(--accent)' : '';
+        btn.style.color = shiftOn ? '#fff' : '';
+        continue;
+      }
+      if (btn.getAttribute('data-base') && btn.getAttribute('data-base').length === 1) {
+        var baseKey = btn.getAttribute('data-base');
+        if (shiftOn) {
+          btn.textContent = SHIFT_MAP_UK[baseKey] || SHIFT_MAP[baseKey] || baseKey.toUpperCase();
+        } else {
+          btn.textContent = baseKey;
+        }
+      }
     }
   }
   function updateCaps() {
@@ -501,6 +540,20 @@ var OSK = (function() {
     container.innerHTML = '';
     container.className = 'osk';
 
+    // Add collapse toggle button
+    var collapseBtn = document.createElement('button');
+    collapseBtn.type = 'button';
+    collapseBtn.className = 'osk-collapse-btn';
+    collapseBtn.textContent = '⌨ Hide keyboard';
+    collapseBtn.style.cssText = 'width:100%;padding:3px;font-size:10px;background:var(--bg-sunken,#e4eaf0);border:none;border-bottom:1px solid var(--border,#c8d4e0);cursor:pointer;color:var(--fg-muted,#5a6a7e);text-align:center;';
+    collapseBtn.onclick = function() {
+      var rows = container.querySelectorAll('.osk-row');
+      var hidden = rows.length && rows[0].style.display === 'none';
+      rows.forEach(function(r) { r.style.display = hidden ? '' : 'none'; });
+      collapseBtn.textContent = hidden ? '⌨ Hide keyboard' : '⌨ Show keyboard';
+    };
+    container.appendChild(collapseBtn);
+
     // Track focus on the target
     if (targetId) {
       var targetEl = document.getElementById(targetId);
@@ -520,6 +573,8 @@ var OSK = (function() {
           btn.type = 'button'; // CRITICAL: prevents form submission
           btn.className = 'osk-key';
           btn.textContent = key === 'Space' ? 'Space' : key;
+          // Store base key for shift label swapping
+          if (key.length === 1) btn.setAttribute('data-base', key);
 
           if (key === 'Space') btn.className += ' space';
           else if (key === 'Send') btn.className += ' send';
