@@ -544,6 +544,8 @@ var sessionId = 'mm-' + (localStorage.getItem('mm-session') || (function(){ var 
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
+  var mount=document.getElementById('sidebar-mount');
+  if(mount){var sb=buildSidebar('/social-queue/');mount.parentNode.insertBefore(sb,mount);mount.parentNode.removeChild(mount);}
   document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',day:'numeric',month:'long'});
   loadQueue();
   loadLog();
@@ -830,6 +832,8 @@ function toast(msg) {
 
 // Auto-resize MM input
 document.addEventListener('DOMContentLoaded', function() {
+  var mount=document.getElementById('sidebar-mount');
+  if(mount){var sb=buildSidebar('/social-queue/');mount.parentNode.insertBefore(sb,mount);mount.parentNode.removeChild(mount);}
   var inp = document.getElementById('mm-input');
   if (inp) inp.addEventListener('input', function() {
     this.style.height = 'auto';
