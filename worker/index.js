@@ -25,17 +25,17 @@ async function uploadToImgur(imageBase64, env) {
 }
 __name(uploadToImgur, "uploadToImgur");
 var AUTO_TAG_CATEGORIES = {
-  "addiction": ["addiction", "recovery", "sobriety", "alcohol", "drugs", "substance", "relapse", "withdrawal", "12-step", "AA", "NA"],
-  "trauma": ["trauma", "PTSD", "abuse", "neglect", "adverse", "ACE", "dissociation", "flashback", "trigger", "hypervigilance"],
-  "mental-health": ["anxiety", "depression", "OCD", "bipolar", "schizophrenia", "mental health", "wellbeing", "therapy", "counselling", "psychiatry"],
-  "identity": ["identity", "self", "persona", "imposter", "authenticity", "values", "purpose", "meaning", "ikigai", "who am I"],
-  "neurodivergence": ["ADHD", "autism", "dyslexia", "dyspraxia", "neurodivergent", "executive function", "masking", "stimming", "sensory"],
-  "relationships": ["relationship", "attachment", "boundaries", "family", "partner", "loneliness", "connection", "intimacy", "trust"],
-  "research": ["research", "study", "paper", "evidence", "data", "statistics", "literature", "academic", "journal", "findings"],
-  "social-media": ["post", "tweet", "bluesky", "linkedin", "instagram", "facebook", "content", "refract", "atomise", "social"],
-  "business": ["client", "CRM", "booking", "revenue", "programme", "cohort", "platform", "monetise", "invoice", "session"],
-  "technical": ["worker", "cloudflare", "API", "deploy", "code", "bug", "fix", "error", "database", "KV", "D1"],
-  "creative": ["canvas", "design", "podcast", "worksheet", "template", "brand", "logo", "colour", "font", "visual"],
+  "addiction": ["addiction", "recovery", "sobriety", "alcohol", "drugs", "substance", "relapse", "withdrawal", "12-step", "AA", "NA", "abstinence", "clean", "sober", "dependence", "detox", "harm reduction", "rehab", "rehabilitation", "compulsion", "craving"],
+  "trauma": ["trauma", "PTSD", "abuse", "neglect", "adverse", "ACE", "dissociation", "flashback", "trigger", "hypervigilance", "complex trauma", "C-PTSD", "childhood", "survivor", "healing", "wound", "rupture", "repair", "safety", "stabilisation"],
+  "mental-health": ["anxiety", "depression", "OCD", "bipolar", "schizophrenia", "mental health", "wellbeing", "therapy", "counselling", "psychiatry", "psychotherapy", "CBT", "DBT", "mindfulness", "self-care", "burnout", "stress", "grief", "loss", "bereavement", "suicidal", "crisis", "support"],
+  "identity": ["identity", "self", "persona", "imposter", "authenticity", "values", "purpose", "meaning", "ikigai", "who am I", "self-worth", "self-esteem", "confidence", "belonging", "culture", "heritage", "narrative", "story", "past", "future"],
+  "neurodivergence": ["ADHD", "autism", "dyslexia", "dyspraxia", "neurodivergent", "executive function", "masking", "stimming", "sensory", "ASD", "spectrum", "hyperfocus", "rejection sensitive", "RSD", "processing", "working memory"],
+  "relationships": ["relationship", "attachment", "boundaries", "family", "partner", "loneliness", "connection", "intimacy", "trust", "codependency", "enmeshment", "avoidant", "anxious", "secure", "communication", "conflict", "repair", "rupture", "divorce", "separation"],
+  "research": ["research", "study", "paper", "evidence", "data", "statistics", "literature", "academic", "journal", "findings", "meta-analysis", "systematic review", "clinical trial", "neuroscience", "psychology", "sociology", "epidemiology"],
+  "social-media": ["post", "tweet", "bluesky", "linkedin", "instagram", "facebook", "content", "refract", "atomise", "social", "caption", "hashtag", "carousel", "reel", "story", "engagement", "reach", "audience"],
+  "business": ["client", "CRM", "booking", "revenue", "programme", "cohort", "platform", "monetise", "invoice", "session", "consultation", "referral", "onboarding", "retention", "conversion", "funnel", "pricing", "package"],
+  "technical": ["worker", "cloudflare", "API", "deploy", "code", "bug", "fix", "error", "database", "KV", "D1", "wrangler", "github", "commit", "route", "endpoint", "function", "script"],
+  "creative": ["canvas", "design", "podcast", "worksheet", "template", "brand", "logo", "colour", "font", "visual", "infographic", "carousel", "quote card", "image", "graphic", "layout", "typography"],
   "personal": ["Goldsmiths", "MSc", "master", "study", "university", "placement", "volunteer", "career", "CV"]
 };
 function autoTag(text) {
@@ -428,7 +428,7 @@ async function runAgenticPipeline(env, config) {
   async function askPM(question, context) {
     pmHistory.push({ role: "user", content: "AGENT QUERY: " + question + (context ? "\n\nContext: " + context : "") });
     var pmMessages = [
-      { role: "system", content: "You are the Programme Manager for an agentic AI pipeline running for Identity Partners. You coordinate between models, answer their questions, and modify the pipeline if something is not working. You have full knowledge of the pipeline steps, the IP brand guidelines, and the social media strategy. British English. Be direct and specific. No sycophancy." },
+      { role: "system", content: "You are the Programme Manager for an agentic AI pipeline running for Identity Partners. You coordinate between models, answer their questions, and modify the pipeline if something is not working. You have full knowledge of the pipeline steps, the IP brand guidelines, and the social media strategy. British English. Be direct and specific. No sycophancy. RULES: Never describe actions - execute them using available tools. Never invent business metrics, engagement numbers, or meeting outcomes. Never say I would... - do it. Never hallucinate data. If a tool is unavailable, say so plainly and escalate. You are an executor, not a consultant." },
       ...pmHistory
     ];
     var pmResult = await orchestrate(env, pmMessages, "balanced", "agent_task", null);
@@ -718,23 +718,51 @@ async function runAgenticPipeline(env, config) {
 }
 __name(runAgenticPipeline, "runAgenticPipeline");
 async function generateCanvasHtml(text, template, env) {
-  // Fetch a Pexels landscape background image server-side and embed as base64.
-  // This eliminates all external fetches at Browserless render time — the root
-  // cause of the blank canvas bug (Browserless timed out waiting for images).
+  // ── Template library (12 named templates) ──────────────────────────────────
+  // Each template defines: overlay, text colour, accent, wordmark colours,
+  // and a Pexels search query matched to the mood.
+  // Logo wordmark colours are chosen for contrast against the overlay.
+  var TEMPLATES = {
+    "quote-teal":      { overlay: "rgba(15,59,58,0.72)",   text: "#f7f3e9", accent: "#ddd0c8", identity: "#7ecfcd", partners: "#d4899a", query: "landscape+vista+nature+green" },
+    "quote-rose":      { overlay: "rgba(92,45,63,0.72)",   text: "#f7f3e9", accent: "#ddd0c8", identity: "#7ecfcd", partners: "#f0b8c8", query: "sunset+landscape+warm+golden" },
+    "quote-ivory":     { overlay: "rgba(247,243,233,0.88)", text: "#0f3b3a", accent: "#5c2d3f", identity: "#0f3b3a", partners: "#5c2d3f", query: "misty+morning+landscape+soft" },
+    "quote-dark":      { overlay: "rgba(10,10,10,0.80)",   text: "#f7f3e9", accent: "#ddd0c8", identity: "#7ecfcd", partners: "#d4899a", query: "night+landscape+stars+dark" },
+    "quote-slate":     { overlay: "rgba(30,41,59,0.75)",   text: "#f1f5f9", accent: "#94a3b8", identity: "#7dd3fc", partners: "#f9a8d4", query: "ocean+sea+horizon+blue" },
+    "quote-forest":    { overlay: "rgba(20,50,30,0.74)",   text: "#f0fdf4", accent: "#bbf7d0", identity: "#86efac", partners: "#fde68a", query: "forest+trees+nature+green" },
+    "quote-dusk":      { overlay: "rgba(60,20,80,0.74)",   text: "#fdf4ff", accent: "#e9d5ff", identity: "#d8b4fe", partners: "#fda4af", query: "dusk+purple+sky+twilight" },
+    "quote-stone":     { overlay: "rgba(68,64,60,0.76)",   text: "#fafaf9", accent: "#d6d3d1", identity: "#e7e5e4", partners: "#fca5a5", query: "stone+architecture+heritage+building" },
+    "quote-dawn":      { overlay: "rgba(120,53,15,0.68)",  text: "#fff7ed", accent: "#fed7aa", identity: "#fdba74", partners: "#fde68a", query: "dawn+sunrise+golden+morning" },
+    "quote-coastal":   { overlay: "rgba(8,47,73,0.74)",    text: "#f0f9ff", accent: "#bae6fd", identity: "#7dd3fc", partners: "#fde68a", query: "coastal+sea+cliffs+water" },
+    "quote-parchment": { overlay: "rgba(120,90,40,0.60)",  text: "#1c1917", accent: "#44403c", identity: "#0f3b3a", partners: "#5c2d3f", query: "autumn+leaves+warm+countryside" },
+    "quote-midnight":  { overlay: "rgba(2,6,23,0.85)",     text: "#e2e8f0", accent: "#475569", identity: "#38bdf8", partners: "#f472b6", query: "city+night+lights+urban" }
+  };
+
+  // Pick template — random if not specified or unknown
+  var tmplKeys = Object.keys(TEMPLATES);
+  var t = TEMPLATES[template] || TEMPLATES[tmplKeys[Math.floor(Math.random() * tmplKeys.length)]];
+
+  // ── Fetch Pexels background server-side ────────────────────────────────────
   var bgDataUri = "";
   try {
     var pexelsKey = env.pexels_api_key || env.PEXELS_API_KEY || env.pexels || "";
     if (pexelsKey) {
+      // Use template-specific query for mood-matched backgrounds
+      var query = t.query || "landscape+vista+nature";
       var pexelsResp = await fetch(
-        "https://api.pexels.com/v1/search?query=landscape+vista+nature+partnership&per_page=10&orientation=landscape",
+        "https://api.pexels.com/v1/search?query=" + query + "&per_page=15&orientation=landscape",
         { headers: { "Authorization": pexelsKey } }
       );
       if (pexelsResp.ok) {
         var pexelsData = await pexelsResp.json();
         var photos = pexelsData.photos || [];
+        // Filter out prohibited subjects (yoga, wellness, boardroom, corporate)
+        var prohibited = /yoga|wellness|boardroom|office|corporate|gym|meditation|business.meeting/i;
+        photos = photos.filter(function(p) {
+          var alt = (p.alt || "").toLowerCase();
+          return !prohibited.test(alt);
+        });
         if (photos.length > 0) {
-          // Pick a random photo from results for variety
-          var photo = photos[Math.floor(Math.random() * photos.length)];
+          var photo = photos[Math.floor(Math.random() * Math.min(photos.length, 8))];
           var imgUrl = photo.src.large2x || photo.src.large;
           var imgResp = await fetch(imgUrl);
           if (imgResp.ok) {
@@ -746,11 +774,9 @@ async function generateCanvasHtml(text, template, env) {
         }
       }
     }
-  } catch (e) {
-    // Background fetch failed — gradient fallback used below
-  }
+  } catch(e) { /* gradient fallback below */ }
 
-  // Gradient fallback (brand colours) when Pexels unavailable
+  // Brand gradient fallback
   if (!bgDataUri) {
     var gradSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='1080' height='1080'>" +
       "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>" +
@@ -764,15 +790,22 @@ async function generateCanvasHtml(text, template, env) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
-  // IP logo SVG inline (no external dependency)
+  // IP logo SVG — colours chosen for contrast against overlay
   var logoSvg = "<svg viewBox='0 0 120 120' fill='none' xmlns='http://www.w3.org/2000/svg' style='width:100%;height:100%;'>" +
     "<rect x='5' y='5' width='50' height='50' rx='10' fill='#0f3b3a' opacity='0.95'/>" +
     "<rect x='65' y='5' width='50' height='50' rx='10' fill='#5c2d3f' opacity='0.95'/>" +
     "<rect x='5' y='65' width='50' height='50' rx='10' fill='#5c2d3f' opacity='0.75'/>" +
     "<rect x='65' y='65' width='50' height='50' rx='10' fill='#0f3b3a' opacity='0.75'/>" +
+    // White border on logo squares for visibility on any background
+    "<rect x='5' y='5' width='50' height='50' rx='10' fill='none' stroke='rgba(255,255,255,0.3)' stroke-width='1.5'/>" +
+    "<rect x='65' y='5' width='50' height='50' rx='10' fill='none' stroke='rgba(255,255,255,0.3)' stroke-width='1.5'/>" +
     "<text x='60' y='68' font-family='Inter,sans-serif' font-size='14' fill='#f7f3e9' text-anchor='middle' font-weight='600'>IP</text>" +
     "</svg>";
   var logoB64 = btoa(logoSvg);
+
+  // Font size: scale down for longer quotes
+  var wordCount = (text || "").split(" ").length;
+  var fontSize = wordCount > 30 ? "38px" : wordCount > 20 ? "44px" : "50px";
 
   var html = "<!DOCTYPE html><html><head><meta charset='UTF-8'>" +
     "<link href='https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;1,400&family=Inter:wght@400;500;600&display=swap' rel='stylesheet'>" +
@@ -782,23 +815,41 @@ async function generateCanvasHtml(text, template, env) {
     ".canvas{width:1080px;height:1080px;position:relative;" +
       "background:#0f3b3a url('" + bgDataUri + "') center/cover no-repeat;" +
       "display:flex;flex-direction:column;align-items:center;justify-content:center;}" +
-    ".overlay{position:absolute;inset:0;background:linear-gradient(135deg,rgba(15,59,58,0.70) 0%,rgba(92,45,63,0.52) 100%);}" +
+    ".overlay{position:absolute;inset:0;background:" + t.overlay + ";}" +
+    // White vignette border for logo visibility on any background
+    ".vignette{position:absolute;inset:0;box-shadow:inset 0 0 120px rgba(0,0,0,0.4);pointer-events:none;}" +
     ".accent-top{position:absolute;top:0;left:0;right:0;height:8px;background:linear-gradient(90deg,#0f3b3a 0%,#5c2d3f 100%);}" +
     ".accent-bottom{position:absolute;bottom:0;left:0;right:0;height:8px;background:linear-gradient(90deg,#5c2d3f 0%,#0f3b3a 100%);}" +
-    ".grid{position:absolute;top:32px;left:32px;width:88px;height:88px;display:grid;grid-template-columns:1fr 1fr;gap:5px;}" +
+    // IP grid — top left — white backdrop for visibility on any bg
+    ".grid{position:absolute;top:32px;left:32px;width:88px;height:88px;" +
+      "display:grid;grid-template-columns:1fr 1fr;gap:5px;" +
+      "filter:drop-shadow(0 2px 8px rgba(0,0,0,0.5));}" +
     ".grid div{border-radius:7px;}" +
-    ".logo-area{position:absolute;top:28px;right:28px;width:110px;height:110px;display:flex;align-items:center;justify-content:center;}" +
+    // Logo — top right — white backdrop
+    ".logo-area{position:absolute;top:28px;right:28px;width:110px;height:110px;" +
+      "display:flex;align-items:center;justify-content:center;" +
+      "filter:drop-shadow(0 2px 8px rgba(0,0,0,0.5));}" +
     ".content{position:relative;z-index:10;text-align:center;padding:0 110px;max-width:1080px;}" +
-    ".open-quote{font-size:120px;color:#f7f3e9;opacity:0.18;line-height:0.7;margin-bottom:16px;font-family:'Playfair Display',Georgia,serif;}" +
-    ".quote{font-size:48px;font-style:italic;color:#f7f3e9;line-height:1.5;font-weight:400;font-family:'Playfair Display',Georgia,serif;text-shadow:0 2px 14px rgba(0,0,0,0.50);}" +
-    ".divider{width:280px;height:2px;background:linear-gradient(90deg,#0f3b3a,#5c2d3f);opacity:0.8;margin:36px auto;}" +
-    ".wordmark{font-size:30px;font-weight:600;font-style:normal;letter-spacing:-0.3px;font-family:'Playfair Display',Georgia,serif;}" +
-    ".identity{color:#7ecfcd;}.partners{color:#d4899a;}" +
-    ".tagline{font-size:16px;color:#f7f3e9;opacity:0.82;margin-top:10px;font-family:'Inter',sans-serif;letter-spacing:0.3px;}" +
-    ".footer{position:absolute;bottom:24px;left:0;right:0;text-align:center;font-size:16px;color:#f7f3e9;font-family:'Inter',sans-serif;opacity:0.80;letter-spacing:0.2px;}" +
+    ".open-quote{font-size:110px;color:" + t.text + ";opacity:0.15;line-height:0.7;margin-bottom:16px;" +
+      "font-family:'Playfair Display',Georgia,serif;text-shadow:0 2px 8px rgba(0,0,0,0.4);}" +
+    ".quote{font-size:" + fontSize + ";font-style:italic;color:" + t.text + ";line-height:1.55;font-weight:400;" +
+      "font-family:'Playfair Display',Georgia,serif;" +
+      "text-shadow:0 2px 16px rgba(0,0,0,0.6),0 1px 4px rgba(0,0,0,0.4);}" +
+    ".divider{width:280px;height:2px;background:linear-gradient(90deg,#0f3b3a,#5c2d3f);opacity:0.9;margin:32px auto;}" +
+    ".wordmark{font-size:28px;font-weight:600;font-style:normal;letter-spacing:-0.3px;" +
+      "font-family:'Playfair Display',Georgia,serif;" +
+      "text-shadow:0 1px 6px rgba(0,0,0,0.5);}" +
+    ".identity{color:" + t.identity + ";}.partners{color:" + t.partners + ";}" +
+    ".tagline{font-size:15px;color:" + t.text + ";opacity:0.85;margin-top:10px;" +
+      "font-family:'Inter',sans-serif;letter-spacing:0.3px;" +
+      "text-shadow:0 1px 4px rgba(0,0,0,0.4);}" +
+    ".footer{position:absolute;bottom:24px;left:0;right:0;text-align:center;" +
+      "font-size:15px;color:" + t.text + ";font-family:'Inter',sans-serif;opacity:0.85;" +
+      "letter-spacing:0.2px;text-shadow:0 1px 4px rgba(0,0,0,0.4);}" +
     "</style></head><body>" +
     "<div class='canvas'>" +
     "<div class='overlay'></div>" +
+    "<div class='vignette'></div>" +
     "<div class='accent-top'></div>" +
     "<div class='accent-bottom'></div>" +
     "<div class='grid'>" +
@@ -4671,7 +4722,10 @@ var index_default = {
               var link = linkM ? linkM[1].trim() : "";
               var dateM = item2.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
               var date = dateM ? dateM[1].trim() : "";
-              var imgM = item2.match(/url="(https?:\/\/[^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i);
+              var imgM = item2.match(/<media:thumbnail[^>]+url="([^"]+)"/i)
+                      || item2.match(/<media:content[^>]+url="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i)
+                      || item2.match(/<enclosure[^>]+url="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i)
+                      || item2.match(/url="(https?:\/\/[^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i);
               var image = imgM ? imgM[1] : null;
               var descM = item2.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/);
               var desc = descM ? descM[1].replace(/<[^>]+>/g, "").trim().substring(0, 200) : "";
@@ -4901,7 +4955,62 @@ var index_default = {
         if (tgTok3 && tgCh3) {
           await fetch("https://api.telegram.org/bot" + tgTok3 + "/sendMessage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: tgCh3, text: "API Champion: Registry Updated\n\n" + updates.join("\n") + (errors3.length ? "\n\nFailed: " + errors3.join(", ") : "") + " \n\n" + (/* @__PURE__ */ new Date()).toISOString() }) });
         }
-        return json({ success: true, updated: updates.length, failed: errors3.length, updates, errors: errors3, timestamp: (/* @__PURE__ */ new Date()).toISOString() }, 200, origin);
+        // ── Agentically update routing preferences based on available models ──
+        // Reads the freshly updated registry and writes a routing config to KV
+        // that orchestrate() reads on each request.
+        try {
+          var routingConfig = { updatedAt: new Date().toISOString(), tiers: {} };
+
+          // Tier 1: Quality reasoning — prefer deepseek, kimi, mistral
+          var t1Models = [];
+          for (var tn of ["deepseek", "kimi", "mistral"]) {
+            var reg = env.PRISM_KV ? await env.PRISM_KV.get("registry:" + tn) : null;
+            if (reg) {
+              var rd = JSON.parse(reg);
+              if (rd.models && rd.models.length > 0) t1Models.push({ provider: tn, models: rd.models.slice(0, 3), available: true });
+              else t1Models.push({ provider: tn, available: false, reason: "no models returned" });
+            } else {
+              t1Models.push({ provider: tn, available: false, reason: "registry not populated" });
+            }
+          }
+          routingConfig.tiers.quality = t1Models;
+
+          // Tier 2: Fast chat — cerebras, groq
+          var t2Models = [];
+          for (var tn2 of ["cerebras", "groq"]) {
+            var reg2 = env.PRISM_KV ? await env.PRISM_KV.get("registry:" + tn2) : null;
+            if (reg2) {
+              var rd2 = JSON.parse(reg2);
+              if (rd2.models && rd2.models.length > 0) t2Models.push({ provider: tn2, models: rd2.models.slice(0, 3), available: true });
+              else t2Models.push({ provider: tn2, available: false, reason: "no models" });
+            }
+          }
+          routingConfig.tiers.fast = t2Models;
+
+          // Tier 3: Paid frontier — gemini, nvidia, openrouter
+          var t3Models = [];
+          for (var tn3 of ["gemini", "nvidia", "openrouter"]) {
+            var reg3 = env.PRISM_KV ? await env.PRISM_KV.get("registry:" + tn3) : null;
+            if (reg3) {
+              var rd3 = JSON.parse(reg3);
+              if (rd3.models && rd3.models.length > 0) t3Models.push({ provider: tn3, models: rd3.models.slice(0, 3), available: true });
+              else t3Models.push({ provider: tn3, available: false });
+            }
+          }
+          routingConfig.tiers.frontier = t3Models;
+
+          // Count available providers
+          var availableCount = [...t1Models, ...t2Models, ...t3Models].filter(function(p){ return p.available; }).length;
+          routingConfig.availableProviders = availableCount;
+          routingConfig.pollinationsAlwaysAvailable = true;
+
+          if (env.PRISM_KV) await env.PRISM_KV.put("routing:config", JSON.stringify(routingConfig), { expirationTtl: 86400 * 2 });
+          updates.push("Routing config updated: " + availableCount + " providers available");
+        } catch(routeErr) {
+          errors3.push("Routing config update failed: " + routeErr.message);
+        }
+
+        return json({ success: true, updated: updates.length, failed: errors3.length, updates, errors: errors3, timestamp: new Date().toISOString() }, 200, origin);
       } catch (e) {
         return json({ error: e.message }, 500, origin);
       }
@@ -6936,6 +7045,27 @@ var index_default = {
       } catch(e) {
         return json({ error: e.message }, 500, origin);
       }
+    }
+
+    // Canvas template list — returns all available template names and metadata
+    if (path === "/api/canvas/templates" && request.method === "GET") {
+      return json({
+        templates: [
+          { id: "quote-teal",      name: "Deep Teal",    mood: "Calm, grounded, professional" },
+          { id: "quote-rose",      name: "Deep Rose",    mood: "Warm, empathetic, personal" },
+          { id: "quote-ivory",     name: "Warm Ivory",   mood: "Light, open, accessible" },
+          { id: "quote-dark",      name: "Midnight",     mood: "Serious, contemplative, strong" },
+          { id: "quote-slate",     name: "Ocean Slate",  mood: "Clear, focused, trustworthy" },
+          { id: "quote-forest",    name: "Forest",       mood: "Natural, healing, growth" },
+          { id: "quote-dusk",      name: "Dusk Purple",  mood: "Creative, reflective, spiritual" },
+          { id: "quote-stone",     name: "Stone",        mood: "Solid, heritage, enduring" },
+          { id: "quote-dawn",      name: "Dawn",         mood: "Hopeful, energising, new beginnings" },
+          { id: "quote-coastal",   name: "Coastal",      mood: "Fresh, expansive, freedom" },
+          { id: "quote-parchment", name: "Parchment",    mood: "Warm, nostalgic, thoughtful" },
+          { id: "quote-midnight",  name: "City Night",   mood: "Urban, modern, dynamic" }
+        ],
+        count: 12
+      }, 200, origin);
     }
 
 return json({ error: "Not found", path }, 404, origin);
