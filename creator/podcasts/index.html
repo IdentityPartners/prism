@@ -74,6 +74,36 @@
             <div id="script-output" style="font-size:13.5px;line-height:1.8;color:var(--fg-secondary);min-height:200px;padding:4px 0;">
               <div style="text-align:center;padding:40px;color:var(--fg-muted);">Fill in the episode details and click Generate.</div>
             </div>
+          <!-- Voice generation panel -->
+          <div id="voice-panel" style="display:none;margin-top:16px;padding:16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;">
+            <div style="font-size:12px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">&#x1F3A4; Generate Audio</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+              <div>
+                <label style="font-size:11px;color:var(--fg-muted);display:block;margin-bottom:4px;">Voice Provider</label>
+                <select id="voice-provider" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);font-size:12px;">
+                  <option value="elevenlabs">ElevenLabs</option>
+                  <option value="cartesia">Cartesia</option>
+                  <option value="fishaudio">Fish Audio</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--fg-muted);display:block;margin-bottom:4px;">Voice</label>
+                <select id="voice-select" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);font-size:12px;">
+                  <option value="pNInz6obpgDQGcFmaJgB">Adam (ElevenLabs)</option>
+                  <option value="EXAVITQu4vr4xnSDxMaL">Bella (ElevenLabs)</option>
+                  <option value="VR6AewLTigWG4xSOukaG">Arnold (ElevenLabs)</option>
+                  <option value="21m00Tcm4TlvDq8ikWAM">Rachel (ElevenLabs)</option>
+                  <option value="sonic-english">Sonic English (Cartesia)</option>
+                </select>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <button id="voice-btn" class="btn btn-primary btn-sm" onclick="generateVoice()">&#x1F3A4; Generate Audio</button>
+              <button class="btn btn-secondary btn-sm" onclick="downloadAudio()" style="display:inline-flex;align-items:center;gap:4px;">&#x2B07; Download</button>
+              <span id="voice-status" style="font-size:11px;color:var(--fg-muted);"></span>
+            </div>
+            <audio id="voice-player" controls style="display:none;width:100%;margin-top:10px;border-radius:4px;"></audio>
+          </div>
           </div>
 
           <div class="card">
@@ -157,6 +187,82 @@ function renderScript(script, topic) {
     output.className = 'md-content';
     output.innerHTML = Markdown.render(script);
   }
+  // Show voice generation panel
+  var voicePanel = document.getElementById('voice-panel');
+  if (voicePanel) voicePanel.style.display = 'block';
+}
+
+// ── Voice generation ──────────────────────────────────────────────────────────
+var currentAudioUrl = null;
+
+function generateVoice() {
+  if (!currentScript) { Toast.warning('Generate a script first.'); return; }
+  var voice = document.getElementById('voice-select').value;
+  var provider = document.getElementById('voice-provider').value;
+  var btn = document.getElementById('voice-btn');
+  var status = document.getElementById('voice-status');
+  var player = document.getElementById('voice-player');
+
+  btn.disabled = true;
+  btn.textContent = 'Generating audio...';
+  if (status) status.textContent = 'Sending to ' + provider + '...';
+
+  // Strip stage directions and markdown for TTS
+  var ttsText = currentScript
+    .replace(/\[PAUSE\]/gi, '...')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/#{1,6}\s/g, '')
+    .replace(/\[\d+:\d+\]/g, '')
+    .substring(0, 4000); // ElevenLabs limit
+
+  fetch(WORKER + '/api/voice/generate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      text: ttsText,
+      voice_id: voice,
+      provider: provider,
+      model: provider === 'elevenlabs' ? 'eleven_turbo_v2_5' : 'sonic-english'
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    btn.disabled = false;
+    btn.textContent = '\uD83C\uDFA4 Generate Audio';
+    if (d.url || d.audio_url) {
+      currentAudioUrl = d.url || d.audio_url;
+      if (player) {
+        player.src = currentAudioUrl;
+        player.style.display = 'block';
+      }
+      if (status) status.textContent = 'Audio ready. Duration: ' + (d.duration_seconds ? Math.round(d.duration_seconds) + 's' : 'unknown');
+      Toast.success('Audio generated successfully.');
+    } else if (d.audio_base64) {
+      // Base64 audio response
+      var blob = new Blob([Uint8Array.from(atob(d.audio_base64), function(c){ return c.charCodeAt(0); })], {type: 'audio/mpeg'});
+      currentAudioUrl = URL.createObjectURL(blob);
+      if (player) { player.src = currentAudioUrl; player.style.display = 'block'; }
+      if (status) status.textContent = 'Audio ready.';
+      Toast.success('Audio generated.');
+    } else {
+      if (status) status.textContent = 'Error: ' + (d.error || 'Unknown error');
+      Toast.error('Voice generation failed: ' + (d.error || 'check console'));
+    }
+  })
+  .catch(function(e) {
+    btn.disabled = false;
+    btn.textContent = '\uD83C\uDFA4 Generate Audio';
+    if (status) status.textContent = 'Network error: ' + e.message;
+    Toast.error('Voice generation failed.');
+  });
+}
+
+function downloadAudio() {
+  if (!currentAudioUrl) return;
+  var a = document.createElement('a');
+  a.href = currentAudioUrl;
+  a.download = 'ip-podcast-' + Date.now() + '.mp3';
+  a.click();
 }
 
 function copyScript() {
