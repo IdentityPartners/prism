@@ -7507,6 +7507,144 @@ var index_default = {
       } catch(e) { return json({ error: e.message }, 500, origin); }
     }
 
+
+    // ── WriteHandy — note management with module folders ─────────────────────
+    // Save a note with module/folder organisation
+    if (path === "/api/notes/save" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var noteId = body.id || ("note-" + Date.now() + "-" + Math.random().toString(36).slice(2,6));
+        var module = (body.module || "General").substring(0, 50);
+        var note = {
+          id: noteId,
+          title: (body.title || "Untitled").substring(0, 200),
+          content: (body.content || "").substring(0, 50000),
+          inkData: body.inkData || null,       // base64 canvas PNG
+          ocrText: (body.ocrText || "").substring(0, 10000),
+          module: module,
+          tags: body.tags || [],
+          createdAt: body.createdAt || Date.now(),
+          updatedAt: Date.now(),
+          wordCount: (body.content || "").split(/\s+/).filter(Boolean).length
+        };
+        if (env.PRISM_KV) {
+          // Save note
+          await env.PRISM_KV.put("note:" + noteId, JSON.stringify(note));
+          // Update module index
+          var modKey = "notes:module:" + module.toLowerCase().replace(/\s+/g, "-");
+          var modRaw = await env.PRISM_KV.get(modKey);
+          var modIndex = modRaw ? JSON.parse(modRaw) : [];
+          if (!modIndex.includes(noteId)) modIndex.unshift(noteId);
+          if (modIndex.length > 500) modIndex = modIndex.slice(0, 500);
+          await env.PRISM_KV.put(modKey, JSON.stringify(modIndex));
+          // Update global index
+          var globalRaw = await env.PRISM_KV.get("notes:index");
+          var globalIndex = globalRaw ? JSON.parse(globalRaw) : [];
+          var existing = globalIndex.find(function(n) { return n.id === noteId; });
+          if (existing) {
+            existing.title = note.title; existing.module = note.module;
+            existing.updatedAt = note.updatedAt; existing.wordCount = note.wordCount;
+          } else {
+            globalIndex.unshift({ id: noteId, title: note.title, module: note.module, updatedAt: note.updatedAt, wordCount: note.wordCount });
+          }
+          if (globalIndex.length > 1000) globalIndex = globalIndex.slice(0, 1000);
+          await env.PRISM_KV.put("notes:index", JSON.stringify(globalIndex));
+        }
+        return json({ success: true, id: noteId, note }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // Get notes — optionally filtered by module
+    if (path === "/api/notes" && request.method === "GET") {
+      try {
+        var module = url.searchParams.get("module") || "";
+        var limit = parseInt(url.searchParams.get("limit") || "50");
+        if (!env.PRISM_KV) return json({ notes: [] }, 200, origin);
+        var globalRaw = await env.PRISM_KV.get("notes:index");
+        var globalIndex = globalRaw ? JSON.parse(globalRaw) : [];
+        if (module) {
+          globalIndex = globalIndex.filter(function(n) {
+            return n.module && n.module.toLowerCase() === module.toLowerCase();
+          });
+        }
+        return json({ notes: globalIndex.slice(0, limit), total: globalIndex.length }, 200, origin);
+      } catch(e) { return json({ error: e.message, notes: [] }, 200, origin); }
+    }
+
+    // Get a single note
+    if (path.startsWith("/api/notes/") && request.method === "GET" && !path.includes("/save") && !path.includes("/modules") && !path.includes("/search")) {
+      try {
+        var noteId = path.replace("/api/notes/", "");
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 200, origin);
+        var noteRaw = await env.PRISM_KV.get("note:" + noteId);
+        if (!noteRaw) return json({ error: "Note not found" }, 404, origin);
+        return json({ note: JSON.parse(noteRaw) }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // Delete a note
+    if (path.startsWith("/api/notes/") && request.method === "DELETE") {
+      try {
+        var noteId = path.replace("/api/notes/", "");
+        if (env.PRISM_KV) {
+          var noteRaw = await env.PRISM_KV.get("note:" + noteId);
+          if (noteRaw) {
+            var note = JSON.parse(noteRaw);
+            // Remove from module index
+            var modKey = "notes:module:" + (note.module || "general").toLowerCase().replace(/\s+/g, "-");
+            var modRaw = await env.PRISM_KV.get(modKey);
+            if (modRaw) {
+              var modIndex = JSON.parse(modRaw).filter(function(id) { return id !== noteId; });
+              await env.PRISM_KV.put(modKey, JSON.stringify(modIndex));
+            }
+            // Remove from global index
+            var globalRaw = await env.PRISM_KV.get("notes:index");
+            if (globalRaw) {
+              var globalIndex = JSON.parse(globalRaw).filter(function(n) { return n.id !== noteId; });
+              await env.PRISM_KV.put("notes:index", JSON.stringify(globalIndex));
+            }
+            await env.PRISM_KV.delete("note:" + noteId);
+          }
+        }
+        return json({ success: true, deleted: noteId }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // List all modules (folders)
+    if (path === "/api/notes/modules" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ modules: [] }, 200, origin);
+        var globalRaw = await env.PRISM_KV.get("notes:index");
+        var globalIndex = globalRaw ? JSON.parse(globalRaw) : [];
+        var moduleCounts = {};
+        globalIndex.forEach(function(n) {
+          var m = n.module || "General";
+          moduleCounts[m] = (moduleCounts[m] || 0) + 1;
+        });
+        var modules = Object.keys(moduleCounts).map(function(m) {
+          return { name: m, count: moduleCounts[m] };
+        }).sort(function(a, b) { return b.count - a.count; });
+        return json({ modules }, 200, origin);
+      } catch(e) { return json({ error: e.message, modules: [] }, 200, origin); }
+    }
+
+    // Search notes
+    if (path === "/api/notes/search" && request.method === "GET") {
+      try {
+        var q = (url.searchParams.get("q") || "").toLowerCase();
+        if (!q || !env.PRISM_KV) return json({ notes: [] }, 200, origin);
+        var globalRaw = await env.PRISM_KV.get("notes:index");
+        var globalIndex = globalRaw ? JSON.parse(globalRaw) : [];
+        // Search by title first (fast)
+        var titleMatches = globalIndex.filter(function(n) {
+          return n.title && n.title.toLowerCase().includes(q);
+        });
+        // For content search, fetch matching notes (limit to 20 for performance)
+        var results = titleMatches.slice(0, 20);
+        return json({ notes: results, query: q }, 200, origin);
+      } catch(e) { return json({ error: e.message, notes: [] }, 200, origin); }
+    }
+
 return json({ error: "Not found", path }, 404, origin);
   }
 };
