@@ -476,9 +476,30 @@
 <div>
 <div class="context-section-title">Model</div>
 <div class="model-info-card" onclick="openModelModal()" title="Change model or routing profile">
-<div class="model-name" id="ctx-model-name">Auto (Balanced)</div>
+<div class="model-name" id="ctx-model-name">Auto (Orchestrator)</div>
 <div class="model-provider" id="ctx-model-provider">Cerebras → Groq → DeepSeek</div>
 </div>
+<select id="model-override" onchange="setModelOverride(this.value)"
+  style="width:100%;margin-top:6px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;background:var(--bg);color:var(--fg);cursor:pointer;">
+<option value="">Auto (Orchestrator decides)</option>
+<optgroup label="Fast">
+<option value="cerebras/llama-3.3-70b">Llama 3.3 70B — Cerebras (fast)</option>
+<option value="groq/llama-3.3-70b-versatile">Llama 3.3 70B — Groq (fast)</option>
+</optgroup>
+<optgroup label="Quality">
+<option value="deepseek/deepseek-chat">DeepSeek V3 (reasoning)</option>
+<option value="kimi/moonshot-v1-128k">Kimi 128K (long context)</option>
+<option value="mistral/mistral-small-latest">Mistral Small (EU)</option>
+<option value="cohere/command-r-plus-08-2024">Cohere Command R+</option>
+</optgroup>
+<optgroup label="Frontier">
+<option value="gemini/gemini-2.5-pro">Gemini 2.5 Pro (1M ctx)</option>
+<option value="gemini/gemini-2.0-flash">Gemini 2.0 Flash (vision)</option>
+</optgroup>
+</select>
+<button onclick="openMultiModelModal()" style="width:100%;margin-top:6px;padding:5px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer;text-align:left;">
+  ⚡ Multi-model mode
+</button>
 </div>
 <div>
 <div class="context-section-title">Routing Profile</div>
@@ -527,7 +548,7 @@
 </div>
 </div>
 </div>
-<input type="file" id="chat-file-input" accept="image/*,.pdf,.txt,.csv,.md,.json,.js,.py,.html,.css" multiple style="display:none;" onchange="handleChatAttachment(this)">
+<input type="file" id="chat-file-input" accept="image/*,.pdf,.txt,.csv,.md,.markdown,.json,.js,.py,.html,.css,.docx,.doc,.rtf" multiple style="display:none;" onchange="handleChatAttachment(this)">
 <script src="/shared/prism.js"></script>
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
@@ -604,11 +625,25 @@ function handleChatAttachment(input) {
       } else {
         // Text/document — extract content
         var textContent = typeof data === 'string' ? data : new TextDecoder().decode(data);
-        chatAttachments.push({type:'text', data:textContent.substring(0,10000), name:file.name});
+        // Large files: send first 100KB and note truncation
+        var maxChars = 100000;
+        var truncated = textContent.length > maxChars;
+        var fileData = truncated ? textContent.substring(0, maxChars) : textContent;
+        chatAttachments.push({
+          type: 'text',
+          data: fileData,
+          name: file.name,
+          size: textContent.length,
+          truncated: truncated
+        });
+        if (truncated) {
+          console.log('File truncated: ' + file.name + ' (' + textContent.length + ' chars, showing first 100K)');
+        }
         if (preview) {
           var chip = document.createElement('div');
           chip.style.cssText = 'padding:4px 8px;background:var(--accent-light);border:1px solid var(--accent);border-radius:6px;font-size:11.5px;color:var(--accent);display:flex;align-items:center;gap:4px;';
-          chip.textContent = '📄 ' + file.name;
+          var sizeStr = file.size > 1024*1024 ? (file.size/1024/1024).toFixed(1)+'MB' : file.size > 1024 ? (file.size/1024).toFixed(0)+'KB' : file.size+'B';
+          chip.textContent = '📄 ' + file.name + ' (' + sizeStr + ')';
           var del = document.createElement('button');
           del.textContent = '×';
           del.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--accent);font-size:14px;';
@@ -725,6 +760,13 @@ function doSend() {
   // Include image attachments for vision models
   var imageAttachments = chatAttachments.filter(function(a){return a.type==='image';});
   var payload = {messages: messages, profile: currentProfile, threadId: currentThreadId};
+  // Apply manual model override if set
+  if (modelOverride) {
+    var moParts = modelOverride.split('/');
+    payload.providerOverride = moParts[0];
+    payload.modelOverride = moParts.slice(1).join('/');
+    payload.profile = 'override';
+  }
   if (imageAttachments.length > 0) {
     payload.images = imageAttachments.map(function(a){return {data:a.data,mimeType:a.mimeType||'image/jpeg'};});
     payload.profile = 'multimodal'; // Route to vision-capable model
@@ -1502,6 +1544,132 @@ function cleanupTestThreads() {
       Toast.success('Cleaned up ' + (d.deleted||[]).length + ' test threads.');
       loadThreadList();
     });
+}
+
+// ── Manual model selection ────────────────────────────────────────────────────
+var modelOverride = null;
+
+function setModelOverride(value) {
+  modelOverride = value || null;
+  var nameEl = document.getElementById('ctx-model-name');
+  if (nameEl) {
+    if (modelOverride) {
+      var parts = modelOverride.split('/');
+      nameEl.textContent = parts[parts.length-1].substring(0,25);
+    } else {
+      nameEl.textContent = 'Auto (Orchestrator)';
+    }
+  }
+}
+
+// ── Multi-model mode ──────────────────────────────────────────────────────────
+var multiModelActive = false;
+var multiModelSelection = ['cerebras/llama-3.3-70b', 'deepseek/deepseek-chat', 'gemini/gemini-2.0-flash'];
+
+function openMultiModelModal() {
+  var existing = document.getElementById('multi-model-modal');
+  if (existing) { existing.remove(); return; }
+  
+  var modal = document.createElement('div');
+  modal.id = 'multi-model-modal';
+  modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:20px;z-index:9999;width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.2);font-family:Inter,sans-serif;';
+  
+  var models = [
+    {id:'cerebras/llama-3.3-70b', label:'Llama 3.3 70B (Cerebras)'},
+    {id:'groq/llama-3.3-70b-versatile', label:'Llama 3.3 70B (Groq)'},
+    {id:'deepseek/deepseek-chat', label:'DeepSeek V3'},
+    {id:'kimi/moonshot-v1-128k', label:'Kimi 128K'},
+    {id:'mistral/mistral-small-latest', label:'Mistral Small'},
+    {id:'gemini/gemini-2.5-pro', label:'Gemini 2.5 Pro'},
+    {id:'gemini/gemini-2.0-flash', label:'Gemini Flash'},
+    {id:'cohere/command-r-plus-08-2024', label:'Cohere Command R+'},
+  ];
+  
+  modal.innerHTML = '<div style="font-weight:700;font-size:14px;margin-bottom:4px;">⚡ Multi-model mode</div>' +
+    '<div style="font-size:11px;color:var(--fg-muted);margin-bottom:12px;">Select up to 3 models. Your next message fires to all of them.</div>' +
+    '<div id="mm-model-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">' +
+    models.map(function(m) {
+      var checked = multiModelSelection.includes(m.id) ? 'checked' : '';
+      return '<label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">' +
+        '<input type="checkbox" value="' + m.id + '" ' + checked + ' onchange="updateMultiSelection(this)"> ' + m.label + '</label>';
+    }).join('') +
+    '</div>' +
+    '<div style="display:flex;gap:6px;align-items:center;">' +
+    '<label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">' +
+    '<input type="checkbox" id="mm-synthesise"> Synthesise responses</label>' +
+    '<button onclick="document.getElementById('multi-model-modal').remove()" style="margin-left:auto;padding:5px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">Done</button>' +
+    '</div>';
+  
+  document.body.appendChild(modal);
+  multiModelActive = true;
+}
+
+function updateMultiSelection(cb) {
+  if (cb.checked) {
+    if (multiModelSelection.length >= 3) { cb.checked = false; Toast.warning('Maximum 3 models.'); return; }
+    multiModelSelection.push(cb.value);
+  } else {
+    multiModelSelection = multiModelSelection.filter(function(m){ return m !== cb.value; });
+  }
+}
+
+// Override doSend to handle model override and multi-model
+var _originalDoSend = null;
+document.addEventListener('DOMContentLoaded', function() {
+  _originalDoSend = window.doSend;
+  window.doSend = function() {
+    if (multiModelActive && multiModelSelection.length > 0) {
+      doMultiModelSend();
+    } else {
+      _originalDoSend && _originalDoSend();
+    }
+  };
+});
+
+function doMultiModelSend() {
+  var input = document.getElementById('chat-input');
+  if (!input) return;
+  var text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  
+  appendMessage('user', text, null, null);
+  var synthesise = document.getElementById('mm-synthesise') && document.getElementById('mm-synthesise').checked;
+  var typingId = showTyping();
+  
+  var messages = [{role:'system', content: currentPersona.systemPrompt}];
+  for (var i = 0; i < messageHistory.length; i++) messages.push(messageHistory[i]);
+  messages.push({role:'user', content: text});
+  messageHistory.push({role:'user', content: text});
+  
+  fetch(WORKER + '/api/chat/multi', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({messages: messages, models: multiModelSelection, synthesise: synthesise})
+  }).then(function(r){ return r.json(); })
+  .then(function(d) {
+    removeTyping(typingId);
+    var results = d.results || [];
+    
+    if (synthesise && d.synthesis) {
+      appendMessage('assistant', d.synthesis, 'synthesis', 'multi-model');
+      messageHistory.push({role:'assistant', content: d.synthesis});
+    }
+    
+    results.forEach(function(r) {
+      if (r.content) {
+        var label = r.model.split('/').pop();
+        appendMessage('assistant', '**[' + label + ']** ' + r.content, r.model, label);
+        if (!synthesise) messageHistory.push({role:'assistant', content: r.content});
+      } else if (r.error) {
+        appendMessage('assistant', '[' + r.model + ' failed: ' + r.error + ']', null, null);
+      }
+    });
+  })
+  .catch(function(e) {
+    removeTyping(typingId);
+    appendMessage('assistant', 'Multi-model error: ' + e.message, null, null);
+  });
 }
 </script>
 </body>
