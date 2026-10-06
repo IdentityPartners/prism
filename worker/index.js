@@ -6928,11 +6928,85 @@ var index_default = {
           Object.assign(postErrors, pwcData.errors || {});
         }
 
-        // Post text platforms via postViaBuffer
-        if (textPlatforms.length > 0) {
-          var bufferResults = await postViaBuffer(env, item.text, textPlatforms, item.imageUrl || null);
+        // Post text platforms — route by method
+        var directPlatforms = textPlatforms.filter(function(p){
+          var m = (item.platformMethods||{})[p];
+          return !m || m === 'direct';
+        });
+        var bufferPlatforms = textPlatforms.filter(function(p){
+          return (item.platformMethods||{})[p] === 'buffer';
+        });
+        var zapierPlatforms = textPlatforms.filter(function(p){
+          return (item.platformMethods||{})[p] === 'zapier';
+        });
+
+        // Buffer platforms (X, LinkedIn if not already handled)
+        if (bufferPlatforms.length > 0) {
+          var bufferResults = await postViaBuffer(env, item.text, bufferPlatforms, item.imageUrl || null);
           Object.assign(postResults, bufferResults.results || {});
           Object.assign(postErrors, bufferResults.errors || {});
+        }
+
+        // Direct platforms (Bluesky already handled above, plus Mastodon, Telegram, Tumblr)
+        for (var dpi = 0; dpi < directPlatforms.length; dpi++) {
+          var dp = directPlatforms[dpi];
+          try {
+            if (dp === 'bluesky') {
+              var bsR = await postToBluesky(env, item.text);
+              if (bsR.success) postResults.bluesky = bsR;
+              else postErrors.bluesky = bsR.error || 'Bluesky failed';
+            } else if (dp === 'mastodon') {
+              var masR = await postToMastodon(env, item.text);
+              if (masR.success) postResults.mastodon = masR;
+              else postErrors.mastodon = masR.error || 'Mastodon failed';
+            } else if (dp === 'telegram') {
+              var tgTok = env.TELEGRAM_TOKEN || env.telegram_token;
+              var tgChat = env.TELEGRAM_CHAT_ID || env.TELEGRAM_CHAT || env.telegram_chat_id;
+              if (tgTok && tgChat) {
+                var tgR = await fetch("https://api.telegram.org/bot" + tgTok + "/sendMessage", {
+                  method: "POST", headers: {"Content-Type":"application/json"},
+                  body: JSON.stringify({chat_id: tgChat, text: item.text.substring(0,4096), parse_mode:"HTML"})
+                });
+                var tgD = await tgR.json();
+                if (tgD.ok) postResults.telegram = {success:true, message_id: tgD.result.message_id};
+                else postErrors.telegram = tgD.description || "Telegram failed";
+              } else { postErrors.telegram = "Telegram not configured"; }
+            } else if (dp === 'tumblr') {
+              var tumKey = env.Tumblr_OAuth_consumer_key || env.tumblr_key;
+              var tumSecret = env.Tumblr_OAuth_consumer_secret || env.tumblr_secret;
+              if (tumKey) {
+                // Tumblr requires OAuth 1.0a — use simple text post via API v2
+                var tumR = await fetch("https://api.tumblr.com/v2/blog/identitypartners.tumblr.com/posts", {
+                  method: "POST",
+                  headers: {"Authorization":"Bearer " + tumKey, "Content-Type":"application/json"},
+                  body: JSON.stringify({content:[{type:"text",text:item.text.substring(0,4096)}],tags:["IdentityPartners","MentalHealth","Recovery"]})
+                });
+                if (tumR.ok) postResults.tumblr = {success:true};
+                else postErrors.tumblr = "Tumblr " + tumR.status;
+              } else { postErrors.tumblr = "Tumblr not configured"; }
+            }
+          } catch(dpErr) {
+            postErrors[dp] = dpErr.message;
+          }
+        }
+
+        // Zapier/Make.com platforms (Substack, Threads)
+        for (var zpi = 0; zpi < zapierPlatforms.length; zpi++) {
+          var zp = zapierPlatforms[zpi];
+          var webhookKey = "ZAPIER_WEBHOOK_" + zp.toUpperCase();
+          var webhookUrl = env[webhookKey] || env["zapier_webhook_" + zp];
+          if (webhookUrl) {
+            try {
+              var zR = await fetch(webhookUrl, {
+                method: "POST", headers: {"Content-Type":"application/json"},
+                body: JSON.stringify({platform: zp, text: item.text, imageUrl: item.imageUrl || null, timestamp: new Date().toISOString()})
+              });
+              if (zR.ok) postResults[zp] = {success:true, via:"zapier"};
+              else postErrors[zp] = zp + " webhook " + zR.status;
+            } catch(zErr) { postErrors[zp] = zErr.message; }
+          } else {
+            postErrors[zp] = zp + " requires Zapier/Make.com webhook — set " + webhookKey + " in Settings";
+          }
         }
 
         // Update item status
