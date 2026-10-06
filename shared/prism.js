@@ -546,12 +546,27 @@ var OSK = (function() {
     collapseBtn.className = 'osk-collapse-btn';
     collapseBtn.textContent = '⌨ Hide keyboard';
     collapseBtn.style.cssText = 'width:100%;padding:3px;font-size:10px;background:var(--bg-sunken,#e4eaf0);border:none;border-bottom:1px solid var(--border,#c8d4e0);cursor:pointer;color:var(--fg-muted,#5a6a7e);text-align:center;';
+    var oskVisible = true;
     collapseBtn.onclick = function() {
+      oskVisible = !oskVisible;
       var rows = container.querySelectorAll('.osk-row');
-      var hidden = rows.length && rows[0].style.display === 'none';
-      rows.forEach(function(r) { r.style.display = hidden ? '' : 'none'; });
-      collapseBtn.textContent = hidden ? '⌨ Hide keyboard' : '⌨ Show keyboard';
+      rows.forEach(function(r) { r.style.display = oskVisible ? '' : 'none'; });
+      collapseBtn.textContent = oskVisible ? '⌨ Hide keyboard' : '⌨ Show keyboard';
+      try { localStorage.setItem('osk-visible', oskVisible ? '1' : '0'); } catch(e) {}
     };
+    // Restore collapsed state from localStorage
+    try {
+      var savedOsk = localStorage.getItem('osk-visible');
+      if (savedOsk === '0') {
+        oskVisible = false;
+        collapseBtn.textContent = '⌨ Show keyboard';
+        // Rows not yet added — will be hidden after build completes
+        setTimeout(function() {
+          var rows = container.querySelectorAll('.osk-row');
+          rows.forEach(function(r) { r.style.display = 'none'; });
+        }, 0);
+      }
+    } catch(e) {}
     container.appendChild(collapseBtn);
 
     // Track focus on the target
