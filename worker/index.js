@@ -2290,12 +2290,89 @@ function json(data, status, origin) {
 }
 __name(json, "json");
 var DEV_TEAM_PROMPTS = {
-  pm: "You are the Programme Manager for Prism (prism.identitypartners.uk). Worker: prism-api.identitypartners.workers.dev. Repo: IdentityPartners/prism. Pages deploys from main branch. JS rules: var not const/let at top level, no arrow functions in onclick, no innerHTML with mixed quotes, use document.createElement. You coordinate the dev team and maintain the roadmap. Direct, technical, concise. British English.",
-  troubleshooter: "You are the Troubleshooter for Prism. Diagnose and fix issues systematically. Common issues: (1) const/let redeclaration -- fix with var. (2) Arrow functions in onclick -- fix with named functions. (3) innerHTML with mixed quotes -- fix with createElement. (4) To push a fix: edit file, commit to main, Pages auto-deploys. (5) Worker secrets: Cloudflare dashboard > Workers > prism-api > Settings > Variables. Be precise.",
-  researcher: "You are the Research Agent for Prism. Find information, synthesise research, produce structured reports. Focus on addiction, trauma, mental health, community wellbeing, social policy. British English. Cite sources.",
-  creator: "You are the Creator Agent for Prism. Create content: social media posts, carousels, email newsletters, podcast scripts, worksheets. Identity Partners brand: warm, professional, evidence-based, focused on addiction and mental health. British English.",
-  api_champion: "You are the API Champion for Prism. Monitor the model registry, track new model releases, update routing profiles, ensure all API keys are current. Know all providers: Cerebras, Groq, DeepSeek, Gemini, OpenRouter, SambaNova, NVIDIA NIM, Mistral, Together, Fireworks, Cohere, Kimi, Chutes, Nebius, Zhipu, Ollama. Report model updates concisely."
+  pm: "You are the Programme Manager for Argentica (prism.identitypartners.uk). Worker: prism-api.identitypartners.workers.dev. Repo: IdentityPartners/prism. You coordinate the dev team and own the roadmap. RULES: Never describe actions — execute them. Use the available tools: search_web, post_to_social, generate_canvas, run_research, send_telegram, update_kv. When asked to fix something, call the appropriate tool immediately. When asked to post content, call post_to_social. When asked to research, call run_research. Never say 'I would' — do it. Never hallucinate metrics. British English. Direct, technical, concise.",
+  troubleshooter: "You are the Troubleshooter for Argentica. Diagnose and fix issues by calling tools directly. Available tools: check_worker_health, get_kv_value, set_kv_value, push_github_file, run_diagnostic. When you identify a bug, fix it immediately using push_github_file. Do not ask Simon to do anything technical. Common JS rules: var not const/let at top level, no arrow functions in onclick, use document.createElement not innerHTML with mixed quotes. British English.",
+  researcher: "You are the Research Agent for Argentica. Find information and synthesise research using search_web and run_research tools. Focus on addiction, trauma, mental health, community wellbeing, social policy. When research is complete, offer to post findings via post_to_social or save to memory via save_memory. British English. Cite sources. Never hallucinate citations.",
+  creator: "You are the Creator Agent for Argentica. Create content using generate_canvas, generate_voice, and post_to_social tools. Identity Partners brand: warm, professional, evidence-based, focused on addiction and mental health. When asked to create a post, generate it AND queue it via post_to_social immediately. When asked for a canvas, call generate_canvas. British English.",
+  api_champion: "You are the API Champion for Argentica. Monitor the model registry daily using check_provider_models tool. When you find stale model names, fix them immediately using push_github_file. Know all providers: Cerebras, Groq, DeepSeek, Gemini, OpenRouter, SambaNova, NVIDIA NIM, Mistral, Together, Fireworks, Cohere, Kimi, Chutes, Nebius, Zhipu. Never include Ollama in automated routing. Report updates concisely and act on them.",
+  media_manager: "You are the Media Manager for Argentica. You own all content publication. Use post_to_social to queue and approve posts. Use generate_canvas to create images. Use check_queue to review pending items. Never describe what you will do — do it immediately using the available tools. Enforce IP brand rules: mandatory hashtags (#IdentityPartners #MentalHealth #Recovery #Addiction #Wellbeing), footer (hello@identitypartners.uk | www.identitypartners.uk/contact). British English."
 };
+
+// ── Dev Team tool execution ───────────────────────────────────────────────────
+async function executeDevTeamTool(toolName, params, env) {
+  try {
+    switch(toolName) {
+      case 'search_web': {
+        var tavilyKey = env.tavily_api_key || env.TAVILY_API_KEY || env.tavily || "";
+        if (!tavilyKey) return {error: "Tavily not configured"};
+        var r = await fetch("https://api.tavily.com/search", {
+          method: "POST", headers: {"Content-Type":"application/json","Authorization":"Bearer "+tavilyKey},
+          body: JSON.stringify({query: params.query, max_results: 5})
+        });
+        var d = await r.json();
+        return {results: (d.results||[]).map(function(x){return {title:x.title,url:x.url,snippet:x.content};})};
+      }
+      case 'post_to_social': {
+        var qReq = new Request("https://prism-api.identitypartners.workers.dev/api/mm/queue", {
+          method: "POST", headers: {"Content-Type":"application/json","Origin":"https://prism.identitypartners.uk"},
+          body: JSON.stringify({text: params.text, platforms: params.platforms||["bluesky"], source: "devteam-agent"})
+        });
+        var qResp = await fetch(qReq);
+        return await qResp.json();
+      }
+      case 'generate_canvas': {
+        var cReq = new Request("https://prism-api.identitypartners.workers.dev/api/canvas/render", {
+          method: "POST", headers: {"Content-Type":"application/json","Origin":"https://prism.identitypartners.uk"},
+          body: JSON.stringify({text: params.text, template: params.template||"quote-teal"})
+        });
+        var cResp = await fetch(cReq);
+        return await cResp.json();
+      }
+      case 'check_worker_health': {
+        var hResp = await fetch("https://prism-api.identitypartners.workers.dev/health");
+        return {status: hResp.status, ok: hResp.ok};
+      }
+      case 'get_kv_value': {
+        if (!env.PRISM_KV) return {error: "KV not available"};
+        var val = await env.PRISM_KV.get(params.key);
+        return {key: params.key, value: val};
+      }
+      case 'set_kv_value': {
+        if (!env.PRISM_KV) return {error: "KV not available"};
+        await env.PRISM_KV.put(params.key, params.value);
+        return {success: true, key: params.key};
+      }
+      case 'send_telegram': {
+        var tgTok = env.TELEGRAM_TOKEN || env.telegram_token;
+        var tgChat = env.TELEGRAM_CHAT_ID || env.TELEGRAM_CHAT || env.telegram_chat_id;
+        if (!tgTok || !tgChat) return {error: "Telegram not configured"};
+        var tgR = await fetch("https://api.telegram.org/bot"+tgTok+"/sendMessage", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({chat_id: tgChat, text: params.text.substring(0,4096)})
+        });
+        return await tgR.json();
+      }
+      case 'run_research': {
+        var rReq = new Request("https://prism-api.identitypartners.workers.dev/api/research/search", {
+          method: "POST", headers: {"Content-Type":"application/json","Origin":"https://prism.identitypartners.uk"},
+          body: JSON.stringify({query: params.query, sources: params.sources||["tavily","brave"]})
+        });
+        var rResp = await fetch(rReq);
+        return await rResp.json();
+      }
+      case 'check_queue': {
+        var mmResp = await fetch("https://prism-api.identitypartners.workers.dev/api/mm/queue", {
+          headers: {"Origin":"https://prism.identitypartners.uk"}
+        });
+        return await mmResp.json();
+      }
+      default:
+        return {error: "Unknown tool: " + toolName};
+    }
+  } catch(e) {
+    return {error: e.message};
+  }
+}
 var index_default = {
   async scheduled(event, env, ctx) {
     var hour = (/* @__PURE__ */ new Date()).getUTCHours();
@@ -3105,7 +3182,26 @@ var index_default = {
         history.push({ role: "assistant", content: result.content });
         if (history.length > 40) history = history.slice(-40);
         if (env.PRISM_KV) await env.PRISM_KV.put(historyKey, JSON.stringify(history));
-        return json({ content: result.content, provider: result.provider, agent }, 200, origin);
+        // Parse tool calls from LLM response
+        var responseText = result.content || "";
+        var toolResults = [];
+        var toolCallRegex = /TOOL_CALL:\s*(\w+)\s*\(([^)]+)\)/g;
+        var match;
+        while ((match = toolCallRegex.exec(responseText)) !== null) {
+          var toolName = match[1];
+          var toolParamsStr = match[2];
+          var toolParams = {};
+          try { toolParams = JSON.parse("{" + toolParamsStr + "}"); } catch(e) {
+            // Try simple key:value parsing
+            toolParamsStr.split(",").forEach(function(pair) {
+              var kv = pair.split(":"); if (kv.length >= 2) toolParams[kv[0].trim().replace(/['"]/g,"")] = kv.slice(1).join(":").trim().replace(/['"]/g,"");
+            });
+          }
+          var toolResult = await executeDevTeamTool(toolName, toolParams, env);
+          toolResults.push({tool: toolName, params: toolParams, result: toolResult});
+          responseText += "\n\n[Tool: " + toolName + " → " + JSON.stringify(toolResult).substring(0,200) + "]";
+        }
+        return json({ content: responseText, provider: result.provider, agent, toolResults }, 200, origin);
       } catch (e) {
         return json({ error: e.message }, 500, origin);
       }
@@ -7274,6 +7370,141 @@ var index_default = {
       } catch(e) {
         return json({ error: e.message }, 500, origin);
       }
+    }
+
+    // ── Chat thread management ────────────────────────────────────────────────
+    // Delete thread
+    if (path.startsWith("/api/chat/thread/") && request.method === "DELETE") {
+      try {
+        var threadId = path.replace("/api/chat/thread/", "").split("/")[0];
+        if (env.PRISM_KV) {
+          await env.PRISM_KV.delete("thread:" + threadId);
+          await env.PRISM_KV.delete("thread:messages:" + threadId);
+          // Remove from thread index
+          var idxRaw = await env.PRISM_KV.get("threads:index");
+          var idx2 = idxRaw ? JSON.parse(idxRaw) : [];
+          idx2 = idx2.filter(function(t){ return t.id !== threadId; });
+          await env.PRISM_KV.put("threads:index", JSON.stringify(idx2));
+        }
+        return json({ success: true, deleted: threadId }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // Rename thread
+    if (path.match(/^\/api\/chat\/thread\/[^/]+\/rename$/) && request.method === "POST") {
+      try {
+        var threadId2 = path.split("/")[4];
+        var body = await request.json();
+        var newTitle = (body.title || "").substring(0, 100);
+        if (env.PRISM_KV) {
+          var threadRaw = await env.PRISM_KV.get("thread:" + threadId2);
+          if (threadRaw) {
+            var thread = JSON.parse(threadRaw);
+            thread.title = newTitle;
+            thread.updated = Date.now();
+            await env.PRISM_KV.put("thread:" + threadId2, JSON.stringify(thread));
+            // Update index
+            var idxRaw2 = await env.PRISM_KV.get("threads:index");
+            var idx3 = idxRaw2 ? JSON.parse(idxRaw2) : [];
+            var ti = idx3.find(function(t){ return t.id === threadId2; });
+            if (ti) { ti.title = newTitle; ti.updated = Date.now(); }
+            await env.PRISM_KV.put("threads:index", JSON.stringify(idx3));
+          }
+        }
+        return json({ success: true, title: newTitle }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // ── Gemma Vision Creative Director ────────────────────────────────────────
+    // Takes a screenshot URL or base64 image and returns creative direction
+    if (path === "/api/creative-director/review" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var imageUrl = body.imageUrl || null;
+        var imageB64 = body.imageBase64 || null;
+        var context = body.context || "social media canvas";
+        var geminiKey = env.GEMINI_PAID_API_KEY || env.gemini_paid_api_key || env.GEMINI_API_KEY || env.gemini_api_key || "";
+        if (!geminiKey) return json({ error: "Gemini key not configured" }, 200, origin);
+
+        // Fetch image if URL provided
+        if (imageUrl && !imageB64) {
+          var imgResp = await fetch(imageUrl);
+          if (imgResp.ok) {
+            var imgBuf = await imgResp.arrayBuffer();
+            imageB64 = btoa(String.fromCharCode(...new Uint8Array(imgBuf)));
+          }
+        }
+
+        if (!imageB64) return json({ error: "No image provided" }, 400, origin);
+
+        var cdPrompt = "You are the Creative Director for Identity Partners, a professional services firm focused on addiction, trauma, mental health, and community wellbeing. " +
+          "You are reviewing a " + context + " for brand quality and creative effectiveness. " +
+          "Assess the following with specific, actionable feedback (not generic praise):\n\n" +
+          "1. BRAND COMPLIANCE: Is the IP logo visible? Are brand colours (deep teal #0f3b3a, deep rose #5c2d3f, warm ivory #f7f3e9) correctly applied? Is the wordmark legible?\n" +
+          "2. TYPOGRAPHY: Is the quote/text in Playfair Display italic? Is it readable against the background? Is the font size appropriate?\n" +
+          "3. COMPOSITION: Is the layout balanced? Does the IP colour grid appear top-left? Is the background appropriate (landscape/vista, not yoga/wellness/boardroom)?\n" +
+          "4. EMOTIONAL IMPACT: Does this image communicate warmth, professionalism, and evidence-based authority? Would it resonate with someone in recovery or supporting someone in recovery?\n" +
+          "5. TECHNICAL: Any rendering issues, blank areas, colour clashes, or missing elements?\n\n" +
+          "Reply with: PASS or FAIL, then specific notes for each of the 5 points. If FAIL, state exactly what must be fixed. Be direct. No sycophancy.";
+
+        var qaPayload = {
+          contents: [{
+            parts: [
+              { text: cdPrompt },
+              { inline_data: { mime_type: "image/png", data: imageB64.substring(0, 200000) } }
+            ]
+          }]
+        };
+
+        var qaResp = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + geminiKey,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(qaPayload) }
+        );
+
+        if (!qaResp.ok) return json({ error: "Gemini " + qaResp.status }, 200, origin);
+        var qaData = await qaResp.json();
+        var review = ((qaData.candidates || [])[0] || {}).content;
+        review = review ? (review.parts || [])[0].text || "" : "";
+        var passed = review.toUpperCase().startsWith("PASS");
+
+        return json({ passed, review, context, model: "gemini-2.0-flash" }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // Creative Director: take a live screenshot and review it
+    if (path === "/api/creative-director/screenshot" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var targetUrl = body.url || "https://prism.identitypartners.uk/creator/canvas/";
+        var browserlessKey = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO;
+        if (!browserlessKey) return json({ error: "Browserless not configured" }, 200, origin);
+
+        var ssResp = await fetch("https://chrome.browserless.io/screenshot?token=" + browserlessKey, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: targetUrl,
+            options: { type: "png", fullPage: false },
+            waitForTimeout: 5000
+          })
+        });
+
+        if (!ssResp.ok) return json({ error: "Screenshot failed: " + ssResp.status }, 200, origin);
+        var ssBuf = await ssResp.arrayBuffer();
+        var ssB64 = btoa(String.fromCharCode(...new Uint8Array(ssBuf)));
+
+        // Now review it
+        var reviewReq = new Request("https://prism-api.identitypartners.workers.dev/api/creative-director/review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Origin": "https://prism.identitypartners.uk" },
+          body: JSON.stringify({ imageBase64: ssB64, context: "live system screenshot of " + targetUrl })
+        });
+        var reviewResp = await fetch(reviewReq);
+        var reviewData = await reviewResp.json();
+        reviewData.screenshotSize = ssBuf.byteLength;
+        reviewData.url = targetUrl;
+        return json(reviewData, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
     }
 
 return json({ error: "Not found", path }, 404, origin);
