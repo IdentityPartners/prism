@@ -83,7 +83,7 @@
   display: flex;
   justify-content: space-between;
 }
-.thread-empty {
+.conv-empty {
   padding: 24px 14px;
   text-align: center;
   color: var(--fg-muted);
@@ -406,14 +406,14 @@
 <!-- Thread list -->
 <div class="chat-threads">
 <div class="chat-threads-header">
-<span class="chat-threads-title">Threads</span>
-<button class="btn btn-sm btn-ghost" onclick="newThread()" title="New thread">＋</button>
+<span class="chat-threads-title">Conversations</span>
+<button class="btn btn-sm btn-ghost" onclick="newThread()" title="New conversation">＋</button>
 </div>
 <div class="threads-search">
 <input id="thread-search" oninput="filterThreads(this.value)" placeholder="Search threads…" type="text"/>
 </div>
 <div class="threads-list" id="threads-list">
-<div class="thread-empty">Loading threads…</div>
+<div class="conv-empty">Loading threads…</div>
 </div>
 </div>
 <!-- Centre pane -->
@@ -491,8 +491,8 @@
 </div>
 </div>
 <div>
-<div class="context-section-title">Thread</div>
-<div id="ctx-thread-info" style="font-size:12px;color:var(--fg-muted);">New thread</div>
+<div class="context-section-title">Conversation</div>
+<div id="ctx-thread-info" style="font-size:12px;color:var(--fg-muted);">New conversation</div>
 </div>
 <div>
 <div class="context-section-title">Actions</div>
@@ -899,8 +899,8 @@ function renderThreadList(threads) {
   list.innerHTML = '';
   if (!threads || threads.length === 0) {
     var empty = document.createElement('div');
-    empty.className = 'thread-empty';
-    empty.textContent = 'No threads yet. Start a conversation.';
+    empty.className = 'conv-empty';
+    empty.textContent = 'No conversations yet. Start a conversation.';
     list.appendChild(empty);
     return;
   }
@@ -1021,7 +1021,7 @@ function updateThreadInfo(threadId) {
   if (threadId) {
     el.textContent = 'ID: ' + threadId.substring(0, 12) + '…';
   } else {
-    el.textContent = 'New thread';
+    el.textContent = 'New conversation';
   }
 }
 
