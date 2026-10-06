@@ -470,11 +470,23 @@
 <div class="compose-ttl">Add to queue</div>
 <textarea class="compose-ta" id="compose-text" placeholder="Write a post or paste content to queue for Media Manager review..."></textarea>
 <div class="plt-row" id="plt-row">
-<div class="plt-tog active" data-p="bluesky" onclick="togglePlt(this)">Bluesky</div>
-<div class="plt-tog" data-p="x" onclick="togglePlt(this)">X</div>
-<div class="plt-tog" data-p="instagram" onclick="togglePlt(this)">Instagram</div>
-<div class="plt-tog" data-p="facebook" onclick="togglePlt(this)">Facebook</div>
-<div class="plt-tog" data-p="linkedin" onclick="togglePlt(this)">LinkedIn</div>
+  <!-- Direct API -->
+  <div class="plt-tog active" data-p="bluesky" data-method="direct" onclick="togglePlt(this)" title="Direct API">Bluesky</div>
+  <!-- Buffer -->
+  <div class="plt-tog" data-p="x" data-method="buffer" onclick="togglePlt(this)" title="via Buffer">X</div>
+  <div class="plt-tog" data-p="instagram" data-method="buffer" onclick="togglePlt(this)" title="via Buffer">Instagram</div>
+  <div class="plt-tog" data-p="facebook" data-method="buffer" onclick="togglePlt(this)" title="via Buffer">Facebook</div>
+  <div class="plt-tog" data-p="linkedin" data-method="buffer" onclick="togglePlt(this)" title="via Buffer">LinkedIn</div>
+  <!-- Direct API (rate-limited) -->
+  <div class="plt-tog" data-p="mastodon" data-method="direct" onclick="togglePlt(this)" title="Direct API — max 2/day">Mastodon</div>
+  <div class="plt-tog" data-p="telegram" data-method="direct" onclick="togglePlt(this)" title="Direct API">Telegram</div>
+  <div class="plt-tog" data-p="tumblr" data-method="direct" onclick="togglePlt(this)" title="Direct API">Tumblr</div>
+  <!-- Via Zapier/Make.com -->
+  <div class="plt-tog" data-p="substack" data-method="zapier" onclick="togglePlt(this)" title="via Zapier/Make.com">Substack</div>
+  <div class="plt-tog" data-p="threads" data-method="zapier" onclick="togglePlt(this)" title="via Zapier/Make.com">Threads</div>
+</div>
+<div style="font-size:10px;color:var(--fg-muted);margin-top:4px;margin-bottom:6px;">
+  Direct API &nbsp;|&nbsp; <span style="opacity:0.7;">Buffer: X, Instagram, Facebook, LinkedIn</span> &nbsp;|&nbsp; <span style="opacity:0.7;">Zapier/Make: Substack, Threads</span>
 </div>
 <div class="compose-actions">
 <button class="btn btn-sm btn-primary" onclick="queuePost()">+ Queue for review</button>
@@ -582,7 +594,12 @@ function renderQueue() {
   var order = { pending:0, scheduled:1, failed:2, posted:3, rejected:4 };
   var sorted = allQueue.slice().sort(function(a,b){ return (order[a.status]||5)-(order[b.status]||5) || b.createdAt-a.createdAt; });
   list.innerHTML = sorted.map(function(item) {
-    var plts = (item.platforms||[]).map(function(p){ return '<span class="qi-plt">'+p+'</span>'; }).join('');
+    var methodIcons = {direct:'●', buffer:'⬡', zapier:'⚡'};
+    var plts = (item.platforms||[]).map(function(p){
+      var method = (item.platformMethods||{})[p] || 'direct';
+      var icon = methodIcons[method] || '';
+      return '<span class="qi-plt" title="'+method+'">'+p+(icon?' <span style="font-size:8px;opacity:0.6;">'+icon+'</span>':'')+'</span>';
+    }).join('');
     var statusCls = 'status-' + (item.status||'pending');
     var statusLabel = item.status || 'pending';
     var timeStr = item.scheduledFor
@@ -726,10 +743,20 @@ function queuePost() {
   if (!text) { toast('Write something first.'); return; }
   var platforms = getSelectedPlatforms();
   if (!platforms.length) { toast('Select at least one platform.'); return; }
+  // Collect platform methods for Media Manager routing
+  var platformMethods = {};
+  document.querySelectorAll('.plt-tog.active').forEach(function(el) {
+    platformMethods[el.dataset.p] = el.dataset.method || 'direct';
+  });
+  // Warn about Zapier platforms
+  var zapierPlats = platforms.filter(function(p){ return platformMethods[p] === 'zapier'; });
+  if (zapierPlats.length) {
+    toast('Note: ' + zapierPlats.join(', ') + ' post via Zapier/Make.com — ensure webhook is configured.');
+  }
   fetch(WORKER + '/api/mm/queue', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, platforms, source: 'compose' })
+    body: JSON.stringify({ text, platforms, platformMethods, source: 'compose' })
   })
   .then(function(r){ return r.json(); })
   .then(function(d) {
