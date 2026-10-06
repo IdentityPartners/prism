@@ -552,21 +552,9 @@ var OSK = (function() {
       var rows = container.querySelectorAll('.osk-row');
       rows.forEach(function(r) { r.style.display = oskVisible ? '' : 'none'; });
       collapseBtn.textContent = oskVisible ? '⌨ Hide keyboard' : '⌨ Show keyboard';
-      try { localStorage.setItem('osk-visible', oskVisible ? '1' : '0'); } catch(e) {}
+      // Not persisting collapse state — OSK always shows on fresh load
     };
-    // Restore collapsed state from localStorage
-    try {
-      var savedOsk = localStorage.getItem('osk-visible');
-      if (savedOsk === '0') {
-        oskVisible = false;
-        collapseBtn.textContent = '⌨ Show keyboard';
-        // Rows not yet added — will be hidden after build completes
-        setTimeout(function() {
-          var rows = container.querySelectorAll('.osk-row');
-          rows.forEach(function(r) { r.style.display = 'none'; });
-        }, 0);
-      }
-    } catch(e) {}
+    // OSK always visible by default — collapse is per-session only
     container.appendChild(collapseBtn);
 
     // Track focus on the target
