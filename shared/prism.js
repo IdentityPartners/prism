@@ -894,3 +894,166 @@ document.addEventListener('DOMContentLoaded', function() {
   ThemeSystem.init();
   Sidebar.init();
 });
+
+// ── Persistent Agent Panel ────────────────────────────────────────────────────
+// Floating panel available on every page — Creative Director + quick agents
+(function() {
+  var WORKER = 'https://prism-api.identitypartners.workers.dev';
+  var panelOpen = false;
+
+  function createAgentPanel() {
+    var panel = document.createElement('div');
+    panel.id = 'argentica-agent-panel';
+    panel.style.cssText = [
+      'position:fixed;bottom:70px;right:16px;width:320px;',
+      'background:var(--bg-elevated,#fff);border:1px solid var(--border,#c8d4e0);',
+      'border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.18);',
+      'z-index:9998;display:none;flex-direction:column;overflow:hidden;',
+      'font-family:Inter,sans-serif;font-size:12px;'
+    ].join('');
+
+    panel.innerHTML = [
+      '<div style="padding:10px 14px;background:linear-gradient(135deg,#0d1520,#162030);color:#e8f0f8;display:flex;align-items:center;gap:8px;border-radius:12px 12px 0 0;">',
+        '<span style="font-size:16px;">🎬</span>',
+        '<div><div style="font-weight:600;font-size:13px;">Creative Director</div>',
+        '<div style="font-size:10px;opacity:0.7;">Gemini Vision · Identity Partners</div></div>',
+        '<button onclick="document.getElementById('argentica-agent-panel').style.display='none';panelOpen=false;" ',
+          'style="margin-left:auto;background:none;border:none;color:#e8f0f8;cursor:pointer;font-size:16px;line-height:1;">✕</button>',
+      '</div>',
+      '<div style="padding:10px 14px;border-bottom:1px solid var(--border,#c8d4e0);">',
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;">',
+          '<button class="ap-btn" onclick="cdScreenshot()">📸 Screenshot &amp; Review</button>',
+          '<button class="ap-btn" onclick="cdReviewCanvas()">🎨 Review Canvas</button>',
+          '<button class="ap-btn" onclick="cdReviewSocial()">📱 Review Social</button>',
+        '</div>',
+      '</div>',
+      '<div id="ap-messages" style="flex:1;overflow-y:auto;padding:10px 14px;max-height:280px;display:flex;flex-direction:column;gap:8px;">',
+        '<div style="color:var(--fg-muted,#5a6a7e);font-size:11px;text-align:center;padding:20px 0;">',
+          'I review your content and give creative direction.<br>Take a screenshot or paste an image URL.',
+        '</div>',
+      '</div>',
+      '<div style="padding:8px 10px;border-top:1px solid var(--border,#c8d4e0);display:flex;gap:6px;">',
+        '<input id="ap-url-input" type="text" placeholder="Image URL or page URL to review..." ',
+          'style="flex:1;padding:5px 8px;border:1px solid var(--border,#c8d4e0);border-radius:6px;font-size:11px;background:var(--bg,#f0f4f8);color:var(--fg,#1a2332);">',
+        '<button class="ap-btn" onclick="cdReviewUrl()">Review</button>',
+      '</div>',
+      '<style>',
+        '.ap-btn{padding:4px 10px;border:1px solid var(--border,#c8d4e0);border-radius:6px;',
+          'background:var(--bg,#f0f4f8);color:var(--fg,#1a2332);cursor:pointer;font-size:11px;',
+          'font-family:Inter,sans-serif;transition:all 0.15s;}',
+        '.ap-btn:hover{background:var(--accent,#2d6a9f);color:#fff;border-color:var(--accent,#2d6a9f);}',
+        '.ap-msg{padding:8px 10px;border-radius:8px;font-size:11px;line-height:1.5;}',
+        '.ap-msg.cd{background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);}',
+        '.ap-msg.pass{background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.2);}',
+        '.ap-msg.fail{background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.2);}',
+      '</style>'
+    ].join('');
+
+    document.body.appendChild(panel);
+
+    // Toggle button
+    var toggle = document.createElement('button');
+    toggle.id = 'argentica-agent-toggle';
+    toggle.innerHTML = '🎬';
+    toggle.title = 'Creative Director';
+    toggle.style.cssText = [
+      'position:fixed;bottom:16px;right:16px;width:44px;height:44px;',
+      'border-radius:50%;background:linear-gradient(135deg,#0d1520,#2d6a9f);',
+      'color:#fff;border:none;cursor:pointer;font-size:18px;',
+      'box-shadow:0 4px 16px rgba(0,0,0,0.25);z-index:9999;',
+      'transition:transform 0.2s;'
+    ].join('');
+    toggle.onmouseenter = function(){ this.style.transform='scale(1.1)'; };
+    toggle.onmouseleave = function(){ this.style.transform='scale(1)'; };
+    toggle.onclick = function() {
+      panelOpen = !panelOpen;
+      panel.style.display = panelOpen ? 'flex' : 'none';
+    };
+    document.body.appendChild(toggle);
+  }
+
+  function apAddMessage(text, type) {
+    var msgs = document.getElementById('ap-messages');
+    if (!msgs) return;
+    var div = document.createElement('div');
+    div.className = 'ap-msg ' + (type || 'cd');
+    div.innerHTML = text.replace(/\n/g, '<br>');
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function apSetLoading(msg) {
+    var msgs = document.getElementById('ap-messages');
+    if (!msgs) return;
+    var existing = msgs.querySelector('.ap-loading');
+    if (existing) existing.remove();
+    var div = document.createElement('div');
+    div.className = 'ap-msg cd ap-loading';
+    div.textContent = msg || 'Working...';
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function apClearLoading() {
+    var el = document.querySelector('.ap-loading');
+    if (el) el.remove();
+  }
+
+  window.cdScreenshot = function() {
+    var url = window.location.href;
+    apSetLoading('📸 Taking screenshot of ' + url.split('/').slice(-2).join('/') + '...');
+    fetch(WORKER + '/api/creative-director/screenshot', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({url: url})
+    }).then(function(r){ return r.json(); })
+    .then(function(d) {
+      apClearLoading();
+      var type = d.passed ? 'pass' : 'fail';
+      apAddMessage((d.passed ? '✅ PASS' : '❌ FAIL') + '<br><br>' + (d.review||d.error||'No response'), type);
+    }).catch(function(e){ apClearLoading(); apAddMessage('Error: ' + e.message, 'fail'); });
+  };
+
+  window.cdReviewCanvas = function() {
+    document.getElementById('ap-url-input').value = 'https://prism.identitypartners.uk/creator/canvas/';
+    cdReviewUrl();
+  };
+
+  window.cdReviewSocial = function() {
+    document.getElementById('ap-url-input').value = 'https://prism.identitypartners.uk/social-queue/';
+    cdReviewUrl();
+  };
+
+  window.cdReviewUrl = function() {
+    var url = (document.getElementById('ap-url-input')||{}).value || '';
+    if (!url.trim()) return;
+    var isImageUrl = /\.(png|jpg|jpeg|webp|gif)/i.test(url);
+    if (isImageUrl) {
+      apSetLoading('🔍 Reviewing image...');
+      fetch(WORKER + '/api/creative-director/review', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({imageUrl: url, context: 'image from ' + url})
+      }).then(function(r){ return r.json(); })
+      .then(function(d) {
+        apClearLoading();
+        apAddMessage((d.passed ? '✅ PASS' : '❌ FAIL') + '<br><br>' + (d.review||d.error||''), d.passed?'pass':'fail');
+      }).catch(function(e){ apClearLoading(); apAddMessage('Error: ' + e.message, 'fail'); });
+    } else {
+      apSetLoading('📸 Screenshotting ' + url + '...');
+      fetch(WORKER + '/api/creative-director/screenshot', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({url: url})
+      }).then(function(r){ return r.json(); })
+      .then(function(d) {
+        apClearLoading();
+        apAddMessage((d.passed ? '✅ PASS' : '❌ FAIL') + '<br><br>' + (d.review||d.error||''), d.passed?'pass':'fail');
+      }).catch(function(e){ apClearLoading(); apAddMessage('Error: ' + e.message, 'fail'); });
+    }
+  };
+
+  // Init on DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', createAgentPanel);
+  } else {
+    createAgentPanel();
+  }
+})();
