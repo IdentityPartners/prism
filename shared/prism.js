@@ -584,7 +584,7 @@ function buildSidebar(activePage) {
       {label:'Brand Kit', href:'/creator/brand-kit/'},
     ]},
     {type:'item', label:'Refract', icon:'⚡', href:'/atomise/'},
-    {type:'item', label:'Social Calendar', icon:'📅', href:'/social-queue/'},
+    {type:'item', label:'Media Manager', icon:'📋', href:'/social-queue/'},
     {type:'section', label:'Business'},
     {type:'item', label:'CRM', icon:'👥', href:'/crm/'},
     {type:'item', label:'Monetisation', icon:'💷', href:'/monetisation/'},
