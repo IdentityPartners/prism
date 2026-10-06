@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WriteHandy — Argentica</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── WriteHandy — Stylus-first writing environment ─────────────────────────── */
+/* Default: full-screen ink canvas. Everything else is secondary. */
+
+:root {
+  --wh-bg: #fafaf8;
+  --wh-ink: #1a1a1a;
+  --wh-rule: #e8e4dc;
+  --wh-accent: var(--accent, #0f3b3a);
+  --wh-toolbar-w: 48px;       /* collapsed */
+  --wh-toolbar-w-open: 220px; /* expanded */
+  --wh-sidebar-w: 0px;        /* hidden by default */
+  --wh-sidebar-w-open: 260px;
+  --wh-osk-h: 0px;            /* hidden by default */
+  --wh-osk-h-open: 200px;
+  --wh-bottom-h: 28px;
+  --wh-topbar-h: 40px;
+}
+
+/* Shell: topbar + writing area */
+.wh-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--wh-bg);
+}
+
+/* ── Topbar ─────────────────────────────────────────────────────────────────── */
+.wh-topbar {
+  height: var(--wh-topbar-h);
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 6px;
+  flex-shrink: 0;
+  z-index: 100;
+}
+.wh-topbar-title {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-primary);
+  margin-right: 4px;
+}
+.wh-topbar-page {
+  font-size: 12px;
+  color: var(--fg-muted);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wh-tb-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-surface);
+  color: var(--fg-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.wh-tb-btn:hover { border-color: var(--accent); color: var(--accent); }
+.wh-tb-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.wh-tb-sep { width: 1px; height: 18px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
+.wh-view-btn {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--fg-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.wh-view-btn:hover { border-color: var(--accent); color: var(--accent); }
+.wh-view-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.wh-sync-indicator {
+  font-size: 10px;
+  color: var(--fg-muted);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.wh-sync-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+}
+.wh-sync-dot.saving { background: var(--warning); animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+
+/* ── Main writing area ──────────────────────────────────────────────────────── */
+.wh-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── Left toolbar (collapsed by default) ───────────────────────────────────── */
+.wh-left {
+  width: var(--wh-toolbar-w);
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.2s ease;
+  flex-shrink: 0;
+  z-index: 50;
+}
+.wh-left.open { width: var(--wh-toolbar-w-open); }
+
+/* Collapsed: just icons */
+.wh-left-icons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 0;
+  gap: 4px;
+}
+.wh-left-icon {
+  width: 36px; height: 36px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--fg-muted);
+  transition: all 0.15s;
+}
+.wh-left-icon:hover { background: var(--accent-light); color: var(--accent); }
+.wh-left-icon.active { background: var(--accent-light); color: var(--accent); }
+
+/* Expanded: notebook tree */
+.wh-notebook-tree {
+  display: none;
+  flex-direction: column;
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px 0;
+}
+.wh-left.open .wh-notebook-tree { display: flex; }
+.wh-left.open .wh-left-icons { display: none; }
+
+.wh-tree-header {
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.wh-tree-item {
+  padding: 6px 10px;
+  font-size: 12.5px;
+  color: var(--fg-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-left: 2px solid transparent;
+  transition: all 0.12s;
+}
+.wh-tree-item:hover { background: var(--accent-light); color: var(--accent); }
+.wh-tree-item.active { background: var(--accent-light); color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+.wh-tree-item.section { padding-left: 18px; font-size: 12px; }
+.wh-tree-item.page { padding-left: 28px; font-size: 11.5px; color: var(--fg-muted); }
+.wh-tree-actions {
+  padding: 6px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ── Canvas area (PRIMARY — takes all remaining space) ──────────────────────── */
+.wh-canvas-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Template background */
+.wh-surface {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  background: var(--wh-bg);
+  cursor: default;
+}
+.wh-surface.ruled {
+  background-image: repeating-linear-gradient(
+    transparent, transparent 31px,
+    var(--wh-rule) 31px, var(--wh-rule) 32px
+  );
+}
+.wh-surface.grid {
+  background-image:
+    linear-gradient(var(--wh-rule) 1px, transparent 1px),
+    linear-gradient(90deg, var(--wh-rule) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.wh-surface.dot {
+  background-image: radial-gradient(circle, var(--wh-rule) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.wh-surface.timeline {
+  background-image: repeating-linear-gradient(
+    transparent, transparent 63px,
+    var(--wh-rule) 63px, var(--wh-rule) 64px
+  );
+}
+
+/* Ink canvas — sits on top of surface */
+#wh-ink {
+  position: absolute;
+  top: 0; left: 0;
+  touch-action: none;
+  pointer-events: all;
+}
+
+/* Text layer — sits above ink, pointer-events none unless in text mode */
+#wh-text {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  min-height: 100%;
+  padding: 40px 60px;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 2;
+  color: var(--fg-primary);
+  outline: none;
+  pointer-events: none;
+  caret-color: var(--accent);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+#wh-text.text-mode {
+  pointer-events: all;
+  cursor: text;
+}
+#wh-text:empty::before {
+  content: attr(data-placeholder);
+  color: var(--fg-muted);
+  pointer-events: none;
+}
+
+/* Inline objects */
+.wh-tag { display: inline-flex; align-items: center; gap: 2px; padding: 1px 6px; background: var(--accent-light); color: var(--accent); border-radius: 10px; font-size: 12px; font-weight: 500; cursor: pointer; }
+.wh-cite { display: inline; color: var(--accent); font-size: 10px; vertical-align: super; cursor: pointer; font-weight: 600; }
+.wh-fn { display: inline; color: var(--rose); font-size: 10px; vertical-align: super; cursor: pointer; font-weight: 600; }
+.wh-rem { display: inline-flex; align-items: center; gap: 2px; padding: 1px 6px; background: var(--rose-light); color: var(--rose); border-radius: 10px; font-size: 12px; cursor: pointer; }
+.wh-link { color: var(--accent); text-decoration: underline; cursor: pointer; }
+.wh-comment { display: inline; color: var(--warning); font-size: 10px; vertical-align: super; cursor: pointer; }
+
+/* ── Ink tool strip (floating, right side of canvas) ────────────────────────── */
+.wh-ink-strip {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 30;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+}
+.wh-ink-btn {
+  width: 32px; height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--fg-secondary);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  transition: all 0.12s;
+}
+.wh-ink-btn:hover { border-color: var(--accent); color: var(--accent); }
+.wh-ink-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.wh-color-strip { display: flex; flex-direction: column; gap: 3px; }
+.wh-cdot {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.12s;
+}
+.wh-cdot.active { border-color: var(--fg-primary); }
+.wh-size-range {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 32px;
+  height: 70px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+/* ── Right sidebar (hidden by default) ─────────────────────────────────────── */
+.wh-right {
+  width: 0;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.2s ease;
+  flex-shrink: 0;
+}
+.wh-right.open { width: var(--wh-sidebar-w-open); }
+.wh-right-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.wh-right-tab {
+  flex: 1;
+  padding: 6px 4px;
+  font-size: 10px;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  color: var(--fg-muted);
+  border-bottom: 2px solid transparent;
+  transition: all 0.12s;
+}
+.wh-right-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.wh-right-content { flex: 1; overflow-y: auto; padding: 10px; }
+
+/* ── Bottom bar ─────────────────────────────────────────────────────────────── */
+.wh-bottom {
+  height: var(--wh-bottom-h);
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  flex-shrink: 0;
+}
+.wh-bottom-stat { display: flex; align-items: center; gap: 3px; }
+.wh-bottom-sep { width: 1px; height: 12px; background: var(--border); }
+.wh-bottom-btn {
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 10.5px;
+  cursor: pointer;
+  background: var(--bg-surface);
+  color: var(--fg-secondary);
+  transition: all 0.12s;
+}
+.wh-bottom-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── OSK (undockable, hidden by default) ────────────────────────────────────── */
+.wh-osk-dock {
+  background: var(--bg-surface);
+  border-top: 2px solid var(--border);
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.2s ease;
+  flex-shrink: 0;
+}
+.wh-osk-dock.open { max-height: var(--wh-osk-h-open); }
+.wh-osk-dock.floating {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90vw;
+  max-width: 800px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  z-index: 200;
+  max-height: none;
+}
+.wh-osk-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.wh-osk-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); }
+.wh-osk-mode {
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 10.5px;
+  cursor: pointer;
+  background: var(--bg-elevated);
+  color: var(--fg-secondary);
+  transition: all 0.12s;
+}
+.wh-osk-mode.active { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.wh-osk-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 6px;
+}
+.wh-osk-row { display: flex; gap: 3px; justify-content: center; align-items: center; }
+.wh-key {
+  min-width: 32px;
+  height: 36px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-elevated);
+  color: var(--fg-primary);
+  font-size: 12.5px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.1s;
+  box-shadow: 0 2px 0 var(--border);
+  flex-shrink: 0;
+  user-select: none;
+}
+.wh-key:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.wh-key:active { transform: translateY(2px); box-shadow: none; }
+.wh-key.wide { min-width: 56px; font-size: 11px; }
+.wh-key.space { flex: 1; min-width: 100px; background: var(--bg-primary); }
+.wh-key.send { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 2px 0 var(--accent-hover); }
+.wh-key.send:hover { background: var(--accent-hover); }
+
+/* ── Dual pane ──────────────────────────────────────────────────────────────── */
+.wh-dual { display: grid; grid-template-columns: 1fr 1fr; height: 100%; }
+.wh-pane { overflow: auto; padding: 20px; border-right: 1px solid var(--border); }
+.wh-pane:last-child { border-right: none; }
+.wh-pane-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); margin-bottom: 8px; }
+
+/* ── Outline / Timeline views ───────────────────────────────────────────────── */
+.wh-outline { padding: 16px; overflow-y: auto; }
+.wh-outline-item { padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.wh-outline-item:hover { color: var(--accent); }
+.wh-h1 { font-weight: 600; font-size: 14px; }
+.wh-h2 { padding-left: 14px; }
+.wh-h3 { padding-left: 28px; font-size: 12px; color: var(--fg-muted); }
+
+/* ── Dictation overlay ──────────────────────────────────────────────────────── */
+.wh-dictation {
+  position: fixed;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--fg-primary);
+  color: var(--bg-primary);
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-size: 13px;
+  z-index: 500;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.wh-dictation.active { display: flex; }
+.wh-dict-wave { display: flex; gap: 2px; align-items: center; }
+.wh-dict-bar { width: 3px; background: var(--accent); border-radius: 2px; animation: wave 0.8s infinite; }
+.wh-dict-bar:nth-child(2) { animation-delay: 0.1s; }
+.wh-dict-bar:nth-child(3) { animation-delay: 0.2s; }
+.wh-dict-bar:nth-child(4) { animation-delay: 0.3s; }
+@keyframes wave { 0%,100%{height:5px}50%{height:16px} }
+
+/* ── Recording badge ────────────────────────────────────────────────────────── */
+.wh-rec-badge {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--danger);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.wh-rec-badge.active { display: flex; }
+.wh-rec-dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; animation: pulse 1s infinite; }
+
+/* ── Export / Sync panels ───────────────────────────────────────────────────── */
+.wh-panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 400;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.wh-panel-overlay.open { display: flex; }
+.wh-panel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  width: 360px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.2);
+}
+.wh-panel-title { font-family: var(--font-heading); font-size: 16px; font-weight: 600; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+.wh-export-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wh-export-btn {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  cursor: pointer;
+  text-align: center;
+  font-size: 12px;
+  color: var(--fg-secondary);
+  transition: all 0.12s;
+}
+.wh-export-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.wh-export-btn .ext { font-size: 20px; display: block; margin-bottom: 4px; }
+.wh-sync-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.wh-sync-row:last-child { border-bottom: none; }
+
+/* ── Find bar ───────────────────────────────────────────────────────────────── */
+.wh-find-bar {
+  position: fixed;
+  top: 50px;
+  right: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  z-index: 300;
+  display: none;
+  gap: 6px;
+  align-items: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+.wh-find-bar.open { display: flex; }
+
+/* Placeholder — vanishes on first mark */
+.wh-text-layer:empty::before {
+  content: attr(data-placeholder);
+  color: var(--fg-muted, #a88792);
+  pointer-events: none;
+  position: absolute;
+  top: 40px;
+  left: 60px;
+  font-style: italic;
+  font-size: 15px;
+}
+.wh-text-layer.has-content::before {
+  display: none;
+}
+</style>
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content" style="display:flex;flex-direction:column;overflow:hidden;">
+
+    <!-- Topbar -->
+    <div class="wh-topbar">
+      <!-- Left toolbar toggle -->
+      <button class="wh-tb-btn" onclick="toggleLeft()" title="Toggle notebook panel">☰</button>
+      <span class="wh-topbar-title">✒</span>
+      <span class="wh-topbar-page" id="wh-page-title">Untitled</span>
+
+      <!-- View buttons -->
+      <div class="wh-tb-sep"></div>
+      <button class="wh-view-btn active" onclick="setView('ink')" id="vbtn-ink" title="Ink + text (default)">Ink</button>
+      <button class="wh-view-btn" onclick="setView('dual')" id="vbtn-dual" title="Dual pane">Dual</button>
+      <button class="wh-view-btn" onclick="setView('read')" id="vbtn-read" title="Reading view">Read</button>
+      <button class="wh-view-btn" onclick="setView('outline')" id="vbtn-outline" title="Outline">Outline</button>
+      <button class="wh-view-btn" onclick="setView('timeline')" id="vbtn-timeline" title="Timeline">Timeline</button>
+
+      <!-- Template -->
+      <div class="wh-tb-sep"></div>
+      <select id="wh-template" onchange="setTemplate(this.value)" style="font-size:11px;padding:2px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg-surface);color:var(--fg-secondary);cursor:pointer;" title="Page template">
+        <option value="plain">Plain</option>
+        <option value="ruled" selected>Ruled</option>
+        <option value="grid">Grid</option>
+        <option value="dot">Dot Grid</option>
+        <option value="timeline">Timeline</option>
+        <option value="storyboard">Storyboard</option>
+      </select>
+
+      <!-- Actions -->
+      <div class="wh-tb-sep"></div>
+      <button class="wh-tb-btn" onclick="toggleOSK()" title="Toggle keyboard (undockable)">⌨</button>
+      <button class="wh-tb-btn" onclick="toggleDictation()" id="wh-dict-btn" title="Voice dictation">🎤</button>
+      <button class="wh-tb-btn" onclick="toggleRecord()" id="wh-rec-btn" title="Record audio">🎙</button>
+      <div class="wh-rec-badge" id="wh-rec-badge"><div class="wh-rec-dot"></div> REC</div>
+      <div class="wh-tb-sep"></div>
+      <button class="wh-tb-btn" onclick="toggleRight()" title="Toggle sidebar">⊟</button>
+      <button class="wh-tb-btn" onclick="openExport()" title="Export">⬇</button>
+      <button class="wh-tb-btn" onclick="openSync()" title="Sync">☁</button>
+
+      <!-- Sync status -->
+      <div class="wh-sync-indicator" id="wh-sync">
+        <div class="wh-sync-dot" id="wh-sync-dot"></div>
+        <span id="wh-sync-label">Saved</span>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="wh-body">
+
+      <!-- Left toolbar -->
+      <div class="wh-left" id="wh-left">
+        <!-- Collapsed: icon strip -->
+        <div class="wh-left-icons">
+          <div class="wh-left-icon" onclick="toggleLeft()" title="Expand notebooks">📓</div>
+          <div class="wh-left-icon" onclick="addPage()" title="New page">＋</div>
+          <div class="wh-left-icon" onclick="setTemplate('ruled')" title="Ruled">≡</div>
+          <div class="wh-left-icon" onclick="setTemplate('grid')" title="Grid">⊞</div>
+          <div class="wh-left-icon" onclick="setTemplate('dot')" title="Dot grid">⠿</div>
+        </div>
+        <!-- Expanded: notebook tree -->
+        <div class="wh-notebook-tree" id="wh-tree">
+          <div class="wh-tree-header">
+            Notebooks
+            <button class="wh-tb-btn" onclick="addNotebook()" title="New notebook" style="width:22px;height:22px;font-size:11px;">＋</button>
+          </div>
+          <div id="wh-tree-items"></div>
+          <div class="wh-tree-actions">
+            <button class="btn btn-sm btn-secondary" onclick="addSection()" title="Add section" style="flex:1;font-size:11px;">+ Section</button>
+            <button class="btn btn-sm btn-secondary" onclick="addPage()" title="Add page" style="flex:1;font-size:11px;">+ Page</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Canvas area (PRIMARY) -->
+      <div class="wh-canvas-area">
+        <!-- Writing surface -->
+        <div class="wh-surface ruled" id="wh-surface">
+          <canvas id="wh-ink"></canvas>
+          <div id="wh-text"
+               contenteditable="false"
+               spellcheck="true"
+               data-placeholder="Pick up your stylus and write…"
+               oninput="onTextInput()"
+               onkeydown="onTextKeydown(event)"></div>
+
+          <!-- Ink tool strip -->
+          <div class="wh-ink-strip" id="wh-ink-strip">
+            <button class="wh-ink-btn active" id="itool-pen" onclick="setInkTool('pen')" title="Pen">✏</button>
+            <button class="wh-ink-btn" id="itool-hi" onclick="setInkTool('hi')" title="Highlighter">🖊</button>
+            <button class="wh-ink-btn" id="itool-erase" onclick="setInkTool('erase')" title="Eraser (proper erase, not scribble)">⬜</button>
+            <button class="wh-ink-btn" id="itool-text" onclick="setInkTool('text')" title="Text mode">T</button>
+            <div class="wh-tb-sep" style="width:100%;height:1px;margin:2px 0;"></div>
+            <div class="wh-color-strip" id="wh-colors"></div>
+            <div class="wh-tb-sep" style="width:100%;height:1px;margin:2px 0;"></div>
+            <input type="range" class="wh-size-range" id="wh-pen-size" min="1" max="20" value="2" title="Pen size">
+            <div class="wh-tb-sep" style="width:100%;height:1px;margin:2px 0;"></div>
+            <button class="wh-ink-btn" onclick="undoInk()" title="Undo stroke (Ctrl+Z)">↩</button>
+            <button class="wh-ink-btn" onclick="clearInk()" title="Clear all ink">🗑</button>
+          </div>
+        </div>
+
+        <!-- OSK (docked below canvas) -->
+        <div class="wh-osk-dock" id="wh-osk">
+          <div class="wh-osk-header">
+            <span class="wh-osk-label">Keyboard</span>
+            <button class="wh-osk-mode active" onclick="setOSKMode('normal')" id="oskm-normal">Normal</button>
+            <button class="wh-osk-mode" onclick="setOSKMode('shift')" id="oskm-shift">Shift</button>
+            <button class="wh-osk-mode" onclick="setOSKMode('special')" id="oskm-special">Special</button>
+            <button class="wh-osk-mode" onclick="setOSKMode('punct')" id="oskm-punct">Punct</button>
+            <button class="wh-tb-btn" onclick="floatOSK()" title="Undock keyboard" style="margin-left:auto;">⤢</button>
+            <button class="wh-tb-btn" onclick="toggleOSK()" title="Hide keyboard">▼</button>
+          </div>
+          <div class="wh-osk-body" id="wh-osk-body"></div>
+        </div>
+      </div>
+
+      <!-- Right sidebar (hidden by default) -->
+      <div class="wh-right" id="wh-right">
+        <div class="wh-right-tabs">
+          <div class="wh-right-tab active" onclick="setRightTab('notes')" id="rtab-notes">Notes</div>
+          <div class="wh-right-tab" onclick="setRightTab('outline')" id="rtab-outline">Outline</div>
+          <div class="wh-right-tab" onclick="setRightTab('transcript')" id="rtab-transcript">Transcript</div>
+          <div class="wh-right-tab" onclick="setRightTab('log')" id="rtab-log">Log</div>
+        </div>
+        <div class="wh-right-content" id="wh-right-content"></div>
+      </div>
+    </div>
+
+    <!-- Bottom bar -->
+    <div class="wh-bottom">
+      <div class="wh-bottom-stat" id="wh-wc">0 words</div>
+      <div class="wh-bottom-sep"></div>
+      <div class="wh-bottom-stat" id="wh-cc">0 chars</div>
+      <div class="wh-bottom-sep"></div>
+      <button class="wh-bottom-btn" onclick="undoInk()" title="Undo">↩ Undo</button>
+      <button class="wh-bottom-btn" onclick="openFind()" title="Find & Replace">🔍 Find</button>
+      <button class="wh-bottom-btn" onclick="copyAll()" title="Copy all text">📋 Copy</button>
+      <button class="wh-bottom-btn" onclick="openExport()" title="Export">⬇ Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dictation overlay -->
+<div class="wh-dictation" id="wh-dictation">
+  <div class="wh-dict-wave">
+    <div class="wh-dict-bar" style="height:5px;"></div>
+    <div class="wh-dict-bar" style="height:10px;"></div>
+    <div class="wh-dict-bar" style="height:16px;"></div>
+    <div class="wh-dict-bar" style="height:8px;"></div>
+  </div>
+  <span id="wh-dict-text">Listening…</span>
+  <button onclick="stopDictation()" style="background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:12px;">Stop</button>
+</div>
+
+<!-- Export panel -->
+<div class="wh-panel-overlay" id="wh-export-overlay">
+  <div class="wh-panel">
+    <div class="wh-panel-title">Export <button class="btn btn-ghost btn-sm" onclick="closeExport()">✕</button></div>
+    <div class="wh-export-grid">
+      <button class="wh-export-btn" onclick="doExport('png')"><span class="ext">🖼</span>PNG</button>
+      <button class="wh-export-btn" onclick="doExport('pdf')"><span class="ext">📄</span>PDF</button>
+      <button class="wh-export-btn" onclick="doExport('md')"><span class="ext">📝</span>Markdown</button>
+      <button class="wh-export-btn" onclick="doExport('odt')"><span class="ext">📃</span>ODT</button>
+      <button class="wh-export-btn" onclick="doExport('audio')"><span class="ext">🎵</span>Audio</button>
+      <button class="wh-export-btn" onclick="doExport('hat')"><span class="ext">🎩</span>HAT</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sync panel -->
+<div class="wh-panel-overlay" id="wh-sync-overlay">
+  <div class="wh-panel">
+    <div class="wh-panel-title">Sync <button class="btn btn-ghost btn-sm" onclick="closeSync()">✕</button></div>
+    <div class="wh-sync-row"><span>📓 Notion</span><button class="btn btn-sm btn-secondary" onclick="syncTo('notion')">Sync now</button></div>
+    <div class="wh-sync-row"><span>🔒 Proton Drive</span><button class="btn btn-sm btn-secondary" onclick="syncTo('proton')">Configure</button></div>
+    <div class="wh-sync-row"><span>☁ OneDrive</span><button class="btn btn-sm btn-secondary" onclick="syncTo('onedrive')">Configure</button></div>
+    <div class="wh-sync-row"><span>🔮 Obsidian</span><button class="btn btn-sm btn-secondary" onclick="syncTo('obsidian')">Save to vault</button></div>
+    <div style="margin-top:12px;"><button class="btn btn-primary" style="width:100%;" onclick="syncAll()">Sync All</button></div>
+  </div>
+</div>
+
+<!-- Find bar -->
+<div class="wh-find-bar" id="wh-find-bar">
+  <input id="wh-find-input" type="text" placeholder="Find…" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12.5px;outline:none;background:var(--bg-primary);color:var(--fg-primary);width:160px;">
+  <input id="wh-replace-input" type="text" placeholder="Replace…" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12.5px;outline:none;background:var(--bg-primary);color:var(--fg-primary);width:120px;">
+  <button class="btn btn-sm btn-secondary" onclick="doFind()">Find</button>
+  <button class="btn btn-sm btn-secondary" onclick="doReplace()">Replace</button>
+  <button class="btn btn-ghost btn-sm" onclick="closeFind()">✕</button>
+</div>
+
+<script src="/shared/prism.js"></script>
+<script>
+// ── WriteHandy Core ───────────────────────────────────────────────────────────
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+
+// State
+var inkTool = 'pen';
+var inkColor = '#1a1a1a';
+var inkStrokes = [];
+var currentStroke = null;
+var isDrawing = false;
+var oskMode = 'normal';
+var oskFloating = false;
+var currentView = 'ink';
+var rightTab = 'notes';
+var leftOpen = false;
+var rightOpen = false;
+var oskOpen = false;
+var isRecording = false;
+var isDictating = false;
+var mediaRecorder = null;
+var audioChunks = [];
+var recognition = null;
+var saveTimer = null;
+var changeLog = [];
+var annotations = [];
+var notebooks = [];
+var currentPage = null;
+
+// ── Notebook structure ────────────────────────────────────────────────────────
+function initNotebooks() {
+  try { notebooks = JSON.parse(localStorage.getItem('wh-notebooks') || '[]'); } catch(e) { notebooks = []; }
+  if (!notebooks.length) {
+    notebooks = [
+      {
+        id: 'nb-sociology', name: 'Sociology MSc', icon: '🎓',
+        sections: [
+          { id: 'sec-theory', name: 'Social Theory', pages: [
+            {id: 'pg-theory-1', name: 'Lecture notes', content: '', ink: [], created: new Date().toISOString()},
+            {id: 'pg-theory-2', name: 'Reading notes', content: '', ink: [], created: new Date().toISOString()}
+          ]},
+          { id: 'sec-methods', name: 'Research Methods', pages: [
+            {id: 'pg-methods-1', name: 'Methodology notes', content: '', ink: [], created: new Date().toISOString()},
+            {id: 'pg-methods-2', name: 'Data analysis', content: '', ink: [], created: new Date().toISOString()}
+          ]},
+          { id: 'sec-dissertation', name: 'Dissertation', pages: [
+            {id: 'pg-diss-1', name: 'Research proposal', content: '', ink: [], created: new Date().toISOString()},
+            {id: 'pg-diss-2', name: 'Literature review', content: '', ink: [], created: new Date().toISOString()},
+            {id: 'pg-diss-3', name: 'Methodology', content: '', ink: [], created: new Date().toISOString()},
+            {id: 'pg-diss-4', name: 'Findings', content: '', ink: [], created: new Date().toISOString()}
+          ]},
+          { id: 'sec-phd', name: 'PhD Planning', pages: [
+            {id: 'pg-phd-1', name: 'Thesis skeleton', content: '', ink: [], created: new Date().toISOString()},
+            {id: 'pg-phd-2', name: 'Supervisors', content: '', ink: [], created: new Date().toISOString()},
+            {id: 'pg-phd-3', name: 'Research questions', content: '', ink: [], created: new Date().toISOString()}
+          ]},
+          { id: 'sec-reading', name: 'Reading Notes', pages: [
+            {id: 'pg-read-1', name: 'Thinker notes', content: '', ink: [], created: new Date().toISOString()}
+          ]}
+        ]
+      },
+      {
+        id: 'nb-ip', name: 'Identity Partners', icon: '💼',
+        sections: [
+          { id: 'sec-ip-strategy', name: 'Strategy', pages: [
+            {id: 'pg-ip-1', name: 'Business notes', content: '', ink: [], created: new Date().toISOString()}
+          ]},
+          { id: 'sec-ip-clients', name: 'Clients', pages: [
+            {id: 'pg-ip-2', name: 'Client notes', content: '', ink: [], created: new Date().toISOString()}
+          ]},
+          { id: 'sec-ip-content', name: 'Content', pages: [
+            {id: 'pg-ip-3', name: 'Content ideas', content: '', ink: [], created: new Date().toISOString()}
+          ]}
+        ]
+      },
+      {
+        id: 'nb-personal', name: 'Personal Journal', icon: '📔',
+        sections: [
+          { id: 'sec-journal', name: 'Journal', pages: [
+            {id: 'pg-journal-1', name: 'Today', content: '', ink: [], created: new Date().toISOString()}
+          ]},
+          { id: 'sec-adhd', name: 'ADHD & Health', pages: [
+            {id: 'pg-adhd-1', name: 'Notes', content: '', ink: [], created: new Date().toISOString()}
+          ]}
+        ]
+      },
+      {
+        id: 'nb-general', name: 'General', icon: '📓',
+        sections: [
+          { id: 'sec-general', name: 'Notes', pages: [
+            {id: 'pg-general-1', name: 'Scratch pad', content: '', ink: [], created: new Date().toISOString()}
+          ]}
+        ]
+      }
+    ];
+    saveNotebooks();
+  }
+  renderTree();
+  loadPage(notebooks[0].sections[0].pages[0]);
+}
+
+function saveNotebooks() {
+  try { localStorage.setItem('wh-notebooks', JSON.stringify(notebooks)); } catch(e) {}
+  // Cloud sync — save current page to KV
+  if (currentPage && typeof WORKER !== 'undefined') {
+    var nb = notebooks.find(function(n){ return n.sections.some(function(s){ return s.pages.some(function(p){ return p.id === currentPage.id; }); }); });
+    var sec = nb ? nb.sections.find(function(s){ return s.pages.some(function(p){ return p.id === currentPage.id; }); }) : null;
+    var module = nb ? nb.name + (sec ? ' / ' + sec.name : '') : 'General';
+    var syncEl = document.getElementById('wh-sync-dot');
+    if (syncEl) { syncEl.style.background = '#f59e0b'; syncEl.title = 'Saving...'; }
+    fetch(WORKER + '/api/notes/save', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        id: 'wh-' + currentPage.id,
+        title: currentPage.name,
+        content: currentPage.content || '',
+        module: module,
+        tags: ['writehandy', nb ? nb.id : 'general']
+      })
+    }).then(function(r) {
+      if (syncEl) { syncEl.style.background = '#16a34a'; syncEl.title = 'Saved to cloud'; }
+      setTimeout(function(){ if (syncEl) syncEl.style.background = ''; }, 3000);
+    }).catch(function() {
+      if (syncEl) { syncEl.style.background = '#dc2626'; syncEl.title = 'Cloud save failed'; }
+    });
+  }
+}
+
+function renderTree() {
+  var el = document.getElementById('wh-tree-items');
+  if (!el) return;
+  el.innerHTML = '';
+  notebooks.forEach(function(nb) {
+    var nbEl = document.createElement('div');
+    nbEl.className = 'wh-tree-item' + (currentPage && nb.sections.some(function(s){return s.pages.some(function(p){return p.id===currentPage.id;});}) ? ' active' : '');
+    nbEl.innerHTML = nb.icon + ' ' + nb.name;
+    el.appendChild(nbEl);
+    (nb.sections||[]).forEach(function(sec) {
+      var secEl = document.createElement('div');
+      secEl.className = 'wh-tree-item section';
+      secEl.innerHTML = '📂 ' + sec.name;
+      el.appendChild(secEl);
+      (sec.pages||[]).forEach(function(page) {
+        var pgEl = document.createElement('div');
+        pgEl.className = 'wh-tree-item page' + (currentPage && currentPage.id === page.id ? ' active' : '');
+        pgEl.innerHTML = '📄 ' + page.name;
+        pgEl.onclick = function(e) { e.stopPropagation(); loadPage(page); };
+        el.appendChild(pgEl);
+      });
+    });
+  });
+}
+
+function loadPage(page) {
+  if (currentPage) savePage();
+  currentPage = page;
+  var textEl = document.getElementById('wh-text');
+  if (textEl) textEl.innerHTML = page.content || '';
+  inkStrokes = page.ink || [];
+  redrawInk();
+  renderTree();
+  updateCounts();
+  var titleEl = document.getElementById('wh-page-title');
+  if (titleEl) titleEl.textContent = page.name;
+  addLog('Opened: ' + page.name);
+}
+
+function savePage() {
+  if (!currentPage) return;
+  var textEl = document.getElementById('wh-text');
+  currentPage.content = textEl ? textEl.innerHTML : '';
+  currentPage.ink = inkStrokes;
+  currentPage.modified = new Date().toISOString();
+  saveNotebooks();
+  setSyncStatus('saved');
+}
+
+function addNotebook() {
+  var name = prompt('Notebook name:');
+  if (!name) return;
+  notebooks.push({id:'nb'+Date.now(), name:name, icon:'📓', sections:[{id:'sec'+Date.now(), name:'General', pages:[]}]});
+  saveNotebooks(); renderTree();
+}
+
+function addSection() {
+  if (!notebooks.length) return;
+  var name = prompt('Section name:');
+  if (!name) return;
+  notebooks[0].sections.push({id:'sec'+Date.now(), name:name, pages:[]});
+  saveNotebooks(); renderTree();
+}
+
+function addPage() {
+  if (!notebooks.length || !notebooks[0].sections.length) return;
+  var name = prompt('Page name:') || 'New Page';
+  var page = {id:'pg'+Date.now(), name:name, content:'', ink:[], created:new Date().toISOString()};
+  notebooks[0].sections[0].pages.push(page);
+  saveNotebooks(); renderTree(); loadPage(page);
+}
+
+// ── Ink canvas ────────────────────────────────────────────────────────────────
+function initCanvas() {
+  var canvas = document.getElementById('wh-ink');
+  var surface = document.getElementById('wh-surface');
+  if (!canvas || !surface) return;
+  canvas.width = surface.offsetWidth;
+  canvas.height = Math.max(surface.offsetHeight, 1400);
+  canvas.style.width = canvas.width + 'px';
+  canvas.style.height = canvas.height + 'px';
+
+  canvas.addEventListener('pointerdown', startStroke);
+  canvas.addEventListener('pointermove', continueStroke);
+  canvas.addEventListener('pointerup', endStroke);
+  canvas.addEventListener('pointercancel', endStroke);
+  canvas.addEventListener('touchstart', function(e){e.preventDefault();},{passive:false});
+  canvas.addEventListener('touchmove', function(e){e.preventDefault();},{passive:false});
+}
+
+function getPos(e) {
+  var canvas = document.getElementById('wh-ink');
+  var rect = canvas.getBoundingClientRect();
+  return {x: e.clientX - rect.left, y: e.clientY - rect.top, pressure: e.pressure || 0.5};
+}
+
+function startStroke(e) {
+  if (inkTool === 'text') return;
+  e.preventDefault();
+  isDrawing = true;
+  var pos = getPos(e);
+  currentStroke = {tool: inkTool, color: inkColor, size: parseInt(document.getElementById('wh-pen-size').value)||2, points: [pos]};
+}
+
+function continueStroke(e) {
+  if (!isDrawing || !currentStroke) return;
+  e.preventDefault();
+  var pos = getPos(e);
+  currentStroke.points.push(pos);
+  renderStroke(currentStroke, true);
+}
+
+function endStroke(e) {
+  if (!isDrawing || !currentStroke) return;
+  isDrawing = false;
+  if (currentStroke.points.length > 1) {
+    inkStrokes.push(currentStroke);
+    // Detect handwriting gestures for semantic triggers
+    detectGesture(currentStroke);
+    scheduleSave();
+  }
+  currentStroke = null;
+}
+
+function renderStroke(stroke, incremental) {
+  var canvas = document.getElementById('wh-ink');
+  var ctx = canvas.getContext('2d');
+  if (!incremental) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (stroke.points.length < 2) return;
+  ctx.save();
+  if (stroke.tool === 'erase') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.strokeStyle = 'rgba(0,0,0,1)';
+    ctx.lineWidth = stroke.size * 5;
+  } else if (stroke.tool === 'hi') {
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.strokeStyle = stroke.color + '55';
+    ctx.lineWidth = stroke.size * 4;
+  } else {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = stroke.color;
+    ctx.lineWidth = stroke.size;
+  }
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+  for (var i = 1; i < stroke.points.length - 1; i++) {
+    var mx = (stroke.points[i].x + stroke.points[i+1].x) / 2;
+    var my = (stroke.points[i].y + stroke.points[i+1].y) / 2;
+    ctx.quadraticCurveTo(stroke.points[i].x, stroke.points[i].y, mx, my);
+  }
+  ctx.lineTo(stroke.points[stroke.points.length-1].x, stroke.points[stroke.points.length-1].y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function redrawInk() {
+  var canvas = document.getElementById('wh-ink');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  inkStrokes.forEach(function(s) { renderStroke(s, false); });
+}
+
+function undoInk() {
+  if (!inkStrokes.length) return;
+  inkStrokes.pop();
+  redrawInk();
+  scheduleSave();
+}
+
+function clearInk() {
+  if (!confirm('Clear all ink from this page?')) return;
+  inkStrokes = [];
+  redrawInk();
+  scheduleSave();
+}
+
+function setInkTool(tool) {
+  inkTool = tool;
+  ['pen','hi','erase','text'].forEach(function(t) {
+    var btn = document.getElementById('itool-' + t);
+    if (btn) btn.classList.toggle('active', t === tool);
+  });
+  var canvas = document.getElementById('wh-ink');
+  var textEl = document.getElementById('wh-text');
+  if (tool === 'text') {
+    if (canvas) canvas.style.pointerEvents = 'none';
+    if (textEl) { textEl.contentEditable = 'true'; textEl.classList.add('text-mode'); textEl.focus(); }
+  } else {
+    if (canvas) canvas.style.pointerEvents = 'all';
+    if (textEl) { textEl.contentEditable = 'false'; textEl.classList.remove('text-mode'); }
+    if (canvas) canvas.style.cursor = tool === 'erase' ? 'cell' : 'crosshair';
+  }
+}
+
+// ── Handwriting gesture detection ─────────────────────────────────────────────
+// Detects: underline → heading, circle → tag, asterisk-like → bold
+// These are heuristic — real implementation uses Windows Ink recognition
+function detectGesture(stroke) {
+  // Underline: nearly horizontal stroke below text
+  var pts = stroke.points;
+  if (pts.length < 5) return;
+  var dy = Math.abs(pts[pts.length-1].y - pts[0].y);
+  var dx = Math.abs(pts[pts.length-1].x - pts[0].x);
+  if (dx > 80 && dy < 20) {
+    // Horizontal stroke — could be underline or heading marker
+    addLog('Gesture: horizontal stroke detected (underline/heading)');
+  }
+}
+
+// ── Text layer — handwriting recognition via OCR ──────────────────────────────
+function onTextInput() {
+  updateCounts();
+  scheduleSave();
+  // Detect inline markup patterns
+  var textEl = document.getElementById('wh-text');
+  if (!textEl) return;
+  var text = textEl.innerText || '';
+  // Auto-detect: ALL CAPS line → H1, ## → H2, * → bullet
+  // This runs on text input (keyboard or dictation), not on ink
+}
+
+function onTextKeydown(e) {
+  if (e.ctrlKey) {
+    switch(e.key) {
+      case 's': e.preventDefault(); savePage(); Toast.success('Saved'); break;
+      case 'f': e.preventDefault(); openFind(); break;
+      case 'z': e.preventDefault(); document.execCommand('undo'); break;
+      case 'b': e.preventDefault(); document.execCommand('bold'); break;
+      case 'i': e.preventDefault(); document.execCommand('italic'); break;
+      case 'u': e.preventDefault(); document.execCommand('underline'); break;
+    }
+  }
+}
+
+// ── OSK ───────────────────────────────────────────────────────────────────────
+var OSK_ROWS = {
+  normal: [
+    ['`','1','2','3','4','5','6','7','8','9','0','-','=','⌫'],
+    ['Tab','q','w','e','r','t','y','u','i','o','p','[',']','\\'],
+    ['Caps','a','s','d','f','g','h','j','k','l',';',"'",'↵'],
+    ['⇧','z','x','c','v','b','n','m',',','.','/',  '⇧'],
+    ['Ctrl','Alt','Space','Alt','Ctrl']
+  ],
+  shift: [
+    ['~','!','"','£','$','%','^','&','*','(',')','_','+','⌫'],
+    ['Tab','Q','W','E','R','T','Y','U','I','O','P','{','}','|'],
+    ['Caps','A','S','D','F','G','H','J','K','L',':','@','↵'],
+    ['⇧','Z','X','C','V','B','N','M','<','>','?','⇧'],
+    ['Ctrl','Alt','Space','Alt','Ctrl']
+  ],
+  special: [
+    ['½','¼','¾','°','±','×','÷','≠','≈','∞','√','π','∑','⌫'],
+    ['→','←','↑','↓','↔','↕','⇒','⇐','⇑','⇓','⇔','«','»','…'],
+    ['•','·','–','—','‐','‑','‒','―','‖','‗','†','‡','↵'],
+    ['©','®','™','℃','℉','№','§','¶','‰','‱','⁰','¹','²','³'],
+    ['Ctrl','Alt','Space','Alt','Ctrl']
+  ],
+  punct: [
+    ['!','?','.',',',';',':','\'','"','`','~','@','#','$','⌫'],
+    ['%','^','&','*','(',')','-','_','=','+','[',']','{','}'],
+    ['|','\\','/','<','>','«','»','…','—','–','•','·','↵'],
+    ['⇧','Undo','Redo','Find','Copy','Paste','Cut','All','⇧'],
+    ['Ctrl','Alt','Space','Alt','Ctrl']
+  ]
+};
+
+function buildOSK() {
+  var body = document.getElementById('wh-osk-body');
+  if (!body) return;
+  body.innerHTML = '';
+  var rows = OSK_ROWS[oskMode] || OSK_ROWS.normal;
+  rows.forEach(function(row) {
+    var rowEl = document.createElement('div');
+    rowEl.className = 'wh-osk-row';
+    row.forEach(function(key) {
+      var btn = document.createElement('button');
+      btn.className = 'wh-key';
+      btn.textContent = key;
+      btn.type = 'button';
+      if (key === 'Space') { btn.className += ' space'; btn.textContent = ' '; }
+      else if (['⌫','↵','Tab','Caps','Ctrl','Alt','⇧','Undo','Redo','Find','Copy','Paste','Cut','All'].includes(key)) btn.className += ' wide';
+      btn.onmousedown = function(e) { e.preventDefault(); handleOSKKey(key); };
+      rowEl.appendChild(btn);
+    });
+    body.appendChild(rowEl);
+  });
+}
+
+function handleOSKKey(key) {
+  var textEl = document.getElementById('wh-text');
+  if (!textEl) return;
+  // Ensure text mode
+  if (inkTool !== 'text') setInkTool('text');
+  textEl.focus();
+  switch(key) {
+    case '⌫': document.execCommand('delete'); break;
+    case '↵': document.execCommand('insertParagraph'); break;
+    case 'Tab': document.execCommand('insertText', false, '\t'); break;
+    case '⇧': setOSKMode(oskMode === 'normal' ? 'shift' : 'normal'); return;
+    case 'Caps': setOSKMode(oskMode === 'shift' ? 'normal' : 'shift'); return;
+    case 'Space': document.execCommand('insertText', false, ' '); break;
+    case 'Ctrl': case 'Alt': break;
+    case 'Undo': document.execCommand('undo'); break;
+    case 'Redo': document.execCommand('redo'); break;
+    case 'Find': openFind(); return;
+    case 'Copy': document.execCommand('copy'); break;
+    case 'Paste': document.execCommand('paste'); break;
+    case 'Cut': document.execCommand('cut'); break;
+    case 'All': document.execCommand('selectAll'); break;
+    default: document.execCommand('insertText', false, key);
+  }
+  updateCounts();
+  scheduleSave();
+}
+
+function setOSKMode(mode) {
+  oskMode = mode;
+  ['normal','shift','special','punct'].forEach(function(m) {
+    var btn = document.getElementById('oskm-' + m);
+    if (btn) btn.classList.toggle('active', m === mode);
+  });
+  buildOSK();
+}
+
+function toggleOSK() {
+  oskOpen = !oskOpen;
+  var osk = document.getElementById('wh-osk');
+  if (osk) {
+    if (oskOpen) { osk.classList.add('open'); osk.style.maxHeight = '200px'; }
+    else { osk.classList.remove('open'); osk.style.maxHeight = '0'; }
+  }
+}
+
+function floatOSK() {
+  var osk = document.getElementById('wh-osk');
+  if (!osk) return;
+  oskFloating = !oskFloating;
+  osk.classList.toggle('floating', oskFloating);
+  if (oskFloating) { osk.style.maxHeight = 'none'; osk.classList.add('open'); }
+  else { osk.style.maxHeight = oskOpen ? '200px' : '0'; }
+}
+
+// ── Views ─────────────────────────────────────────────────────────────────────
+function setView(view) {
+  currentView = view;
+  ['ink','dual','read','outline','timeline'].forEach(function(v) {
+    var btn = document.getElementById('vbtn-' + v);
+    if (btn) btn.classList.toggle('active', v === view);
+  });
+  var surface = document.getElementById('wh-surface');
+  var inkEl = document.getElementById('wh-ink');
+  var textEl = document.getElementById('wh-text');
+  var strip = document.getElementById('wh-ink-strip');
+  if (!surface) return;
+
+  // Reset
+  surface.innerHTML = '';
+  surface.className = 'wh-surface ' + (document.getElementById('wh-template') ? document.getElementById('wh-template').value : 'ruled');
+
+  if (view === 'ink') {
+    // Default: ink canvas + text layer
+    var cvs = document.createElement('canvas'); cvs.id = 'wh-ink'; surface.appendChild(cvs);
+    var tl = document.createElement('div');
+    tl.id = 'wh-text'; tl.contentEditable = 'false'; tl.spellcheck = true;
+    tl.setAttribute('data-placeholder', 'Pick up your stylus and write…');
+    tl.oninput = onTextInput; tl.onkeydown = onTextKeydown;
+    tl.innerHTML = currentPage ? currentPage.content || '' : '';
+    surface.appendChild(tl);
+    var istrip = buildInkStrip(); surface.appendChild(istrip);
+    initCanvas(); redrawInk();
+  } else if (view === 'dual') {
+    var dual = document.createElement('div'); dual.className = 'wh-dual';
+    var left = document.createElement('div'); left.className = 'wh-pane';
+    var lbl1 = document.createElement('div'); lbl1.className = 'wh-pane-label'; lbl1.textContent = 'Handwriting';
+    var cvs2 = document.createElement('canvas'); cvs2.id = 'wh-ink';
+    left.appendChild(lbl1); left.appendChild(cvs2);
+    var right = document.createElement('div'); right.className = 'wh-pane';
+    var lbl2 = document.createElement('div'); lbl2.className = 'wh-pane-label'; lbl2.textContent = 'Markdown Preview';
+    var preview = document.createElement('div'); preview.className = 'md-content';
+    preview.innerHTML = Markdown.render(currentPage ? currentPage.content || '' : '');
+    right.appendChild(lbl2); right.appendChild(preview);
+    dual.appendChild(left); dual.appendChild(right);
+    surface.appendChild(dual);
+    initCanvas(); redrawInk();
+  } else if (view === 'read') {
+    var readDiv = document.createElement('div');
+    readDiv.style.cssText = 'padding:40px 80px;max-width:800px;margin:0 auto;font-size:16px;line-height:1.9;';
+    readDiv.className = 'md-content';
+    readDiv.innerHTML = Markdown.render(currentPage ? currentPage.content || '' : '');
+    surface.appendChild(readDiv);
+  } else if (view === 'outline') {
+    var outDiv = document.createElement('div'); outDiv.className = 'wh-outline';
+    var content = currentPage ? currentPage.content || '' : '';
+    var lines = content.split('\n');
+    var hasH = false;
+    lines.forEach(function(line) {
+      var stripped = line.replace(/<[^>]+>/g, '');
+      if (stripped.startsWith('# ') || stripped.match(/^[A-Z][A-Z\s]{4,}$/)) {
+        hasH = true;
+        var item = document.createElement('div'); item.className = 'wh-outline-item wh-h1';
+        item.textContent = stripped.replace(/^#+\s/, ''); outDiv.appendChild(item);
+      } else if (stripped.startsWith('## ')) {
+        hasH = true;
+        var item = document.createElement('div'); item.className = 'wh-outline-item wh-h2';
+        item.textContent = stripped.replace(/^#+\s/, ''); outDiv.appendChild(item);
+      } else if (stripped.startsWith('### ')) {
+        hasH = true;
+        var item = document.createElement('div'); item.className = 'wh-outline-item wh-h3';
+        item.textContent = stripped.replace(/^#+\s/, ''); outDiv.appendChild(item);
+      }
+    });
+    if (!hasH) outDiv.innerHTML = '<p style="color:var(--fg-muted);font-size:13px;padding:20px;">No headings found. Use # H1, ## H2, ### H3 or write in ALL CAPS for headings.</p>';
+    surface.appendChild(outDiv);
+  } else if (view === 'timeline') {
+    var tlDiv = document.createElement('div'); tlDiv.style.cssText = 'padding:16px;overflow-y:auto;';
+    var allPages = [];
+    notebooks.forEach(function(nb){(nb.sections||[]).forEach(function(s){(s.pages||[]).forEach(function(p){allPages.push(p);});});});
+    allPages.sort(function(a,b){return new Date(b.created)-new Date(a.created);});
+    allPages.forEach(function(pg) {
+      var item = document.createElement('div'); item.style.cssText = 'display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer;';
+      var date = document.createElement('div'); date.style.cssText = 'font-size:11px;color:var(--fg-muted);width:80px;flex-shrink:0;';
+      date.textContent = new Date(pg.created).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+      var name = document.createElement('div'); name.textContent = pg.name;
+      item.appendChild(date); item.appendChild(name);
+      item.onclick = function() { loadPage(pg); setView('ink'); };
+      tlDiv.appendChild(item);
+    });
+    surface.appendChild(tlDiv);
+  }
+}
+
+function buildInkStrip() {
+  var strip = document.createElement('div'); strip.className = 'wh-ink-strip'; strip.id = 'wh-ink-strip';
+  var tools = [{id:'pen',icon:'✏',title:'Pen'},{id:'hi',icon:'🖊',title:'Highlighter'},{id:'erase',icon:'⬜',title:'Eraser'},{id:'text',icon:'T',title:'Text mode'}];
+  tools.forEach(function(t) {
+    var btn = document.createElement('button');
+    btn.className = 'wh-ink-btn' + (t.id === inkTool ? ' active' : '');
+    btn.id = 'itool-' + t.id; btn.textContent = t.icon; btn.title = t.title;
+    btn.onclick = function() { setInkTool(t.id); };
+    strip.appendChild(btn);
+  });
+  var sep1 = document.createElement('div'); sep1.style.cssText = 'width:100%;height:1px;background:var(--border);margin:2px 0;'; strip.appendChild(sep1);
+  var cs = document.createElement('div'); cs.className = 'wh-color-strip'; cs.id = 'wh-colors';
+  buildColorStrip(cs); strip.appendChild(cs);
+  var sep2 = document.createElement('div'); sep2.style.cssText = 'width:100%;height:1px;background:var(--border);margin:2px 0;'; strip.appendChild(sep2);
+  var sizeRange = document.createElement('input');
+  sizeRange.type = 'range'; sizeRange.className = 'wh-size-range'; sizeRange.id = 'wh-pen-size';
+  sizeRange.min = '1'; sizeRange.max = '20'; sizeRange.value = '2'; sizeRange.title = 'Pen size';
+  strip.appendChild(sizeRange);
+  var sep3 = document.createElement('div'); sep3.style.cssText = 'width:100%;height:1px;background:var(--border);margin:2px 0;'; strip.appendChild(sep3);
+  var undoBtn = document.createElement('button'); undoBtn.className = 'wh-ink-btn'; undoBtn.textContent = '↩'; undoBtn.title = 'Undo stroke'; undoBtn.onclick = undoInk; strip.appendChild(undoBtn);
+  var clearBtn = document.createElement('button'); clearBtn.className = 'wh-ink-btn'; clearBtn.textContent = '🗑'; clearBtn.title = 'Clear ink'; clearBtn.onclick = clearInk; strip.appendChild(clearBtn);
+  return strip;
+}
+
+function buildColorStrip(container) {
+  var colors = ['#1a1a1a','#0f3b3a','#5c2d3f','#e74c3c','#3498db','#27ae60','#f39c12','#9b59b6','#ffffff'];
+  colors.forEach(function(c) {
+    var dot = document.createElement('div');
+    dot.className = 'wh-cdot' + (c === inkColor ? ' active' : '');
+    dot.style.background = c;
+    if (c === '#ffffff') dot.style.border = '2px solid #ccc';
+    dot.title = c;
+    dot.onclick = function() {
+      inkColor = c;
+      container.querySelectorAll('.wh-cdot').forEach(function(d){d.classList.remove('active');});
+      dot.classList.add('active');
+    };
+    container.appendChild(dot);
+  });
+}
+
+// ── Template ──────────────────────────────────────────────────────────────────
+function setTemplate(tmpl) {
+  var surface = document.getElementById('wh-surface');
+  if (!surface) return;
+  surface.className = 'wh-surface ' + tmpl;
+  var sel = document.getElementById('wh-template');
+  if (sel) sel.value = tmpl;
+}
+
+// ── Left / Right / OSK toggles ────────────────────────────────────────────────
+function toggleLeft() {
+  leftOpen = !leftOpen;
+  var el = document.getElementById('wh-left');
+  if (el) el.classList.toggle('open', leftOpen);
+}
+
+function toggleRight() {
+  rightOpen = !rightOpen;
+  var el = document.getElementById('wh-right');
+  if (el) el.classList.toggle('open', rightOpen);
+  if (rightOpen) renderRightContent();
+}
+
+// ── Right sidebar content ─────────────────────────────────────────────────────
+function setRightTab(tab) {
+  rightTab = tab;
+  ['notes','outline','transcript','log'].forEach(function(t) {
+    var btn = document.getElementById('rtab-' + t);
+    if (btn) btn.classList.toggle('active', t === tab);
+  });
+  renderRightContent();
+}
+
+function renderRightContent() {
+  var el = document.getElementById('wh-right-content');
+  if (!el) return;
+  el.innerHTML = '';
+  if (rightTab === 'notes') {
+    if (!annotations.length) {
+      el.innerHTML = '<p style="font-size:12.5px;color:var(--fg-muted);">No annotations yet.</p>';
+    } else {
+      annotations.forEach(function(a) {
+        var item = document.createElement('div');
+        item.style.cssText = 'padding:8px;background:var(--bg-elevated);border-radius:6px;margin-bottom:8px;font-size:12.5px;border-left:3px solid var(--warning);';
+        item.innerHTML = '<div>' + a.text + '</div><div style="font-size:10.5px;color:var(--fg-muted);margin-top:4px;">' + a.time + '</div>';
+        el.appendChild(item);
+      });
+    }
+    var form = document.createElement('div'); form.style.marginTop = '10px';
+    var ta = document.createElement('textarea'); ta.className = 'textarea'; ta.placeholder = 'Add a note…'; ta.rows = 3; ta.style.fontSize = '12.5px';
+    var btn = document.createElement('button'); btn.className = 'btn btn-sm btn-primary'; btn.style.marginTop = '6px'; btn.textContent = '+ Add';
+    btn.onclick = function() {
+      if (!ta.value.trim()) return;
+      annotations.push({text: ta.value.trim(), time: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})});
+      ta.value = ''; renderRightContent();
+    };
+    form.appendChild(ta); form.appendChild(btn); el.appendChild(form);
+  } else if (rightTab === 'outline') {
+    var content = currentPage ? currentPage.content || '' : '';
+    var lines = content.split('\n');
+    lines.forEach(function(line) {
+      var stripped = line.replace(/<[^>]+>/g, '');
+      if (stripped.match(/^#{1,3} /)) {
+        var level = stripped.match(/^(#+)/)[1].length;
+        var item = document.createElement('div');
+        item.style.cssText = 'padding:4px 0 4px ' + ((level-1)*12) + 'px;font-size:' + (14-level) + 'px;border-bottom:1px solid var(--border);cursor:pointer;';
+        item.textContent = stripped.replace(/^#+\s/, '');
+        el.appendChild(item);
+      }
+    });
+    if (!el.children.length) el.innerHTML = '<p style="font-size:12.5px;color:var(--fg-muted);">No headings.</p>';
+  } else if (rightTab === 'transcript') {
+    el.innerHTML = '<p style="font-size:12.5px;color:var(--fg-muted);">' + (isRecording ? '🔴 Recording…' : 'Start a recording to see transcript.') + '</p>';
+  } else if (rightTab === 'log') {
+    if (!changeLog.length) { el.innerHTML = '<p style="font-size:12.5px;color:var(--fg-muted);">No changes yet.</p>'; return; }
+    changeLog.slice().reverse().forEach(function(entry) {
+      var item = document.createElement('div');
+      item.style.cssText = 'padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;';
+      item.innerHTML = '<div>' + entry.action + '</div><div style="font-size:10.5px;color:var(--fg-muted);">' + entry.time + '</div>';
+      el.appendChild(item);
+    });
+  }
+}
+
+function addLog(action) {
+  changeLog.push({action:action, time:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})});
+  if (changeLog.length > 100) changeLog.shift();
+}
+
+// ── Counts ────────────────────────────────────────────────────────────────────
+function updateCounts() {
+  var textEl = document.getElementById('wh-text');
+  if (!textEl) return;
+  var text = textEl.innerText || '';
+  var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  var wc = document.getElementById('wh-wc');
+  var cc = document.getElementById('wh-cc');
+  if (wc) wc.textContent = words.toLocaleString() + ' words';
+  if (cc) cc.textContent = text.length.toLocaleString() + ' chars';
+}
+
+// ── Auto-save ─────────────────────────────────────────────────────────────────
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  setSyncStatus('saving');
+  saveTimer = setTimeout(function() { savePage(); }, 1500);
+}
+
+function setSyncStatus(status) {
+  var dot = document.getElementById('wh-sync-dot');
+  var label = document.getElementById('wh-sync-label');
+  if (!dot || !label) return;
+  dot.className = 'wh-sync-dot' + (status === 'saving' ? ' saving' : '');
+  label.textContent = status === 'saving' ? 'Saving…' : 'Saved';
+}
+
+// ── Recording ─────────────────────────────────────────────────────────────────
+function toggleRecord() {
+  if (isRecording) stopRecording(); else startRecording();
+}
+
+function startRecording() {
+  if (!navigator.mediaDevices) { Toast.warning('Recording not supported'); return; }
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream) {
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    mediaRecorder.ondataavailable = function(e) { audioChunks.push(e.data); };
+    mediaRecorder.onstop = function() {
+      if (currentPage) currentPage.recording = new Blob(audioChunks, {type:'audio/webm'});
+      addLog('Recording saved');
+    };
+    mediaRecorder.start();
+    isRecording = true;
+    var badge = document.getElementById('wh-rec-badge');
+    var btn = document.getElementById('wh-rec-btn');
+    if (badge) badge.classList.add('active');
+    if (btn) btn.classList.add('active');
+    addLog('Recording started');
+    Toast.info('Recording started');
+  }).catch(function(e) { Toast.error('Microphone: ' + e.message); });
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(function(t){t.stop();});
+  }
+  isRecording = false;
+  var badge = document.getElementById('wh-rec-badge');
+  var btn = document.getElementById('wh-rec-btn');
+  if (badge) badge.classList.remove('active');
+  if (btn) btn.classList.remove('active');
+  addLog('Recording stopped');
+  Toast.success('Recording saved');
+}
+
+// ── Dictation ─────────────────────────────────────────────────────────────────
+function toggleDictation() {
+  if (isDictating) stopDictation(); else startDictation();
+}
+
+function startDictation() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) { Toast.warning('Speech recognition not supported'); return; }
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.continuous = true; recognition.interimResults = true; recognition.lang = 'en-GB';
+  recognition.onresult = function(e) {
+    var overlay = document.getElementById('wh-dictation');
+    var textSpan = document.getElementById('wh-dict-text');
+    var transcript = '';
+    for (var i = e.resultIndex; i < e.results.length; i++) {
+      transcript += e.results[i][0].transcript;
+      if (e.results[i].isFinal) {
+        setInkTool('text');
+        var textEl = document.getElementById('wh-text');
+        if (textEl) { textEl.focus(); document.execCommand('insertText', false, transcript + ' '); updateCounts(); scheduleSave(); }
+        transcript = '';
+      }
+    }
+    if (textSpan) textSpan.textContent = transcript || 'Listening…';
+  };
+  recognition.onend = function() { if (isDictating) recognition.start(); };
+  recognition.start();
+  isDictating = true;
+  var overlay = document.getElementById('wh-dictation');
+  var btn = document.getElementById('wh-dict-btn');
+  if (overlay) overlay.classList.add('active');
+  if (btn) btn.classList.add('active');
+  addLog('Dictation started');
+}
+
+function stopDictation() {
+  if (recognition) { recognition.stop(); recognition = null; }
+  isDictating = false;
+  var overlay = document.getElementById('wh-dictation');
+  var btn = document.getElementById('wh-dict-btn');
+  if (overlay) overlay.classList.remove('active');
+  if (btn) btn.classList.remove('active');
+  addLog('Dictation stopped');
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function openExport() { document.getElementById('wh-export-overlay').classList.add('open'); }
+function closeExport() { document.getElementById('wh-export-overlay').classList.remove('open'); }
+
+function doExport(format) {
+  closeExport();
+  var textEl = document.getElementById('wh-text');
+  var content = textEl ? textEl.innerText : '';
+  var htmlContent = textEl ? textEl.innerHTML : '';
+  var name = currentPage ? currentPage.name : 'document';
+  var filename = name.replace(/[^a-z0-9]/gi,'-').toLowerCase();
+  switch(format) {
+    case 'md':
+      download(new Blob([content],{type:'text/markdown'}), filename+'.md'); break;
+    case 'png':
+      var canvas = document.getElementById('wh-ink');
+      if (canvas) { var a=document.createElement('a');a.download=filename+'.png';a.href=canvas.toDataURL('image/png');a.click(); }
+      break;
+    case 'pdf':
+      var w=window.open('','_blank');
+      w.document.write('<!DOCTYPE html><html><head><title>WriteHandy — Argentica</title><style>body{font-family:Georgia,serif;max-width:800px;margin:40px auto;padding:20px;line-height:1.8;}</style></head><body>'+htmlContent+'</body></html>');
+      w.document.close(); w.print(); break;
+    case 'odt':
+      download(new Blob([content],{type:'application/vnd.oasis.opendocument.text'}), filename+'.odt'); break;
+    case 'audio':
+      if (currentPage && currentPage.recording) {
+        var a2=document.createElement('a');a2.href=URL.createObjectURL(currentPage.recording);a2.download=filename+'.webm';a2.click();
+      } else Toast.warning('No recording on this page');
+      break;
+    case 'hat':
+      download(new Blob([JSON.stringify({format:'WriteHandy HAT v1.0',page:currentPage,ink:inkStrokes,annotations:annotations,exported:new Date().toISOString()},null,2)],{type:'application/json'}), filename+'.hat'); break;
+  }
+  addLog('Exported as ' + format.toUpperCase());
+  Toast.success('Exported as ' + format.toUpperCase());
+}
+
+function download(blob, filename) {
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+}
+
+// ── Sync ──────────────────────────────────────────────────────────────────────
+function openSync() { document.getElementById('wh-sync-overlay').classList.add('open'); }
+function closeSync() { document.getElementById('wh-sync-overlay').classList.remove('open'); }
+
+function syncTo(target) {
+  closeSync();
+  setSyncStatus('saving');
+  var textEl = document.getElementById('wh-text');
+  var content = textEl ? textEl.innerText : '';
+  var name = currentPage ? currentPage.name : 'WriteHandy Note';
+  if (target === 'notion') {
+    fetch(WORKER+'/api/notion/sync',{method:'POST',headers:{'Content-Type':'application/json','Origin':'https://prism.identitypartners.uk'},body:JSON.stringify({title:name,content:content,type:'writehandy'})})
+    .then(function(r){return r.json();}).then(function(d){if(d.success){setSyncStatus('saved');Toast.success('Synced to Notion');}else{setSyncStatus('saved');Toast.error('Notion: '+(d.error||'failed'));}})
+    .catch(function(e){setSyncStatus('saved');Toast.error('Sync error: '+e.message);});
+  } else if (target === 'obsidian') {
+    if ('showSaveFilePicker' in window) {
+      window.showSaveFilePicker({suggestedName:name+'.md',types:[{description:'Markdown',accept:{'text/markdown':['.md']}}]})
+      .then(function(fh){return fh.createWritable();}).then(function(w){return w.write(content).then(function(){return w.close();});})
+      .then(function(){setSyncStatus('saved');Toast.success('Saved to Obsidian vault');})
+      .catch(function(e){setSyncStatus('saved');if(e.name!=='AbortError')Toast.error('Save failed: '+e.message);});
+    } else { doExport('md'); Toast.info('Downloaded as .md — drag into your Obsidian vault'); }
+  } else if (target === 'onedrive') {
+    fetch(WORKER+'/api/onedrive/upload',{method:'POST',headers:{'Content-Type':'application/json','Origin':'https://prism.identitypartners.uk'},body:JSON.stringify({filename:name+'.md',content:content})})
+    .then(function(r){return r.json();}).then(function(d){if(d.success){setSyncStatus('saved');Toast.success('Synced to OneDrive');}else{setSyncStatus('saved');Toast.error('OneDrive: '+(d.error||'failed'));}})
+    .catch(function(e){setSyncStatus('saved');Toast.error('Sync error: '+e.message);});
+  } else {
+    setSyncStatus('saved');
+    Toast.info('Proton Drive sync requires WebDAV configuration in Settings.');
+  }
+}
+
+function syncAll() { closeSync(); ['notion','onedrive'].forEach(function(t){syncTo(t);}); }
+
+// ── Find & Replace ────────────────────────────────────────────────────────────
+function openFind() { document.getElementById('wh-find-bar').classList.add('open'); document.getElementById('wh-find-input').focus(); }
+function closeFind() { document.getElementById('wh-find-bar').classList.remove('open'); }
+function doFind() { var t=document.getElementById('wh-find-input').value; if(t) window.find(t); }
+function doReplace() {
+  var find=document.getElementById('wh-find-input').value;
+  var replace=document.getElementById('wh-replace-input').value;
+  if (!find) return;
+  var textEl=document.getElementById('wh-text');
+  if (textEl) { textEl.innerHTML=textEl.innerHTML.replace(new RegExp(find,'g'),replace); updateCounts(); scheduleSave(); }
+}
+
+// ── Clipboard ─────────────────────────────────────────────────────────────────
+function copyAll() {
+  var textEl=document.getElementById('wh-text');
+  if (!textEl) return;
+  if (navigator.clipboard) navigator.clipboard.writeText(textEl.innerText).then(function(){Toast.success('Copied');});
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey) {
+    switch(e.key) {
+      case 's': e.preventDefault(); savePage(); Toast.success('Saved'); break;
+      case 'f': e.preventDefault(); openFind(); break;
+      case 'z': if (document.activeElement !== document.getElementById('wh-text')) { e.preventDefault(); undoInk(); } break;
+    }
+  }
+  if (e.key === 'Escape') { closeFind(); closeExport(); closeSync(); }
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/writehandy/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+
+  buildOSK();
+  initNotebooks();
+  buildColorStrip(document.getElementById('wh-colors') || document.createElement('div'));
+
+  window.addEventListener('resize', function() {
+    var canvas = document.getElementById('wh-ink');
+    var surface = document.getElementById('wh-surface');
+    if (canvas && surface) {
+      canvas.width = surface.offsetWidth;
+      canvas.height = Math.max(surface.offsetHeight, 1400);
+      redrawInk();
+    }
+  });
+
+  addLog('WriteHandy initialised');
+  updateCounts();
+});
+</script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"ef102d28b0a74a4f99b6d54426bc58f4","r":1,"spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>
