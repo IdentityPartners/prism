@@ -1416,8 +1416,8 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     notion_db: k(["notion_p2"]),
     github: k(["github_p1"]),
     // Zoho
-    zoho_client_id: k(["zoho_p1"]),
-    zoho_client_secret: k(["zoho_p2"]),
+    zoho_client_id: k(["ZOHO_CLIENT_ID", "Zoho_Client_ID", "zoho_client_id"]),
+    zoho_client_secret: k(["ZOHO_CLIENT_SECRET", "Zoho_Client_Secret", "zoho_client_secret"]),
     zoho_auth_code: k(["zoho_p3"]),
     // LinkedIn
     linkedin_client_id: k(["linkedin_p1"]),
@@ -2460,6 +2460,24 @@ var index_default = {
           var aboutMeContext = aboutMeFacts.length > 0
             ? "\n\nWhat I know about Simon Johnson:\n" + aboutMeFacts.slice(0, 20).map(function(m) { return "- " + m.fact; }).join("\n")
             : "";
+
+
+          var ragContext = "";
+          try {
+            var lastUserContent = "";
+            for (var rmi = messages.length - 1; rmi >= 0; rmi--) {
+              if (messages[rmi].role === "user") { lastUserContent = (messages[rmi].content || "").substring(0, 200); break; }
+            }
+            if (lastUserContent && env.PRISM_D1) {
+              var ragWord = lastUserContent.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).find(function(w){ return w.length > 5; });
+              if (ragWord) {
+                var ragRows = await env.PRISM_D1.prepare("SELECT title, content_preview FROM rag_index WHERE keywords LIKE ? LIMIT 2").bind("%" + ragWord + "%").all();
+                if (ragRows.results && ragRows.results.length > 0) {
+                  ragContext = " | From your notes: " + ragRows.results.map(function(r){ return r.title + ": " + r.content_preview.substring(0, 150); }).join("; ");
+                }
+              }
+            }
+          } catch(ragErr) {}
 
           var orchestratorPrompt = "You are the Orchestrator for Argentica, the personal AI operating environment of Simon Johnson / Identity Partners. " +
             "You are omnipotent within this system. You know every module, every agent, every tool, and every rule. " +
@@ -7825,7 +7843,66 @@ var index_default = {
         { id: "cohere/command-r-plus-08-2024", label: "Cohere Command R+", provider: "cohere" },
       ]}, 200, origin);
     }
-    return json({ error: "Not found", path }, 404, origin);
+    
+    // RAG: Setup index table
+    if (path === "/api/rag/setup" && request.method === "POST") {
+      try {
+        if (!env.PRISM_D1) return json({ error: "D1 not available" }, 200, origin);
+        await env.PRISM_D1.prepare("CREATE TABLE IF NOT EXISTS rag_index (id TEXT PRIMARY KEY, title TEXT, content_preview TEXT, keywords TEXT, source_type TEXT, module TEXT, tags TEXT, created_at TEXT)").run();
+        await env.PRISM_D1.prepare("CREATE INDEX IF NOT EXISTS idx_rag_keywords ON rag_index(keywords)").run();
+        return json({ success: true, message: "RAG index ready" }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // RAG: Index content
+    if (path === "/api/rag/index" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var content = (body.content || "").substring(0, 10000);
+        var title = (body.title || "Untitled").substring(0, 200);
+        var sourceType = body.source || "note";
+        var module = body.module || "General";
+        var stopWords = new Set(["this","that","with","from","have","been","were","they","their","what","when","where","which","will","would","could","should","about","into","than","then","them","these","those","some","such","only","also","more","most","other","over","after","before","between","through","during","without","within","along","following","across","behind","beyond","plus","except","the","and","but","for","are","was","not","you","all","can","had","her","his","him","she","they","its","our","out","who","get","may","him","has","did","let","put","say","too","use","way","may","now","how","any","two","its","our","out","who","get","may","him","has","did","let","put","say","too","use","way"]);
+        var words = content.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(function(w){ return w.length > 4 && !stopWords.has(w); });
+        var keywords = [...new Set(words)].slice(0, 50).join(" ");
+        var docId = "rag-" + Date.now() + "-" + Math.random().toString(36).slice(2,6);
+        if (!env.PRISM_D1) return json({ error: "D1 not available" }, 200, origin);
+        await env.PRISM_D1.prepare("INSERT OR REPLACE INTO rag_index (id, title, content_preview, keywords, source_type, module, tags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(docId, title, content.substring(0, 500), keywords, sourceType, module, JSON.stringify(body.tags || []), new Date().toISOString()).run();
+        return json({ success: true, id: docId }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // RAG: Search
+    if (path === "/api/rag/search" && request.method === "GET") {
+      try {
+        var q = (url.searchParams.get("q") || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ");
+        var limit = parseInt(url.searchParams.get("limit") || "5");
+        if (!q || !env.PRISM_D1) return json({ results: [] }, 200, origin);
+        var words = q.split(/\s+/).filter(function(w){ return w.length > 4; }).slice(0, 3);
+        var results = [];
+        for (var wi = 0; wi < words.length; wi++) {
+          try {
+            var rows = await env.PRISM_D1.prepare("SELECT id, title, content_preview, source_type, module FROM rag_index WHERE keywords LIKE ? LIMIT ?").bind("%" + words[wi] + "%", limit).all();
+            (rows.results || []).forEach(function(r){ if (!results.find(function(x){ return x.id === r.id; })) results.push(r); });
+          } catch(e) {}
+        }
+        return json({ results: results.slice(0, limit), query: q }, 200, origin);
+      } catch(e) { return json({ error: e.message, results: [] }, 200, origin); }
+    }
+
+    // Zoho OAuth initiation
+    if (path === "/api/zoho/auth" && request.method === "GET") {
+      var service = url.searchParams.get("service") || "mail";
+      var clientId = env.ZOHO_CLIENT_ID || env.Zoho_Client_ID || env.zoho_client_id;
+      if (!clientId) return json({ error: "ZOHO_CLIENT_ID not configured. Add it via Settings." }, 200, origin);
+      var scopes = { mail: "ZohoMail.messages.READ,ZohoMail.messages.CREATE,ZohoMail.accounts.READ", crm: "ZohoCRM.modules.ALL", calendar: "ZohoCalendar.event.ALL,ZohoCalendar.calendar.ALL" };
+      var scope = scopes[service] || scopes.mail;
+      var redirectUri = "https://prism.identitypartners.uk/oauth/zoho/" + service + "/";
+      var authUrl = "https://accounts.zoho.eu/oauth/v2/auth?response_type=code&client_id=" + clientId + "&scope=" + encodeURIComponent(scope) + "&redirect_uri=" + encodeURIComponent(redirectUri) + "&access_type=offline&prompt=consent";
+      return Response.redirect(authUrl, 302);
+    }
+
+return json({ error: "Not found", path }, 404, origin);
   }
 };
 export {
