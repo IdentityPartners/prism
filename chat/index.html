@@ -429,23 +429,24 @@
 <div class="chat-topbar">
 <div class="chat-topbar-title" id="chat-title">Chat</div>
 <div class="persona-selector" onclick="openPersonaModal()" title="Change persona">
-<span id="persona-avatar">🤖</span>
-<span id="persona-name">Argentica</span>
+<span id="persona-avatar">🎩</span>
+<span id="persona-name">Gerald</span>
 <span style="color:var(--fg-muted);font-size:10px;">▾</span>
 </div>
 <button class="btn btn-sm btn-ghost" onclick="Guide.startGuide('chat')" data-tooltip="Guided tour of Chat" title="Show guide">? Guide</button>
+        <button class="btn btn-sm btn-ghost" onclick="saveCurrentPersona()" title="Save current context as a reusable persona">💾 Save persona</button>
         <button class="btn btn-sm btn-ghost" onclick="exportThread()" title="Export thread as Markdown">⬇ Export</button>
 <button class="btn btn-sm btn-ghost" onclick="clearThread()" title="Clear this thread">✕ Clear</button>
 </div>
 <!-- Messages -->
 <div class="chat-messages" id="chat-messages">
-<div class="message assistant">
-<div class="message-avatar">🤖</div>
+<div class="message assistant" id="initial-greeting">
+<div class="message-avatar">🎩</div>
 <div class="message-body">
-<div class="message-bubble">
-            Good day. I'm Prism — your personal AI operating environment. What would you like to work on?
+<div class="message-bubble" id="greeting-bubble">
+            Good day, sir. What are we working on?
           </div>
-<div class="message-meta">Prism · ready</div>
+<div class="message-meta" id="greeting-meta">Gerald · Argentica · ready</div>
 </div>
 </div>
 </div>
@@ -1007,7 +1008,7 @@ function newThread() {
   var container = document.getElementById('chat-messages');
   if (container) {
     container.innerHTML = '';
-    appendMessage('assistant', 'New thread started. What would you like to work on?', null, null);
+    appendMessage('assistant', 'Good day, sir. What are we working on?', null, null);
   }
   var titleEl = document.getElementById('chat-title');
   if (titleEl) titleEl.textContent = 'Chat';
@@ -1047,7 +1048,7 @@ function switchTab(id) {
   if (container) {
     container.innerHTML = '';
     if (messageHistory.length === 0) {
-      appendMessage('assistant', 'New tab. What would you like to work on?', null, null);
+      appendMessage('assistant', 'New context. What are we working on?', null, null);
     } else {
       for (var i = 0; i < messageHistory.length; i++) {
         appendMessage(messageHistory[i].role, messageHistory[i].content, null, null);
@@ -1290,7 +1291,7 @@ function clearThread() {
   var container = document.getElementById('chat-messages');
   if (container) {
     container.innerHTML = '';
-    appendMessage('assistant', 'Thread cleared. What would you like to work on?', null, null);
+    appendMessage('assistant', 'Thread cleared. What are we working on?', null, null);
   }
 }
 
@@ -1356,6 +1357,29 @@ document.addEventListener('keydown', function(e) {
 window.prismSendMessage = doSend;
 
 document.addEventListener('DOMContentLoaded', function() {
+  loadMemoryPanel();
+  loadPersonaPanel();
+
+
+// Dynamic greeting based on time
+(function() {
+  var h = new Date().getHours();
+  var greetings = [
+    'Good evening, sir. What are we working on?',
+    'Good morning, sir. What are we working on?',
+    'Good afternoon, sir. What are we working on?',
+    'Good evening, sir. What are we working on?'
+  ];
+  var g = h < 6 ? greetings[0] : h < 12 ? greetings[1] : h < 18 ? greetings[2] : greetings[3];
+  var el = document.getElementById('greeting-bubble');
+  if (el) el.textContent = g;
+  // Update persona avatar
+  var avatar = document.querySelector('#initial-greeting .message-avatar');
+  if (avatar) avatar.textContent = currentPersona ? currentPersona.avatar : '🎩';
+  var meta = document.getElementById('greeting-meta');
+  if (meta) meta.textContent = (currentPersona ? currentPersona.name : 'Gerald') + ' · Argentica · ready';
+})();
+
   // Build sidebar
   var mount = document.getElementById('sidebar-mount');
   if (mount) {
@@ -1377,6 +1401,107 @@ document.addEventListener('DOMContentLoaded', function() {
   // Render tabs
   renderTabs();
 });
+
+// ── Memory panel ──────────────────────────────────────────────────────────────
+function loadMemoryPanel() {
+  fetch(WORKER + '/api/memory/about-me')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var list = document.getElementById('memory-list');
+      if (!list) return;
+      var memories = d.memories || [];
+      if (!memories.length) {
+        list.innerHTML = '<div style="padding:4px 0;opacity:0.6;">No memories yet. The Orchestrator will add them automatically.</div>';
+        return;
+      }
+      list.innerHTML = memories.slice(0, 15).map(function(m) {
+        return '<div style="padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:4px;align-items:flex-start;">' +
+          '<span style="flex:1;">' + m.fact.replace(/</g,'&lt;') + '</span>' +
+          '<button onclick="deleteMemory(' + JSON.stringify(m.fact) + ')" style="background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:10px;flex-shrink:0;">✕</button>' +
+          '</div>';
+      }).join('');
+    });
+}
+
+function addMemoryPrompt() {
+  var fact = prompt('Add a memory about you:');
+  if (!fact || !fact.trim()) return;
+  fetch(WORKER + '/api/memory/about-me', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({fact: fact.trim(), category: 'manual', source: 'simon'})
+  }).then(function() { loadMemoryPanel(); Toast.success('Memory added.'); });
+}
+
+function deleteMemory(fact) {
+  fetch(WORKER + '/api/memory/about-me', {
+    method: 'DELETE', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({fact: fact})
+  }).then(function() { loadMemoryPanel(); });
+}
+
+// ── Persona panel ─────────────────────────────────────────────────────────────
+function loadPersonaPanel() {
+  fetch(WORKER + '/api/personas')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var list = document.getElementById('persona-list');
+      if (!list) return;
+      var personas = d.personas || [];
+      list.innerHTML = personas.map(function(p) {
+        return '<div style="padding:4px 6px;border:1px solid var(--border);border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px;background:var(--bg);" onclick="selectPersona(' + JSON.stringify(p) + ')">' +
+          '<span>' + (p.avatar||'🤖') + '</span>' +
+          '<span style="flex:1;font-size:11px;">' + p.name + '</span>' +
+          (p.builtIn ? '' : '<button onclick="event.stopPropagation();deletePersona(' + JSON.stringify(p.id) + ')" style="background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:10px;">✕</button>') +
+          '</div>';
+      }).join('');
+    });
+}
+
+function selectPersona(persona) {
+  currentPersona = persona;
+  try { localStorage.setItem('argentica-persona', JSON.stringify(persona)); } catch(e) {}
+  var avatar = document.getElementById('persona-avatar');
+  var name = document.getElementById('persona-name');
+  if (avatar) avatar.textContent = persona.avatar || '🤖';
+  if (name) name.textContent = persona.name;
+  // Save as active persona to Worker
+  fetch(WORKER + '/api/kv/set', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({key: 'persona:active', value: JSON.stringify(persona)})
+  });
+  Toast.success('Persona: ' + persona.name);
+}
+
+function saveCurrentPersona() {
+  var name = prompt('Save this conversation context as a persona. Name:');
+  if (!name || !name.trim()) return;
+  var history = messageHistory.slice(-20);
+  var contextSummary = history.map(function(m) { return m.role + ': ' + (m.content||'').substring(0,200); }).join('\n');
+  fetch(WORKER + '/api/personas', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      name: name.trim(),
+      avatar: currentPersona ? currentPersona.avatar : '🤖',
+      systemPrompt: currentPersona ? currentPersona.systemPrompt : '',
+      context: contextSummary
+    })
+  }).then(function() { loadPersonaPanel(); Toast.success('Persona saved: ' + name); });
+}
+
+function deletePersona(id) {
+  fetch(WORKER + '/api/personas/' + id, {method: 'DELETE'})
+    .then(function() { loadPersonaPanel(); });
+}
+
+// Clean up test threads
+function cleanupTestThreads() {
+  fetch(WORKER + '/api/admin/cleanup-test-threads', {method: 'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      Toast.success('Cleaned up ' + (d.deleted||[]).length + ' test threads.');
+      loadThreadList();
+    });
+}
 </script>
 </body>
 </html>
