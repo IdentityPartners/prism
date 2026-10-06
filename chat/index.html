@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Chat — Prism</title>
+<title>Chat — Argentica</title>
 <link href="/shared/prism.css" rel="stylesheet"/>
 <link href="/shared/themes.css" rel="stylesheet"/>
 <style>
@@ -430,7 +430,7 @@
 <div class="chat-topbar-title" id="chat-title">Chat</div>
 <div class="persona-selector" onclick="openPersonaModal()" title="Change persona">
 <span id="persona-avatar">🤖</span>
-<span id="persona-name">Prism</span>
+<span id="persona-name">Argentica</span>
 <span style="color:var(--fg-muted);font-size:10px;">▾</span>
 </div>
 <button class="btn btn-sm btn-ghost" onclick="Guide.startGuide('chat')" data-tooltip="Guided tour of Chat" title="Show guide">? Guide</button>
@@ -461,7 +461,10 @@
 </div>
 <div class="chat-input-row">
 <textarea class="chat-textarea" id="chat-input" placeholder="Type, write, or dictate… (Enter to send, Shift+Enter for new line)" rows="3"></textarea>
-<button class="chat-send-btn" id="send-btn" onclick="doSend()" title="Send message (Enter)">➤</button>
+<div style="display:flex;flex-direction:column;gap:4px;">
+  <button class="chat-send-btn" id="send-btn" onclick="doSend()" title="Send message (Enter)">➤</button>
+  <button style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-surface);cursor:pointer;font-size:14px;" onclick="document.getElementById('chat-file-input').click()" title="Attach file">📎</button>
+</div>
 </div>
 <!-- On-screen QWERTY keyboard — always visible -->
 <div id="osk-container"></div>
@@ -529,7 +532,25 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 var currentThreadId = 't' + Date.now();
 var currentProfile = 'balanced';
-var currentPersona = {name: 'Prism', avatar: '🤖', systemPrompt: 'You are Prism, a warm, professional, and concise AI assistant for Identity Partners. British English. No sycophancy. No AI tropes.'};
+var currentPersona = {name: 'Gerald', avatar: '🎩', systemPrompt: 'You are Gerald, the sardonic butler and default AI assistant for Identity Partners. You call Simon "sir". You are devastatingly competent, dry, precise, and never sycophantic. British English throughout. No AI tropes. No "delve". No "Great question!". Execute tasks; do not describe them.'};
+
+// Persist selected persona across sessions
+(function() {
+  try {
+    var saved = localStorage.getItem('argentica-persona');
+    if (saved) {
+      var p = JSON.parse(saved);
+      if (p && p.name && p.systemPrompt) currentPersona = p;
+    }
+  } catch(e) {}
+})();
+
+function savePersona(persona) {
+  currentPersona = persona;
+  try { localStorage.setItem('argentica-persona', JSON.stringify(persona)); } catch(e) {}
+  var nameEl = document.getElementById('persona-name');
+  if (nameEl) nameEl.textContent = persona.name;
+}
 var messageHistory = [];
 var allThreads = [];
 var tabs = [{id: 'main', title: 'New chat', threadId: currentThreadId, messages: [], history: []}];
@@ -758,6 +779,7 @@ function appendMessage(role, content, provider, model) {
       {label: '✍ Draft', fn: function() { sendToDraftingText(content); }},
       {label: '⚡ Atomise', fn: function() { sendToAtomiseText(content); }},
       {label: '🧠 Memory', fn: function() { saveTextToMemory(content); }},
+      {label: '🗑 Delete', fn: function() { if(msg.parentNode) msg.parentNode.removeChild(msg); }},
     ];
     for (var i = 0; i < actDefs.length; i++) {
       (function(def) {
@@ -770,6 +792,17 @@ function appendMessage(role, content, provider, model) {
     }
     body.appendChild(actions);
   }
+
+  // Delete on hover for all messages
+  var delBtn = document.createElement('button');
+  delBtn.textContent = '✕';
+  delBtn.title = 'Delete message';
+  delBtn.style.cssText = 'display:none;position:absolute;top:4px;right:4px;background:rgba(220,38,38,0.8);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:10px;padding:2px 5px;z-index:10;';
+  delBtn.onclick = function(e) { e.stopPropagation(); if(msg.parentNode) msg.parentNode.removeChild(msg); };
+  msg.style.position = 'relative';
+  msg.onmouseenter = function() { delBtn.style.display = 'block'; };
+  msg.onmouseleave = function() { delBtn.style.display = 'none'; };
+  msg.appendChild(delBtn);
 
   msg.appendChild(avatar);
   msg.appendChild(body);
@@ -885,9 +918,53 @@ function renderThreadList(threads) {
       date.textContent = thread.updated ? new Date(thread.updated).toLocaleDateString('en-GB') : '';
       meta.appendChild(count);
       meta.appendChild(date);
-      item.appendChild(title);
-      item.appendChild(meta);
-      item.onclick = function() { loadThread(thread.id); };
+      // Action buttons: rename + delete
+      var actions = document.createElement('div');
+      actions.className = 'thread-actions';
+      actions.style.cssText = 'display:none;gap:4px;margin-left:auto;flex-shrink:0;';
+
+      var renameBtn = document.createElement('button');
+      renameBtn.textContent = '✏';
+      renameBtn.title = 'Rename thread';
+      renameBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:11px;color:var(--fg-muted);padding:2px 4px;border-radius:3px;';
+      renameBtn.onclick = function(e) {
+        e.stopPropagation();
+        var newTitle = prompt('Rename thread:', thread.title || 'Untitled');
+        if (newTitle && newTitle.trim()) {
+          fetch(WORKER + '/api/chat/thread/' + thread.id + '/rename', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({title: newTitle.trim()})
+          }).then(function(){ loadThreadList(); });
+        }
+      };
+
+      var delBtn = document.createElement('button');
+      delBtn.textContent = '✕';
+      delBtn.title = 'Delete thread';
+      delBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:11px;color:#dc2626;padding:2px 4px;border-radius:3px;';
+      delBtn.onclick = function(e) {
+        e.stopPropagation();
+        if (!confirm('Delete this thread? This cannot be undone.')) return;
+        fetch(WORKER + '/api/chat/thread/' + thread.id, { method: 'DELETE' })
+          .then(function() {
+            if (thread.id === currentThreadId) startNewThread();
+            loadThreadList();
+          });
+      };
+
+      actions.appendChild(renameBtn);
+      actions.appendChild(delBtn);
+
+      item.style.cssText = 'display:flex;align-items:flex-start;gap:6px;';
+      var textBlock = document.createElement('div');
+      textBlock.style.cssText = 'flex:1;min-width:0;';
+      textBlock.appendChild(title);
+      textBlock.appendChild(meta);
+      item.appendChild(textBlock);
+      item.appendChild(actions);
+      item.onmouseenter = function() { actions.style.display = 'flex'; };
+      item.onmouseleave = function() { actions.style.display = 'none'; };
+      item.onclick = function(e) { if (e.target === item || e.target === textBlock || e.target === title || e.target === meta) loadThread(thread.id); };
       list.appendChild(item);
     })(threads[i]);
   }
