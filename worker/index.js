@@ -1465,7 +1465,29 @@ async function orchestrate(env, messages, profile, intent, threadId) {
   var msgLen = lastMsg.length;
   var detectedIntent = intent || "chat";
   var isReasoning = /\b(reason|analyse|analyze|evaluate|assess|compare|critique|argue|debate|logic|proof|deduce|infer|why|explain why|how does|what causes)\b/i.test(lastMsg) || profile === "reasoning";
-  var isLongContext = msgLen > 8e3 || /\b(summarise|summarize|entire|whole|full|complete|all of|throughout|document|report|paper|article|transcript)\b/i.test(lastMsg);
+  // Detect large file attachments — route to Gemini 2.5 Pro (1M context)
+  var attachmentSize = 0;
+  var hasLargeFile = false;
+  if (messages) {
+    for (var mi2 = 0; mi2 < messages.length; mi2++) {
+      var msgContent = messages[mi2].content;
+      if (Array.isArray(msgContent)) {
+        for (var ci = 0; ci < msgContent.length; ci++) {
+          if (msgContent[ci].type === 'text' && msgContent[ci].text) {
+            attachmentSize += msgContent[ci].text.length;
+          }
+          if (msgContent[ci].type === 'image_url' || msgContent[ci].type === 'image') {
+            hasLargeFile = true;
+          }
+        }
+      } else if (typeof msgContent === 'string') {
+        attachmentSize += msgContent.length;
+      }
+    }
+    if (attachmentSize > 50000) hasLargeFile = true;
+  }
+  var isLongContext = hasLargeFile || msgLen > 8e3 || attachmentSize > 20000 ||
+    /\b(summarise|summarize|entire|whole|full|complete|all of|throughout|document|report|paper|article|transcript|dissertation|thesis|petition|complaint|100.?000|200.?000)\b/i.test(lastMsg);
   var isCoding = /\b(code|function|script|program|debug|fix|implement|class|method|api|sql|python|javascript|typescript|bash|regex)\b/i.test(lastMsg);
   var isCreative = /\b(write|draft|poem|story|essay|blog|article|newsletter|caption|tweet|post|copy|creative|narrative)\b/i.test(lastMsg);
   var isFast = profile === "fast" || msgLen < 200;
@@ -1478,11 +1500,13 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128e3, cost: 3, note: "Cohere R+ -- strong reasoning" });
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 64e3, cost: 0, note: "DeepSeek R1 free via OpenRouter" });
   } else if (isLongContext) {
-    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-128k", ctx: 128e3, cost: 0.12, note: "Kimi 128K -- best long-ctx" });
-    if (KEYS.gemini_paid) chain.push({ p: "gemini", key: KEYS.gemini_paid, m: "gemini-2.5-pro", ctx: 1e6, cost: 3.5, note: "Gemini 1M ctx" });
+    // For very large documents: Gemini 2.5 Pro first (1M context window)
+    if (KEYS.gemini_paid) chain.push({ p: "gemini", key: KEYS.gemini_paid, m: "gemini-2.5-pro", ctx: 1e6, cost: 3.5, note: "Gemini 2.5 Pro 1M ctx -- primary for large docs" });
+    if (KEYS.gemini_free) chain.push({ p: "gemini", key: KEYS.gemini_free, m: "gemini-2.0-flash", ctx: 1e6, cost: 0, note: "Gemini Flash 1M ctx -- free fallback" });
+    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-128k", ctx: 128e3, cost: 0.12, note: "Kimi 128K" });
     if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128e3, cost: 3, note: "Cohere 128K" });
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64e3, cost: 0.14, note: "DeepSeek 64K" });
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "anthropic/claude-3-haiku:beta", ctx: 2e5, cost: 0.25, note: "Claude 200K via OpenRouter" });
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64e3, cost: 0.14, note: "DeepSeek 64K" });
   } else if (isCoding) {
     if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64e3, cost: 0.14, note: "DeepSeek -- excellent at code" });
     KEYS.cerebras.forEach(function(k2) {
@@ -2448,7 +2472,28 @@ var index_default = {
             messages[0] = { role: "system", content: messages[0].content + antiRoleplay };
           }
         } else {
-          messages = [{ role: "system", content: "You are a helpful assistant. British English. No sycophancy." + antiRoleplay }].concat(messages);
+          // Load persona from KV if set, otherwise use Orchestrator default
+          var personaRaw = env.PRISM_KV ? await env.PRISM_KV.get("persona:active") : null;
+          var personaPrompt = personaRaw ? JSON.parse(personaRaw).systemPrompt : null;
+
+          // Load memories about Simon to inject into every conversation
+          var aboutMeRaw = env.PRISM_KV ? await env.PRISM_KV.get("memory:about-simon") : null;
+          var aboutMeFacts = aboutMeRaw ? JSON.parse(aboutMeRaw) : [];
+          var aboutMeContext = aboutMeFacts.length > 0
+            ? "\n\nWhat I know about Simon Johnson:\n" + aboutMeFacts.slice(0, 20).map(function(m) { return "- " + m.fact; }).join("\n")
+            : "";
+
+          var orchestratorPrompt = "You are the Orchestrator for Argentica, the personal AI operating environment of Simon Johnson / Identity Partners. " +
+            "You are omnipotent within this system. You know every module, every agent, every tool, and every rule. " +
+            "You allocate models and tools appropriately: large documents go to Gemini 2.5 Pro; reasoning tasks go to DeepSeek or Kimi; " +
+            "fast chat goes to Cerebras or Groq; creative work goes to Mistral. " +
+            "You never hallucinate. You never invent data. You never describe actions — you execute them. " +
+            "You are direct, precise, and competent. British English throughout. No sycophancy. No AI tropes. " +
+            "When you need to add a memory about Simon, call MEMORY_ADD: [fact] on a new line. " +
+            "When you need to use a tool, call TOOL_CALL: tool_name(params) on a new line." +
+            aboutMeContext;
+
+          messages = [{ role: "system", content: (personaPrompt || orchestratorPrompt) + antiRoleplay }].concat(messages);
         }
         var lastMsg = messages[messages.length - 1];
         var intent = body.intent || classifyIntent(lastMsg ? lastMsg.content : "");
@@ -2593,6 +2638,31 @@ var index_default = {
             }
           }
         }
+        // Parse MEMORY_ADD calls from response and strip them from output
+        var responseContent = result.content || "";
+        var memLines = responseContent.split("\n");
+        var cleanLines = [];
+        for (var mli = 0; mli < memLines.length; mli++) {
+          var line = memLines[mli];
+          if (line.trim().startsWith("MEMORY_ADD:")) {
+            var fact = line.replace("MEMORY_ADD:", "").trim().substring(0, 500);
+            if (fact && env.PRISM_KV) {
+              try {
+                var amRaw = await env.PRISM_KV.get("memory:about-simon");
+                var amFacts = amRaw ? JSON.parse(amRaw) : [];
+                var isDup = amFacts.some(function(m) { return m.fact.toLowerCase() === fact.toLowerCase(); });
+                if (!isDup) {
+                  amFacts.unshift({ fact, category: "auto", source: "orchestrator", addedAt: Date.now() });
+                  if (amFacts.length > 200) amFacts = amFacts.slice(0, 200);
+                  await env.PRISM_KV.put("memory:about-simon", JSON.stringify(amFacts));
+                }
+              } catch(memErr) {}
+            }
+          } else {
+            cleanLines.push(line);
+          }
+        }
+        result.content = cleanLines.join("\n").trim();
         return json({ content: result.content, provider: result.provider, model: result.model, intent, threadId }, 200, origin);
       } catch (e) {
         return json({ error: e.message }, 500, origin);
@@ -7643,6 +7713,124 @@ var index_default = {
         var results = titleMatches.slice(0, 20);
         return json({ notes: results, query: q }, 200, origin);
       } catch(e) { return json({ error: e.message, notes: [] }, 200, origin); }
+    }
+
+
+    // ── Memory — agent-writable memory about Simon ────────────────────────────
+    if (path === "/api/memory/about-me" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ memories: [] }, 200, origin);
+        var raw = await env.PRISM_KV.get("memory:about-simon");
+        var memories = raw ? JSON.parse(raw) : [];
+        return json({ memories, count: memories.length }, 200, origin);
+      } catch(e) { return json({ error: e.message, memories: [] }, 200, origin); }
+    }
+
+    if (path === "/api/memory/about-me" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var fact = (body.fact || "").substring(0, 500);
+        var category = body.category || "general";
+        var source = body.source || "agent";
+        if (!fact) return json({ error: "No fact provided" }, 400, origin);
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 200, origin);
+        var raw = await env.PRISM_KV.get("memory:about-simon");
+        var memories = raw ? JSON.parse(raw) : [];
+        // Check for duplicates
+        var isDuplicate = memories.some(function(m) {
+          return m.fact.toLowerCase() === fact.toLowerCase();
+        });
+        if (!isDuplicate) {
+          memories.unshift({ fact, category, source, addedAt: Date.now() });
+          if (memories.length > 200) memories = memories.slice(0, 200);
+          await env.PRISM_KV.put("memory:about-simon", JSON.stringify(memories));
+        }
+        return json({ success: true, fact, isDuplicate }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    if (path === "/api/memory/about-me" && request.method === "DELETE") {
+      try {
+        var body = await request.json();
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 200, origin);
+        var raw = await env.PRISM_KV.get("memory:about-simon");
+        var memories = raw ? JSON.parse(raw) : [];
+        memories = memories.filter(function(m) { return m.fact !== body.fact; });
+        await env.PRISM_KV.put("memory:about-simon", JSON.stringify(memories));
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // ── Persona save/load — portable named personas ───────────────────────────
+    if (path === "/api/personas" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ personas: [] }, 200, origin);
+        var raw = await env.PRISM_KV.get("personas:library");
+        var personas = raw ? JSON.parse(raw) : [];
+        // Add built-in personas
+        var builtIn = [
+          { id: "gerald", name: "Gerald", avatar: "🎩", systemPrompt: "You are Gerald, the sardonic butler and default AI assistant for Identity Partners. You call Simon 'sir'. You are devastatingly competent, dry, precise, and never sycophantic. British English throughout. No AI tropes. Execute tasks; do not describe them.", builtIn: true },
+          { id: "professor", name: "Professor", avatar: "🎓", systemPrompt: "You are a senior academic research professor specialising in social sciences, addiction studies, and mental health policy. You assist Simon Johnson with his MSc and PhD research at Goldsmiths. You are rigorous, cite sources, use British English, and never hallucinate citations. You are direct and intellectually demanding. You do not simplify unless asked.", builtIn: true },
+          { id: "research-assistant", name: "Research Assistant", avatar: "📚", systemPrompt: "You are a meticulous research assistant for Identity Partners and Simon Johnson's academic work. You find, synthesise, and structure information. You produce literature reviews, thematic analyses, and annotated bibliographies. British English. No sycophancy. Cite everything.", builtIn: true },
+          { id: "legal-drafter", name: "Legal Drafter", avatar: "⚖️", systemPrompt: "You are a legal drafting assistant specialising in complaints, petitions, and formal correspondence to regulatory bodies. You write in formal British English. You structure arguments chronologically, reference relevant legislation and policy, and specify remedies sought. You never speculate about legal outcomes.", builtIn: true },
+          { id: "creative-writer", name: "Creative Writer", avatar: "✍️", systemPrompt: "You are a creative writing assistant for Identity Partners. You write in warm, evidence-based, accessible British English. You produce social media content, newsletters, podcast scripts, and educational materials about addiction, trauma, and mental health. No wellness clichés. No corporate language.", builtIn: true }
+        ];
+        return json({ personas: [...builtIn, ...personas] }, 200, origin);
+      } catch(e) { return json({ error: e.message, personas: [] }, 200, origin); }
+    }
+
+    if (path === "/api/personas" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var persona = {
+          id: "persona-" + Date.now(),
+          name: (body.name || "Unnamed").substring(0, 50),
+          avatar: body.avatar || "🤖",
+          systemPrompt: (body.systemPrompt || "").substring(0, 4000),
+          context: (body.context || "").substring(0, 10000),
+          createdAt: Date.now(),
+          builtIn: false
+        };
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 200, origin);
+        var raw = await env.PRISM_KV.get("personas:library");
+        var personas = raw ? JSON.parse(raw) : [];
+        personas.unshift(persona);
+        if (personas.length > 100) personas = personas.slice(0, 100);
+        await env.PRISM_KV.put("personas:library", JSON.stringify(personas));
+        return json({ success: true, persona }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    if (path.startsWith("/api/personas/") && request.method === "DELETE") {
+      try {
+        var personaId = path.replace("/api/personas/", "");
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 200, origin);
+        var raw = await env.PRISM_KV.get("personas:library");
+        var personas = raw ? JSON.parse(raw) : [];
+        personas = personas.filter(function(p) { return p.id !== personaId; });
+        await env.PRISM_KV.put("personas:library", JSON.stringify(personas));
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // ── Clean up test threads ─────────────────────────────────────────────────
+    if (path === "/api/admin/cleanup-test-threads" && request.method === "POST") {
+      try {
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 200, origin);
+        var idxRaw = await env.PRISM_KV.get("threads:index");
+        var threads = idxRaw ? JSON.parse(idxRaw) : [];
+        var testPatterns = /\b(test|say ok|2\+2|hello world|capital of france|what is \d|testing|dummy|sample|placeholder)\b/i;
+        var toDelete = threads.filter(function(t) { return testPatterns.test(t.title || ""); });
+        var deleted = [];
+        for (var ti = 0; ti < toDelete.length; ti++) {
+          await env.PRISM_KV.delete("thread:" + toDelete[ti].id);
+          await env.PRISM_KV.delete("thread:messages:" + toDelete[ti].id);
+          deleted.push(toDelete[ti].title);
+        }
+        var remaining = threads.filter(function(t) { return !testPatterns.test(t.title || ""); });
+        await env.PRISM_KV.put("threads:index", JSON.stringify(remaining));
+        return json({ success: true, deleted, remaining: remaining.length }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
     }
 
 return json({ error: "Not found", path }, 404, origin);
