@@ -67,6 +67,19 @@
           <textarea class="ai-ta" id="ai-prompt" placeholder="Describe what to create..."></textarea>
           <button class="btn btn-primary btn-sm" id="ai-btn" style="width:100%;margin-top:5px;">Generate</button>
         </div>
+        <div class="sb-sec">
+          <div class="sb-ttl">Image Search</div>
+          <div style="display:flex;gap:4px;margin-bottom:6px;">
+            <button class="sz-btn active" id="src-pexels" onclick="setImgSrc('pexels')" style="flex:1;font-size:10px;">Pexels</button>
+            <button class="sz-btn" id="src-unsplash" onclick="setImgSrc('unsplash')" style="flex:1;font-size:10px;">Unsplash</button>
+            <button class="sz-btn" id="src-wiki" onclick="setImgSrc('wiki')" style="flex:1;font-size:10px;">Wiki</button>
+          </div>
+          <div style="display:flex;gap:4px;">
+            <input id="img-search-q" type="text" placeholder="Search images..." style="flex:1;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);font-size:11px;" onkeydown="if(event.key==='Enter')searchImages();">
+            <button class="sz-btn" onclick="searchImages()">&#x1F50D;</button>
+          </div>
+          <div id="img-results" style="display:flex;flex-wrap:wrap;gap:3px;margin-top:6px;max-height:160px;overflow-y:auto;"></div>
+        </div>
         <div class="sb-sec" id="saved-sec" style="display:none;">
           <div class="sb-ttl">Saved Assets</div>
           <div id="saved-thumbs" style="display:flex;flex-wrap:wrap;gap:3px;"></div>
@@ -142,6 +155,7 @@ var CW = 1080, CH = 1080, scale = 1;
 function initFallbackCanvas() {
   var container = document.getElementById('polotno-root');
   if (!container) return;
+  container.innerHTML = '';
   container.style.cssText = 'flex:1;overflow:hidden;position:relative;background:#c8c8c8;display:flex;flex-direction:column;';
 
   // Toolbar
@@ -452,6 +466,42 @@ document.addEventListener('DOMContentLoaded',function(){
   try{prefill=sessionStorage.getItem('prism-canvas-text')||'';sessionStorage.removeItem('prism-canvas-text');}catch(e){}
   if(prefill){setTimeout(function(){loadTemplate('quote');if(!store){var te=elements.find(function(e){return e.type==='text'&&e.fs>=50;});if(te){te.text='“'+prefill.replace(/^[“"]|[”"]$/g,'')+'”';render();}}},1000);}
 });
+
+// ── Image search: Pexels / Unsplash / Wikimedia ──────────────────────────────
+var imgSrc = 'pexels';
+function setImgSrc(src) {
+  imgSrc = src;
+  ['pexels','unsplash','wiki'].forEach(function(s) {
+    var btn = document.getElementById('src-' + s);
+    if (btn) btn.classList.toggle('active', s === src);
+  });
+}
+function searchImages() {
+  var q = (document.getElementById('img-search-q')||{}).value||'';
+  if (!q.trim()) return;
+  var results = document.getElementById('img-results');
+  if (!results) return;
+  results.innerHTML = '<div style="font-size:10px;color:var(--fg-muted);padding:4px;">Searching...</div>';
+  var srcMap = {pexels:'pexels', unsplash:'unsplash', wiki:'wikimedia'};
+  fetch(WORKER + '/api/image-search?q=' + encodeURIComponent(q) + '&source=' + (srcMap[imgSrc]||'pexels') + '&per_page=15')
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      var images = d.images || [];
+      if (!images.length) { results.innerHTML = '<div style="font-size:10px;color:var(--fg-muted);">No results.</div>'; return; }
+      results.innerHTML = '';
+      images.forEach(function(img) {
+        var th = document.createElement('img');
+        th.src = img.thumb || img.url;
+        th.title = img.alt || img.photographer || '';
+        th.style.cssText = 'width:50px;height:50px;object-fit:cover;border-radius:3px;cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;';
+        th.onmouseover = function(){ this.style.borderColor='var(--accent)'; };
+        th.onmouseout  = function(){ this.style.borderColor='transparent'; };
+        th.onclick = function(){ loadImg(img.url||img.thumb); };
+        results.appendChild(th);
+      });
+    })
+    .catch(function(){ results.innerHTML = '<div style="font-size:10px;color:var(--danger);">Search failed.</div>'; });
+}
 </script>
 </body>
 </html>
