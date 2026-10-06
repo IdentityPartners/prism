@@ -1519,41 +1519,19 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "codestral-latest", ctx: 32e3, cost: 1, note: "Codestral -- code specialist" });
     if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "meta-llama/Llama-3.3-70B-Instruct-Turbo", ctx: 131072, cost: 0.18, note: "Together Llama 70B" });
   } else {
-    KEYS.cerebras.forEach(function(k2) {
-      chain.push({ p: "cerebras", key: k2, m: "gemma-4-31b", ctx: 8192, cost: 0, note: "Gemma4-31B -- confirmed working, free, fast" });
-      chain.push({ p: "cerebras", key: k2, m: "gemma-4-9b", ctx: 8192, cost: 0, note: "Gemma4-9B -- confirmed working, free, fastest" });
-    });
-    KEYS.groq.forEach(function(k2) {
-      chain.push({ p: "groq", key: k2, m: "compound-mini", ctx: 8192, cost: 0, note: "Compound Mini on Groq -- confirmed working" });
-      chain.push({ p: "groq", key: k2, m: "openai/gpt-oss-120b", ctx: 8192, cost: 0, note: "GPT-OSS 120B on Groq -- confirmed working" });
-    });
-    if (KEYS.kie) chain.push({ p: "kie", key: KEYS.kie, m: "gemini-3-flash", ctx: 32768, cost: 0.09, note: "Gemini 3 Flash via kie.ai -- 70% off" });
-    if (KEYS.kie) chain.push({ p: "kie", key: KEYS.kie, m: "gemini-2.5-flash", ctx: 32768, cost: 0.075, note: "Gemini 2.5 Flash via kie.ai -- 70% off" });
-    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-8k", ctx: 8e3, cost: 0.12, note: "Kimi -- capable, $15 credit" });
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64e3, cost: 0.14, note: "DeepSeek Chat -- excellent quality, 64K ctx" });
-    if (KEYS.deepseek_f1) chain.push({ p: "deepseek", key: KEYS.deepseek_f1, m: "deepseek-chat", ctx: 64e3, cost: 0, note: "DeepSeek Chat free key 1" });
-    if (KEYS.deepseek_f2) chain.push({ p: "deepseek", key: KEYS.deepseek_f2, m: "deepseek-chat", ctx: 64e3, cost: 0, note: "DeepSeek Chat free key 2" });
-    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-small-latest", ctx: 32e3, cost: 0.2, note: "Mistral Small -- EU, reliable" });
-    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r", ctx: 128e3, cost: 0.15, note: "Cohere R -- good value" });
-    if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "meta-llama/Llama-3.3-70B-Instruct-Turbo", ctx: 131072, cost: 0.18, note: "Together Llama 70B" });
-    if (KEYS.sambanova) chain.push({ p: "sambanova", key: KEYS.sambanova, m: "Meta-Llama-3.3-70B-Instruct", ctx: 8192, cost: 0, note: "SambaNova -- free tier" });
-    if (KEYS.fireworks) chain.push({ p: "fireworks", key: KEYS.fireworks, m: "accounts/fireworks/models/llama-v3p3-70b-instruct", ctx: 131072, cost: 0.2, note: "Fireworks Llama 70B" });
-    if (KEYS.gemini_paid) chain.push({ p: "gemini", key: KEYS.gemini_paid, m: "gemini-2.5-flash", ctx: 1e6, cost: 0.075, note: "Gemini Flash -- cheap, 1M ctx" });
-    if (KEYS.anyapi) chain.push({ p: "anyapi", key: KEYS.anyapi, m: "gpt-4o-mini", ctx: 128e3, cost: 0.15, note: "GPT-4o-mini via AnyAPI" });
-    if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-beta", ctx: 131072, cost: 5, note: "Grok -- last paid resort" });
-    if (KEYS.chutes) chain.push({ p: "chutes", key: KEYS.chutes, m: "deepseek-ai/DeepSeek-V3-0324", ctx: 64e3, cost: 0, note: "Chutes -- free DeepSeek V3" });
-    if (KEYS.gemini_free) chain.push({ p: "gemini", key: KEYS.gemini_free, m: "gemini-2.5-flash", ctx: 1e6, cost: 0, note: "Gemini Flash free" });
-    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "google/gemma-2-9b-it:free", ctx: 8192, cost: 0, note: "Gemma2 free via OpenRouter" });
-    if (KEYS.nebius) chain.push({ p: "nebius", key: KEYS.nebius, m: "meta-llama/Meta-Llama-3.1-70B-Instruct", ctx: 32768, cost: 0, note: "Nebius -- free tier" });
-    if (KEYS.muse) chain.push({ p: "muse", key: KEYS.muse, m: "auto", ctx: 8192, cost: 0, note: "Muse auto-routing" });
-    if (KEYS.llm7) chain.push({ p: "llm7", key: KEYS.llm7, m: "gpt-4o-mini", ctx: 128e3, cost: 0, note: "LLM7 -- free GPT-4o-mini" });
-    if (KEYS.huggingface) chain.push({ p: "huggingface", key: KEYS.huggingface, m: "meta-llama/Llama-3.1-8B-Instruct", ctx: 8192, cost: 0, note: "HuggingFace -- free, slow" });
-    if (KEYS.modelslab) chain.push({ p: "modelslab", key: KEYS.modelslab, m: "llama-3-8b-chat", ctx: 4096, cost: 0, note: "ModelsLab -- last resort" });
+    // Simon's preferred model order: Nemotron > Kimi > Mistral > GLM > DeepSeek > Cohere > Cerebras > Groq
+    if (KEYS.nvidia) chain.push({ p: "nvidia", key: KEYS.nvidia, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128e3, cost: 0, note: "Nemotron Ultra -- Simon top pick, free" });
+    if (KEYS.nvidia2) chain.push({ p: "nvidia", key: KEYS.nvidia2, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128e3, cost: 0, note: "Nemotron Ultra key 2" });
+    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-32k", ctx: 32e3, cost: 0.12, note: "Kimi -- Simon pick" });
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-latest", ctx: 128e3, cost: 2, note: "Mistral Large -- Simon pick" });
+    if (KEYS.zhipu) chain.push({ p: "zhipu", key: KEYS.zhipu, m: "glm-4-plus", ctx: 128e3, cost: 0.07, note: "GLM-4-Plus -- Simon pick" });
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64e3, cost: 0.14, note: "DeepSeek V3" });
+    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128e3, cost: 3, note: "Cohere R+" });
+    if (KEYS.cerebras && KEYS.cerebras.length > 0) chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "llama-3.3-70b", ctx: 8192, cost: 0, note: "Cerebras Llama 70B -- fast fallback" });
+    if (KEYS.groq && KEYS.groq.length > 0) chain.push({ p: "groq", key: KEYS.groq[0], m: "llama-3.3-70b-versatile", ctx: 32768, cost: 0, note: "Groq Llama 70B -- fast fallback" });
+    if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "mistralai/Mistral-7B-Instruct-v0.3", ctx: 32768, cost: 0.1, note: "Mistral 7B via Together" });
+    if (KEYS.sambanova) chain.push({ p: "sambanova", key: KEYS.sambanova, m: "Meta-Llama-3.3-70B-Instruct", ctx: 8192, cost: 0, note: "SambaNova free" });
   }
-  log.push("Intent: " + detectedIntent + (isReasoning ? " [reasoning]" : isCoding ? " [coding]" : isLongContext ? " [long-ctx]" : " [chat]") + " | msgLen: " + msgLen + " | profile: " + profile);
-  chain.push({ p: "pollinations", key: KEYS.pollinations, m: "openai" });
-  chain.push({ p: "pollinations", key: KEYS.pollinations, m: "mistral" });
-  chain.push({ p: "pollinations", key: null, m: "openai" });
   for (var ci = 0; ci < chain.length; ci++) {
     var entry = chain[ci];
     var ta = Date.now();
@@ -1627,7 +1605,7 @@ async function callProvider(env, provider, key, model, messages) {
     var r = await fetch("https://api.cerebras.ai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7 })
+      body: JSON.stringify({ model, messages, max_tokens: 8192, temperature: 0.7 })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -1642,7 +1620,7 @@ async function callProvider(env, provider, key, model, messages) {
     var r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7 })
+      body: JSON.stringify({ model, messages, max_tokens: 8192, temperature: 0.7 })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -1657,7 +1635,7 @@ async function callProvider(env, provider, key, model, messages) {
     var r = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7, stream: false })
+      body: JSON.stringify({ model, messages, max_tokens: 8192, temperature: 0.7, stream: false })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -1673,7 +1651,7 @@ async function callProvider(env, provider, key, model, messages) {
     var r = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7 })
+      body: JSON.stringify({ model, messages, max_tokens: 8192, temperature: 0.7 })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -1690,7 +1668,7 @@ async function callProvider(env, provider, key, model, messages) {
       var kimiR = await fetch("https://api.moonshot.cn/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-        body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7 })
+        body: JSON.stringify({ model, messages, max_tokens: 8192, temperature: 0.7 })
       });
       if (kimiR.ok) {
         var kimiD = await kimiR.json();
@@ -1712,7 +1690,7 @@ async function callProvider(env, provider, key, model, messages) {
       var kieKimiR = await fetch("https://api.kie.ai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": "Bearer " + kieKeyForKimi, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "moonshot-v1-8k", messages, max_tokens: 2048 })
+        body: JSON.stringify({ model: "moonshot-v1-8k", messages, max_tokens: 8192 })
       });
       if (kieKimiR.ok) {
         var kieKimiD = await kieKimiR.json();
@@ -1731,7 +1709,7 @@ async function callProvider(env, provider, key, model, messages) {
     var r = await fetch("https://api.cohere.ai/v1/chat", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, chat_history: cohereMessages.slice(0, -1), message: cohereMessages[cohereMessages.length - 1].message, preamble: system, max_tokens: 2048 })
+      body: JSON.stringify({ model, chat_history: cohereMessages.slice(0, -1), message: cohereMessages[cohereMessages.length - 1].message, preamble: system, max_tokens: 8192 })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -1746,7 +1724,7 @@ async function callProvider(env, provider, key, model, messages) {
     var r = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7 })
+      body: JSON.stringify({ model, messages, max_tokens: 8192, temperature: 0.7 })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -1767,7 +1745,7 @@ async function callProvider(env, provider, key, model, messages) {
     var r = await fetch(baseUrls[provider], {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7 })
+      body: JSON.stringify({ model, messages, max_tokens: 8192, temperature: 0.7 })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -1782,7 +1760,7 @@ async function callProvider(env, provider, key, model, messages) {
     var r = await fetch("https://llm.chutes.ai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7, stream: false })
+      body: JSON.stringify({ model, messages, max_tokens: 8192, temperature: 0.7, stream: false })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -1800,7 +1778,7 @@ async function callProvider(env, provider, key, model, messages) {
       var content2 = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
       return { role: m.role === "user" ? "user" : "model", parts: [{ text: content2 }] };
     });
-    var geminiBody = { contents: geminiMessages, generationConfig: { maxOutputTokens: 2048, temperature: 0.7 } };
+    var geminiBody = { contents: geminiMessages, generationConfig: { maxOutputTokens: 8192, temperature: 0.7 } };
     if (system) geminiBody.systemInstruction = { parts: [{ text: system }] };
     var isAIStudioKey = key && key.startsWith("AQ.");
     var geminiUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent" + (isAIStudioKey ? "" : "?key=" + key);
@@ -1820,7 +1798,7 @@ async function callProvider(env, provider, key, model, messages) {
     var r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json", "HTTP-Referer": "https://prism.identitypartners.uk", "X-Title": "Argentica" },
-      body: JSON.stringify({ model, messages, max_tokens: 2048 })
+      body: JSON.stringify({ model, messages, max_tokens: 8192 })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -1836,7 +1814,7 @@ async function callProvider(env, provider, key, model, messages) {
     var kieR = await fetch("https://api.kie.ai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: kieModel, messages, max_tokens: 2048, temperature: 0.7 })
+      body: JSON.stringify({ model: kieModel, messages, max_tokens: 8192, temperature: 0.7 })
     });
     if (!kieR.ok) {
       var kieErr = await kieR.text();
@@ -1854,7 +1832,7 @@ async function callProvider(env, provider, key, model, messages) {
     var r = await fetch("https://text.pollinations.ai/openai", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages: pollinationsMessages, max_tokens: 2048, temperature: 0.7 })
+      body: JSON.stringify({ model, messages: pollinationsMessages, max_tokens: 8192, temperature: 0.7 })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -1869,7 +1847,7 @@ async function callProvider(env, provider, key, model, messages) {
     var r = await fetch("https://api.kie.ai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, max_tokens: 2048, temperature: 0.7 })
+      body: JSON.stringify({ model, messages, max_tokens: 8192, temperature: 0.7 })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -7833,7 +7811,21 @@ var index_default = {
       } catch(e) { return json({ error: e.message }, 500, origin); }
     }
 
-return json({ error: "Not found", path }, 404, origin);
+    if (path === "/api/chat/models" && request.method === "GET") {
+      return json({ models: [
+        { id: "auto", label: "Auto (Orchestrator)", provider: "auto" },
+        { id: "nvidia/nvidia/llama-3.1-nemotron-ultra-253b-v1", label: "Nemotron Ultra (NVIDIA)", provider: "nvidia" },
+        { id: "kimi/moonshot-v1-32k", label: "Kimi 32K", provider: "kimi" },
+        { id: "mistral/mistral-large-latest", label: "Mistral Large", provider: "mistral" },
+        { id: "deepseek/deepseek-chat", label: "DeepSeek V3", provider: "deepseek" },
+        { id: "gemini/gemini-2.5-pro", label: "Gemini 2.5 Pro (1M ctx)", provider: "gemini" },
+        { id: "gemini/gemini-2.0-flash", label: "Gemini Flash (vision)", provider: "gemini" },
+        { id: "cerebras/llama-3.3-70b", label: "Llama 70B (Cerebras fast)", provider: "cerebras" },
+        { id: "groq/llama-3.3-70b-versatile", label: "Llama 70B (Groq fast)", provider: "groq" },
+        { id: "cohere/command-r-plus-08-2024", label: "Cohere Command R+", provider: "cohere" },
+      ]}, 200, origin);
+    }
+    return json({ error: "Not found", path }, 404, origin);
   }
 };
 export {
