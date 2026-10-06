@@ -1,4 +1,23 @@
-// Prism Shared Utilities v1788475099_1788475082 — Identity Partners
+
+// ── Argentica theme injection ─────────────────────────────────────────────────
+(function() {
+  var style = document.createElement('style');
+  style.textContent = [
+    ':root,[data-theme="parchment"],[data-theme="argentica"]{',
+    '--bg:#f0f4f8;--bg-elevated:#ffffff;--bg-sunken:#e4eaf0;--bg-surface:#f8fafc;',
+    '--fg:#1a2332;--fg-muted:#5a6a7e;--border:#c8d4e0;',
+    '--accent:#2d6a9f;--accent-hover:#1e5080;--rose:#6b8fa8;',
+    '--radius:8px;--topbar-h:48px;}',
+    '[data-theme="midnight-teal"],[data-theme="midnight"],[data-theme="argentica-dark"]{',
+    '--bg:#0d1520;--bg-elevated:#162030;--bg-sunken:#0a1018;--bg-surface:#1a2840;',
+    '--fg:#e8f0f8;--fg-muted:#7a9ab8;--border:#2a3d52;',
+    '--accent:#4a9fd4;--accent-hover:#6ab8e8;--rose:#7ab0cc;',
+    '--radius:8px;--topbar-h:48px;}'
+  ].join('');
+  document.head.appendChild(style);
+})();
+
+// Argentica Shared Utilities v1788475099_1788475082 — Identity Partners
 // Rules: var only at top level, no arrow functions, no innerHTML with mixed quotes
 
 var PRISM_WORKER = 'https://prism-api.identitypartners.workers.dev';
@@ -278,7 +297,7 @@ var Markdown = (function() {
 })();
 
 // ── API Client ────────────────────────────────────────────────────────────────
-var PrismAPI = (function() {
+var ArgenticaAPI = (function() {
   function post(path, data, callback) {
     var xhr = new XMLHttpRequest();
     xhr.open('POST', PRISM_WORKER + path, true);
@@ -624,7 +643,7 @@ function buildSidebar(activePage) {
   logoMark.innerHTML = '<svg viewBox="0 0 28 28" fill="none"><path d="M14 4 L24 14 L14 24 L4 14 Z" fill="#0f3b3a" opacity="0.8"/><path d="M14 8 L20 14 L14 20 L8 14 Z" fill="#5c2d3f" opacity="0.8"/></svg>';
   var logoText = document.createElement('span');
   logoText.className = 'sidebar-logo-text';
-  logoText.textContent = 'Prism';
+  logoText.textContent = 'Argentica';
   logo.appendChild(logoMark);
   logo.appendChild(logoText);
   sidebar.appendChild(logo);
@@ -828,10 +847,10 @@ var Guide = (function() {
   // Pre-built guides
   var GUIDES = {
     chat: [
-      {title:'Welcome to Chat', body:'Chat is your primary interface with Prism. Every message goes through the Orchestrator, which routes to the best available AI model automatically.', target:'.chat-messages'},
+      {title:'Welcome to Chat', body:'Chat is your primary interface with Argentica. Every message goes through the Orchestrator, which routes to the best available AI model automatically.', target:'.chat-messages'},
       {title:'The On-Screen Keyboard', body:'The keyboard below the input is always visible. It\'s designed for your Surface Slim Pen 2 — write directly into any key to insert text. Shift, Ctrl, Alt, and Caps Lock all work.', target:'#osk-container'},
-      {title:'Routing Profiles', body:'Choose how Prism routes your messages. <strong>Balanced</strong> uses free providers first. <strong>Full Frontier</strong> uses the best available model regardless of cost.', target:'#profile-selector'},
-      {title:'Personas', body:'Switch between personas to change how Prism responds. The Sardonic Butler is particularly useful when you need blunt feedback.', target:'.persona-selector'},
+      {title:'Routing Profiles', body:'Choose how Argentica routes your messages. <strong>Balanced</strong> uses free providers first. <strong>Full Frontier</strong> uses the best available model regardless of cost.', target:'#profile-selector'},
+      {title:'Personas', body:'Switch between personas to change how Argentica responds. The Sardonic Butler is particularly useful when you need blunt feedback.', target:'.persona-selector'},
       {title:'Action Chips', body:'Use these chips to quickly route your message to Research, Atomise, or Drafting — or to generate an image inline.', target:'.chat-chips'},
     ],
     research: [
@@ -845,7 +864,7 @@ var Guide = (function() {
       {title:'Create a Workspace', body:'Click <strong>+ New Workspace</strong> to create a workspace for a new project, client, or campaign.', target:'#ws-grid'},
     ],
     atomise: [
-      {title:'Atomise', body:'Paste up to 1,500 words of any text — a programme description, session note, research synthesis — and Prism generates 7 social media asset types in under 60 seconds.'},
+      {title:'Atomise', body:'Paste up to 1,500 words of any text — a programme description, session note, research synthesis — and Argentica generates 7 social media asset types in under 60 seconds.'},
       {title:'Approve and Queue', body:'Review each generated asset. Click <strong>Approve</strong> on the ones you want, then <strong>Queue All Approved</strong> to send them to the Social Calendar.'},
     ],
   };
