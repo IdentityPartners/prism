@@ -653,8 +653,17 @@ function renderNews() {
       el.onclick = function() { window.open(item.link, '_blank'); };
       var thumb = document.createElement('div');
       thumb.className = 'news-thumb';
-      thumb.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:24px;';
-      thumb.textContent = '📰';
+      if (item.image) {
+        thumb.style.cssText = 'width:64px;height:64px;border-radius:6px;overflow:hidden;flex-shrink:0;background:var(--bg-sunken);';
+        var img = document.createElement('img');
+        img.src = item.image;
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+        img.onerror = function() { this.style.display='none'; };
+        thumb.appendChild(img);
+      } else {
+        thumb.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:20px;width:48px;height:48px;flex-shrink:0;';
+        thumb.textContent = '\ud83d\udcf0';
+      }
       var content = document.createElement('div');
       content.className = 'news-content';
       var headline = document.createElement('div');
