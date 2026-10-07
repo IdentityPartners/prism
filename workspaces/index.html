@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Workspaces — Prism</title>
+<title>Workspaces — Argentica</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
 <style>
@@ -159,6 +159,10 @@ var DEFAULT_WORKSPACES = [
     id:'ws-ip-main', name:'Identity Partners', icon:'🏢', colour:'#0f3b3a',
     desc:'Main workspace — all IP work',
     folders:['LinkedIn / Substack articles','New programmes','Former client re-engagement'],
+    notebooks:['IP Strategy','Client Notes','Content Ideas'],
+    agents:['Media Manager','Creator Agent'],
+    workflows:['Daily Pipeline','Content Approval'],
+    personas:['Gerald','Creative Writer'],
     threads:['Social media scheduling','Glimmers launch strategy'],
     images:[],
     events:[
@@ -344,7 +348,11 @@ function renderSections() {
 
   var sections = [
     {key:'folders',   title:'📁 Folders',            type:'list',   addPlaceholder:'Add folder…',   linkFn:function(item){return '/drafting/?folder='+encodeURIComponent(item);}},
-    {key:'threads',   title:'💬 Threads',             type:'list',   addPlaceholder:'Add thread…',   linkFn:function(item){return '/chat/?thread='+encodeURIComponent(item);}},
+    {key:'notebooks', title:'✒ WriteHandy Notebooks', type:'list',   addPlaceholder:'Add notebook…', linkFn:function(item){return '/writehandy/?notebook='+encodeURIComponent(item);}},
+    {key:'threads',   title:'💬 Conversations',       type:'list',   addPlaceholder:'Add conversation…', linkFn:function(item){return '/chat/?thread='+encodeURIComponent(item);}},
+    {key:'agents',    title:'🤖 Agents',              type:'list',   addPlaceholder:'Add agent…',    linkFn:function(item){return '/agenti/agent-builder/?agent='+encodeURIComponent(item);}},
+    {key:'workflows', title:'⚡ Workflows',            type:'list',   addPlaceholder:'Add workflow…', linkFn:function(item){return '/agenti/workflow-wizard/?workflow='+encodeURIComponent(item);}},
+    {key:'personas',  title:'🎭 Personas',            type:'list',   addPlaceholder:'Add persona…',  linkFn:function(item){return '/chat/?persona='+encodeURIComponent(item);}},
     {key:'images',    title:'🖼 Images',              type:'images', addPlaceholder:'Image URL or description…'},
     {key:'events',    title:'📅 Events & Appointments',type:'events', addPlaceholder:'Event title…'},
     {key:'whiteboards',title:'🖊 Whiteboards',        type:'list',   addPlaceholder:'Whiteboard name…', linkFn:function(item){return '/whiteboard/?name='+encodeURIComponent(item);}},
@@ -631,6 +639,32 @@ document.addEventListener('DOMContentLoaded', function() {
   var wsId = params.get('ws');
   if (wsId) openWorkspace(wsId);
 });
+
+// ── Save items to workspace ───────────────────────────────────────────────────
+function saveToWorkspace(wsId, section, item) {
+  var workspace = workspaces.find(function(w){ return w.id === wsId; });
+  if (!workspace) return;
+  if (!workspace[section]) workspace[section] = [];
+  if (!workspace[section].includes(item)) {
+    workspace[section].push(item);
+    saveWorkspaces();
+    Toast.success('Saved to ' + workspace.name + ' / ' + section);
+  }
+}
+
+// Global function for other pages to call
+window.saveItemToWorkspace = function(section, item) {
+  // Show workspace picker
+  var picker = document.createElement('div');
+  picker.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:16px;z-index:9999;min-width:280px;box-shadow:0 8px 32px rgba(0,0,0,0.2);';
+  picker.innerHTML = '<div style="font-weight:600;margin-bottom:10px;">Save to workspace</div>' +
+    workspaces.map(function(w) {
+      return '<div onclick="saveToWorkspace('' + w.id + '','' + section + '',' + JSON.stringify(item) + ');this.parentNode.remove();" style="padding:8px 10px;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;" onmouseover="this.style.background='var(--accent-light)'" onmouseout="this.style.background=''">' +
+        '<span>' + w.icon + '</span><span>' + w.name + '</span></div>';
+    }).join('') +
+    '<button onclick="this.parentNode.remove()" style="margin-top:8px;width:100%;padding:5px;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;background:var(--bg);">Cancel</button>';
+  document.body.appendChild(picker);
+};
 </script>
 </body>
 </html>
