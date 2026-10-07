@@ -1,85 +1,669 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agent Builder — Prism</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Hub — Argentica</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<style>
+.hub-layout { display:grid; grid-template-columns:280px 1fr 320px; height:calc(100vh - var(--topbar-h,48px)); overflow:hidden; }
+
+/* Left: Agent library */
+.agent-library { border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
+.agent-library-hdr { padding:12px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.agent-library-hdr h3 { font-size:13px; font-weight:600; margin:0; }
+.agent-list { flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:6px; }
+.agent-card { padding:10px 12px; border:1px solid var(--border); border-radius:8px; cursor:pointer; transition:all 0.15s; background:var(--bg-elevated); }
+.agent-card:hover, .agent-card.active { border-color:var(--accent); background:var(--accent-light,#e8f0f8); }
+.agent-card-name { font-size:12px; font-weight:600; color:var(--fg); }
+.agent-card-desc { font-size:11px; color:var(--fg-muted); margin-top:2px; }
+.agent-card-status { display:flex; align-items:center; gap:4px; margin-top:4px; font-size:10px; }
+.status-dot { width:6px; height:6px; border-radius:50%; }
+.status-idle { background:#9ca3af; }
+.status-running { background:#f59e0b; animation:pulse 1s infinite; }
+.status-done { background:#16a34a; }
+.status-error { background:#dc2626; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* Centre: Agent workspace */
+.agent-workspace { display:flex; flex-direction:column; overflow:hidden; }
+.workspace-hdr { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.workspace-hdr h2 { font-size:14px; font-weight:600; margin:0; flex:1; }
+.agent-chat { flex:1; overflow-y:auto; padding:12px 16px; display:flex; flex-direction:column; gap:10px; }
+.agent-msg { display:flex; gap:8px; align-items:flex-start; }
+.agent-msg.user { flex-direction:row-reverse; }
+.agent-bubble { max-width:80%; padding:8px 12px; border-radius:10px; font-size:12.5px; line-height:1.5; }
+.agent-msg.user .agent-bubble { background:var(--accent); color:#fff; }
+.agent-msg.agent .agent-bubble { background:var(--bg-elevated); border:1px solid var(--border); color:var(--fg); }
+.agent-msg.system .agent-bubble { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:var(--fg); font-size:11px; font-style:italic; }
+.agent-avatar { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; background:var(--accent); color:#fff; }
+.agent-input-area { border-top:1px solid var(--border); padding:12px 16px; background:var(--bg-elevated); }
+.agent-input-row { display:flex; gap:8px; align-items:flex-end; }
+.agent-textarea { flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; font-family:inherit; resize:none; min-height:60px; max-height:150px; background:var(--bg); color:var(--fg); }
+.agent-send { padding:8px 16px; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; }
+.agent-send:hover { opacity:0.85; }
+.quick-tasks { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:8px; }
+.quick-task { padding:3px 10px; border:1px solid var(--border); border-radius:12px; font-size:10px; cursor:pointer; background:var(--bg); color:var(--fg-muted); }
+.quick-task:hover { border-color:var(--accent); color:var(--accent); }
+
+/* Right: Output + supervisor */
+.agent-output { border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
+.output-tabs { display:flex; border-bottom:1px solid var(--border); }
+.output-tab { padding:8px 14px; font-size:11px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; color:var(--fg-muted); }
+.output-tab.active { border-bottom-color:var(--accent); color:var(--accent); }
+.output-panel { flex:1; overflow-y:auto; padding:12px; display:none; }
+.output-panel.active { display:block; }
+.output-item { padding:8px 10px; border:1px solid var(--border); border-radius:6px; margin-bottom:6px; font-size:11.5px; }
+.output-item-hdr { font-weight:600; font-size:11px; color:var(--fg-muted); margin-bottom:4px; display:flex; justify-content:space-between; }
+.download-btn { padding:2px 8px; background:var(--accent); color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; }
+
+/* Create agent modal */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:9999; display:none; align-items:center; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal-box { background:var(--bg-elevated); border-radius:12px; padding:24px; width:480px; max-height:80vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.2); }
+.modal-box h3 { margin:0 0 16px; font-size:15px; }
+.form-row { margin-bottom:12px; }
+.form-label { font-size:11px; font-weight:600; color:var(--fg-muted); display:block; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px; }
+.form-input, .form-select, .form-textarea { width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; background:var(--bg); color:var(--fg); box-sizing:border-box; }
+.form-textarea { min-height:80px; resize:vertical; }
+.modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+</style>
 </head>
 <body>
-<div class="prism-shell">
-  <div id="sidebar-mount"></div>
-  <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Agent Builder</div><div class="topbar-actions"><button class="btn btn-sm btn-primary" onclick="saveAgent()" title="Save agent">Save Agent</button></div></div>
-    <div class="page-content">
-      <div class="grid-2" style="gap:20px;align-items:start;">
-        <div class="card">
-          <div class="card-header"><span class="card-title">New Agent</span></div>
-          <div class="form-group"><label class="form-label">Agent Name *</label><input class="input" id="agent-name" type="text" placeholder="e.g. Research Assistant"></div>
-          <div class="form-group"><label class="form-label">Description</label><input class="input" id="agent-desc" type="text" placeholder="What does this agent do?"></div>
-          <div class="form-group"><label class="form-label">System Prompt</label><textarea class="textarea textarea-lg" id="agent-prompt" placeholder="You are a specialist in…"></textarea></div>
-          <div class="form-group"><label class="form-label">Routing Profile</label>
-            <select class="select" id="agent-profile" title="Routing profile">
-              <option value="balanced">⚖ Balanced</option>
-              <option value="free">🆓 Free</option>
-              <option value="frontier">💎 Full Frontier</option>
-              <option value="fast">⚡ Fast</option>
-              <option value="reasoning">🧠 Reasoning</option>
-            </select>
-          </div>
-          <button class="btn btn-primary" onclick="saveAgent()" title="Save this agent">Save Agent</button>
-        </div>
-        <div class="card">
-          <div class="card-header"><span class="card-title">Saved Agents</span></div>
-          <div id="agents-list"></div>
-        </div>
-      </div></div>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+
+<!-- Create Agent Modal -->
+<div class="modal-overlay" id="create-modal">
+<div class="modal-box">
+<h3>Create Agent</h3>
+
+<!-- NL description tab -->
+<div style="display:flex;gap:0;margin-bottom:16px;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+  <button id="tab-nl" onclick="switchCreateTab('nl')" style="flex:1;padding:7px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:var(--accent);color:#fff;">Describe in plain English</button>
+  <button id="tab-manual" onclick="switchCreateTab('manual')" style="flex:1;padding:7px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:var(--bg);color:var(--fg);">Manual setup</button>
+</div>
+
+<!-- NL creation panel -->
+<div id="create-nl-panel">
+  <div style="font-size:11px;color:var(--fg-muted);margin-bottom:8px;">Describe what you want this agent to do. The Orchestrator will translate it into a full agent specification.</div>
+  <textarea id="nl-description" style="width:100%;min-height:100px;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;font-family:inherit;background:var(--bg);color:var(--fg);resize:vertical;box-sizing:border-box;" placeholder="e.g. I want an agent that monitors my research notes, finds connections between concepts, and suggests relevant thinkers from my 365-day curriculum. It should save insights to WriteHandy and alert me via Telegram."></textarea>
+  
+  <!-- File attachments for agent context -->
+  <div style="margin-top:8px;">
+    <label style="font-size:11px;color:var(--fg-muted);display:block;margin-bottom:4px;">Attach reference files (optional)</label>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input type="file" id="agent-files" multiple accept=".md,.txt,.pdf,.csv,.json" style="display:none;" onchange="handleAgentFiles(this)">
+      <button onclick="document.getElementById('agent-files').click()" style="padding:5px 12px;border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;background:var(--bg);color:var(--fg);">📎 Attach files</button>
+      <span id="agent-files-label" style="font-size:11px;color:var(--fg-muted);">No files attached</span>
+    </div>
+    <div id="agent-files-preview" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;"></div>
+  </div>
+  
+  <div style="display:flex;gap:6px;margin-top:12px;">
+    <button onclick="generateAgentFromNL()" style="flex:1;padding:8px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">✨ Generate agent spec</button>
+  </div>
+  <div id="nl-result" style="margin-top:10px;display:none;"></div>
+</div>
+
+<!-- Manual creation panel (hidden by default) -->
+<div id="create-manual-panel" style="display:none;">
+<div class="form-row">
+  <label class="form-label">Agent Name</label>
+  <input class="form-input" id="new-agent-name" type="text" placeholder="e.g. Research Assistant">
+</div>
+<div class="form-row">
+  <label class="form-label">Description</label>
+  <input class="form-input" id="new-agent-desc" type="text" placeholder="What does this agent do?">
+</div>
+<div class="form-row">
+  <label class="form-label">Avatar</label>
+  <input class="form-input" id="new-agent-avatar" type="text" placeholder="🤖" style="width:80px;">
+</div>
+<div class="form-row">
+  <label class="form-label">System Prompt / Persona</label>
+  <textarea class="form-textarea" id="new-agent-prompt" placeholder="You are a research assistant for Identity Partners. You find, synthesise, and structure information. British English. No sycophancy. Cite sources."></textarea>
+</div>
+<div class="form-row">
+  <label class="form-label">Routing Profile</label>
+  <select class="form-select" id="new-agent-profile">
+    <option value="balanced">Balanced (Nemotron → Kimi → Mistral)</option>
+    <option value="reasoning">Reasoning (DeepSeek → Gemini)</option>
+    <option value="fast">Fast (Cerebras → Groq)</option>
+    <option value="frontier">Frontier (Gemini 2.5 Pro)</option>
+  </select>
+</div>
+<div class="form-row">
+  <label class="form-label">Tools</label>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;">
+    <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" value="search_web" class="agent-tool"> Web search</label>
+    <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" value="post_to_social" class="agent-tool"> Post to social</label>
+    <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" value="save_to_notes" class="agent-tool"> Save to notes</label>
+    <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" value="generate_canvas" class="agent-tool"> Generate canvas</label>
+    <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" value="send_telegram" class="agent-tool"> Send Telegram</label>
+    <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" value="check_queue" class="agent-tool"> Check MM queue</label>
   </div>
 </div>
-<script src="/shared/prism.js"></script>
+</div><!-- end manual panel -->
+<div class="modal-actions">
+  <button class="btn btn-secondary btn-sm" onclick="closeCreateModal()">Cancel</button>
+  <button class="btn btn-primary btn-sm" onclick="createAgent()">Create Agent</button>
+</div>
+</div>
+</div>
+
+<div class="hub-layout">
+
+<!-- Left: Agent library -->
+<div class="agent-library">
+  <div class="agent-library-hdr">
+    <h3>&#x1F916; Agents</h3>
+    <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ New</button>
+  </div>
+  <div class="agent-list" id="agent-list">
+    <div style="font-size:12px;color:var(--fg-muted);padding:8px;">Loading agents...</div>
+  </div>
+</div>
+
+<!-- Centre: Workspace -->
+<div class="agent-workspace">
+  <div class="workspace-hdr">
+    <div class="agent-avatar" id="active-avatar">&#x1F916;</div>
+    <h2 id="active-agent-name">Select an agent</h2>
+    <div id="active-status" style="font-size:11px;color:var(--fg-muted);">idle</div>
+    <button class="btn btn-secondary btn-sm" onclick="clearChat()" title="Clear conversation">Clear</button>
+    <button class="btn btn-primary btn-sm" id="run-btn" onclick="runAgent()" disabled>&#x25B6; Run</button>
+  </div>
+  
+  <div class="agent-chat" id="agent-chat">
+    <div style="text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">
+      Select an agent from the left, then describe your task below.<br>
+      The agent will execute it and report back here.
+    </div>
+  </div>
+  
+  <div class="agent-input-area">
+    <div class="quick-tasks" id="quick-tasks"></div>
+    <div class="agent-input-row">
+      <textarea class="agent-textarea" id="agent-input" placeholder="Describe the task for this agent..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendTask();}"></textarea>
+      <button class="agent-send" onclick="sendTask()">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Right: Output + Supervisor -->
+<div class="agent-output">
+  <div class="output-tabs">
+    <div class="output-tab active" onclick="switchTab('output',this)">Output</div>
+    <div class="output-tab" onclick="switchTab('supervisor',this)">Supervisor</div>
+    <div class="output-tab" onclick="switchTab('history',this)">History</div>
+  </div>
+  
+  <div class="output-panel active" id="tab-output">
+    <div id="output-list" style="font-size:12px;color:var(--fg-muted);">No output yet.</div>
+  </div>
+  
+  <div class="output-panel" id="tab-supervisor">
+    <div style="font-size:11px;font-weight:600;color:var(--fg-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Orchestrator Oversight</div>
+    <div id="supervisor-log" style="font-size:11.5px;color:var(--fg);"></div>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+      <div style="font-size:11px;font-weight:600;color:var(--fg-muted);margin-bottom:6px;">Active agents across system</div>
+      <div id="all-agents-status" style="font-size:11px;color:var(--fg-muted);">Loading...</div>
+    </div>
+  </div>
+  
+  <div class="output-panel" id="tab-history">
+    <div id="history-list" style="font-size:12px;color:var(--fg-muted);">No history yet.</div>
+  </div>
+</div>
+
+</div>
+</div>
+
 <script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var agents = [];
+var activeAgent = null;
+var chatHistory = [];
+var taskHistory = [];
+
+// ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
   if (mount) { var sb = buildSidebar('/agenti/agent-builder/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
   loadAgents();
+  loadSupervisorStatus();
+  setInterval(loadSupervisorStatus, 30000);
 });
 
-var WORKER = 'https://prism-api.identitypartners.workers.dev';
-var agents = [];
-function loadAgents() { try { agents = JSON.parse(localStorage.getItem('prism-agents') || '[]'); } catch(e) { agents = []; } renderAgents(); }
-function saveAgents() { try { localStorage.setItem('prism-agents', JSON.stringify(agents)); } catch(e) {} }
-function saveAgent() {
-  var name = document.getElementById('agent-name').value.trim();
-  if (!name) { Toast.warning('Enter an agent name'); return; }
-  var agent = {id:'agent-'+Date.now(), name:name, description:document.getElementById('agent-desc').value, systemPrompt:document.getElementById('agent-prompt').value, profile:document.getElementById('agent-profile').value, created:new Date().toISOString()};
-  agents.push(agent); saveAgents(); renderAgents(); Toast.success('Agent saved: ' + name);
+// ── Agent management ──────────────────────────────────────────────────────────
+function loadAgents() {
+  // Load from KV via Worker
+  fetch(WORKER + '/api/agents/list')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      agents = d.agents || [];
+      // Also load built-in agents
+      var builtIn = [
+        { id: 'orchestrator', name: 'Orchestrator', avatar: '🧠', description: 'Oversees all agents, routes tasks, manages memory', profile: 'balanced', tools: ['search_web','post_to_social','save_to_notes','check_queue'], builtIn: true },
+        { id: 'researcher', name: 'Research Agent', avatar: '🔍', description: 'Finds, synthesises, and structures information', profile: 'balanced', tools: ['search_web','save_to_notes'], builtIn: true },
+        { id: 'media-manager', name: 'Media Manager', avatar: '📋', description: 'Owns all content publication and scheduling', profile: 'balanced', tools: ['post_to_social','generate_canvas','check_queue'], builtIn: true },
+        { id: 'creator', name: 'Creator Agent', avatar: '✍️', description: 'Creates social posts, scripts, and content', profile: 'balanced', tools: ['generate_canvas','post_to_social','save_to_notes'], builtIn: true },
+        { id: 'api-champion', name: 'API Champion', avatar: '⚡', description: 'Monitors model providers, updates routing chain', profile: 'fast', tools: [], builtIn: true },
+      ];
+      agents = [...builtIn, ...agents.filter(function(a){ return !a.builtIn; })];
+      renderAgentList();
+    })
+    .catch(function() {
+      // Fallback to built-in only
+      agents = [
+        { id: 'orchestrator', name: 'Orchestrator', avatar: '🧠', description: 'Oversees all agents, routes tasks, manages memory', profile: 'balanced', tools: [], builtIn: true },
+        { id: 'researcher', name: 'Research Agent', avatar: '🔍', description: 'Finds, synthesises, and structures information', profile: 'balanced', tools: ['search_web'], builtIn: true },
+        { id: 'media-manager', name: 'Media Manager', avatar: '📋', description: 'Owns all content publication', profile: 'balanced', tools: ['post_to_social'], builtIn: true },
+        { id: 'creator', name: 'Creator Agent', avatar: '✍️', description: 'Creates content', profile: 'balanced', tools: [], builtIn: true },
+      ];
+      renderAgentList();
+    });
 }
-function renderAgents() {
-  var list = document.getElementById('agents-list');
+
+function renderAgentList() {
+  var list = document.getElementById('agent-list');
   if (!list) return;
-  list.innerHTML = '';
-  if (agents.length === 0) { list.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">No agents yet. Create your first agent.</div>'; return; }
-  for (var i = 0; i < agents.length; i++) {
-    (function(agent) {
-      var el = document.createElement('div');
-      el.style.cssText = 'padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;';
-      var name = document.createElement('div');
-      name.style.cssText = 'font-weight:600;font-size:13px;margin-bottom:3px;';
-      name.textContent = agent.name;
-      var desc = document.createElement('div');
-      desc.style.cssText = 'font-size:11.5px;color:var(--fg-muted);';
-      desc.textContent = agent.description || agent.profile;
-      var delBtn = document.createElement('button');
-      delBtn.className = 'btn btn-ghost btn-sm';
-      delBtn.textContent = '🗑';
-      delBtn.title = 'Delete agent';
-      delBtn.onclick = function() { agents = agents.filter(function(a){return a.id!==agent.id;}); saveAgents(); renderAgents(); };
-      el.appendChild(name); el.appendChild(desc); el.appendChild(delBtn);
-      list.appendChild(el);
-    })(agents[i]);
+  list.innerHTML = agents.map(function(a) {
+    var statusClass = 'status-idle';
+    var statusText = 'idle';
+    return '<div class="agent-card" id="card-' + a.id + '" onclick="selectAgent(' + JSON.stringify(a.id) + ')">' +
+      '<div class="agent-card-name">' + (a.avatar || '🤖') + ' ' + a.name + (a.builtIn ? ' <span style="font-size:9px;color:var(--fg-muted);">built-in</span>' : '') + '</div>' +
+      '<div class="agent-card-desc">' + (a.description || '') + '</div>' +
+      '<div class="agent-card-status"><span class="status-dot ' + statusClass + '"></span><span style="color:var(--fg-muted);">' + statusText + '</span>' +
+      (!a.builtIn ? '<button onclick="event.stopPropagation();deleteAgent('' + a.id + '')" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:10px;">✕</button>' : '') +
+      '</div></div>';
+  }).join('');
+}
+
+function selectAgent(agentId) {
+  activeAgent = agents.find(function(a){ return a.id === agentId; });
+  if (!activeAgent) return;
+  
+  // Update UI
+  document.querySelectorAll('.agent-card').forEach(function(c){ c.classList.remove('active'); });
+  var card = document.getElementById('card-' + agentId);
+  if (card) card.classList.add('active');
+  
+  document.getElementById('active-avatar').textContent = activeAgent.avatar || '🤖';
+  document.getElementById('active-agent-name').textContent = activeAgent.name;
+  document.getElementById('active-status').textContent = 'ready';
+  document.getElementById('run-btn').disabled = false;
+  
+  // Load chat history for this agent
+  chatHistory = [];
+  var chat = document.getElementById('agent-chat');
+  chat.innerHTML = '<div class="agent-msg system"><div class="agent-bubble">' + activeAgent.name + ' is ready. Describe your task below.</div></div>';
+  
+  // Set quick tasks based on agent type
+  var quickTasks = {
+    'orchestrator': ['What tasks are pending?', 'Check all agent status', 'What went out today?'],
+    'researcher': ['Research ADHD and executive function', 'Find recent papers on addiction recovery', 'Summarise the latest mental health policy'],
+    'media-manager': ['What is in the queue?', 'Approve all pending posts', 'Schedule this week's content'],
+    'creator': ['Write a Bluesky post about recovery', 'Create an Instagram caption', 'Draft a newsletter intro'],
+    'api-champion': ['Check which models are available', 'Update the routing chain', 'Test all providers'],
+  };
+  var tasks = quickTasks[agentId] || ['Run a task', 'Check status', 'Generate a report'];
+  document.getElementById('quick-tasks').innerHTML = tasks.map(function(t){
+    return '<div class="quick-task" onclick="document.getElementById('agent-input').value='' + t + ''">' + t + '</div>';
+  }).join('');
+  
+  document.getElementById('agent-input').focus();
+}
+
+// ── Task execution ────────────────────────────────────────────────────────────
+function sendTask() {
+  var input = document.getElementById('agent-input');
+  var task = input.value.trim();
+  if (!task || !activeAgent) return;
+  input.value = '';
+  
+  addChatMsg('user', task);
+  runAgentTask(task);
+}
+
+function runAgent() {
+  var task = document.getElementById('agent-input').value.trim() || 'Check status and report.';
+  document.getElementById('agent-input').value = '';
+  addChatMsg('user', task);
+  runAgentTask(task);
+}
+
+function runAgentTask(task) {
+  if (!activeAgent) return;
+  
+  setAgentStatus(activeAgent.id, 'running');
+  addChatMsg('system', activeAgent.name + ' is working on: ' + task.substring(0, 60) + '...');
+  
+  // Build messages for the agent
+  var messages = [
+    { role: 'system', content: activeAgent.systemPrompt || ('You are ' + activeAgent.name + ' for Identity Partners. ' + (activeAgent.description || '') + ' British English. Execute tasks immediately. Never describe actions — do them. Available tools: ' + (activeAgent.tools || []).join(', ')) }
+  ];
+  
+  // Add chat history
+  chatHistory.forEach(function(m) { messages.push(m); });
+  messages.push({ role: 'user', content: task });
+  
+  // Add tool context
+  if (activeAgent.tools && activeAgent.tools.length > 0) {
+    messages[0].content += '
+
+To use a tool, write TOOL_CALL: tool_name({"param":"value"}) on its own line.';
+  }
+  
+  fetch(WORKER + '/api/devteam', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agent: activeAgent.id, message: task, messages: messages })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    setAgentStatus(activeAgent.id, 'done');
+    var response = d.content || 'Task completed.';
+    addChatMsg('agent', response);
+    chatHistory.push({ role: 'user', content: task });
+    chatHistory.push({ role: 'assistant', content: response });
+    
+    // Add to output panel
+    addOutput(activeAgent.name, task, response, d.toolResults || []);
+    
+    // Log to supervisor
+    addSupervisorLog(activeAgent.name + ' completed: ' + task.substring(0, 50) + '...');
+    
+    // Add to history
+    taskHistory.unshift({ agent: activeAgent.name, task: task, response: response, ts: Date.now() });
+    renderHistory();
+  })
+  .catch(function(e) {
+    setAgentStatus(activeAgent.id, 'error');
+    addChatMsg('system', 'Error: ' + e.message);
+  });
+}
+
+function addChatMsg(role, text) {
+  var chat = document.getElementById('agent-chat');
+  var div = document.createElement('div');
+  div.className = 'agent-msg ' + role;
+  var avatar = role === 'user' ? '<div class="agent-avatar" style="background:var(--rose,#5c2d3f);">S</div>' :
+               role === 'agent' ? '<div class="agent-avatar">' + (activeAgent ? activeAgent.avatar : '🤖') + '</div>' : '';
+  div.innerHTML = avatar + '<div class="agent-bubble">' + text.replace(/</g,'&lt;').replace(/
+/g,'<br>') + '</div>';
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function clearChat() {
+  chatHistory = [];
+  var chat = document.getElementById('agent-chat');
+  if (chat) chat.innerHTML = '<div class="agent-msg system"><div class="agent-bubble">Conversation cleared.</div></div>';
+}
+
+function setAgentStatus(agentId, status) {
+  var card = document.getElementById('card-' + agentId);
+  if (!card) return;
+  var dot = card.querySelector('.status-dot');
+  var label = card.querySelector('.agent-card-status span:last-child');
+  if (dot) { dot.className = 'status-dot status-' + status; }
+  if (label) label.textContent = status;
+  var statusEl = document.getElementById('active-status');
+  if (statusEl) statusEl.textContent = status;
+}
+
+// ── Output panel ──────────────────────────────────────────────────────────────
+function addOutput(agentName, task, response, toolResults) {
+  var list = document.getElementById('output-list');
+  if (!list) return;
+  if (list.textContent === 'No output yet.') list.innerHTML = '';
+  
+  var item = document.createElement('div');
+  item.className = 'output-item';
+  
+  // Check if response looks like it could be a file
+  var isMarkdown = response.includes('# ') || response.includes('## ') || response.includes('**');
+  var isCSV = response.includes(',') && response.split('
+').length > 2 && response.split('
+')[0].includes(',');
+  
+  item.innerHTML = '<div class="output-item-hdr">' +
+    '<span>' + agentName + ' — ' + new Date().toLocaleTimeString('en-GB') + '</span>' +
+    (isMarkdown ? '<button class="download-btn" onclick="downloadOutput(' + JSON.stringify(response) + ', 'output.md', 'text/markdown')">⬇ .md</button>' : '') +
+    (isCSV ? '<button class="download-btn" onclick="downloadOutput(' + JSON.stringify(response) + ', 'output.csv', 'text/csv')">⬇ .csv</button>' : '') +
+    '<button class="download-btn" onclick="downloadOutput(' + JSON.stringify(response) + ', 'output.txt', 'text/plain')">⬇ .txt</button>' +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--fg-muted);margin-bottom:4px;">Task: ' + task.substring(0,60) + '</div>' +
+    '<div style="font-size:12px;white-space:pre-wrap;">' + response.substring(0,500).replace(/</g,'&lt;') + (response.length > 500 ? '...' : '') + '</div>';
+  
+  if (toolResults && toolResults.length > 0) {
+    item.innerHTML += '<div style="margin-top:6px;font-size:10px;color:var(--fg-muted);">Tools used: ' + toolResults.map(function(t){ return t.tool; }).join(', ') + '</div>';
+  }
+  
+  list.insertBefore(item, list.firstChild);
+}
+
+function downloadOutput(content, filename, mimeType) {
+  var blob = new Blob([content], { type: mimeType });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+// ── Supervisor ────────────────────────────────────────────────────────────────
+function loadSupervisorStatus() {
+  fetch(WORKER + '/api/mm/queue')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var counts = d.counts || {};
+      var statusEl = document.getElementById('all-agents-status');
+      if (statusEl) {
+        statusEl.innerHTML = [
+          '<div>Media Manager: ' + (counts.pending || 0) + ' pending, ' + (counts.posted || 0) + ' posted</div>',
+          '<div>Orchestrator: active</div>',
+          '<div>Research Agent: standby</div>',
+        ].join('');
+      }
+    }).catch(function(){});
+}
+
+function addSupervisorLog(msg) {
+  var log = document.getElementById('supervisor-log');
+  if (!log) return;
+  var entry = document.createElement('div');
+  entry.style.cssText = 'padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;';
+  entry.innerHTML = '<span style="color:var(--fg-muted);">' + new Date().toLocaleTimeString('en-GB') + '</span> ' + msg;
+  log.insertBefore(entry, log.firstChild);
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+function renderHistory() {
+  var list = document.getElementById('history-list');
+  if (!list) return;
+  if (!taskHistory.length) { list.textContent = 'No history yet.'; return; }
+  list.innerHTML = taskHistory.slice(0, 20).map(function(h) {
+    return '<div style="padding:6px 0;border-bottom:1px solid var(--border);">' +
+      '<div style="font-size:10px;color:var(--fg-muted);">' + h.agent + ' · ' + new Date(h.ts).toLocaleTimeString('en-GB') + '</div>' +
+      '<div style="font-size:11.5px;font-weight:600;">' + h.task.substring(0,60) + '</div>' +
+      '<div style="font-size:11px;color:var(--fg-muted);">' + h.response.substring(0,80) + '...</div>' +
+      '</div>';
+  }).join('');
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab, el) {
+  document.querySelectorAll('.output-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.output-panel').forEach(function(p){ p.classList.remove('active'); });
+  el.classList.add('active');
+  var panel = document.getElementById('tab-' + tab);
+  if (panel) panel.classList.add('active');
+}
+
+// ── Create/delete agents ──────────────────────────────────────────────────────
+function openCreateModal() { document.getElementById('create-modal').classList.add('open'); }
+function closeCreateModal() { document.getElementById('create-modal').classList.remove('open'); }
+
+function createAgent() {
+  var name = document.getElementById('new-agent-name').value.trim();
+  if (!name) { Toast.warning('Enter an agent name'); return; }
+  var tools = Array.from(document.querySelectorAll('.agent-tool:checked')).map(function(c){ return c.value; });
+  var agent = {
+    id: 'agent-' + Date.now(),
+    name: name,
+    avatar: document.getElementById('new-agent-avatar').value || '🤖',
+    description: document.getElementById('new-agent-desc').value,
+    systemPrompt: document.getElementById('new-agent-prompt').value,
+    profile: document.getElementById('new-agent-profile').value,
+    tools: tools,
+    builtIn: false,
+    created: new Date().toISOString()
+  };
+  
+  // Save to KV via Worker
+  fetch(WORKER + '/api/agents/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(agent)
+  }).then(function() {
+    agents.push(agent);
+    renderAgentList();
+    closeCreateModal();
+    Toast.success('Agent created: ' + name);
+    selectAgent(agent.id);
+  }).catch(function() {
+    // Fallback: save locally
+    agents.push(agent);
+    renderAgentList();
+    closeCreateModal();
+    Toast.success('Agent created: ' + name);
+  });
+}
+
+function deleteAgent(agentId) {
+  if (!confirm('Delete this agent?')) return;
+  fetch(WORKER + '/api/agents/' + agentId, { method: 'DELETE' }).catch(function(){});
+  agents = agents.filter(function(a){ return a.id !== agentId; });
+  renderAgentList();
+  if (activeAgent && activeAgent.id === agentId) {
+    activeAgent = null;
+    document.getElementById('active-agent-name').textContent = 'Select an agent';
+    document.getElementById('run-btn').disabled = true;
   }
 }
 
+// ── Natural language agent creation ──────────────────────────────────────────
+var agentAttachments = [];
+
+function switchCreateTab(tab) {
+  document.getElementById('create-nl-panel').style.display = tab === 'nl' ? 'block' : 'none';
+  document.getElementById('create-manual-panel').style.display = tab === 'manual' ? 'block' : 'none';
+  document.getElementById('tab-nl').style.background = tab === 'nl' ? 'var(--accent)' : 'var(--bg)';
+  document.getElementById('tab-nl').style.color = tab === 'nl' ? '#fff' : 'var(--fg)';
+  document.getElementById('tab-manual').style.background = tab === 'manual' ? 'var(--accent)' : 'var(--bg)';
+  document.getElementById('tab-manual').style.color = tab === 'manual' ? '#fff' : 'var(--fg)';
+}
+
+function handleAgentFiles(input) {
+  agentAttachments = [];
+  var preview = document.getElementById('agent-files-preview');
+  var label = document.getElementById('agent-files-label');
+  if (!input.files.length) { label.textContent = 'No files attached'; preview.innerHTML = ''; return; }
+  label.textContent = input.files.length + ' file' + (input.files.length > 1 ? 's' : '') + ' attached';
+  preview.innerHTML = '';
+  Array.from(input.files).forEach(function(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      agentAttachments.push({ name: file.name, content: e.target.result.substring(0, 5000), size: file.size });
+      var chip = document.createElement('div');
+      chip.style.cssText = 'padding:2px 8px;background:var(--accent-light,#e8f0f8);border:1px solid var(--accent);border-radius:4px;font-size:10px;color:var(--accent);';
+      chip.textContent = '📄 ' + file.name;
+      preview.appendChild(chip);
+    };
+    reader.readAsText(file);
+  });
+}
+
+function generateAgentFromNL() {
+  var description = document.getElementById('nl-description').value.trim();
+  if (!description) { Toast.warning('Describe what you want the agent to do.'); return; }
+  
+  var resultEl = document.getElementById('nl-result');
+  resultEl.style.display = 'block';
+  resultEl.innerHTML = '<div style="font-size:11px;color:var(--fg-muted);padding:8px;background:var(--bg-sunken,#e4eaf0);border-radius:6px;">Generating agent specification...</div>';
+  
+  // Build context from attachments
+  var attachContext = agentAttachments.length > 0
+    ? '\n\nReference files provided:\n' + agentAttachments.map(function(a){ return '--- ' + a.name + ' ---\n' + a.content.substring(0, 1000); }).join('\n\n')
+    : '';
+  
+  var prompt = 'You are creating an AI agent specification for Argentica. Based on this description, generate a JSON agent spec.\n\nDescription: ' + description + attachContext + '\n\nReturn ONLY valid JSON with these fields:\n{\n  "name": "Agent name",\n  "avatar": "single emoji",\n  "description": "one sentence",\n  "systemPrompt": "full system prompt for the agent",\n  "profile": "balanced|reasoning|fast|frontier",\n  "tools": ["search_web","post_to_social","save_to_notes","generate_canvas","send_telegram","check_queue"],\n  "suggestedWorkspace": "workspace name this agent belongs to"\n}\n\nOnly include tools that are genuinely needed. Profile: balanced for general, reasoning for analysis, fast for quick tasks, frontier for complex long-context work.';
+  
+  fetch(WORKER + '/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], profile: 'fast' })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    var content = d.content || '';
+    // Extract JSON from response
+    var jsonMatch = content.match(/\{[\s\S]+\}/);
+    if (!jsonMatch) {
+      resultEl.innerHTML = '<div style="font-size:11px;color:var(--danger,#dc2626);padding:8px;">Could not parse agent spec. Try being more specific.</div>';
+      return;
+    }
+    try {
+      var spec = JSON.parse(jsonMatch[0]);
+      // Show preview
+      resultEl.innerHTML = '<div style="font-size:11px;padding:10px;background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:6px;">' +
+        '<div style="font-weight:600;margin-bottom:6px;">' + (spec.avatar || '🤖') + ' ' + spec.name + '</div>' +
+        '<div style="color:var(--fg-muted);margin-bottom:4px;">' + spec.description + '</div>' +
+        '<div style="font-size:10px;color:var(--fg-muted);">Profile: ' + spec.profile + ' | Tools: ' + (spec.tools || []).join(', ') + '</div>' +
+        (spec.suggestedWorkspace ? '<div style="font-size:10px;color:var(--fg-muted);">Workspace: ' + spec.suggestedWorkspace + '</div>' : '') +
+        '<div style="display:flex;gap:6px;margin-top:8px;">' +
+          '<button onclick="applyGeneratedSpec(' + JSON.stringify(JSON.stringify(spec)) + ')" style="padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Use this spec</button>' +
+          '<button onclick="generateAgentFromNL()" style="padding:4px 12px;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;background:var(--bg);">Regenerate</button>' +
+        '</div>' +
+        '</div>';
+      
+      // Store spec for use
+      window._generatedSpec = spec;
+    } catch(e) {
+      resultEl.innerHTML = '<div style="font-size:11px;color:var(--danger,#dc2626);padding:8px;">Parse error: ' + e.message + '</div>';
+    }
+  })
+  .catch(function(e) {
+    resultEl.innerHTML = '<div style="font-size:11px;color:var(--danger,#dc2626);padding:8px;">Error: ' + e.message + '</div>';
+  });
+}
+
+function applyGeneratedSpec(specJson) {
+  var spec = JSON.parse(specJson);
+  // Switch to manual tab and fill in fields
+  switchCreateTab('manual');
+  var nameEl = document.getElementById('new-agent-name');
+  var avatarEl = document.getElementById('new-agent-avatar');
+  var descEl = document.getElementById('new-agent-desc');
+  var promptEl = document.getElementById('new-agent-prompt');
+  var profileEl = document.getElementById('new-agent-profile');
+  if (nameEl) nameEl.value = spec.name || '';
+  if (avatarEl) avatarEl.value = spec.avatar || '🤖';
+  if (descEl) descEl.value = spec.description || '';
+  if (promptEl) promptEl.value = spec.systemPrompt || '';
+  if (profileEl) profileEl.value = spec.profile || 'balanced';
+  // Check tools
+  document.querySelectorAll('.agent-tool').forEach(function(cb) {
+    cb.checked = (spec.tools || []).includes(cb.value);
+  });
+  // Store workspace suggestion
+  if (spec.suggestedWorkspace) window._suggestedWorkspace = spec.suggestedWorkspace;
+  Toast.success('Spec applied. Review and click Create Agent.');
+}
 </script>
 </body>
 </html>
