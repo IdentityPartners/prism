@@ -7902,6 +7902,43 @@ var index_default = {
       return Response.redirect(authUrl, 302);
     }
 
+
+    // ── Workflow routes ───────────────────────────────────────────────────────
+    if (path === "/api/workflows/list" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ workflows: [] }, 200, origin);
+        var raw = await env.PRISM_KV.get("workflows:custom");
+        return json({ workflows: raw ? JSON.parse(raw) : [] }, 200, origin);
+      } catch(e) { return json({ workflows: [], error: e.message }, 200, origin); }
+    }
+
+    if (path === "/api/workflows/save" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 200, origin);
+        var raw = await env.PRISM_KV.get("workflows:custom");
+        var workflows = raw ? JSON.parse(raw) : [];
+        var existing = workflows.findIndex(function(w){ return w.id === body.id; });
+        if (existing >= 0) workflows[existing] = body;
+        else workflows.unshift(body);
+        if (workflows.length > 100) workflows = workflows.slice(0, 100);
+        await env.PRISM_KV.put("workflows:custom", JSON.stringify(workflows));
+        return json({ success: true, workflow: body }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    if (path.startsWith("/api/workflows/") && request.method === "DELETE") {
+      try {
+        var wfId = path.replace("/api/workflows/", "");
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 200, origin);
+        var raw = await env.PRISM_KV.get("workflows:custom");
+        var workflows = raw ? JSON.parse(raw) : [];
+        workflows = workflows.filter(function(w){ return w.id !== wfId; });
+        await env.PRISM_KV.put("workflows:custom", JSON.stringify(workflows));
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
 return json({ error: "Not found", path }, 404, origin);
   }
 };
