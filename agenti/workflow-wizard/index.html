@@ -1,131 +1,556 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Workflow Wizard — Prism</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workflow Wizard — Argentica</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<style>
+.wf-layout { display:grid; grid-template-columns:260px 1fr 300px; height:calc(100vh - var(--topbar-h,48px)); overflow:hidden; }
+.wf-library { border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
+.wf-library-hdr { padding:12px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.wf-library-hdr h3 { font-size:13px; font-weight:600; margin:0; }
+.wf-list { flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:6px; }
+.wf-card { padding:10px 12px; border:1px solid var(--border); border-radius:8px; cursor:pointer; transition:all 0.15s; background:var(--bg-elevated); }
+.wf-card:hover, .wf-card.active { border-color:var(--accent); background:var(--accent-light,#e8f0f8); }
+.wf-card-name { font-size:12px; font-weight:600; color:var(--fg); }
+.wf-card-desc { font-size:11px; color:var(--fg-muted); margin-top:2px; }
+.wf-card-meta { font-size:10px; color:var(--fg-muted); margin-top:4px; }
+.wf-workspace { display:flex; flex-direction:column; overflow:hidden; }
+.wf-hdr { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.wf-hdr h2 { font-size:14px; font-weight:600; margin:0; flex:1; }
+.wf-body { flex:1; overflow-y:auto; padding:16px; }
+.wf-steps { display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+.wf-step { padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:var(--bg-elevated); display:flex; align-items:flex-start; gap:10px; }
+.wf-step-num { width:24px; height:24px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
+.wf-step-body { flex:1; }
+.wf-step-title { font-size:12px; font-weight:600; color:var(--fg); }
+.wf-step-desc { font-size:11px; color:var(--fg-muted); margin-top:2px; }
+.wf-step-agent { font-size:10px; color:var(--accent); margin-top:3px; }
+.wf-chat { flex:1; overflow-y:auto; padding:12px 16px; display:flex; flex-direction:column; gap:8px; }
+.wf-msg { display:flex; gap:8px; }
+.wf-msg.user { flex-direction:row-reverse; }
+.wf-bubble { max-width:85%; padding:8px 12px; border-radius:10px; font-size:12px; line-height:1.5; }
+.wf-msg.user .wf-bubble { background:var(--accent); color:#fff; }
+.wf-msg.system .wf-bubble { background:var(--bg-elevated); border:1px solid var(--border); color:var(--fg); }
+.wf-input-area { border-top:1px solid var(--border); padding:12px 16px; background:var(--bg-elevated); }
+.wf-input-row { display:flex; gap:8px; }
+.wf-textarea { flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:12px; font-family:inherit; resize:none; min-height:60px; background:var(--bg); color:var(--fg); }
+.wf-send { padding:8px 16px; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:12px; font-weight:600; }
+.wf-output { border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
+.wf-output-hdr { padding:10px 14px; border-bottom:1px solid var(--border); font-size:11px; font-weight:600; color:var(--fg-muted); text-transform:uppercase; letter-spacing:0.5px; }
+.wf-output-body { flex:1; overflow-y:auto; padding:12px; }
+.wf-run-log { font-size:11px; color:var(--fg); }
+.wf-log-entry { padding:4px 0; border-bottom:1px solid var(--border); display:flex; gap:6px; }
+.wf-log-time { color:var(--fg-muted); flex-shrink:0; }
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:9999; display:none; align-items:center; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal-box { background:var(--bg-elevated); border-radius:12px; padding:24px; width:520px; max-height:85vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.2); }
+.form-row { margin-bottom:12px; }
+.form-label { font-size:11px; font-weight:600; color:var(--fg-muted); display:block; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px; }
+.form-input, .form-select, .form-textarea { width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; background:var(--bg); color:var(--fg); box-sizing:border-box; }
+.form-textarea { min-height:70px; resize:vertical; }
+.step-builder { border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:8px; background:var(--bg); }
+.step-builder-hdr { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+</style>
 </head>
 <body>
-<div class="prism-shell">
-  <div id="sidebar-mount"></div>
-  <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Workflow Wizard</div><div class="topbar-actions"><button class="btn btn-sm btn-primary" onclick="saveWorkflow()" title="Save workflow">Save Workflow</button></div></div>
-    <div class="page-content">
-      <div class="grid-2" style="gap:20px;align-items:start;">
-        <div class="card">
-          <div class="card-header"><span class="card-title">New Workflow</span></div>
-          <div class="form-group"><label class="form-label">Workflow Name *</label><input class="input" id="wf-name" type="text" placeholder="e.g. Morning Briefing"></div>
-          <div class="form-group"><label class="form-label">Description</label><textarea class="textarea" id="wf-desc" placeholder="What does this workflow do?"></textarea></div>
-          <div class="card" style="margin-bottom:14px;padding:12px;">
-            <div style="font-size:12px;font-weight:600;color:var(--fg-muted);margin-bottom:8px;">STEPS</div>
-            <div id="wf-steps" style="font-size:12.5px;color:var(--fg-muted);">No steps yet. Add steps below.</div>
-            <div id="wf-steps-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
-<button class="btn btn-sm btn-secondary" style="margin-top:4px;" onclick="addWorkflowStep()" title="Add a step to this workflow">＋ Add Step</button>
-          </div>
-          <button class="btn btn-primary" onclick="saveWorkflow()" title="Save workflow">Save Workflow</button>
-        </div>
-        <div class="card">
-          <div class="card-header"><span class="card-title">Saved Workflows</span></div>
-          <div id="workflows-list"></div>
-          <div class="card" style="margin-top:16px;padding:12px;background:var(--accent-light);border-color:var(--accent);">
-            <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:6px;">EXAMPLE WORKFLOWS</div>
-            <div style="font-size:12.5px;color:var(--fg-secondary);line-height:1.6;">
-              <div>• Morning Briefing — news + calendar + inbox summary</div>
-              <div>• Content Pipeline — research → draft → atomise → queue</div>
-              <div>• Client Onboarding — CRM entry + welcome email + calendar invite</div>
-            </div>
-          </div>
-        </div>
-      </div></div>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+
+<!-- Create Workflow Modal -->
+<div class="modal-overlay" id="create-wf-modal">
+<div class="modal-box">
+<h3 style="margin:0 0 8px;font-size:15px;">Create Workflow</h3>
+<div style="font-size:11px;color:var(--fg-muted);margin-bottom:16px;">Describe what you want this workflow to do, or build it step by step.</div>
+
+<div style="display:flex;gap:0;margin-bottom:16px;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+  <button id="wf-tab-nl" onclick="switchWfTab('nl')" style="flex:1;padding:7px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:var(--accent);color:#fff;">Describe in plain English</button>
+  <button id="wf-tab-manual" onclick="switchWfTab('manual')" style="flex:1;padding:7px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:var(--bg);color:var(--fg);">Build manually</button>
+</div>
+
+<div id="wf-nl-panel">
+  <div class="form-row">
+    <label class="form-label">Describe the workflow</label>
+    <textarea class="form-textarea" id="wf-nl-desc" style="min-height:100px;" placeholder="e.g. Every morning at 8am, search for news about addiction and mental health, summarise the top 3 stories, create a canvas image for each, and queue them for Media Manager approval."></textarea>
+  </div>
+  <div style="display:flex;gap:6px;margin-bottom:12px;">
+    <input type="file" id="wf-files" multiple accept=".md,.txt,.json,.csv" style="display:none;" onchange="handleWfFiles(this)">
+    <button onclick="document.getElementById('wf-files').click()" style="padding:5px 12px;border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;background:var(--bg);color:var(--fg);">Attach files</button>
+    <span id="wf-files-label" style="font-size:11px;color:var(--fg-muted);align-self:center;">No files</span>
+  </div>
+  <button onclick="generateWorkflowFromNL()" style="width:100%;padding:8px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">Generate workflow</button>
+  <div id="wf-nl-result" style="margin-top:10px;display:none;"></div>
+</div>
+
+<div id="wf-manual-panel" style="display:none;">
+  <div class="form-row">
+    <label class="form-label">Workflow Name</label>
+    <input class="form-input" id="wf-name" type="text" placeholder="e.g. Daily Content Pipeline">
+  </div>
+  <div class="form-row">
+    <label class="form-label">Description</label>
+    <input class="form-input" id="wf-desc" type="text" placeholder="What does this workflow do?">
+  </div>
+  <div class="form-row">
+    <label class="form-label">Trigger</label>
+    <select class="form-select" id="wf-trigger">
+      <option value="manual">Manual (run on demand)</option>
+      <option value="daily-08">Daily at 08:00 UTC</option>
+      <option value="daily-13">Daily at 13:00 UTC</option>
+      <option value="daily-20">Daily at 20:00 UTC</option>
+      <option value="weekly">Weekly (Monday 08:00)</option>
+    </select>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Steps</label>
+    <div id="wf-steps-builder"></div>
+    <button onclick="addWfStep()" style="padding:5px 12px;border:1px dashed var(--border);border-radius:6px;font-size:11px;cursor:pointer;background:var(--bg);color:var(--fg-muted);width:100%;margin-top:6px;">+ Add step</button>
   </div>
 </div>
-<script src="/shared/prism.js"></script>
+
+<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+  <button onclick="closeWfModal()" style="padding:6px 16px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:var(--bg);">Cancel</button>
+  <button onclick="createWorkflow()" style="padding:6px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">Create Workflow</button>
+</div>
+</div>
+</div>
+
+<div class="wf-layout">
+
+<!-- Left: Workflow library -->
+<div class="wf-library">
+  <div class="wf-library-hdr">
+    <h3>⚡ Workflows</h3>
+    <button class="btn btn-primary btn-sm" onclick="openWfModal()">+ New</button>
+  </div>
+  <div class="wf-list" id="wf-list">
+    <div style="font-size:12px;color:var(--fg-muted);padding:8px;">Loading workflows...</div>
+  </div>
+</div>
+
+<!-- Centre: Workflow workspace -->
+<div class="wf-workspace">
+  <div class="wf-hdr">
+    <h2 id="active-wf-name">Select a workflow</h2>
+    <span id="active-wf-status" style="font-size:11px;color:var(--fg-muted);">idle</span>
+    <button class="btn btn-secondary btn-sm" onclick="clearWfChat()">Clear</button>
+    <button class="btn btn-primary btn-sm" id="wf-run-btn" onclick="runWorkflow()" disabled>▶ Run</button>
+  </div>
+  
+  <div id="wf-steps-display" style="padding:12px 16px;border-bottom:1px solid var(--border);display:none;">
+    <div style="font-size:11px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Steps</div>
+    <div class="wf-steps" id="wf-steps-list"></div>
+  </div>
+  
+  <div class="wf-chat" id="wf-chat">
+    <div style="text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">
+      Select a workflow from the left, then click Run or describe what you want to do.
+    </div>
+  </div>
+  
+  <div class="wf-input-area">
+    <div class="wf-input-row">
+      <textarea class="wf-textarea" id="wf-input" placeholder="Describe what you want this workflow to do, or ask it a question..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendWfMessage();}"></textarea>
+      <button class="wf-send" onclick="sendWfMessage()">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Right: Run log -->
+<div class="wf-output">
+  <div class="wf-output-hdr">Run Log</div>
+  <div class="wf-output-body">
+    <div class="wf-run-log" id="wf-run-log">
+      <div style="font-size:12px;color:var(--fg-muted);">No runs yet.</div>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+
 <script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var workflows = [];
+var activeWorkflow = null;
+var wfChatHistory = [];
+var wfAttachments = [];
+var wfStepCount = 0;
+
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
   if (mount) { var sb = buildSidebar('/agenti/workflow-wizard/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
   loadWorkflows();
 });
 
-var workflows = [];
-function loadWorkflows() { try { workflows = JSON.parse(localStorage.getItem('prism-workflows') || '[]'); } catch(e) { workflows = []; } renderWorkflows(); }
-function saveWorkflows() { try { localStorage.setItem('prism-workflows', JSON.stringify(workflows)); } catch(e) {} }
-function saveWorkflow() {
-  var name = document.getElementById('wf-name').value.trim();
-  if (!name) { Toast.warning('Enter a workflow name'); return; }
-  var wf = {id:'wf-'+Date.now(), name:name, description:document.getElementById('wf-desc').value, steps:currentSteps.slice(), created:new Date().toISOString()}; currentSteps = []; renderCurrentSteps();
-  workflows.push(wf); saveWorkflows(); renderWorkflows(); Toast.success('Workflow saved: ' + name);
-}
-var currentSteps = [];
-var STEP_TYPES = [
-  {id:'chat',name:'AI Chat',desc:'Send a prompt to an AI model'},
-  {id:'search',name:'Web Search',desc:'Search the web for information'},
-  {id:'atomise',name:'Atomise',desc:'Generate social media assets'},
-  {id:'post',name:'Social Post',desc:'Post to social media'},
-  {id:'email',name:'Send Email',desc:'Send an email via Zoho'},
-  {id:'crm',name:'CRM Action',desc:'Create or update a CRM contact'},
-  {id:'memory',name:'Save Memory',desc:'Save something to memory'},
-  {id:'notify',name:'Telegram Notify',desc:'Send a Telegram notification'},
-];
-
-function addWorkflowStep() {
-  var type = prompt('Step type (chat/search/atomise/post/email/crm/memory/notify):') || 'chat';
-  var prompt_text = prompt('Step prompt or instruction:') || '';
-  if (!prompt_text) return;
-  currentSteps.push({type:type, prompt:prompt_text, id:'step-'+Date.now()});
-  renderCurrentSteps();
+function loadWorkflows() {
+  fetch(WORKER + '/api/agents/list')
+    .then(function(r) { return r.json(); })
+    .catch(function() { return { agents: [] }; });
+  
+  // Load from KV
+  fetch(WORKER + '/api/workflows/list')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      workflows = d.workflows || [];
+      addBuiltInWorkflows();
+      renderWfList();
+    })
+    .catch(function() {
+      addBuiltInWorkflows();
+      renderWfList();
+    });
 }
 
-function renderCurrentSteps() {
-  var el = document.getElementById('wf-steps-list');
-  if (!el) return;
-  el.innerHTML = '';
-  if (currentSteps.length === 0) { el.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);">No steps yet.</div>'; return; }
-  currentSteps.forEach(function(step, i) {
-    var row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg-surface);border-radius:6px;font-size:12.5px;';
-    var num = document.createElement('span');
-    num.style.cssText = 'color:var(--accent);font-weight:600;flex-shrink:0;';
-    num.textContent = (i+1)+'.';
-    var info = document.createElement('span');
-    info.style.flex = '1';
-    info.textContent = '['+step.type+'] '+step.prompt.substring(0,50)+(step.prompt.length>50?'…':'');
-    var del = document.createElement('button');
-    del.className = 'btn btn-ghost btn-sm';
-    del.textContent = '✕';
-    del.onclick = function() { currentSteps.splice(i,1); renderCurrentSteps(); };
-    row.appendChild(num); row.appendChild(info); row.appendChild(del);
-    el.appendChild(row);
+function addBuiltInWorkflows() {
+  var builtIn = [
+    { id: 'daily-pipeline', name: 'Daily Content Pipeline', description: 'Search news, create canvases, queue for Media Manager', trigger: 'daily-08', steps: [
+      { title: 'Search news', agent: 'Research Agent', action: 'search_web', description: 'Find top stories about addiction, mental health, recovery' },
+      { title: 'Generate canvases', agent: 'Creator Agent', action: 'generate_canvas', description: 'Create branded canvas for each story' },
+      { title: 'Queue for approval', agent: 'Media Manager', action: 'check_queue', description: 'Add to Media Manager queue for review' },
+    ], builtIn: true },
+    { id: 'research-digest', name: 'Research Digest', description: 'Weekly synthesis of academic papers and news', trigger: 'weekly', steps: [
+      { title: 'Search academic papers', agent: 'Research Agent', action: 'search_web', description: 'Find recent papers on ADHD, addiction, trauma' },
+      { title: 'Synthesise findings', agent: 'Orchestrator', action: 'save_to_notes', description: 'Create structured summary' },
+      { title: 'Save to WriteHandy', agent: 'Research Agent', action: 'save_to_notes', description: 'Store in Research notebook' },
+    ], builtIn: true },
+    { id: 'social-approval', name: 'Social Approval Round', description: 'Review and approve queued social posts', trigger: 'manual', steps: [
+      { title: 'Check queue', agent: 'Media Manager', action: 'check_queue', description: 'List all pending posts' },
+      { title: 'QA check', agent: 'Creator Agent', action: 'generate_canvas', description: 'Visual QA on images' },
+      { title: 'Approve and post', agent: 'Media Manager', action: 'post_to_social', description: 'Approve passing posts' },
+    ], builtIn: true },
+  ];
+  var existingIds = workflows.map(function(w){ return w.id; });
+  builtIn.forEach(function(w) { if (!existingIds.includes(w.id)) workflows.unshift(w); });
+}
+
+function renderWfList() {
+  var list = document.getElementById('wf-list');
+  if (!list) return;
+  while (list.firstChild) list.removeChild(list.firstChild);
+  if (!workflows.length) {
+    var msg = document.createElement('div');
+    msg.style.cssText = 'font-size:12px;color:var(--fg-muted);padding:8px;';
+    msg.textContent = 'No workflows yet. Click + New to create one.';
+    list.appendChild(msg);
+    return;
+  }
+  workflows.forEach(function(w) {
+    var card = document.createElement('div');
+    card.className = 'wf-card';
+    card.id = 'wf-card-' + w.id;
+    card.onclick = function() { selectWorkflow(w.id); };
+    var nm = document.createElement('div');
+    nm.className = 'wf-card-name';
+    nm.textContent = w.name;
+    var dc = document.createElement('div');
+    dc.className = 'wf-card-desc';
+    dc.textContent = w.description || '';
+    var meta = document.createElement('div');
+    meta.className = 'wf-card-meta';
+    meta.textContent = (w.trigger || 'manual') + ' | ' + (w.steps || []).length + ' steps' + (w.builtIn ? ' | built-in' : '');
+    card.appendChild(nm);
+    card.appendChild(dc);
+    card.appendChild(meta);
+    if (!w.builtIn) {
+      var delBtn = document.createElement('button');
+      delBtn.textContent = 'x';
+      delBtn.style.cssText = 'float:right;background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:10px;';
+      delBtn.onclick = function(e) { e.stopPropagation(); deleteWorkflow(w.id); };
+      nm.appendChild(delBtn);
+    }
+    list.appendChild(card);
   });
 }
 
-function renderWorkflows() {
-  var list = document.getElementById('workflows-list');
-  if (!list) return;
-  list.innerHTML = '';
-  if (workflows.length === 0) { list.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">No workflows yet.</div>'; return; }
-  for (var i = 0; i < workflows.length; i++) {
-    (function(wf) {
+function selectWorkflow(wfId) {
+  activeWorkflow = workflows.find(function(w){ return w.id === wfId; });
+  if (!activeWorkflow) return;
+  document.querySelectorAll('.wf-card').forEach(function(c){ c.classList.remove('active'); });
+  var card = document.getElementById('wf-card-' + wfId);
+  if (card) card.classList.add('active');
+  document.getElementById('active-wf-name').textContent = activeWorkflow.name;
+  document.getElementById('active-wf-status').textContent = 'ready';
+  document.getElementById('wf-run-btn').disabled = false;
+  
+  // Show steps
+  var stepsDisplay = document.getElementById('wf-steps-display');
+  var stepsList = document.getElementById('wf-steps-list');
+  if (stepsDisplay && stepsList && activeWorkflow.steps && activeWorkflow.steps.length) {
+    stepsDisplay.style.display = 'block';
+    while (stepsList.firstChild) stepsList.removeChild(stepsList.firstChild);
+    activeWorkflow.steps.forEach(function(step, i) {
       var el = document.createElement('div');
-      el.style.cssText = 'padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;';
-      var name = document.createElement('div');
-      name.style.cssText = 'font-weight:600;font-size:13px;margin-bottom:3px;';
-      name.textContent = wf.name;
+      el.className = 'wf-step';
+      var num = document.createElement('div');
+      num.className = 'wf-step-num';
+      num.textContent = i + 1;
+      var body = document.createElement('div');
+      body.className = 'wf-step-body';
+      var title = document.createElement('div');
+      title.className = 'wf-step-title';
+      title.textContent = step.title;
       var desc = document.createElement('div');
-      desc.style.cssText = 'font-size:11.5px;color:var(--fg-muted);';
-      desc.textContent = wf.description || 'No description';
-      var delBtn = document.createElement('button');
-      delBtn.className = 'btn btn-ghost btn-sm';
-      delBtn.textContent = '🗑';
-      delBtn.title = 'Delete workflow';
-      delBtn.onclick = function() { workflows = workflows.filter(function(w){return w.id!==wf.id;}); saveWorkflows(); renderWorkflows(); };
-      el.appendChild(name); el.appendChild(desc); el.appendChild(delBtn);
-      list.appendChild(el);
-    })(workflows[i]);
+      desc.className = 'wf-step-desc';
+      desc.textContent = step.description || '';
+      var agent = document.createElement('div');
+      agent.className = 'wf-step-agent';
+      agent.textContent = step.agent || '';
+      body.appendChild(title);
+      body.appendChild(desc);
+      body.appendChild(agent);
+      el.appendChild(num);
+      el.appendChild(body);
+      stepsList.appendChild(el);
+    });
+  }
+  
+  wfChatHistory = [];
+  var chat = document.getElementById('wf-chat');
+  if (chat) {
+    chat.innerHTML = '';
+    addWfMsg('system', activeWorkflow.name + ' is ready. Click Run to execute, or describe what you want.');
   }
 }
 
+function runWorkflow() {
+  if (!activeWorkflow) return;
+  document.getElementById('active-wf-status').textContent = 'running';
+  addWfMsg('system', 'Running: ' + activeWorkflow.name);
+  addWfLog('Started: ' + activeWorkflow.name);
+  
+  var steps = activeWorkflow.steps || [];
+  var stepPromises = steps.map(function(step, i) {
+    return new Promise(function(resolve) {
+      setTimeout(function() {
+        addWfLog('Step ' + (i+1) + ': ' + step.title + ' (' + (step.agent || 'Orchestrator') + ')');
+        fetch(WORKER + '/api/devteam', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agent: step.agent ? step.agent.toLowerCase().replace(/\s+/g, '-') : 'orchestrator', message: step.description || step.title })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          addWfLog('Step ' + (i+1) + ' done: ' + (d.content || '').substring(0, 60));
+          resolve(d);
+        })
+        .catch(function(e) {
+          addWfLog('Step ' + (i+1) + ' error: ' + e.message);
+          resolve({ error: e.message });
+        });
+      }, i * 2000);
+    });
+  });
+  
+  Promise.all(stepPromises).then(function(results) {
+    document.getElementById('active-wf-status').textContent = 'done';
+    addWfMsg('system', 'Workflow complete. ' + results.length + ' steps executed.');
+    addWfLog('Completed: ' + activeWorkflow.name);
+  });
+}
+
+function sendWfMessage() {
+  var input = document.getElementById('wf-input');
+  var msg = input ? input.value.trim() : '';
+  if (!msg) return;
+  if (input) input.value = '';
+  addWfMsg('user', msg);
+  
+  var context = activeWorkflow ? 'You are managing the workflow: ' + activeWorkflow.name + '. Steps: ' + (activeWorkflow.steps || []).map(function(s){ return s.title; }).join(', ') + '. ' : '';
+  fetch(WORKER + '/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages: [{ role: 'system', content: context + 'You are the Workflow Manager for Argentica. Help design, run, and monitor workflows. British English.' }, { role: 'user', content: msg }], profile: 'balanced' })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) { addWfMsg('system', d.content || 'Done.'); })
+  .catch(function(e) { addWfMsg('system', 'Error: ' + e.message); });
+}
+
+function addWfMsg(role, text) {
+  var chat = document.getElementById('wf-chat');
+  if (!chat) return;
+  var div = document.createElement('div');
+  div.className = 'wf-msg ' + role;
+  var bubble = document.createElement('div');
+  bubble.className = 'wf-bubble';
+  bubble.textContent = text;
+  if (role === 'user') {
+    var av = document.createElement('div');
+    av.style.cssText = 'width:24px;height:24px;border-radius:50%;background:var(--rose,#5c2d3f);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;';
+    av.textContent = 'S';
+    div.appendChild(av);
+  }
+  div.appendChild(bubble);
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function addWfLog(msg) {
+  var log = document.getElementById('wf-run-log');
+  if (!log) return;
+  if (log.querySelector('div[style*="No runs"]')) log.innerHTML = '';
+  var entry = document.createElement('div');
+  entry.className = 'wf-log-entry';
+  var time = document.createElement('span');
+  time.className = 'wf-log-time';
+  time.textContent = new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  var text = document.createElement('span');
+  text.textContent = msg;
+  entry.appendChild(time);
+  entry.appendChild(text);
+  log.insertBefore(entry, log.firstChild);
+}
+
+function clearWfChat() {
+  wfChatHistory = [];
+  var chat = document.getElementById('wf-chat');
+  if (chat) { chat.innerHTML = ''; addWfMsg('system', 'Chat cleared.'); }
+}
+
+function openWfModal() { document.getElementById('create-wf-modal').classList.add('open'); }
+function closeWfModal() { document.getElementById('create-wf-modal').classList.remove('open'); }
+
+function switchWfTab(tab) {
+  document.getElementById('wf-nl-panel').style.display = tab === 'nl' ? 'block' : 'none';
+  document.getElementById('wf-manual-panel').style.display = tab === 'manual' ? 'block' : 'none';
+  document.getElementById('wf-tab-nl').style.background = tab === 'nl' ? 'var(--accent)' : 'var(--bg)';
+  document.getElementById('wf-tab-nl').style.color = tab === 'nl' ? '#fff' : 'var(--fg)';
+  document.getElementById('wf-tab-manual').style.background = tab === 'manual' ? 'var(--accent)' : 'var(--bg)';
+  document.getElementById('wf-tab-manual').style.color = tab === 'manual' ? '#fff' : 'var(--fg)';
+}
+
+function handleWfFiles(input) {
+  wfAttachments = [];
+  var label = document.getElementById('wf-files-label');
+  if (!input.files.length) { if (label) label.textContent = 'No files'; return; }
+  if (label) label.textContent = input.files.length + ' file(s)';
+  Array.from(input.files).forEach(function(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) { wfAttachments.push({ name: file.name, content: e.target.result.substring(0, 3000) }); };
+    reader.readAsText(file);
+  });
+}
+
+function generateWorkflowFromNL() {
+  var desc = document.getElementById('wf-nl-desc').value.trim();
+  if (!desc) { Toast.warning('Describe the workflow first.'); return; }
+  var resultEl = document.getElementById('wf-nl-result');
+  if (resultEl) { resultEl.style.display = 'block'; resultEl.textContent = 'Generating workflow...'; }
+  var attachCtx = wfAttachments.length > 0 ? ' Files: ' + wfAttachments.map(function(a){ return a.name; }).join(', ') : '';
+  var prompt = 'Create a workflow spec for Argentica. Description: ' + desc + attachCtx + ' Return ONLY valid JSON: {"name":"string","description":"string","trigger":"manual|daily-08|daily-13|daily-20|weekly","steps":[{"title":"string","agent":"Orchestrator|Research Agent|Media Manager|Creator Agent|API Champion","action":"search_web|post_to_social|save_to_notes|generate_canvas|send_telegram|check_queue","description":"string"}]}';
+  fetch(WORKER + '/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], profile: 'fast' })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    var content = d.content || '';
+    var jsonMatch = content.match(/\{[\s\S]+\}/);
+    if (!jsonMatch) { if (resultEl) resultEl.textContent = 'Could not parse. Try being more specific.'; return; }
+    try {
+      var spec = JSON.parse(jsonMatch[0]);
+      window._generatedWf = spec;
+      if (resultEl) {
+        resultEl.innerHTML = '';
+        var preview = document.createElement('div');
+        preview.style.cssText = 'padding:10px;background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:6px;font-size:11px;';
+        var title = document.createElement('strong');
+        title.textContent = spec.name;
+        preview.appendChild(title);
+        preview.appendChild(document.createElement('br'));
+        var desc2 = document.createElement('span');
+        desc2.textContent = spec.description + ' | Trigger: ' + spec.trigger + ' | ' + (spec.steps || []).length + ' steps';
+        preview.appendChild(desc2);
+        var useBtn = document.createElement('button');
+        useBtn.textContent = 'Create this workflow';
+        useBtn.style.cssText = 'display:block;margin-top:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;';
+        useBtn.onclick = function() { createWorkflowFromSpec(spec); };
+        preview.appendChild(useBtn);
+        resultEl.appendChild(preview);
+      }
+    } catch(e) { if (resultEl) resultEl.textContent = 'Parse error: ' + e.message; }
+  })
+  .catch(function(e) { if (resultEl) resultEl.textContent = 'Error: ' + e.message; });
+}
+
+function createWorkflowFromSpec(spec) {
+  var wf = { id: 'wf-' + Date.now(), name: spec.name, description: spec.description, trigger: spec.trigger, steps: spec.steps || [], builtIn: false, created: new Date().toISOString() };
+  saveWorkflowToKV(wf);
+}
+
+function addWfStep() {
+  wfStepCount++;
+  var builder = document.getElementById('wf-steps-builder');
+  if (!builder) return;
+  var step = document.createElement('div');
+  step.className = 'step-builder';
+  step.id = 'step-' + wfStepCount;
+  var hdr = document.createElement('div');
+  hdr.className = 'step-builder-hdr';
+  var num = document.createElement('span');
+  num.style.cssText = 'width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;';
+  num.textContent = wfStepCount;
+  var titleInp = document.createElement('input');
+  titleInp.type = 'text';
+  titleInp.placeholder = 'Step title';
+  titleInp.style.cssText = 'flex:1;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;background:var(--bg);color:var(--fg);';
+  var delBtn = document.createElement('button');
+  delBtn.textContent = 'x';
+  delBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--fg-muted);';
+  delBtn.onclick = function() { step.remove(); };
+  hdr.appendChild(num); hdr.appendChild(titleInp); hdr.appendChild(delBtn);
+  var agentSel = document.createElement('select');
+  agentSel.style.cssText = 'width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;background:var(--bg);color:var(--fg);margin-top:6px;';
+  ['Orchestrator','Research Agent','Media Manager','Creator Agent','API Champion'].forEach(function(a) {
+    var opt = document.createElement('option');
+    opt.value = a; opt.textContent = a;
+    agentSel.appendChild(opt);
+  });
+  var descInp = document.createElement('input');
+  descInp.type = 'text';
+  descInp.placeholder = 'What should this step do?';
+  descInp.style.cssText = 'width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;background:var(--bg);color:var(--fg);margin-top:6px;box-sizing:border-box;';
+  step.appendChild(hdr); step.appendChild(agentSel); step.appendChild(descInp);
+  builder.appendChild(step);
+}
+
+function createWorkflow() {
+  var name = document.getElementById('wf-name').value.trim();
+  if (!name) { Toast.warning('Enter a workflow name'); return; }
+  var steps = [];
+  document.querySelectorAll('.step-builder').forEach(function(s) {
+    var title = s.querySelector('input[type=text]');
+    var agent = s.querySelector('select');
+    var desc = s.querySelectorAll('input[type=text]')[1];
+    if (title && title.value.trim()) {
+      steps.push({ title: title.value.trim(), agent: agent ? agent.value : 'Orchestrator', description: desc ? desc.value : '' });
+    }
+  });
+  var wf = { id: 'wf-' + Date.now(), name: name, description: document.getElementById('wf-desc').value, trigger: document.getElementById('wf-trigger').value, steps: steps, builtIn: false, created: new Date().toISOString() };
+  saveWorkflowToKV(wf);
+}
+
+function saveWorkflowToKV(wf) {
+  fetch(WORKER + '/api/workflows/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(wf)
+  })
+  .then(function() { workflows.push(wf); renderWfList(); closeWfModal(); Toast.success('Workflow created: ' + wf.name); selectWorkflow(wf.id); })
+  .catch(function() { workflows.push(wf); renderWfList(); closeWfModal(); Toast.success('Workflow created: ' + wf.name); });
+}
+
+function deleteWorkflow(wfId) {
+  if (!confirm('Delete this workflow?')) return;
+  fetch(WORKER + '/api/workflows/' + wfId, { method: 'DELETE' }).catch(function(){});
+  workflows = workflows.filter(function(w){ return w.id !== wfId; });
+  renderWfList();
+}
 </script>
 </body>
 </html>
