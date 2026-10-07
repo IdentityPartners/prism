@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Drafting Desk — Prism</title>
+<title>Drafting — Argentica</title>
 <link href="/shared/prism.css" rel="stylesheet"/>
 <link href="/shared/themes.css" rel="stylesheet"/>
 <style>
@@ -48,6 +48,7 @@
 <div class="topbar-actions">
 <button class="btn btn-sm btn-secondary" onclick="newDoc()" title="New document">＋ New</button>
 <button class="btn btn-sm btn-secondary" onclick="saveDoc()" title="Save document">💾 Save</button>
+<button class="btn btn-sm btn-secondary" onclick="saveToWorkspaceFromDrafting()" title="Save to workspace">📁 Workspace</button>
 <button class="btn btn-sm btn-secondary" onclick="exportDoc()" title="Export as Markdown">⬇ Export</button>
 <button class="btn btn-sm btn-primary" onclick="sendToAtomise()" title="Send to Atomise pipeline">⚡ Atomise</button>
 </div>
@@ -179,6 +180,18 @@ function loadDoc(doc) {
 }
 
 function saveDoc() {
+  // Also sync to WriteHandy notes API
+  var titleEl = document.getElementById('doc-title');
+  var editor = document.getElementById('editor');
+  var title = titleEl ? titleEl.value : 'Untitled';
+  var content = editor ? editor.value : '';
+  if (content && typeof WORKER !== 'undefined') {
+    fetch(WORKER + '/api/notes/save', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ title: title, content: content, module: 'Drafting', tags: ['drafting', 'auto-sync'] })
+    }).catch(function(){});
+  }
   var titleEl = document.getElementById('doc-title');
   var editor = document.getElementById('editor');
   var typeEl = document.getElementById('doc-type');
@@ -491,6 +504,16 @@ document.addEventListener('DOMContentLoaded', function() {
     updateWordCount();
   }
 });
+
+function saveToWorkspaceFromDrafting() {
+  var titleEl = document.getElementById('doc-title');
+  var title = titleEl ? titleEl.value : 'Untitled';
+  if (window.saveItemToWorkspace) {
+    window.saveItemToWorkspace('folders', title);
+  } else {
+    Toast.info('Open Workspaces to save this document to a workspace.');
+  }
+}
 </script>
 </body>
 </html>
