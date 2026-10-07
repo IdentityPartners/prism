@@ -253,7 +253,7 @@
   min-height: 100%;
   padding: 40px 60px;
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: 20px;
   line-height: 2;
   color: var(--fg-primary);
   outline: none;
@@ -666,17 +666,21 @@
           <div id="wh-text"
                contenteditable="false"
                spellcheck="true"
-               data-placeholder="Pick up your stylus and write…"
+               data-placeholder=""
                oninput="onTextInput()"
                onkeydown="onTextKeydown(event)"></div>
 
           <!-- Ink tool strip -->
           <div class="wh-ink-strip" id="wh-ink-strip">
-            <button class="wh-ink-btn active" id="itool-pen" onclick="setInkTool('pen')" title="Pen">✏</button>
-            <button class="wh-ink-btn" id="itool-hi" onclick="setInkTool('hi')" title="Highlighter">🖊</button>
-            <button class="wh-ink-btn" id="itool-erase" onclick="setInkTool('erase')" title="Eraser (proper erase, not scribble)">⬜</button>
-            <button class="wh-ink-btn" id="itool-text" onclick="setInkTool('text')" title="Text mode">T</button>
+            <button class="wh-ink-btn active" id="itool-pen" onclick="setInkTool('pen')" title="Ballpoint pen" style="font-size:20px;">&#x2712;</button>
+            <button class="wh-ink-btn" id="itool-pencil" onclick="setInkTool('pencil')" title="Pencil" style="font-size:20px;">&#x270F;</button>
+            <button class="wh-ink-btn" id="itool-marker" onclick="setInkTool('marker')" title="Marker" style="font-size:20px;">&#x1F58A;</button>
+            <button class="wh-ink-btn" id="itool-fine" onclick="setInkTool('fine')" title="Fine liner" style="font-size:20px;">&#x1F58B;</button>
+            <button class="wh-ink-btn" id="itool-hi" onclick="setInkTool('hi')" title="Highlighter" style="font-size:20px;">&#x1F7E1;</button>
+            <button class="wh-ink-btn" id="itool-erase" onclick="setInkTool('erase')" title="Eraser" style="font-size:20px;">&#x2B1C;</button>
+            <button class="wh-ink-btn" id="itool-text" onclick="setInkTool('text')" title="Text mode" style="font-size:16px;font-weight:700;">T</button>
             <div class="wh-tb-sep" style="width:100%;height:1px;margin:2px 0;"></div>
+            <div class="wh-color-strip" id="wh-colors"></div>
             <div class="wh-color-strip" id="wh-colors"></div>
             <div class="wh-tb-sep" style="width:100%;height:1px;margin:2px 0;"></div>
             <input type="range" class="wh-size-range" id="wh-pen-size" min="1" max="20" value="2" title="Pen size">
@@ -862,7 +866,7 @@ function initNotebooks() {
         ]
       },
       {
-        id: 'nb-general', name: 'General', icon: '📓',
+        id: 'nb-general', name: 'General Notes', icon: '📓',
         sections: [
           { id: 'sec-general', name: 'Notes', pages: [
             {id: 'pg-general-1', name: 'Scratch pad', content: '', ink: [], created: new Date().toISOString()}
@@ -1084,6 +1088,19 @@ function clearInk() {
 }
 
 function setInkTool(tool) {
+  currentTool = tool;
+  // Tool properties
+  var toolProps = {
+    'pen':     { lineWidth: 2, globalAlpha: 1.0, lineCap: 'round', lineJoin: 'round' },
+    'pencil':  { lineWidth: 1.5, globalAlpha: 0.7, lineCap: 'round', lineJoin: 'round' },
+    'marker':  { lineWidth: 6, globalAlpha: 0.9, lineCap: 'square', lineJoin: 'miter' },
+    'fine':    { lineWidth: 0.8, globalAlpha: 1.0, lineCap: 'round', lineJoin: 'round' },
+    'hi':      { lineWidth: 16, globalAlpha: 0.3, lineCap: 'square', lineJoin: 'miter' },
+    'erase':   { lineWidth: 20, globalAlpha: 1.0, lineCap: 'round', lineJoin: 'round' },
+  };
+  var props = toolProps[tool] || toolProps['pen'];
+  if (typeof penSize !== 'undefined') penSize = props.lineWidth;
+  if (typeof penAlpha !== 'undefined') penAlpha = props.globalAlpha;
   inkTool = tool;
   ['pen','hi','erase','text'].forEach(function(t) {
     var btn = document.getElementById('itool-' + t);
@@ -1097,7 +1114,7 @@ function setInkTool(tool) {
   } else {
     if (canvas) canvas.style.pointerEvents = 'all';
     if (textEl) { textEl.contentEditable = 'false'; textEl.classList.remove('text-mode'); }
-    if (canvas) canvas.style.cursor = tool === 'erase' ? 'cell' : 'crosshair';
+    if (canvas) canvas.style.cursor = tool === 'erase' ? 'cell' : tool === 'hi' ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\'%3E%3Crect x=\'4\' y=\'16\' width=\'16\' height=\'6\' fill=\'%23ffff00\' opacity=\'0.7\'/%3E%3C/svg%3E") 0 20, crosshair' : 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\'%3E%3Cpath d=\'M4 20 L8 4 L12 8 Z\' fill=\'%23333\'/%3E%3C/svg%3E") 4 20, crosshair';
   }
 }
 
