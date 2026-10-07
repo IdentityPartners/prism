@@ -654,15 +654,31 @@ function saveToWorkspace(wsId, section, item) {
 
 // Global function for other pages to call
 window.saveItemToWorkspace = function(section, item) {
-  // Show workspace picker
   var picker = document.createElement('div');
   picker.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:16px;z-index:9999;min-width:280px;box-shadow:0 8px 32px rgba(0,0,0,0.2);';
-  picker.innerHTML = '<div style="font-weight:600;margin-bottom:10px;">Save to workspace</div>' +
-    workspaces.map(function(w) {
-      return '<div onclick="saveToWorkspace('' + w.id + '','' + section + '',' + JSON.stringify(item) + ');this.parentNode.remove();" style="padding:8px 10px;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;" onmouseover="this.style.background='var(--accent-light)'" onmouseout="this.style.background=''">' +
-        '<span>' + w.icon + '</span><span>' + w.name + '</span></div>';
-    }).join('') +
-    '<button onclick="this.parentNode.remove()" style="margin-top:8px;width:100%;padding:5px;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;background:var(--bg);">Cancel</button>';
+  var title = document.createElement('div');
+  title.style.cssText = 'font-weight:600;margin-bottom:10px;';
+  title.textContent = 'Save to workspace';
+  picker.appendChild(title);
+  workspaces.forEach(function(w) {
+    var opt = document.createElement('div');
+    opt.style.cssText = 'padding:8px 10px;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;';
+    opt.onmouseover = function() { this.style.background = 'var(--accent-light)'; };
+    opt.onmouseout = function() { this.style.background = ''; };
+    opt.onclick = function() { saveToWorkspace(w.id, section, item); picker.remove(); };
+    var icon = document.createElement('span');
+    icon.textContent = w.icon || '📁';
+    var name = document.createElement('span');
+    name.textContent = w.name;
+    opt.appendChild(icon);
+    opt.appendChild(name);
+    picker.appendChild(opt);
+  });
+  var cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.style.cssText = 'margin-top:8px;width:100%;padding:5px;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;background:var(--bg);';
+  cancelBtn.onclick = function() { picker.remove(); };
+  picker.appendChild(cancelBtn);
   document.body.appendChild(picker);
 };
 </script>
