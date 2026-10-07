@@ -51,7 +51,20 @@
 <button class="btn btn-sm btn-secondary" onclick="saveToWorkspaceFromDrafting()" title="Save to workspace">📁 Workspace</button>
 <button class="btn btn-sm btn-secondary" onclick="exportDoc()" title="Export as Markdown">⬇ Export</button>
 <button class="btn btn-sm btn-primary" onclick="sendToAtomise()" title="Send to Atomise pipeline">⚡ Atomise</button>
+<div style="width:1px;height:20px;background:var(--border);margin:0 4px;"></div>
+<button class="btn btn-sm btn-secondary" id="wh-toggle-btn" onclick="toggleWriteHandy()" title="Toggle handwriting mode">✒ Handwrite</button>
 </div>
+</div>
+<!-- WriteHandy panel (hidden by default) -->
+<div id="wh-panel" style="display:none;position:fixed;top:var(--topbar-h,48px);right:0;width:50%;height:calc(100vh - var(--topbar-h,48px));background:var(--bg-elevated);border-left:2px solid var(--accent);z-index:100;flex-direction:column;">
+  <div style="padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg-sunken);">
+    <span style="font-size:12px;font-weight:600;">✒ WriteHandy</span>
+    <div style="display:flex;gap:6px;">
+      <button onclick="transferInkToEditor()" style="padding:3px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">→ Transfer to editor</button>
+      <button onclick="toggleWriteHandy()" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;background:var(--bg);">Close</button>
+    </div>
+  </div>
+  <iframe id="wh-iframe" src="/writehandy/" style="flex:1;border:none;width:100%;height:100%;" title="WriteHandy"></iframe>
 </div>
 <div class="drafting-layout">
 <!-- Documents list -->
@@ -512,6 +525,42 @@ function saveToWorkspaceFromDrafting() {
     window.saveItemToWorkspace('folders', title);
   } else {
     Toast.info('Open Workspaces to save this document to a workspace.');
+  }
+}
+
+// ── WriteHandy integration ────────────────────────────────────────────────────
+var whOpen = false;
+
+function toggleWriteHandy() {
+  whOpen = !whOpen;
+  var panel = document.getElementById('wh-panel');
+  var btn = document.getElementById('wh-toggle-btn');
+  var layout = document.querySelector('.drafting-layout');
+  if (panel) panel.style.display = whOpen ? 'flex' : 'none';
+  if (btn) { btn.style.background = whOpen ? 'var(--accent)' : ''; btn.style.color = whOpen ? '#fff' : ''; }
+  if (layout) layout.style.marginRight = whOpen ? '50%' : '0';
+}
+
+function transferInkToEditor() {
+  // Get OCR text from WriteHandy iframe
+  var iframe = document.getElementById('wh-iframe');
+  if (!iframe || !iframe.contentWindow) return;
+  try {
+    var ocrEl = iframe.contentWindow.document.getElementById('ocr-result');
+    var text = ocrEl ? ocrEl.value || ocrEl.textContent : '';
+    if (text && text.trim()) {
+      var editor = document.getElementById('editor');
+      if (editor) {
+        var current = editor.value || '';
+        editor.value = current + (current ? '\n\n' : '') + text.trim();
+        editor.dispatchEvent(new Event('input', {bubbles: true}));
+        Toast.success('Handwriting transferred to editor.');
+      }
+    } else {
+      Toast.warning('No OCR text found. Write something first.');
+    }
+  } catch(e) {
+    Toast.warning('Could not access WriteHandy content (cross-origin).');
   }
 }
 </script>
