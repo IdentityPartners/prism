@@ -1,4 +1,5 @@
-<!DOCTYPE html>
+<!DOC
+<div id="panel-journals" style="display:none;padding:12px;"></div>TYPE html>
 
 <html lang="en-GB">
         
@@ -79,6 +80,7 @@
 <div class="source-tab active" id="tab-api" onclick="switchSourceTab('api')">API Sources</div>
 <div class="source-tab" id="tab-scholarly" onclick="switchSourceTab('scholarly')">Scholarly</div>
 <div class="source-tab" id="tab-news" onclick="switchSourceTab('news')">News</div>
+<div class="source-tab" id="tab-journals" onclick="switchSourceTab('journals')">Journals &amp; Press</div>
 <div class="source-tab" id="tab-social" onclick="switchSourceTab('social')">Social</div>
 </div>
 </div>
@@ -611,6 +613,130 @@ document.addEventListener('DOMContentLoaded', function() {
   try { prefill = sessionStorage.getItem('prism-research-prefill') || ''; sessionStorage.removeItem('prism-research-prefill'); } catch(e) {}
   if (prefill) { var input = document.getElementById('search-input'); if (input) { input.value = prefill; doSearch(); } }
 });
+
+// ── Journals & Press feeds ────────────────────────────────────────────────────
+var PRESS_FEEDS = [
+  { name: 'New Statesman', url: 'https://www.newstatesman.com/feed/rss', category: 'politics' },
+  { name: 'The European', url: 'https://www.theeuropean.de/feed/', category: 'politics' },
+  { name: 'Byline Times', url: 'https://bylinetimes.com/feed/', category: 'investigative' },
+  { name: 'New Scientist', url: 'https://www.newscientist.com/feed/home/', category: 'science' },
+  { name: 'The Conversation', url: 'https://theconversation.com/uk/articles.atom', category: 'academic' },
+  { name: 'Guardian Society', url: 'https://www.theguardian.com/society/rss', category: 'society' },
+  { name: 'Guardian Mental Health', url: 'https://www.theguardian.com/society/mental-health/rss', category: 'health' },
+  { name: 'BBC Health', url: 'https://feeds.bbci.co.uk/news/health/rss.xml', category: 'health' },
+  { name: 'Lancet Psychiatry', url: 'https://www.thelancet.com/rssfeed/lanpsy_current.xml', category: 'academic' },
+  { name: 'BMJ', url: 'https://www.bmj.com/rss/current.xml', category: 'academic' },
+  { name: 'Addiction Journal', url: 'https://onlinelibrary.wiley.com/feed/13600443/most-recent', category: 'academic' },
+  { name: 'Drugs: Education Prevention Policy', url: 'https://www.tandfonline.com/feed/rss/idep20', category: 'academic' },
+];
+
+var journalItems = [];
+var journalLoaded = false;
+
+function loadJournals() {
+  if (journalLoaded) return;
+  journalLoaded = true;
+  var panel = document.getElementById('panel-journals');
+  if (!panel) return;
+  panel.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px;">Loading feeds...</div>';
+  
+  // Load via /api/news with multiple sources
+  var feedUrls = PRESS_FEEDS.map(function(f){ return f.url; }).slice(0, 6);
+  var promises = feedUrls.map(function(url) {
+    return fetch(WORKER + '/api/rss?url=' + encodeURIComponent(url))
+      .then(function(r) { return r.text(); })
+      .then(function(xml) {
+        var items = [];
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(xml, 'text/xml');
+        var entries = doc.querySelectorAll('item, entry');
+        entries.forEach(function(entry) {
+          var title = entry.querySelector('title');
+          var link = entry.querySelector('link');
+          var date = entry.querySelector('pubDate, published, updated');
+          var source = PRESS_FEEDS.find(function(f){ return url.includes(f.url.split('/')[2]); });
+          if (title && link) {
+            items.push({
+              title: title.textContent.trim(),
+              link: link.textContent.trim() || link.getAttribute('href') || '',
+              date: date ? date.textContent.trim() : '',
+              source: source ? source.name : 'Unknown',
+              category: source ? source.category : 'general'
+            });
+          }
+        });
+        return items.slice(0, 3);
+      })
+      .catch(function() { return []; });
+  });
+  
+  Promise.all(promises).then(function(results) {
+    journalItems = [];
+    results.forEach(function(items) { journalItems = journalItems.concat(items); });
+    journalItems.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+    renderJournals();
+  });
+}
+
+function renderJournals() {
+  var panel = document.getElementById('panel-journals');
+  if (!panel) return;
+  panel.innerHTML = '';
+  
+  // Feed selector
+  var selector = document.createElement('div');
+  selector.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;';
+  PRESS_FEEDS.forEach(function(feed) {
+    var chip = document.createElement('span');
+    chip.style.cssText = 'padding:3px 10px;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;background:var(--bg);color:var(--fg-muted);';
+    chip.textContent = feed.name;
+    chip.onclick = function() {
+      chip.style.background = chip.style.background === 'var(--accent)' ? 'var(--bg)' : 'var(--accent)';
+      chip.style.color = chip.style.color === '#fff' ? 'var(--fg-muted)' : '#fff';
+    };
+    selector.appendChild(chip);
+  });
+  panel.appendChild(selector);
+  
+  if (!journalItems.length) {
+    var msg = document.createElement('div');
+    msg.style.cssText = 'font-size:12px;color:var(--fg-muted);padding:8px;';
+    msg.textContent = 'No articles loaded. RSS feeds may be blocked by CORS.';
+    panel.appendChild(msg);
+    return;
+  }
+  
+  journalItems.forEach(function(item) {
+    var el = document.createElement('div');
+    el.style.cssText = 'padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;background:var(--bg-elevated);';
+    el.onclick = function() { window.open(item.link, '_blank'); };
+    var source = document.createElement('div');
+    source.style.cssText = 'font-size:10px;color:var(--accent);font-weight:600;margin-bottom:3px;text-transform:uppercase;letter-spacing:0.5px;';
+    source.textContent = item.source + (item.category ? ' · ' + item.category : '');
+    var title = document.createElement('div');
+    title.style.cssText = 'font-size:12.5px;font-weight:600;color:var(--fg);line-height:1.4;';
+    title.textContent = item.title;
+    var date = document.createElement('div');
+    date.style.cssText = 'font-size:10px;color:var(--fg-muted);margin-top:4px;';
+    date.textContent = item.date ? new Date(item.date).toLocaleDateString('en-GB') : '';
+    el.appendChild(source); el.appendChild(title); el.appendChild(date);
+    panel.appendChild(el);
+  });
+}
+
+// Override switchSourceTab to handle journals
+var _origSwitchSourceTab = typeof switchSourceTab === 'function' ? switchSourceTab : null;
+function switchSourceTab(tab) {
+  if (_origSwitchSourceTab) _origSwitchSourceTab(tab);
+  if (tab === 'journals') {
+    var panel = document.getElementById('panel-journals');
+    if (panel) panel.style.display = 'block';
+    loadJournals();
+  } else {
+    var jp = document.getElementById('panel-journals');
+    if (jp) jp.style.display = 'none';
+  }
+}
 </script>
 </body>
 </html>
