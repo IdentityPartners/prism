@@ -660,7 +660,21 @@ function handleChatAttachment(input) {
       reader.readAsText(file);
     }
   });
-  input.value = ''; // Reset so same file can be re-attached
+  input.value = '';
+  // Attachment success indicator
+  var attachCount = chatAttachments.length;
+  if (attachCount > 0) {
+    var prev = document.getElementById('attachment-preview');
+    if (prev) {
+      var existing = prev.querySelector('.attach-ok');
+      if (existing) existing.remove();
+      var ok = document.createElement('div');
+      ok.className = 'attach-ok';
+      ok.style.cssText = 'font-size:10px;color:#16a34a;padding:2px 8px;background:rgba(22,163,74,0.1);border-radius:4px;align-self:center;';
+      ok.textContent = '✓ ' + attachCount + ' file' + (attachCount > 1 ? 's' : '') + ' ready to send';
+      prev.appendChild(ok);
+    }
+  }
 }
 
 // ── Send Message — self-contained, no shared library dependency ───────────────
@@ -678,7 +692,7 @@ function doSend() {
   appendMessage('user', text, null, null);
 
   // Build messages array with attachments
-  var messages = [{role: 'system', content: currentPersona.systemPrompt}];
+  var messages = [{role: 'system', content: currentPersona.systemPrompt + ' To output a downloadable file, write FILE_OUTPUT: filename.ext on its own line, then triple backticks, then the file content, then triple backticks.'}];
   
   // Add attachment context
   if (chatAttachments.length > 0) {
@@ -742,6 +756,19 @@ function doSend() {
       if (result.content) {
         messageHistory.push({role: 'assistant', content: result.content});
         appendMessage('assistant', result.content, result.provider, result.model);
+        // Handle file outputs from model
+        if (result.fileOutputs && result.fileOutputs.length > 0) {
+          result.fileOutputs.forEach(function(f) {
+            var fileMsg = document.createElement('div');
+            fileMsg.className = 'message assistant';
+            fileMsg.innerHTML = '<div class="message-avatar">📎</div><div class="message-body"><div class="message-bubble" style="background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);">' +
+              '<div style="font-size:12px;font-weight:600;margin-bottom:6px;">📄 ' + f.filename + '</div>' +
+              '<a href="' + f.url + '" download="' + f.filename + '" style="display:inline-block;padding:5px 12px;background:var(--accent,#2d6a9f);color:#fff;border-radius:6px;font-size:11px;text-decoration:none;">⬇ Download ' + f.filename + '</a>' +
+              '</div></div>';
+            var container = document.getElementById('chat-messages');
+            if (container) { container.appendChild(fileMsg); container.scrollTop = container.scrollHeight; }
+          });
+        }
         updateThreadInfo(result.threadId);
         // Update tab title
         updateTabTitle(activeTab, text.substring(0, 30));
@@ -823,6 +850,7 @@ function appendMessage(role, content, provider, model) {
       {label: '✍ Draft', fn: function() { sendToDraftingText(content); }},
       {label: '⚡ Atomise', fn: function() { sendToAtomiseText(content); }},
       {label: '🧠 Memory', fn: function() { saveTextToMemory(content); }},
+      {label: '✍ WriteHandy', fn: function() { saveToWriteHandy(content); }},
       {label: '🗑 Delete', fn: function() { if(msg.parentNode) msg.parentNode.removeChild(msg); }},
     ];
     for (var i = 0; i < actDefs.length; i++) {
@@ -1670,6 +1698,17 @@ function doMultiModelSend() {
     removeTyping(typingId);
     appendMessage('assistant', 'Multi-model error: ' + e.message, null, null);
   });
+}
+
+function saveToWriteHandy(content) {
+  var title = content.split('\n')[0].substring(0, 80) || 'Chat note';
+  fetch(WORKER + '/api/notes/save', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ title: title, content: content, module: 'Chat', tags: ['chat', 'saved'] })
+  }).then(function(r){ return r.json(); })
+  .then(function(d){ if(d.success) Toast.success('Saved to WriteHandy'); })
+  .catch(function(){ Toast.error('Save failed'); });
 }
 </script>
 </body>
