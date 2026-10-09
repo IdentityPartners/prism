@@ -2462,22 +2462,7 @@ var index_default = {
             : "";
 
 
-          var ragContext = "";
-          try {
-            var lastUserContent = "";
-            for (var rmi = messages.length - 1; rmi >= 0; rmi--) {
-              if (messages[rmi].role === "user") { lastUserContent = (messages[rmi].content || "").substring(0, 200); break; }
-            }
-            if (lastUserContent && env.PRISM_D1) {
-              var ragWord = lastUserContent.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).find(function(w){ return w.length > 5; });
-              if (ragWord) {
-                var ragRows = await env.PRISM_D1.prepare("SELECT title, content_preview FROM rag_index WHERE keywords LIKE ? LIMIT 2").bind("%" + ragWord + "%").all();
-                if (ragRows.results && ragRows.results.length > 0) {
-                  ragContext = " | From your notes: " + ragRows.results.map(function(r){ return r.title + ": " + r.content_preview.substring(0, 150); }).join("; ");
-                }
-              }
-            }
-          } catch(ragErr) {}
+          var ragContext = ""; // RAG disabled until rag_index table is created via /api/rag/setup
 
           var orchestratorPrompt = "You are the Orchestrator for Argentica, the personal AI operating environment of Simon Johnson / Identity Partners. " +
             "You are omnipotent within this system. You know every module, every agent, every tool, and every rule. " +
