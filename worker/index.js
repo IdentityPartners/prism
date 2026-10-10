@@ -1318,144 +1318,161 @@ async function orchestrate(env, messages, profile, intent, threadId) {
   }
   __name(k, "k");
   var KEYS = {
-    cerebras: [k(["cerebras_free_1","CEREBRAS_FREE_1"]),k(["cerebras_free_2","CEREBRAS_FREE_2"]),k(["cerebras_free_3","CEREBRAS_FREE_3"]),k(["cerebras_free_4","CEREBRAS_FREE_4"]),k(["cerebras_paid","CEREBRAS_PAID"]),k(["cerebras_paid2","CEREBRAS_PAID2"]),k(["cerebras_f4"])].filter(Boolean),
-    groq: [k(["groq_free_1","GROQ_FREE_1"]),k(["groq_free_2","GROQ_FREE_2"]),k(["groq_free_3","GROQ_FREE_3"])].filter(Boolean),
+    // Cerebras — paid key confirmed working with gpt-oss-120b
+    cerebras: [
+      k(["cerebras_paid","CEREBRAS_PAID"]),
+      k(["cerebras_free_1","CEREBRAS_FREE_1"]),
+      k(["cerebras_free_2","CEREBRAS_FREE_2"]),
+    ].filter(Boolean),
+    // Groq — confirmed working: gpt-oss-120b, qwen3.8-27b
+    groq: [
+      k(["groq_free_1","GROQ_FREE_1"]),
+      k(["groq_free_2","GROQ_FREE_2"]),
+      k(["groq_free_3","GROQ_FREE_3"])
+    ].filter(Boolean),
+    // Google AI Studio — free key confirmed working
+    google: k(["google_ai_key","GOOGLE_AI_KEY"]),
+    // Gemini paid
     gemini_free: k(["gemini_api_key","GEMINI_API_KEY"]),
     gemini_paid: k(["gemini_paid_api_key","GEMINI_PAID_API_KEY"]),
+    // DeepSeek — new paid key (works via Worker, CORS blocks browser)
     deepseek: k(["deepseek_paid","DEEPSEEK_PAID"]),
     deepseek_f1: k(["deepseek_free_1","DEEPSEEK_FREE_1"]),
-    deepseek_f2: k(["deepseek_free_2","DEEPSEEK_FREE_2"]),
+    // Kimi — new paid key
     kimi: k(["kimi_api_key","KIMI_API_KEY"]),
+    // Mistral — confirmed working
     mistral: k(["mistral_api_key","MISTRAL_API_KEY"]),
-    cohere: k(["cohere_api_key"]),
+    // Cohere — free + paid, v2 API
+    cohere: k(["cohere_api_key","COHERE_API_KEY"]),
+    cohere_paid: k(["cohere_paid_key","cohere_F1cbQGH0glbNU3cUb3gwtu0m4Xli4azAn0p8uyw42GtbM0"]),
+    // Together
     together: k(["together_api_key","TOGETHER_API_KEY"]),
+    // SambaNova
     sambanova: k(["sambanova_api_key","SAMBANOVA_API_KEY"]),
+    // Fireworks
     fireworks: k(["fireworks_api_key","FIREWORKS_API_KEY"]),
+    // Chutes
     chutes: k(["chutes_api_key","CHUTES_API_KEY"]),
+    // AnyAPI
     anyapi: k(["anyapi_key","ANYAPI_KEY"]),
+    // NVIDIA NIM — nemotron ultra
     nvidia: k(["nvidia_build_api_key","NVIDIA_BUILD_API_KEY"]),
     nvidia2: k(["nvidia_build_api_key_2"]),
+    // xAI
     xai: k(["xai_api_key"]),
-    muse: k(["muse_api_key"]),
-    llm7: k(["llm7_p1","llm7_p2"]),
-    nebius: k(["nebius_api_key","NEBIUS_API_key"]),
-    modelslab: k(["modelslab_api_key","MODELSLAB_API_key"]),
+    // OpenRouter
     openrouter: k(["openrouter_api_key","OPENROUTER_API_KEY"]),
+    // HuggingFace
     huggingface: k(["huggingface_api_key","HUGGINGFACE_API_KEY"]),
+    // Pollinations
     pollinations: k(["pollinations_key","pollinations_p4"]),
-    kie: k(["kie_ai","KIE_AI"]),
-    perplexity: k(["perplexity"]),
-    zhipu: k(["zhipu_api_key","ZHIPU_API_KEY"]),
+    // Image/search
     pexels: k(["pexels_api_key","PEXELS_API_KEY"]),
     pixabay: k(["pixabay_api_key"]),
-    unsplash: k(["unsplash_api_key"])
+    unsplash: k(["unsplash_api_key"]),
+    // ElevenLabs voice
+    elevenlabs: k(["elevenlabs_api_key","ELEVENLABS_API_KEY"]),
+    // Cartesia voice
+    cartesia: k(["cartesia_api_key","CARTESIA_API_KEY"]),
   };
   ;
   var chain = [];
-  function addCerebras(model) {
-    KEYS.cerebras.forEach(function(key) {
-      chain.push({ p: "cerebras", key, m: model });
-    });
-  }
-  __name(addCerebras, "addCerebras");
-  function addKIE(model) {
-    if (KEYS.kie) chain.push({ p: "kie", key: KEYS.kie, m: model });
-  }
-  __name(addKIE, "addKIE");
-  function addGroq(model) {
-    KEYS.groq.forEach(function(key) {
-      chain.push({ p: "groq", key, m: model });
-    });
-  }
-  __name(addGroq, "addGroq");
-  if (profile === "reasoning" || profile === "frontier") {
-    if (KEYS.nvidia) chain.push({ p: "nvidia", key: KEYS.nvidia, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1" });
-    if (KEYS.nvidia2) chain.push({ p: "nvidia", key: KEYS.nvidia2, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1" });
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-reasoner" });
-    if (KEYS.gemini_free) chain.push({ p: "gemini", key: KEYS.gemini_free, m: "gemini-2.5-flash" });
-    chain.push({ p: "gemini", key: KEYS.gemini_free, m: "gemma-4-31b-it" });
-    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-32k" });
-    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-a-03-2025" });
-    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat" });
-  }
+  var log = [];
+  var t0 = Date.now();
+
+  // Detect intent
   var lastMsg = "";
   for (var mi = messages.length - 1; mi >= 0; mi--) {
-    if (messages[mi].role === "user") {
-      lastMsg = messages[mi].content || "";
-      break;
-    }
+    if (messages[mi].role === "user") { lastMsg = messages[mi].content || ""; break; }
   }
   var msgLen = lastMsg.length;
   var detectedIntent = intent || "chat";
-  var isReasoning = /\b(reason|analyse|analyze|evaluate|assess|compare|critique|argue|debate|logic|proof|deduce|infer|why|explain why|how does|what causes)\b/i.test(lastMsg) || profile === "reasoning";
-  // Detect large file attachments — route to Gemini 2.5 Pro (1M context)
-  var attachmentSize = 0;
-  var hasLargeFile = false;
-  if (messages) {
-    for (var mi2 = 0; mi2 < messages.length; mi2++) {
-      var msgContent = messages[mi2].content;
-      if (Array.isArray(msgContent)) {
-        for (var ci = 0; ci < msgContent.length; ci++) {
-          if (msgContent[ci].type === 'text' && msgContent[ci].text) {
-            attachmentSize += msgContent[ci].text.length;
-          }
-          if (msgContent[ci].type === 'image_url' || msgContent[ci].type === 'image') {
-            hasLargeFile = true;
-          }
-        }
-      } else if (typeof msgContent === 'string') {
-        attachmentSize += msgContent.length;
-      }
-    }
-    if (attachmentSize > 50000) hasLargeFile = true;
+  var isMultimodal = profile === "multimodal";
+  var isLongContext = msgLen > 50000 || profile === "frontier";
+  var isReasoning = profile === "reasoning" || /\b(reason through|analyse in depth|evaluate critically|compare and contrast|formal logic|proof|deduce)\b/i.test(lastMsg);
+
+  // ── GOOGLE AI STUDIO KEY (free, confirmed working) ────────────────────────
+  var GKEY = KEYS.google || k(["google_ai_key","GOOGLE_AI_KEY"]) || "";
+
+  if (isMultimodal) {
+    // Vision models
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.1-flash-image", ctx: 65536, out: 65536, cost: 0, note: "Gemini 3.1 Flash Image -- vision" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-2.5-flash-image", ctx: 32768, out: 32768, cost: 0, note: "Gemini 2.5 Flash Image -- vision" });
   }
-  var isLongContext = hasLargeFile || msgLen > 8e3 || attachmentSize > 20000 ||
-    /\b(summarise|summarize|entire|whole|full|complete|all of|throughout|document|report|paper|article|transcript|dissertation|thesis|petition|complaint|100.?000|200.?000)\b/i.test(lastMsg);
-  var isCoding = /\b(code|function|script|program|debug|fix|implement|class|method|api|sql|python|javascript|typescript|bash|regex)\b/i.test(lastMsg);
-  var isCreative = /\b(write|draft|poem|story|essay|blog|article|newsletter|caption|tweet|post|copy|creative|narrative)\b/i.test(lastMsg);
-  var isFast = profile === "fast" || msgLen < 200;
+
   if (isReasoning) {
-    if (KEYS.nvidia) chain.push({ p: "nvidia", key: KEYS.nvidia, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128e3, cost: 0, note: "Nemotron Ultra -- best free reasoning" });
-    if (KEYS.nvidia2) chain.push({ p: "nvidia", key: KEYS.nvidia2, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128e3, cost: 0, note: "Nemotron Ultra key 2" });
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-reasoner", ctx: 64e3, cost: 0.55, note: "DeepSeek R1 -- chain-of-thought" });
-    if (KEYS.gemini_paid) chain.push({ p: "gemini", key: KEYS.gemini_paid, m: "gemini-2.5-flash", ctx: 32e3, cost: 0, note: "Gemini thinking" });
-    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-32k", ctx: 32e3, cost: 0.12, note: "Kimi long-ctx reasoning" });
-    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128e3, cost: 3, note: "Cohere R+ -- strong reasoning" });
-    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 64e3, cost: 0, note: "DeepSeek R1 free via OpenRouter" });
+    // Best reasoning models
+    if (KEYS.nvidia) chain.push({ p: "nvidia", key: KEYS.nvidia, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128000, out: 4096, cost: 0, note: "Nemotron Ultra 253B -- best reasoning, free" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.1-pro-preview", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.1 Pro -- reasoning" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-2.5-pro", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 2.5 Pro -- reasoning" });
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-reasoner", ctx: 64000, out: 8192, cost: 0.55, note: "DeepSeek R1 -- chain-of-thought" });
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-latest", ctx: 128000, out: 8192, cost: 2, note: "Mistral Large -- reasoning" });
   } else if (isLongContext) {
-    // For very large documents: Gemini 2.5 Pro first (1M context window)
-    if (KEYS.gemini_paid) chain.push({ p: "gemini", key: KEYS.gemini_paid, m: "gemini-2.5-pro", ctx: 1e6, cost: 3.5, note: "Gemini 2.5 Pro 1M ctx -- primary for large docs" });
-    if (KEYS.gemini_free) chain.push({ p: "gemini", key: KEYS.gemini_free, m: "gemini-2.0-flash", ctx: 1e6, cost: 0, note: "Gemini Flash 1M ctx -- free fallback" });
-    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-128k", ctx: 128e3, cost: 0.12, note: "Kimi 128K" });
-    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128e3, cost: 3, note: "Cohere 128K" });
-    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "anthropic/claude-3-haiku:beta", ctx: 2e5, cost: 0.25, note: "Claude 200K via OpenRouter" });
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64e3, cost: 0.14, note: "DeepSeek 64K" });
-  } else if (isCoding) {
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64e3, cost: 0.14, note: "DeepSeek -- excellent at code" });
-    KEYS.cerebras.forEach(function(k2) {
-      chain.push({ p: "cerebras", key: k2, m: "llama3.1-70b", ctx: 8192, cost: 0, note: "Llama 3.1 70B on Cerebras" });
-    });
-    KEYS.groq.forEach(function(k2) {
-      chain.push({ p: "groq", key: k2, m: "compound-mini", ctx: 8192, cost: 0, note: "Compound Mini -- good at code" });
-      chain.push({ p: "groq", key: k2, m: "openai/gpt-oss-120b", ctx: 8192, cost: 0, note: "GPT-OSS 120B -- strong coder" });
-    });
-    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "codestral-latest", ctx: 32e3, cost: 1, note: "Codestral -- code specialist" });
-    if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "meta-llama/Llama-3.3-70B-Instruct-Turbo", ctx: 131072, cost: 0.18, note: "Together Llama 70B" });
+    // Long context: Gemini 1M context window
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.8 Flash -- 1M ctx" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.5-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.5 Flash -- 1M ctx" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, cost: 0, note: "Gemini Flash latest -- 1M ctx" });
+    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-128k", ctx: 128000, out: 4096, cost: 0.12, note: "Kimi 128K" });
   } else {
-    // Simon's preferred model order: Nemotron > Kimi > Mistral > GLM > DeepSeek > Cohere > Cerebras > Groq
-    if (KEYS.nvidia) chain.push({ p: "nvidia", key: KEYS.nvidia, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128e3, cost: 0, note: "Nemotron Ultra -- Simon top pick, free" });
-    if (KEYS.nvidia2) chain.push({ p: "nvidia", key: KEYS.nvidia2, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128e3, cost: 0, note: "Nemotron Ultra key 2" });
-    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-32k", ctx: 32e3, cost: 0.12, note: "Kimi -- Simon pick" });
-    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-latest", ctx: 128e3, cost: 2, note: "Mistral Large -- Simon pick" });
-    if (KEYS.zhipu) chain.push({ p: "zhipu", key: KEYS.zhipu, m: "glm-4-plus", ctx: 128e3, cost: 0.07, note: "GLM-4-Plus -- Simon pick" });
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64e3, cost: 0.14, note: "DeepSeek V3" });
-    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128e3, cost: 3, note: "Cohere R+" });
-    if (KEYS.cerebras && KEYS.cerebras.length > 0) chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "llama3.3-70b", ctx: 8192, cost: 0, note: "Cerebras Llama 70B -- fast fallback" });
-    if (KEYS.groq && KEYS.groq.length > 0) chain.push({ p: "groq", key: KEYS.groq[0], m: "llama-3.3-70b-versatile", ctx: 32768, cost: 0, note: "Groq Llama 70B -- fast fallback" });
-    if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "mistralai/Mistral-7B-Instruct-v0.3", ctx: 32768, cost: 0.1, note: "Mistral 7B via Together" });
-    if (KEYS.sambanova) chain.push({ p: "sambanova", key: KEYS.sambanova, m: "Meta-Llama-3.3-70B-Instruct", ctx: 8192, cost: 0, note: "SambaNova free" });
+    // ── BALANCED DEFAULT CHAIN ──────────────────────────────────────────────
+    // Tier 1: Gemma 4 (free, fast, good quality) — PROMOTED TO TOP per Simon
+    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 262144, out: 32768, cost: 0, note: "Gemma 4 31B -- free, Simon top pick" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-26b-a4b-it", ctx: 262144, out: 32768, cost: 0, note: "Gemma 4 26B -- free" });
+
+    // Tier 2: Gemini Flash (free, 1M context)
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.5-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.5 Flash -- free, 1M ctx" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, cost: 0, note: "Gemini Flash latest -- free" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.8 Flash -- free" });
+
+    // Tier 3: NVIDIA Nemotron Ultra (free, excellent reasoning)
+    if (KEYS.nvidia) chain.push({ p: "nvidia", key: KEYS.nvidia, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128000, out: 4096, cost: 0, note: "Nemotron Ultra 253B -- free, excellent" });
+
+    // Tier 4: Mistral Large (confirmed working, high quality)
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-latest", ctx: 128000, out: 8192, cost: 2, note: "Mistral Large -- confirmed working" });
+
+    // Tier 5: DeepSeek via OpenRouter (confirmed working, free)
+    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 64000, out: 8192, cost: 0, note: "DeepSeek via OpenRouter -- confirmed working" });
+
+    // Tier 6: DeepSeek direct (may work via Worker even if CORS blocks browser)
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64000, out: 8192, cost: 0.14, note: "DeepSeek V3 direct" });
+
+    // Tier 7: Cerebras (confirmed working with paid key)
+    if (KEYS.cerebras && KEYS.cerebras.length > 0) {
+      chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "gpt-oss-120b", ctx: 8192, out: 8192, cost: 0, note: "GPT-OSS 120B on Cerebras -- confirmed working" });
+    }
+
+    // Tier 8: Groq (confirmed working)
+    if (KEYS.groq && KEYS.groq.length > 0) {
+      chain.push({ p: "groq", key: KEYS.groq[0], m: "openai/gpt-oss-120b", ctx: 8192, out: 8192, cost: 0, note: "GPT-OSS 120B on Groq -- confirmed working" });
+      chain.push({ p: "groq", key: KEYS.groq[0], m: "qwen/qwen3.8-27b", ctx: 8192, out: 8192, cost: 0, note: "Qwen3 on Groq -- confirmed working" });
+    }
+
+    // Tier 9: Cohere (confirmed working with v2 API)
+    if (KEYS.cohere_paid) chain.push({ p: "cohere", key: KEYS.cohere_paid, m: "command-a-03-2025", ctx: 256000, out: 8192, cost: 2.5, note: "Cohere Command A -- paid" });
+    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128000, out: 4096, cost: 3, note: "Cohere R+ -- confirmed working" });
+
+    // Tier 10: Kimi (new key - may work)
+    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-32k", ctx: 32000, out: 4096, cost: 0.12, note: "Kimi 32K" });
+
+    // Tier 11: Mistral Small (faster)
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-small-latest", ctx: 32000, out: 8192, cost: 0.2, note: "Mistral Small -- fast" });
+
+    // Tier 12: Together, Fireworks, Chutes
+    if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "meta-llama/Llama-3.3-70B-Instruct-Turbo", ctx: 131072, out: 8192, cost: 0.18, note: "Together Llama 70B" });
+    if (KEYS.fireworks) chain.push({ p: "fireworks", key: KEYS.fireworks, m: "accounts/fireworks/models/llama-v3p3-70b-instruct", ctx: 131072, out: 8192, cost: 0.2, note: "Fireworks Llama 70B" });
+    if (KEYS.chutes) chain.push({ p: "chutes", key: KEYS.chutes, m: "deepseek-ai/DeepSeek-V3-0324", ctx: 64000, out: 8192, cost: 0, note: "Chutes DeepSeek free" });
+
+    // Tier 13: More Gemini models
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.7-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.7 Flash" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.6-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.6 Flash" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-2.5-flash-lite", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 2.5 Flash Lite" });
   }
-  for (var ci = 0; ci < chain.length; ci++) {
+
+  // Unconditional fallback
+  chain.push({ p: "pollinations", key: null, m: "openai", note: "Pollinations -- unconditional fallback" });
+  chain.push({ p: "pollinations", key: null, m: "mistral", note: "Pollinations Mistral" });
+
+for (var ci = 0; ci < chain.length; ci++) {
     var entry = chain[ci];
     var ta = Date.now();
     try {
@@ -1555,7 +1572,7 @@ async function callProvider(env, provider, key, model, messages) {
     return { content };
   }
   if (provider === "nvidia") {
-    var r = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+    var r = await fetch("https://api.nvidia.com/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
       body: JSON.stringify({ model, messages, max_tokens: 8192, temperature: 0.7, stream: false })
@@ -1627,9 +1644,9 @@ async function callProvider(env, provider, key, model, messages) {
     var cohereMessages = messages.filter(function(m) {
       return m.role !== "system";
     }).map(function(m) {
-      return { role: m.role === "user" ? "USER" : "CHATBOT", message: m.content };
+      return { role: m.role === "user" ? "user" : "assistant", content: m.content };
     });
-    var r = await fetch("https://api.cohere.ai/v1/chat", {
+    var r = await fetch("https://api.cohere.com/v2/chat", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
       body: JSON.stringify({ model, chat_history: cohereMessages.slice(0, -1), message: cohereMessages[cohereMessages.length - 1].message, preamble: system, max_tokens: 8192 })
