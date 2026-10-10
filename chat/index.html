@@ -482,19 +482,27 @@
 <select id="model-override" onchange="setModelOverride(this.value)"
   style="width:100%;margin-top:6px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;background:var(--bg);color:var(--fg);cursor:pointer;">
 <option value="">Auto (Orchestrator decides)</option>
-<optgroup label="Fast">
-<option value="cerebras/llama-3.3-70b">Llama 3.3 70B — Cerebras (fast)</option>
-<option value="groq/llama-3.3-70b-versatile">Llama 3.3 70B — Groq (fast)</option>
+<optgroup label="Free — Recommended">
+  <option value="gemini/gemma-4-31b-it" title="262K context">Gemma 4 31B (262K ctx) ★</option>
+  <option value="openrouter/deepseek/deepseek-chat" title="1M context, free via OpenRouter">DeepSeek V4 via OpenRouter (1M ctx)</option>
+  <option value="gemini/gemini-3.8-flash" title="1M context">Gemini 3.8 Flash (1M ctx)</option>
+  <option value="gemini/gemini-3.5-flash" title="1M context">Gemini 3.5 Flash (1M ctx)</option>
+  <option value="nvidia/nvidia/llama-3.1-nemotron-ultra-253b-v1" title="128K context, free">Nemotron Ultra 253B (128K ctx)</option>
+  <option value="groq/openai/gpt-oss-120b" title="8K context, very fast">GPT-OSS 120B on Groq (8K ctx, fast)</option>
+  <option value="groq/qwen/qwen3.8-27b" title="8K context, fast">Qwen3 on Groq (8K ctx, fast)</option>
 </optgroup>
-<optgroup label="Quality">
-<option value="deepseek/deepseek-chat">DeepSeek V3 (reasoning)</option>
-<option value="kimi/moonshot-v1-128k">Kimi 128K (long context)</option>
-<option value="mistral/mistral-small-latest">Mistral Small (EU)</option>
-<option value="cohere/command-r-plus-08-2024">Cohere Command R+</option>
+<optgroup label="Paid — High Quality">
+  <option value="deepseek/deepseek-chat" title="1M context, paid key">DeepSeek V4 Flash direct (1M ctx)</option>
+  <option value="cerebras/gpt-oss-120b" title="8K context, very fast">GPT-OSS 120B on Cerebras (8K ctx)</option>
+  <option value="mistral/mistral-large-latest" title="128K context">Mistral Large (128K ctx)</option>
+  <option value="cohere/command-r-plus-08-2024" title="128K context">Cohere Command R+ (128K ctx)</option>
+  <option value="kimi/moonshot-v1-32k" title="32K context">Kimi 32K</option>
+  <option value="kimi/moonshot-v1-128k" title="128K context">Kimi 128K</option>
 </optgroup>
-<optgroup label="Frontier">
-<option value="gemini/gemini-2.5-pro">Gemini 2.5 Pro (1M ctx)</option>
-<option value="gemini/gemini-2.0-flash">Gemini 2.0 Flash (vision)</option>
+<optgroup label="Profiles">
+  <option value="__profile_reasoning">Reasoning profile (DeepSeek → Gemini Pro)</option>
+  <option value="__profile_longctx">Long context profile (DeepSeek 1M → Gemini 1M)</option>
+  <option value="__profile_fast">Fast profile (Cerebras → Groq)</option>
 </optgroup>
 </select>
 <button onclick="openMultiModelModal()" style="width:100%;margin-top:6px;padding:5px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer;text-align:left;">
