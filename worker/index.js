@@ -1632,23 +1632,23 @@ async function callProvider(env, provider, key, model, messages) {
     throw new Error("Kimi unavailable (geo-blocked, KIE.ai fallback also failed)");
   }
   if (provider === "cohere") {
-    var cohereMessages = messages.filter(function(m) {
-      return m.role !== "system";
-    }).map(function(m) {
-      return { role: m.role === "user" ? "user" : "assistant", content: m.content };
+    // Cohere v2 API — uses messages array like OpenAI, not chat_history+message
+    var cohereV2Messages = messages.map(function(m) {
+      return { role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user", content: m.content };
     });
     var r = await fetch("https://api.cohere.com/v2/chat", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, chat_history: cohereMessages.slice(0, -1), message: cohereMessages[cohereMessages.length - 1].message, preamble: system, max_tokens: 8192 })
+      body: JSON.stringify({ model: model, messages: cohereV2Messages, max_tokens: 8192, temperature: 0.7 })
     });
     if (!r.ok) {
       var e = await r.text();
       throw new Error("Cohere " + r.status + ": " + e.substring(0, 100));
     }
     var d = await r.json();
-    var content = d.text;
-    if (!content) throw new Error("No content from Cohere");
+    // v2 response: d.message.content[0].text
+    var content = (d.message && d.message.content && d.message.content[0] && d.message.content[0].text) || d.text || "";
+    if (!content) throw new Error("No content from Cohere v2: " + JSON.stringify(d).substring(0, 100));
     return { content };
   }
   if (provider === "mistral") {
