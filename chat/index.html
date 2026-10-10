@@ -463,7 +463,7 @@
 <div class="chat-input-row">
 <textarea class="chat-textarea" id="chat-input" placeholder="Type, write, or dictate… (Enter to send, Shift+Enter for new line)" rows="3"></textarea>
 <div style="display:flex;flex-direction:column;gap:4px;">
-  <button class="chat-send-btn" id="send-btn" onclick="doSend()" title="Send message (Enter)">➤</button>
+  <button class="chat-send-btn" id="send-btn" onclick="doSend()" title="Send message (Enter)"><span id="model-badge" style="font-size:10px;color:var(--fg-muted);padding:2px 6px;border:1px solid var(--border);border-radius:8px;margin-left:4px;">Auto</span>➤</button>
   <button style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-surface);cursor:pointer;font-size:14px;" onclick="document.getElementById('chat-file-input').click()" title="Attach file">📎</button>
 </div>
 </div>
