@@ -2369,6 +2369,12 @@ var index_default = {
         var body = await request.json();
         var messages = body.messages || [];
         var profile = body.profile || "balanced";
+        var providerOverride = body.providerOverride || null;
+        var modelOverride = body.modelOverride || null;
+        // Profile aliases from dropdown
+        if (profile === 'reasoning') { /* handled in orchestrate */ }
+        if (profile === 'longctx') { profile = 'frontier'; }
+        if (profile === 'fast') { /* handled in orchestrate */ }
         var threadId = body.threadId || "t" + Date.now();
         var antiRoleplay = " CRITICAL: Never use asterisks for actions or roleplay. No *sighs*, no *leans back*, no *raises eyebrow*. Speak directly. British English. NEVER invent calendar events, emails, social stats, engagement metrics, or any data you cannot verify. If you have no live data access, say so plainly.";
         messages = (messages || []).filter(function(m2) {
@@ -2519,7 +2525,42 @@ var index_default = {
             var visionResult = await callGemini(envPlus, messages, "gemini-2.5-flash", images);
             var result = { content: stripTropes(visionResult), provider: "gemini", model: "gemini-2.0-flash-vision", intent };
           } catch (ve) {
-            var result = await orchestrate(envPlus, messages, profile, intent, threadId);
+            var result;
+        if (providerOverride && modelOverride) {
+          // Direct model override — skip the chain, call this provider directly
+          try {
+            var overrideKey = null;
+            var GKEY2 = env.google_ai_key || env.GOOGLE_AI_KEY || env.gemini_api_key || "";
+            if (providerOverride === "gemini") overrideKey = GKEY2;
+            else if (providerOverride === "deepseek") overrideKey = env.deepseek_paid || env.DEEPSEEK_PAID || "";
+            else if (providerOverride === "openrouter") overrideKey = env.openrouter_api_key || env.OPENROUTER_API_KEY || "";
+            else if (providerOverride === "mistral") overrideKey = env.mistral_api_key || env.MISTRAL_API_KEY || "";
+            else if (providerOverride === "cerebras") overrideKey = env.cerebras_paid || env.CEREBRAS_PAID || env.cerebras_free_1 || env.CEREBRAS_FREE_1 || "";
+            else if (providerOverride === "groq") overrideKey = env.groq_free_1 || env.GROQ_FREE_1 || "";
+            else if (providerOverride === "cohere") overrideKey = env.cohere_paid_key || env.cohere_api_key || env.COHERE_API_KEY || "";
+            else if (providerOverride === "kimi") overrideKey = env.kimi_api_key || env.KIMI_API_KEY || "";
+            else if (providerOverride === "nvidia") overrideKey = env.nvidia_build_api_key || env.NVIDIA_BUILD_API_KEY || "";
+            else if (providerOverride === "together") overrideKey = env.together_api_key || env.TOGETHER_API_KEY || "";
+            else if (providerOverride === "chutes") overrideKey = env.chutes_api_key || env.CHUTES_API_KEY || "";
+            var overrideResult = await Promise.race([
+              callProvider(envPlus, providerOverride, overrideKey, modelOverride, messages),
+              new Promise(function(_, rej) { setTimeout(function() { rej(new Error("timeout 25s")); }, 25000); })
+            ]);
+            if (overrideResult && overrideResult.content) {
+              result = { content: overrideResult.content, provider: providerOverride, model: modelOverride, routingLog: ["override: " + providerOverride + "/" + modelOverride + " OK"] };
+            } else {
+              // Override failed — fall through to chain
+              result = await orchestrate(envPlus, messages, profile, intent, threadId);
+              result.routingLog = (result.routingLog || []).concat(["override " + providerOverride + "/" + modelOverride + " failed, used chain"]);
+            }
+          } catch(overrideErr) {
+            // Override threw — fall through to chain
+            result = await orchestrate(envPlus, messages, profile, intent, threadId);
+            result.routingLog = (result.routingLog || []).concat(["override error: " + overrideErr.message + ", used chain"]);
+          }
+        } else {
+          result = await orchestrate(envPlus, messages, profile, intent, threadId);
+        }
           }
         } else {
           var result = await orchestrate(envPlus, messages, profile, intent, threadId);
