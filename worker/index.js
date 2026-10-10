@@ -2393,7 +2393,55 @@ var index_default = {
             : "";
 
 
-          var ragContext = ""; // RAG disabled until rag_index table is created via /api/rag/setup
+          var ragContext = "";
+          // RAG: auto-create table and query
+          try {
+            if (env.PRISM_D1) {
+              await env.PRISM_D1.prepare("CREATE TABLE IF NOT EXISTS rag_index (id TEXT PRIMARY KEY, title TEXT, content_preview TEXT, keywords TEXT, source_type TEXT, module TEXT, tags TEXT, created_at TEXT)").run().catch(function(){});
+              var lastUserForRag = "";
+              for (var rmi = messages.length - 1; rmi >= 0; rmi--) {
+                if (messages[rmi].role === "user") { lastUserForRag = (messages[rmi].content || "").substring(0, 200); break; }
+              }
+              if (lastUserForRag) {
+                var ragWord = lastUserForRag.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).find(function(w){ return w.length > 5; });
+                if (ragWord) {
+                  var ragRows = await env.PRISM_D1.prepare("SELECT title, content_preview FROM rag_index WHERE keywords LIKE ? LIMIT 2").bind("%" + ragWord + "%").all();
+                  if (ragRows.results && ragRows.results.length > 0) {
+                    ragContext = "\n\nFrom your notes: " + ragRows.results.map(function(r){ return r.title + ": " + r.content_preview.substring(0, 150); }).join("; ");
+                  }
+                }
+              }
+            }
+          } catch(ragErr) { /* RAG non-fatal */ }
+
+          // Web search injection — for queries needing current information
+          var webSearchContext = "";
+          try {
+            var lastUserForSearch = "";
+            for (var wsi = messages.length - 1; wsi >= 0; wsi--) {
+              if (messages[wsi].role === "user") { lastUserForSearch = (messages[wsi].content || "").substring(0, 300); break; }
+            }
+            var needsSearch = lastUserForSearch.length > 10 && /\b(latest|recent|today|current|news|2024|2025|2026|who is|what is|when did|where is|how much|price|cost|weather|score|result|update|announce|release|launch|find|search|look up)\b/i.test(lastUserForSearch);
+            if (needsSearch) {
+              var tavilyKey = env.tavily_api_key || env.TAVILY_API_KEY || env.TAVILY_PAID_1;
+              if (tavilyKey) {
+                var searchResp = await fetch("https://api.tavily.com/search", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ api_key: tavilyKey, query: lastUserForSearch.substring(0, 200), max_results: 3, include_answer: true, search_depth: "basic" })
+                });
+                if (searchResp.ok) {
+                  var searchData = await searchResp.json();
+                  if (searchData.answer) {
+                    webSearchContext = "\n\n[Live web search for: " + lastUserForSearch.substring(0, 60) + "]\n" + searchData.answer;
+                    if (searchData.results && searchData.results.length > 0) {
+                      webSearchContext += "\nSources: " + searchData.results.slice(0, 2).map(function(r){ return r.title + " — " + r.url; }).join("; ");
+                    }
+                  }
+                }
+              }
+            }
+          } catch(searchErr) { /* web search non-fatal */ }
 
           var orchestratorPrompt = "You are the Orchestrator for Argentica, the personal AI operating environment of Simon Johnson / Identity Partners. " +
             "You are omnipotent within this system. You know every module, every agent, every tool, and every rule. " +
@@ -2403,7 +2451,7 @@ var index_default = {
             "You are direct, precise, and competent. British English throughout. No sycophancy. No AI tropes. " +
             "When you need to add a memory about Simon, call MEMORY_ADD: [fact] on a new line. " +
             "When you need to use a tool, call TOOL_CALL: tool_name(params) on a new line." +
-            aboutMeContext;
+            aboutMeContext + ragContext + webSearchContext;
 
           messages = [{ role: "system", content: (personaPrompt || orchestratorPrompt) + antiRoleplay }].concat(messages);
         }
