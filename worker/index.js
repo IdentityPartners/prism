@@ -1318,114 +1318,37 @@ async function orchestrate(env, messages, profile, intent, threadId) {
   }
   __name(k, "k");
   var KEYS = {
-    // Cerebras — 4 free + 2 paid
-    cerebras: [
-      k(["cerebras_f1"]),
-      k(["cerebras_f2"]),
-      k(["cerebras_f3"]),
-      k(["cerebras_f4"]),
-      k(["cerebras_p1"]),
-      k(["cerebras_p2"])
-    ].filter(Boolean),
-    // Groq — 2 free + 1 paid
-    groq: [k(["groq_f1"]), k(["groq_f2"]), k(["groq_p1"])].filter(Boolean),
-    // Gemini AI Studio — free + paid
-    gemini_free: k(["gemini_f1"]),
-    gemini_paid: k(["gemini_p1"]),
-    // DeepSeek — 2 free + 3 paid
-    deepseek: k(["deepseek_p1", "deepseek_p2", "deepseek_p3"]),
-    deepseek_f1: k(["deepseek_f1"]),
-    deepseek_f2: k(["deepseek_f2"]),
-    // Kimi/Moonshot — paid ($15 credit)
-    kimi: k(["kimi_p1"]),
-    // Mistral — free
-    mistral: k(["mistral_f1"]),
-    // Cohere — paid
-    cohere: k(["cohere_p1"]),
-    // Together — paid
-    together: k(["together_p1"]),
-    // SambaNova — paid
-    sambanova: k(["sambanova_p1"]),
-    // Fireworks — paid
-    fireworks: k(["fireworks_p1"]),
-    // Chutes — paid
-    chutes: k(["chutes_p1"]),
-    // AnyAPI — paid
-    anyapi: k(["anyapi_p1"]),
-    // NVIDIA NIM — 2 paid
-    nvidia: k(["nvidia_p1"]),
-    nvidia2: k(["nvidia_p2"]),
-    // xAI Grok — paid
-    xai: k(["xai_p1"]),
-    // Muse/LLM7 — paid
-    muse: k(["muse_p1"]),
-    llm7: k(["llm7_p1", "llm7_p2"]),
-    // Nebius — paid
-    nebius: k(["nebius_p1"]),
-    // ModelsLab — paid
-    modelslab: k(["modelslab_p1"]),
-    // OpenRouter — paid
-    openrouter: k(["openrouter_p1"]),
-    // HuggingFace — paid
-    huggingface: k(["huggingface_p1"]),
-    // Pollinations — 4 keys (pollen credits)
-    pollinations: k(["pollinations_p1", "pollinations_p2", "pollinations_p3", "pollinations_p4"]),
-    // KIE.ai — aggregator
-    kie: k(["kie_p1"]),
-    // Perplexity — 3 paid
-    perplexity: k(["perplexity_p1", "perplexity_p2", "perplexity_p3"]),
-    // Zhipu/GLM — paid
-    zhipu: k(["zhipu_p1"]),
-    // Image search
-    pexels: k(["pexels_p1"]),
-    pixabay: k(["pixabay_p1"]),
-    unsplash: k(["unsplash_p1"]),
-    // Image gen
-    fal: k(["fal_p1"]),
-    stability: k(["stability_p1"]),
-    ideogram: k(["ideogram_p1"]),
-    imagerouter: k(["imagerouter_p1"]),
-    // Voice
-    elevenlabs: k(["elevenlabs_p1"]),
-    fishaudio: k(["fishaudio_p1"]),
-    cartesia: k(["cartesia_p1"]),
-    deepgram: k(["deepgram_p1", "deepgram_p2"]),
-    smallestai: k(["smallestai_p1"]),
-    // Search
-    tavily: k(["tavily_p1"]),
-    exa: k(["exa_p1"]),
-    brave: k(["brave_p1"]),
-    semanticscholar: k(["semanticscholar_p1"]),
-    ncbi: k(["ncbi_p1"]),
-    firecrawl: k(["firecrawl_p1"]),
-    // Social
-    bluesky_handle: k(["bluesky_p1"]),
-    bluesky_password: k(["bluesky_p2"]),
-    telegram_token: k(["telegram_p1"]),
-    telegram_chat: k(["telegram_p2"]),
-    buffer: k(["buffer_p1"]),
-    tumblr_key: k(["tumblr_p1"]),
-    tumblr_secret: k(["tumblr_p2"]),
-    mastodon_key: k(["mastodon_p1"]),
-    mastodon_secret: k(["mastodon_p2"]),
-    mastodon_token: k(["mastodon_p3"]),
-    // Tools
-    browserless: k(["browserless_p1"]),
-    ocrspace: k(["ocrspace_p1"]),
-    notion_token: k(["notion_p1"]),
-    notion_db: k(["notion_p2"]),
-    github: k(["github_p1"]),
-    // Zoho
-    zoho_client_id: k(["ZOHO_CLIENT_ID", "Zoho_Client_ID", "zoho_client_id"]),
-    zoho_client_secret: k(["ZOHO_CLIENT_SECRET", "Zoho_Client_Secret", "zoho_client_secret"]),
-    zoho_auth_code: k(["zoho_p3"]),
-    // LinkedIn
-    linkedin_client_id: k(["linkedin_p1"]),
-    linkedin_client_secret: k(["linkedin_p2"]),
-    // Whop
-    whop: k(["whop_p1"]),
-    // KIE.ai
-    kie: k(["kie_p1"])
+    cerebras: [k(["cerebras_free_1","CEREBRAS_FREE_1"]),k(["cerebras_free_2","CEREBRAS_FREE_2"]),k(["cerebras_free_3","CEREBRAS_FREE_3"]),k(["cerebras_free_4","CEREBRAS_FREE_4"]),k(["cerebras_paid","CEREBRAS_PAID"]),k(["cerebras_paid2","CEREBRAS_PAID2"]),k(["cerebras_f4"])].filter(Boolean),
+    groq: [k(["groq_free_1","GROQ_FREE_1"]),k(["groq_free_2","GROQ_FREE_2"]),k(["groq_free_3","GROQ_FREE_3"])].filter(Boolean),
+    gemini_free: k(["gemini_api_key","GEMINI_API_KEY"]),
+    gemini_paid: k(["gemini_paid_api_key","GEMINI_PAID_API_KEY"]),
+    deepseek: k(["deepseek_paid","DEEPSEEK_PAID"]),
+    deepseek_f1: k(["deepseek_free_1","DEEPSEEK_FREE_1"]),
+    deepseek_f2: k(["deepseek_free_2","DEEPSEEK_FREE_2"]),
+    kimi: k(["kimi_api_key","KIMI_API_KEY"]),
+    mistral: k(["mistral_api_key","MISTRAL_API_KEY"]),
+    cohere: k(["cohere_api_key"]),
+    together: k(["together_api_key","TOGETHER_API_KEY"]),
+    sambanova: k(["sambanova_api_key","SAMBANOVA_API_KEY"]),
+    fireworks: k(["fireworks_api_key","FIREWORKS_API_KEY"]),
+    chutes: k(["chutes_api_key","CHUTES_API_KEY"]),
+    anyapi: k(["anyapi_key","ANYAPI_KEY"]),
+    nvidia: k(["nvidia_build_api_key","NVIDIA_BUILD_API_KEY"]),
+    nvidia2: k(["nvidia_build_api_key_2"]),
+    xai: k(["xai_api_key"]),
+    muse: k(["muse_api_key"]),
+    llm7: k(["llm7_p1","llm7_p2"]),
+    nebius: k(["nebius_api_key","NEBIUS_API_key"]),
+    modelslab: k(["modelslab_api_key","MODELSLAB_API_key"]),
+    openrouter: k(["openrouter_api_key","OPENROUTER_API_KEY"]),
+    huggingface: k(["huggingface_api_key","HUGGINGFACE_API_KEY"]),
+    pollinations: k(["pollinations_key","pollinations_p4"]),
+    kie: k(["kie_ai","KIE_AI"]),
+    perplexity: k(["perplexity"]),
+    zhipu: k(["zhipu_api_key","ZHIPU_API_KEY"]),
+    pexels: k(["pexels_api_key","PEXELS_API_KEY"]),
+    pixabay: k(["pixabay_api_key"]),
+    unsplash: k(["unsplash_api_key"])
   };
   ;
   var chain = [];
