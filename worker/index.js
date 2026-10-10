@@ -1380,7 +1380,6 @@ async function orchestrate(env, messages, profile, intent, threadId) {
   var log = [];
   var t0 = Date.now();
 
-  // Detect intent
   var lastMsg = "";
   for (var mi = messages.length - 1; mi >= 0; mi--) {
     if (messages[mi].role === "user") { lastMsg = messages[mi].content || ""; break; }
@@ -1399,67 +1398,58 @@ async function orchestrate(env, messages, profile, intent, threadId) {
   }
 
   if (isReasoning) {
-    // Best reasoning: Nemotron > Gemini 3.9 > DeepSeek V4 Flash > Mistral Large
     if (KEYS.nvidia) chain.push({ p: "nvidia", key: KEYS.nvidia, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128000, out: 4096, cost: 0, note: "Nemotron Ultra 253B -- best reasoning" });
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.9-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.9 Flash -- reasoning" });
     chain.push({ p: "gemini", key: GKEY, m: "gemini-3.1-pro-preview", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.1 Pro -- reasoning" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-2.5-pro", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 2.5 Pro -- reasoning" });
     if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 1000000, out: 8192, cost: 0.14, note: "DeepSeek V4 Flash -- 1M ctx reasoning" });
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 1000000, out: 8192, cost: 0, note: "DeepSeek V4 via OpenRouter" });
     if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-latest", ctx: 128000, out: 8192, cost: 2, note: "Mistral Large -- reasoning" });
   } else if (isLongContext) {
-    // Long context: DeepSeek 1M > Gemini 1M
     if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 1000000, out: 8192, cost: 0.14, note: "DeepSeek V4 Flash -- 1M ctx" });
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 1000000, out: 8192, cost: 0, note: "DeepSeek via OpenRouter -- 1M ctx" });
     chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.8 Flash -- 1M ctx" });
     chain.push({ p: "gemini", key: GKEY, m: "gemini-3.5-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.5 Flash -- 1M ctx" });
     if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-128k", ctx: 128000, out: 4096, cost: 0.12, note: "Kimi 128K" });
   } else {
-    // ── BALANCED DEFAULT CHAIN ──────────────────────────────────────────────
-    // Priority: Quality > Speed > Cost
-    // Gemini 3.9 first (newest, biggest context, free)
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.9-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.9 Flash -- newest, 1M ctx, free" });
+    // ── BALANCED DEFAULT — Gemma top (Simon's preference), then DeepSeek 1M, then rest ──
 
-    // DeepSeek V4 Flash (1M context, excellent quality)
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 1000000, out: 8192, cost: 0.14, note: "DeepSeek V4 Flash -- 1M ctx" });
-    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 1000000, out: 8192, cost: 0, note: "DeepSeek V4 via OpenRouter -- free" });
-
-    // NVIDIA Nemotron Ultra (free, excellent)
-    if (KEYS.nvidia) chain.push({ p: "nvidia", key: KEYS.nvidia, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128000, out: 4096, cost: 0, note: "Nemotron Ultra 253B -- free, excellent" });
-
-    // Gemma 4 (free, good quality)
-    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 262144, out: 32768, cost: 0, note: "Gemma 4 31B -- free" });
+    // Tier 1: Gemma 4 (free, good quality, Simon's top pick)
+    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 262144, out: 32768, cost: 0, note: "Gemma 4 31B -- free, Simon top pick" });
     chain.push({ p: "gemini", key: GKEY, m: "gemma-4-26b-a4b-it", ctx: 262144, out: 32768, cost: 0, note: "Gemma 4 26B -- free" });
 
-    // More Gemini (free, 1M context)
+    // Tier 2: DeepSeek V4 Flash (1M context, excellent quality)
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 1000000, out: 8192, cost: 0.14, note: "DeepSeek V4 Flash -- 1M ctx" });
+    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 1000000, out: 8192, cost: 0, note: "DeepSeek V4 via OpenRouter -- free, 1M ctx" });
+
+    // Tier 3: NVIDIA Nemotron Ultra (free, excellent)
+    if (KEYS.nvidia) chain.push({ p: "nvidia", key: KEYS.nvidia, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128000, out: 4096, cost: 0, note: "Nemotron Ultra 253B -- free, excellent" });
+
+    // Tier 4: Gemini Flash (free, 1M context)
     chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.8 Flash -- free, 1M ctx" });
     chain.push({ p: "gemini", key: GKEY, m: "gemini-3.5-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.5 Flash -- free, 1M ctx" });
     chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, cost: 0, note: "Gemini Flash latest -- free" });
 
-    // Mistral Large (confirmed working, high quality)
+    // Tier 5: Mistral Large (confirmed working)
     if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-latest", ctx: 128000, out: 8192, cost: 2, note: "Mistral Large -- confirmed working" });
 
-    // Cerebras (confirmed working with paid key)
+    // Tier 6: Cerebras (confirmed working)
     if (KEYS.cerebras && KEYS.cerebras.length > 0) {
       chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "gpt-oss-120b", ctx: 8192, out: 8192, cost: 0, note: "GPT-OSS 120B on Cerebras -- confirmed working" });
     }
 
-    // Groq (confirmed working)
+    // Tier 7: Groq (confirmed working)
     if (KEYS.groq && KEYS.groq.length > 0) {
       chain.push({ p: "groq", key: KEYS.groq[0], m: "openai/gpt-oss-120b", ctx: 8192, out: 8192, cost: 0, note: "GPT-OSS 120B on Groq -- confirmed working" });
       chain.push({ p: "groq", key: KEYS.groq[0], m: "qwen/qwen3.8-27b", ctx: 8192, out: 8192, cost: 0, note: "Qwen3 on Groq -- confirmed working" });
     }
 
-    // Cohere (v2 API, confirmed working)
+    // Tier 8: Cohere (v2 API, confirmed working)
     if (KEYS.cohere_paid) chain.push({ p: "cohere", key: KEYS.cohere_paid, m: "command-a-03-2025", ctx: 256000, out: 8192, cost: 2.5, note: "Cohere Command A -- paid" });
     if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128000, out: 4096, cost: 3, note: "Cohere R+ -- confirmed working" });
 
-    // Kimi (new key)
+    // Tier 9: Kimi, Mistral Small, Together, Fireworks, Chutes
     if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-32k", ctx: 32000, out: 4096, cost: 0.12, note: "Kimi 32K" });
-
-    // Mistral Small (fast)
     if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-small-latest", ctx: 32000, out: 8192, cost: 0.2, note: "Mistral Small -- fast" });
-
-    // Together, Fireworks, Chutes
     if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "meta-llama/Llama-3.3-70B-Instruct-Turbo", ctx: 131072, out: 8192, cost: 0.18, note: "Together Llama 70B" });
     if (KEYS.fireworks) chain.push({ p: "fireworks", key: KEYS.fireworks, m: "accounts/fireworks/models/llama-v3p3-70b-instruct", ctx: 131072, out: 8192, cost: 0.2, note: "Fireworks Llama 70B" });
     if (KEYS.chutes) chain.push({ p: "chutes", key: KEYS.chutes, m: "deepseek-ai/DeepSeek-V3-0324", ctx: 64000, out: 8192, cost: 0, note: "Chutes DeepSeek free" });
@@ -1470,7 +1460,6 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     chain.push({ p: "gemini", key: GKEY, m: "gemini-2.5-flash-lite", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 2.5 Flash Lite" });
   }
 
-  // Unconditional fallback
   chain.push({ p: "pollinations", key: null, m: "openai", note: "Pollinations -- unconditional fallback" });
   chain.push({ p: "pollinations", key: null, m: "mistral", note: "Pollinations Mistral" });
 
@@ -7863,6 +7852,83 @@ var index_default = {
         workflows = workflows.filter(function(w){ return w.id !== wfId; });
         await env.PRISM_KV.put("workflows:custom", JSON.stringify(workflows));
         return json({ success: true }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+
+    // ── API Champion: test all providers and update routing config ────────────
+    if (path === "/api/champion/test-providers" && request.method === "POST") {
+      try {
+        var GKEY2 = env.google_ai_key || env.GOOGLE_AI_KEY || "";
+        var testMsg = [{role:"user",content:"Say OK in 2 words"}];
+        var results = {};
+        var working = [];
+        var failed = [];
+
+        // Test each provider with a quick call
+        var providerTests = [
+          { name: "gemma-4-31b", p: "gemini", key: GKEY2, m: "gemma-4-31b-it" },
+          { name: "gemini-3.8-flash", p: "gemini", key: GKEY2, m: "gemini-3.8-flash" },
+          { name: "deepseek-openrouter", p: "openrouter", key: env.openrouter_api_key || env.OPENROUTER_API_KEY, m: "deepseek/deepseek-chat" },
+          { name: "mistral-large", p: "mistral", key: env.mistral_api_key || env.MISTRAL_API_KEY, m: "mistral-large-latest" },
+          { name: "cerebras-gpt-oss", p: "cerebras", key: env.cerebras_paid || env.CEREBRAS_PAID, m: "gpt-oss-120b" },
+          { name: "groq-gpt-oss", p: "groq", key: env.groq_free_1 || env.GROQ_FREE_1, m: "openai/gpt-oss-120b" },
+          { name: "cohere-r-plus", p: "cohere", key: env.cohere_api_key, m: "command-r-plus-08-2024" },
+        ];
+
+        for (var ti = 0; ti < providerTests.length; ti++) {
+          var pt = providerTests[ti];
+          if (!pt.key) { failed.push(pt.name + ": no key"); continue; }
+          try {
+            var testResult = await Promise.race([
+              callProvider(env, pt.p, pt.key, pt.m, testMsg),
+              new Promise(function(_, rej) { setTimeout(function() { rej(new Error("timeout")); }, 8000); })
+            ]);
+            if (testResult && testResult.content) {
+              working.push(pt.name);
+              results[pt.name] = "OK: " + testResult.content.substring(0, 30);
+            } else {
+              failed.push(pt.name + ": empty response");
+              results[pt.name] = "empty";
+            }
+          } catch(e) {
+            failed.push(pt.name + ": " + e.message.substring(0, 40));
+            results[pt.name] = "error: " + e.message.substring(0, 30);
+          }
+        }
+
+        // Store results in KV for API Champion to read
+        if (env.PRISM_KV) {
+          env.PRISM_KV.put("api-champion:last-test", JSON.stringify({
+            ts: new Date().toISOString(),
+            working: working,
+            failed: failed,
+            results: results
+          }), { expirationTtl: 86400 }).catch(function(){});
+        }
+
+        // Send Telegram notification
+        var tgTok = env.TELEGRAM_TOKEN || env.telegram_token;
+        var tgChat = env.TELEGRAM_CHAT_ID || env.TELEGRAM_CHAT || env.telegram_chat_id;
+        if (tgTok && tgChat) {
+          var msg = "API Champion Report\n\nWorking (" + working.length + "): " + working.join(", ") +
+            "\n\nFailed (" + failed.length + "): " + failed.join(", ");
+          fetch("https://api.telegram.org/bot" + tgTok + "/sendMessage", {
+            method: "POST", headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({chat_id: tgChat, text: msg})
+          }).catch(function(){});
+        }
+
+        return json({ success: true, working, failed, results }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // Get last API Champion test results
+    if (path === "/api/champion/status" && request.method === "GET") {
+      try {
+        if (!env.PRISM_KV) return json({ error: "KV not available" }, 200, origin);
+        var raw = await env.PRISM_KV.get("api-champion:last-test");
+        return json(raw ? JSON.parse(raw) : { message: "No test run yet. POST /api/champion/test-providers" }, 200, origin);
       } catch(e) { return json({ error: e.message }, 500, origin); }
     }
 
