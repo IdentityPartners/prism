@@ -1510,7 +1510,7 @@ async function orchestrate(env, messages, profile, intent, threadId) {
   } else if (isCoding) {
     if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64e3, cost: 0.14, note: "DeepSeek -- excellent at code" });
     KEYS.cerebras.forEach(function(k2) {
-      chain.push({ p: "cerebras", key: k2, m: "gpt-oss-120b", ctx: 8192, cost: 0, note: "GPT-OSS 120B -- strong coder" });
+      chain.push({ p: "cerebras", key: k2, m: "llama3.1-70b", ctx: 8192, cost: 0, note: "Llama 3.1 70B on Cerebras" });
     });
     KEYS.groq.forEach(function(k2) {
       chain.push({ p: "groq", key: k2, m: "compound-mini", ctx: 8192, cost: 0, note: "Compound Mini -- good at code" });
@@ -1527,7 +1527,7 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     if (KEYS.zhipu) chain.push({ p: "zhipu", key: KEYS.zhipu, m: "glm-4-plus", ctx: 128e3, cost: 0.07, note: "GLM-4-Plus -- Simon pick" });
     if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 64e3, cost: 0.14, note: "DeepSeek V3" });
     if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128e3, cost: 3, note: "Cohere R+" });
-    if (KEYS.cerebras && KEYS.cerebras.length > 0) chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "llama-3.3-70b", ctx: 8192, cost: 0, note: "Cerebras Llama 70B -- fast fallback" });
+    if (KEYS.cerebras && KEYS.cerebras.length > 0) chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "llama3.3-70b", ctx: 8192, cost: 0, note: "Cerebras Llama 70B -- fast fallback" });
     if (KEYS.groq && KEYS.groq.length > 0) chain.push({ p: "groq", key: KEYS.groq[0], m: "llama-3.3-70b-versatile", ctx: 32768, cost: 0, note: "Groq Llama 70B -- fast fallback" });
     if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "mistralai/Mistral-7B-Instruct-v0.3", ctx: 32768, cost: 0.1, note: "Mistral 7B via Together" });
     if (KEYS.sambanova) chain.push({ p: "sambanova", key: KEYS.sambanova, m: "Meta-Llama-3.3-70B-Instruct", ctx: 8192, cost: 0, note: "SambaNova free" });
