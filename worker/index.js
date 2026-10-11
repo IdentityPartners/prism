@@ -1341,7 +1341,7 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     // Kimi — new paid key
     kimi: k(["kimi_api_key","KIMI_API_KEY"]),
     // Mistral — new key 2026-10-11
-    mistral: k(["mistral_api_key","MISTRAL_API_KEY","mistral_new_key","MISTRAL_NEW_KEY"]),
+    mistral: k(["mistral_api_key","MISTRAL_API_KEY"]),  // new key added via ADD_NEW_KEYS.cmd
     // Cohere — free + paid, v2 API
     cohere: k(["cohere_api_key","COHERE_API_KEY"]),
     cohere_paid: k(["cohere_paid_key","cohere_F1cbQGH0glbNU3cUb3gwtu0m4Xli4azAn0p8uyw42GtbM0"]),
@@ -1360,8 +1360,12 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     nvidia2: k(["nvidia_build_api_key_2"]),
     // xAI
     xai: k(["xai_api_key"]),
-    // Z.AI (ZhipuAI / GLM-4) — key needs regeneration
-    zai: k(["zai_api_key","ZAI_API_KEY","zhipu_api_key","ZHIPU_API_KEY"]),
+    // ZhipuAI GLM — JWT auth, key format: id.secret
+    glm: k(["zhipu_api_key","ZHIPU_API_KEY","zai_api_key","ZAI_API_KEY","glm_api_key","GLM_API_KEY"]),
+    // xAI Grok — real-time X/Twitter data
+    xai: k(["xai_api_key","XAI_API_KEY"]),
+    // Perplexity Sonar — built-in web search
+    perplexity: k(["perplexity","perplexity_api_key","PERPLEXITY_API_KEY"]),
     // OpenRouter
     openrouter: k(["openrouter_api_key","OPENROUTER_API_KEY"]),
     // HuggingFace
@@ -1470,6 +1474,13 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     // Tier 7: OpenRouter as fallback (not first — it was winning by default)
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 1000000, out: 8192, note: "OpenRouter DeepSeek -- fallback" });
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "google/gemma-3-27b-it:free", ctx: 131072, out: 8192, note: "OpenRouter Gemma 3 free" });
+    // GLM thinking models (free, JWT auth)
+    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.5-flash", ctx: 128000, out: 8192, note: "GLM-4.5-flash -- thinking, free" });
+    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.7-flash", ctx: 128000, out: 8192, note: "GLM-4.7-flash -- thinking, free" });
+    // xAI Grok (real-time X data)
+    if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-3-fast", ctx: 131072, out: 8192, note: "Grok-3-fast -- real-time X data" });
+    // Perplexity Sonar (built-in web search — use instead of Tavily for search queries)
+    if (KEYS.perplexity) chain.push({ p: "perplexity", key: KEYS.perplexity, m: "sonar", ctx: 127000, out: 8192, note: "Perplexity Sonar -- built-in web search" });
     if (KEYS.zai) chain.push({ p: "zai", key: KEYS.zai, m: "glm-4-plus", ctx: 128000, out: 8192, note: "Z.AI GLM-4-Plus -- when key active" });
   }
 
@@ -1724,7 +1735,7 @@ async function callProvider(env, provider, key, model, messages) {
       var content2 = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
       return { role: m.role === "user" ? "user" : "model", parts: [{ text: content2 }] };
     });
-    var geminiBody = { contents: geminiMessages, generationConfig: { maxOutputTokens: 8192, temperature: 0.7 } };
+    var geminiBody = { contents: geminiMessages, generationConfig: { maxOutputTokens: 8192, temperature: 0.7, thinkingConfig: { thinkingBudget: 0 } } };
     if (system) geminiBody.systemInstruction = { parts: [{ text: system }] };
     var isAIStudioKey = key && key.startsWith("AQ.");
     var geminiUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent" + (isAIStudioKey ? "" : "?key=" + key);
@@ -1771,20 +1782,70 @@ async function callProvider(env, provider, key, model, messages) {
     if (!kieContent) throw new Error("No content from KIE.ai");
     return { content: kieContent };
   }
-  if (provider === "zai") {
-    // Z.AI (ZhipuAI) — OpenAI-compatible endpoint
-    var r = await fetch("https://api.z.ai/api/v1/chat/completions", {
+  if (provider === "glm") {
+    // ZhipuAI GLM — requires JWT auth (key format: id.secret)
+    var glmParts = key.split(".");
+    var glmJwt = key; // fallback: use as-is
+    if (glmParts.length === 2) {
+      try {
+        var glmKid = glmParts[0];
+        var glmSecret = glmParts[1];
+        var glmHeader = btoa(JSON.stringify({"alg":"HS256","sign_type":"SIGN"})).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
+        var glmNow = Date.now();
+        var glmPayload = btoa(JSON.stringify({"api_key":glmKid,"exp":glmNow+3600000,"timestamp":glmNow})).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
+        var glmMsg = glmHeader + "." + glmPayload;
+        // HMAC-SHA256 using Web Crypto (available in CF Workers)
+        var glmKeyData = await crypto.subtle.importKey("raw", new TextEncoder().encode(glmSecret), {name:"HMAC",hash:"SHA-256"}, false, ["sign"]);
+        var glmSig = await crypto.subtle.sign("HMAC", glmKeyData, new TextEncoder().encode(glmMsg));
+        var glmSigB64 = btoa(String.fromCharCode(...new Uint8Array(glmSig))).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
+        glmJwt = glmMsg + "." + glmSigB64;
+      } catch(jwtErr) { /* use key as-is */ }
+    }
+    var r = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + glmJwt, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: model, messages: messages, max_tokens: 8192, temperature: 0.7 })
+    });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error("GLM " + r.status + ": " + e.substring(0, 100));
+    }
+    var d = await r.json();
+    var content = d.choices && d.choices[0] && d.choices[0].message &&
+      (d.choices[0].message.content || d.choices[0].message.reasoning_content);
+    if (!content) throw new Error("No content from GLM");
+    return { content };
+  }
+  if (provider === "xai") {
+    // xAI Grok — real-time X/Twitter data, web search
+    var r = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
       body: JSON.stringify({ model: model, messages: messages, max_tokens: 8192, temperature: 0.7 })
     });
     if (!r.ok) {
       var e = await r.text();
-      throw new Error("Z.AI " + r.status + ": " + e.substring(0, 100));
+      throw new Error("xAI " + r.status + ": " + e.substring(0, 100));
     }
     var d = await r.json();
     var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
-    if (!content) throw new Error("No content from Z.AI");
+    if (!content) throw new Error("No content from xAI");
+    return { content };
+  }
+  if (provider === "perplexity") {
+    // Perplexity Sonar — has built-in web search, no Tavily needed
+    var r = await fetch("https://api.perplexity.ai/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: model, messages: messages, max_tokens: 8192, temperature: 0.7 })
+    });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error("Perplexity " + r.status + ": " + e.substring(0, 100));
+    }
+    var d = await r.json();
+    var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+    if (!content) throw new Error("No content from Perplexity");
     return { content };
   }
     if (provider === "pollinations") {
@@ -2459,7 +2520,20 @@ var index_default = {
             for (var wsi = messages.length - 1; wsi >= 0; wsi--) {
               if (messages[wsi].role === "user") { lastUserForSearch = (messages[wsi].content || "").substring(0, 300); break; }
             }
-            var needsSearch = lastUserForSearch.length > 10 && /\b(latest|recent|today|current|news|2024|2025|2026|who is|what is|when did|where is|how much|price|cost|weather|score|result|update|announce|release|launch|find|search|look up|this week|past week|last week)\b/i.test(lastUserForSearch);
+            var needsSearch = lastUserForSearch.length > 10 && /\b(latest|recent|today|current|news|2024|2025|2026|who is|what is|when did|where is|how much|price|cost|weather|score|result|update|announce|release|launch|find|search|look up|this week|past week|last week|yesterday|this month|this year)\b/i.test(lastUserForSearch);
+            // If Perplexity is available, route search queries directly to Sonar (has built-in web search)
+            var perplexityKey = env.perplexity || env.perplexity_api_key || env.PERPLEXITY_API_KEY;
+            if (needsSearch && perplexityKey && !providerOverride) {
+              try {
+                var pplxResult = await Promise.race([
+                  callProvider(env, "perplexity", perplexityKey, "sonar", messages),
+                  new Promise(function(_, rej) { setTimeout(function() { rej(new Error("pplx timeout")); }, 8000); })
+                ]);
+                if (pplxResult && pplxResult.content) {
+                  return json({ content: pplxResult.content, provider: "perplexity", model: "sonar", routingLog: ["perplexity/sonar: OK (web search)"] }, 200, origin);
+                }
+              } catch(pplxErr) { /* fall through to normal chain */ }
+            }
             if (needsSearch) {
               var tavilyKey = env.tavily_api_key || env.TAVILY_API_KEY || env.TAVILY_PAID_1;
               if (tavilyKey) {
