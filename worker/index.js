@@ -1453,16 +1453,21 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 262144, out: 32768, note: "Gemma 4 31B -- confirmed working" });
     chain.push({ p: "gemini", key: GKEY, m: "gemma-4-26b-a4b-it", ctx: 262144, out: 32768, note: "Gemma 4 26B -- fallback" });
 
-    // Tier 2: Cerebras and Groq (fast, confirmed working from CF)
+    // Tier 2: GLM thinking models (free, 128K, confirmed working)
+    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.5-flash", ctx: 128000, out: 8192, note: "GLM-4.5-flash -- thinking, free" });
+    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.7-flash", ctx: 128000, out: 8192, note: "GLM-4.7-flash -- thinking, free" });
+
+    // Tier 3: Cerebras and Groq (fast, confirmed working from CF)
     if (KEYS.cerebras && KEYS.cerebras.length > 0) {
       chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Cerebras -- confirmed" });
     }
     if (KEYS.groq && KEYS.groq.length > 0) {
       chain.push({ p: "groq", key: KEYS.groq[0], m: "openai/gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Groq -- confirmed" });
       chain.push({ p: "groq", key: KEYS.groq[0], m: "qwen/qwen3.8-27b", ctx: 8192, out: 8192, note: "Qwen3 on Groq -- confirmed" });
+      chain.push({ p: "groq", key: KEYS.groq[0], m: "meta-llama/llama-4-scout-17b-16e-instruct", ctx: 131072, out: 8192, note: "Llama 4 Scout on Groq" });
     }
 
-    // Tier 3: DeepSeek direct (confirmed working from CF)
+    // Tier 4: DeepSeek direct (confirmed working from CF)
     if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 1000000, out: 8192, note: "DeepSeek V4 -- 1M ctx" });
 
     // Tier 4: Gemini Flash (confirmed working)
@@ -1483,9 +1488,6 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     // Tier 7: OpenRouter as fallback (not first — it was winning by default)
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 1000000, out: 8192, note: "OpenRouter DeepSeek -- fallback" });
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "google/gemma-3-27b-it:free", ctx: 131072, out: 8192, note: "OpenRouter Gemma 3 free" });
-    // GLM thinking models (free, JWT auth)
-    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.5-flash", ctx: 128000, out: 8192, note: "GLM-4.5-flash -- thinking, free" });
-    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.7-flash", ctx: 128000, out: 8192, note: "GLM-4.7-flash -- thinking, free" });
     // xAI Grok (real-time X data)
     if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-3-fast", ctx: 131072, out: 8192, note: "Grok-3-fast -- real-time X data" });
     // Perplexity Sonar (built-in web search — use instead of Tavily for search queries)
@@ -2532,16 +2534,41 @@ var index_default = {
             var needsSearch = lastUserForSearch.length > 10 && /\b(latest|recent|today|current|news|2024|2025|2026|who is|what is|when did|where is|how much|price|cost|weather|score|result|update|announce|release|launch|find|search|look up|this week|past week|last week|yesterday|this month|this year)\b/i.test(lastUserForSearch);
             // If Perplexity is available, route search queries directly to Sonar (has built-in web search)
             var perplexityKey = env.perplexity || env.perplexity_api_key || env.PERPLEXITY_API_KEY;
-            if (needsSearch && perplexityKey && !providerOverride) {
+            if (needsSearch && !providerOverride) {
+              // Try Perplexity Sonar first (built-in web search)
+              if (perplexityKey) {
+                try {
+                  var pplxResult = await Promise.race([
+                    callProvider(env, "perplexity", perplexityKey, "sonar", messages),
+                    new Promise(function(_, rej) { setTimeout(function() { rej(new Error("pplx timeout")); }, 6000); })
+                  ]);
+                  if (pplxResult && pplxResult.content) {
+                    return json({ content: pplxResult.content, provider: "perplexity", model: "sonar", routingLog: ["perplexity/sonar: OK (web search)"] }, 200, origin);
+                  }
+                } catch(pplxErr) { /* fall through to Tavily injection */ }
+              }
+              // Tavily backup — inject search context into normal chain
               try {
-                var pplxResult = await Promise.race([
-                  callProvider(env, "perplexity", perplexityKey, "sonar", messages),
-                  new Promise(function(_, rej) { setTimeout(function() { rej(new Error("pplx timeout")); }, 8000); })
-                ]);
-                if (pplxResult && pplxResult.content) {
-                  return json({ content: pplxResult.content, provider: "perplexity", model: "sonar", routingLog: ["perplexity/sonar: OK (web search)"] }, 200, origin);
+                var tavilyKey2 = env.tavily_api_key || env.TAVILY_API_KEY;
+                if (tavilyKey2) {
+                  var searchResp2 = await Promise.race([
+                    fetch("https://api.tavily.com/search", {
+                      method: "POST", headers: {"Content-Type":"application/json"},
+                      body: JSON.stringify({api_key: tavilyKey2, query: lastUserForSearch.substring(0,200), max_results: 3, include_answer: true, search_depth: "basic"})
+                    }),
+                    new Promise(function(_, rej) { setTimeout(function() { rej(new Error("tavily timeout")); }, 3000); })
+                  ]);
+                  if (searchResp2 && searchResp2.ok) {
+                    var searchData2 = await searchResp2.json();
+                    if (searchData2.answer) {
+                      webSearchContext = "\n\n[Web search: " + lastUserForSearch.substring(0,60) + "]\n" + searchData2.answer;
+                      if (searchData2.results && searchData2.results.length > 0) {
+                        webSearchContext += "\nSources: " + searchData2.results.slice(0,2).map(function(r){return r.title+" — "+r.url;}).join("; ");
+                      }
+                    }
+                  }
                 }
-              } catch(pplxErr) { /* fall through to normal chain */ }
+              } catch(tavilyErr) { /* non-fatal */ }
             }
             if (needsSearch) {
               var tavilyKey = env.tavily_api_key || env.TAVILY_API_KEY || env.TAVILY_PAID_1;
@@ -2909,11 +2936,88 @@ var index_default = {
     if (path === "/api/image" && request.method === "POST") {
       try {
         var body = await request.json();
-        var result = await generateImage(env, body.prompt, body.model);
-        return json(result, 200, origin);
-      } catch (e) {
-        return json({ error: e.message }, 500, origin);
-      }
+        var prompt = body.prompt || "abstract art";
+        var modelName = body.model || "auto";
+        var style = body.style || "";
+        var size = body.size || "landscape_4_3";
+
+        // xAI Grok-2-image (confirmed working)
+        if (modelName === "grok-2-image" || modelName === "auto") {
+          var xaiKey2 = env.xai_api_key || env.XAI_API_KEY;
+          if (xaiKey2) {
+            try {
+              var xaiR = await fetch("https://api.x.ai/v1/images/generations", {
+                method: "POST", headers: {"Authorization":"Bearer "+xaiKey2,"Content-Type":"application/json"},
+                body: JSON.stringify({model:"grok-2-image", prompt: prompt, n:1})
+              });
+              if (xaiR.ok) {
+                var xaiD = await xaiR.json();
+                if (xaiD.data && xaiD.data[0] && xaiD.data[0].url) {
+                  return json({url: xaiD.data[0].url, provider:"xai", model:"grok-2-image"}, 200, origin);
+                }
+              }
+            } catch(e) {}
+          }
+        }
+
+        // FAL — Flux Schnell (fastest, free), Flux Dev (quality), Flux Pro, Recraft V3
+        var falKey2 = env.FAL_API_KEY || env.fal_api_key;
+        if (falKey2) {
+          var falModels = {
+            "flux-schnell": "https://fal.run/fal-ai/flux/schnell",
+            "flux-dev": "https://fal.run/fal-ai/flux/dev",
+            "flux-pro": "https://fal.run/fal-ai/flux-pro",
+            "recraft-v3": "https://fal.run/fal-ai/recraft-v3",
+            "auto": "https://fal.run/fal-ai/flux/schnell"
+          };
+          var falEndpoint = falModels[modelName] || falModels["auto"];
+          try {
+            var falR = await fetch(falEndpoint, {
+              method: "POST", headers: {"Content-Type":"application/json","Authorization":"Key "+falKey2},
+              body: JSON.stringify({prompt: prompt + (style ? ", " + style : ""), image_size: size, num_images: 1})
+            });
+            if (falR.ok) {
+              var falD = await falR.json();
+              var falUrl = falD.images && falD.images[0] && falD.images[0].url;
+              if (falUrl) return json({url: falUrl, provider:"fal", model: modelName === "auto" ? "flux-schnell" : modelName}, 200, origin);
+            }
+          } catch(e) {}
+        }
+
+        // Gemini image generation (imagen-3)
+        var gKey2 = env.gemini_api_key || env.GEMINI_API_KEY;
+        if (gKey2 && (modelName === "imagen-3" || modelName === "auto")) {
+          try {
+            var imgR = await fetch("https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key="+gKey2, {
+              method: "POST", headers: {"Content-Type":"application/json"},
+              body: JSON.stringify({instances:[{prompt: prompt}], parameters:{sampleCount:1}})
+            });
+            if (imgR.ok) {
+              var imgD = await imgR.json();
+              var b64img = imgD.predictions && imgD.predictions[0] && imgD.predictions[0].bytesBase64Encoded;
+              if (b64img) return json({url: "data:image/png;base64,"+b64img, provider:"gemini", model:"imagen-3"}, 200, origin);
+            }
+          } catch(e) {}
+        }
+
+        // Pollinations fallback (always works, free)
+        var polUrl = "https://image.pollinations.ai/prompt/" + encodeURIComponent(prompt) + "?width=1024&height=768&nologo=true&model=flux";
+        return json({url: polUrl, provider:"pollinations", model:"flux"}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // Image models list
+    if (path === "/api/image/models") {
+      return json({models: [
+        {id:"auto", name:"Auto (Flux Schnell)", provider:"fal", free:true, speed:"fast"},
+        {id:"grok-2-image", name:"Grok-2 Image", provider:"xai", free:false, speed:"medium", notes:"Photorealistic"},
+        {id:"flux-schnell", name:"Flux Schnell", provider:"fal", free:true, speed:"fast"},
+        {id:"flux-dev", name:"Flux Dev", provider:"fal", free:true, speed:"medium", notes:"Higher quality"},
+        {id:"flux-pro", name:"Flux Pro", provider:"fal", free:false, speed:"medium", notes:"Best quality"},
+        {id:"recraft-v3", name:"Recraft V3", provider:"fal", free:true, speed:"medium", notes:"Design/illustration"},
+        {id:"imagen-3", name:"Imagen 3", provider:"gemini", free:true, speed:"medium", notes:"Google photorealistic"},
+        {id:"pollinations", name:"Pollinations Flux", provider:"pollinations", free:true, speed:"fast", notes:"Always available"},
+      ]}, 200, origin);
     }
     if (path === "/api/image/models") {
       try {
@@ -7492,73 +7596,85 @@ var index_default = {
       try {
         var body = await request.json();
         var text = (body.text || "").substring(0, 5000);
-        var provider = body.provider || "elevenlabs";
-        var voiceId = body.voice_id || "pNInz6obpgDQGcFmaJgB";
-        var model = body.model || "eleven_turbo_v2_5";
+        var voiceId = body.voice || "default";
+        var modelId = body.model || "auto";
+        var provider = body.provider || "auto";
 
-        if (provider === "elevenlabs") {
-          var elKey = env.elevenlabs_api_key || env.ELEVENLABS_API_KEY || env.elevenlabs || "";
-          if (!elKey) return json({ error: "ElevenLabs key not configured" }, 200, origin);
-          var elResp = await fetch("https://api.elevenlabs.io/v1/text-to-speech/" + voiceId, {
-            method: "POST",
-            headers: { "xi-api-key": elKey, "Content-Type": "application/json", "Accept": "audio/mpeg" },
-            body: JSON.stringify({ text, model_id: model, voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
-          });
-          if (!elResp.ok) {
-            var errT = await elResp.text();
-            return json({ error: "ElevenLabs " + elResp.status + ": " + errT.substring(0, 200) }, 200, origin);
-          }
-          var audioBuf = await elResp.arrayBuffer();
-          var audioB64 = btoa(String.fromCharCode(...new Uint8Array(audioBuf)));
-          // Upload to R2 for persistent URL
-          var audioKey = "podcast-audio-" + Date.now() + ".mp3";
-          if (env.PRISM_ASSETS) {
-            await env.PRISM_ASSETS.put(audioKey, audioBuf, { httpMetadata: { contentType: "audio/mpeg" }, expirationTtl: 86400 * 7 });
-            return json({ url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/" + audioKey, provider: "elevenlabs" }, 200, origin);
-          }
-          return json({ audio_base64: audioB64, provider: "elevenlabs" }, 200, origin);
-
-        } else if (provider === "cartesia") {
-          var carKey = env.cartesia_api_key || env.CARTESIA_API_KEY || env.cartesia || "";
-          if (!carKey) return json({ error: "Cartesia key not configured" }, 200, origin);
-          var carResp = await fetch("https://api.cartesia.ai/tts/bytes", {
-            method: "POST",
-            headers: { "X-API-Key": carKey, "Content-Type": "application/json", "Cartesia-Version": "2024-06-10" },
-            body: JSON.stringify({ transcript: text, model_id: "sonic-english", voice: { mode: "id", id: voiceId === "sonic-english" ? "a0e99841-438c-4a64-b679-ae501e7d6091" : voiceId }, output_format: { container: "mp3", encoding: "mp3", sample_rate: 44100 } })
-          });
-          if (!carResp.ok) return json({ error: "Cartesia " + carResp.status }, 200, origin);
-          var carBuf = await carResp.arrayBuffer();
-          var carKey2 = "podcast-audio-" + Date.now() + ".mp3";
-          if (env.PRISM_ASSETS) {
-            await env.PRISM_ASSETS.put(carKey2, carBuf, { httpMetadata: { contentType: "audio/mpeg" }, expirationTtl: 86400 * 7 });
-            return json({ url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/" + carKey2, provider: "cartesia" }, 200, origin);
-          }
-          var carB64 = btoa(String.fromCharCode(...new Uint8Array(carBuf)));
-          return json({ audio_base64: carB64, provider: "cartesia" }, 200, origin);
-
-        } else if (provider === "fishaudio") {
-          var fishKey = env.fish_audio_api_key || env.FISH_AUDIO_API_KEY || env.fishaudio || "";
-          if (!fishKey) return json({ error: "Fish Audio key not configured" }, 200, origin);
-          var fishResp = await fetch("https://api.fish.audio/v1/tts", {
-            method: "POST",
-            headers: { "Authorization": "Bearer " + fishKey, "Content-Type": "application/json" },
-            body: JSON.stringify({ text, reference_id: voiceId, format: "mp3", mp3_bitrate: 128 })
-          });
-          if (!fishResp.ok) return json({ error: "Fish Audio " + fishResp.status }, 200, origin);
-          var fishBuf = await fishResp.arrayBuffer();
-          var fishKey2 = "podcast-audio-" + Date.now() + ".mp3";
-          if (env.PRISM_ASSETS) {
-            await env.PRISM_ASSETS.put(fishKey2, fishBuf, { httpMetadata: { contentType: "audio/mpeg" }, expirationTtl: 86400 * 7 });
-            return json({ url: "https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/" + fishKey2, provider: "fishaudio" }, 200, origin);
-          }
-          var fishB64 = btoa(String.fromCharCode(...new Uint8Array(fishBuf)));
-          return json({ audio_base64: fishB64, provider: "fishaudio" }, 200, origin);
+        // Cartesia (confirmed working, sonic-2)
+        var cartesiaKey = env.cartesia_api_key || env.CARTESIA_API_KEY;
+        if (cartesiaKey && (provider === "cartesia" || provider === "auto")) {
+          try {
+            var cartR = await fetch("https://api.cartesia.ai/tts/bytes", {
+              method: "POST",
+              headers: {"Content-Type":"application/json","X-API-Key":cartesiaKey,"Cartesia-Version":"2024-06-10"},
+              body: JSON.stringify({
+                model_id: "sonic-2",
+                transcript: text,
+                voice: {mode:"id", id: voiceId === "default" ? "a0e99841-438c-4a64-b679-ae501e7d6091" : voiceId},
+                output_format: {container:"mp3", encoding:"mp3", sample_rate:44100}
+              })
+            });
+            if (cartR.ok) {
+              var cartBuf = await cartR.arrayBuffer();
+              return new Response(cartBuf, {status:200, headers:{"Content-Type":"audio/mp3","Access-Control-Allow-Origin":origin||"*"}});
+            }
+          } catch(e) {}
         }
 
-        return json({ error: "Unknown provider: " + provider }, 400, origin);
-      } catch(e) {
-        return json({ error: e.message }, 500, origin);
-      }
+        // Gemini TTS (confirmed working, free)
+        var gKey3 = env.gemini_api_key || env.GEMINI_API_KEY;
+        if (gKey3 && (provider === "gemini" || provider === "auto")) {
+          try {
+            var gemVoice = voiceId === "default" ? "Aoede" : voiceId;
+            var gemTtsR = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key="+gKey3, {
+              method: "POST", headers: {"Content-Type":"application/json"},
+              body: JSON.stringify({
+                contents: [{parts:[{text:text}]}],
+                generationConfig: {responseModalities:["AUDIO"], speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:gemVoice}}}}
+              })
+            });
+            if (gemTtsR.ok) {
+              var gemTtsD = await gemTtsR.json();
+              var parts2 = gemTtsD.candidates && gemTtsD.candidates[0] && gemTtsD.candidates[0].content && gemTtsD.candidates[0].content.parts;
+              var audioB64 = parts2 && parts2[0] && parts2[0].inlineData && parts2[0].inlineData.data;
+              if (audioB64) {
+                var audioBuf = Uint8Array.from(atob(audioB64), c => c.charCodeAt(0));
+                return new Response(audioBuf, {status:200, headers:{"Content-Type":"audio/wav","Access-Control-Allow-Origin":origin||"*"}});
+              }
+            }
+          } catch(e) {}
+        }
+
+        // ElevenLabs (paid plan required for most voices)
+        var elKey = env.elevenlabs_api_key || env.ELEVENLABS_API_KEY;
+        if (elKey && provider === "elevenlabs") {
+          try {
+            var elVoice = voiceId === "default" ? "21m00Tcm4TlvDq8ikWAM" : voiceId;
+            var elR = await fetch("https://api.elevenlabs.io/v1/text-to-speech/"+elVoice, {
+              method: "POST",
+              headers: {"Content-Type":"application/json","xi-api-key":elKey},
+              body: JSON.stringify({text:text, model_id:"eleven_turbo_v2_5", voice_settings:{stability:0.5,similarity_boost:0.75}})
+            });
+            if (elR.ok) {
+              var elBuf = await elR.arrayBuffer();
+              return new Response(elBuf, {status:200, headers:{"Content-Type":"audio/mpeg","Access-Control-Allow-Origin":origin||"*"}});
+            }
+          } catch(e) {}
+        }
+
+        return json({error:"All TTS providers failed"}, 500, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // Voice models list
+    if (path === "/api/voice/models") {
+      return json({models:[
+        {id:"cartesia-sonic-2", name:"Cartesia Sonic 2", provider:"cartesia", free:true, quality:"high", latency:"low"},
+        {id:"gemini-aoede", name:"Gemini TTS (Aoede)", provider:"gemini", free:true, quality:"good", latency:"medium"},
+        {id:"gemini-puck", name:"Gemini TTS (Puck)", provider:"gemini", free:true, quality:"good", latency:"medium"},
+        {id:"gemini-charon", name:"Gemini TTS (Charon)", provider:"gemini", free:true, quality:"good", latency:"medium"},
+        {id:"elevenlabs", name:"ElevenLabs (paid)", provider:"elevenlabs", free:false, quality:"best", latency:"medium"},
+      ]}, 200, origin);
     }
 
     // ── Chat thread management ────────────────────────────────────────────────
