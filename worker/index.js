@@ -1385,83 +1385,93 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     if (messages[mi].role === "user") { lastMsg = messages[mi].content || ""; break; }
   }
   var msgLen = lastMsg.length;
-  var detectedIntent = intent || "chat";
   var isMultimodal = profile === "multimodal";
   var isLongContext = msgLen > 50000 || profile === "frontier";
   var isReasoning = profile === "reasoning" || /\b(reason through|analyse in depth|evaluate critically|compare and contrast|formal logic|proof|deduce)\b/i.test(lastMsg);
+  var isFast = profile === "fast";
 
-  var GKEY = KEYS.google || "";
+  // Confirmed working models (tested 2026-10-11):
+  // ✓ Gemma 4 31B (Google AI Studio key)
+  // ✓ Gemini 3.8 Flash, gemini-flash-latest (Google AI Studio key)
+  // ✓ DeepSeek V4 direct (deepseek_paid key) — sandbox blocked but works from CF
+  // ✓ OpenRouter/DeepSeek (openrouter key)
+  // ✓ Cerebras GPT-OSS (cerebras_paid) — sandbox blocked but works from CF
+  // ✓ Groq GPT-OSS, Qwen3 (groq keys) — sandbox blocked but works from CF
+  // ✓ Cohere Command R+ (cohere_api_key, v2 API)
+  // ✗ Mistral Large — 401 invalid key (needs new key)
+  // ✗ NVIDIA Nemotron — 502 (unstable, removed)
+  // ✗ Gemini 2.5 Flash, 2.0 Flash — 404 retired
+  // ✗ Kimi — 401 invalid key (needs new key)
+
+  var GKEY = env.gemini_api_key || env.GEMINI_API_KEY || env.google_ai_key || env.GOOGLE_AI_KEY || "";
 
   if (isMultimodal) {
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.1-flash-image", ctx: 65536, out: 65536, cost: 0, note: "Gemini 3.1 Flash Image -- vision" });
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-2.5-flash-image", ctx: 32768, out: 32768, cost: 0, note: "Gemini 2.5 Flash Image -- vision" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 262144, out: 32768, note: "Gemma 4 31B -- vision capable" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, note: "Gemini Flash -- vision" });
   }
 
-  if (isReasoning) {
-    if (KEYS.nvidia) chain.push({ p: "nvidia", key: KEYS.nvidia, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128000, out: 4096, cost: 0, note: "Nemotron Ultra 253B -- best reasoning" });
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.1-pro-preview", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.1 Pro -- reasoning" });
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-2.5-pro", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 2.5 Pro -- reasoning" });
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 1000000, out: 8192, cost: 0.14, note: "DeepSeek V4 Flash -- 1M ctx reasoning" });
-    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 1000000, out: 8192, cost: 0, note: "DeepSeek V4 via OpenRouter" });
-    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-latest", ctx: 128000, out: 8192, cost: 2, note: "Mistral Large -- reasoning" });
-  } else if (isLongContext) {
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 1000000, out: 8192, cost: 0.14, note: "DeepSeek V4 Flash -- 1M ctx" });
-    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 1000000, out: 8192, cost: 0, note: "DeepSeek via OpenRouter -- 1M ctx" });
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.8 Flash -- 1M ctx" });
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.5-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.5 Flash -- 1M ctx" });
-    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-128k", ctx: 128000, out: 4096, cost: 0.12, note: "Kimi 128K" });
-  } else {
-    // ── BALANCED DEFAULT — Gemma top (Simon's preference), then DeepSeek 1M, then rest ──
-
-    // Tier 1: Gemma 4 (free, good quality, Simon's top pick)
-    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 262144, out: 32768, cost: 0, note: "Gemma 4 31B -- free, Simon top pick" });
-    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-26b-a4b-it", ctx: 262144, out: 32768, cost: 0, note: "Gemma 4 26B -- free" });
-
-    // Tier 2: DeepSeek V4 Flash (1M context, excellent quality)
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 1000000, out: 8192, cost: 0.14, note: "DeepSeek V4 Flash -- 1M ctx" });
-    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 1000000, out: 8192, cost: 0, note: "DeepSeek V4 via OpenRouter -- free, 1M ctx" });
-
-    // Tier 3: NVIDIA Nemotron Ultra (free, excellent)
-    if (KEYS.nvidia) chain.push({ p: "nvidia", key: KEYS.nvidia, m: "nvidia/llama-3.1-nemotron-ultra-253b-v1", ctx: 128000, out: 4096, cost: 0, note: "Nemotron Ultra 253B -- free, excellent" });
-
-    // Tier 4: Gemini Flash (free, 1M context)
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.8 Flash -- free, 1M ctx" });
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.5-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.5 Flash -- free, 1M ctx" });
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, cost: 0, note: "Gemini Flash latest -- free" });
-
-    // Tier 5: Mistral Large (confirmed working)
-    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-latest", ctx: 128000, out: 8192, cost: 2, note: "Mistral Large -- confirmed working" });
-
-    // Tier 6: Cerebras (confirmed working)
+  if (isFast) {
+    // Fast profile: Cerebras and Groq first
     if (KEYS.cerebras && KEYS.cerebras.length > 0) {
-      chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "gpt-oss-120b", ctx: 8192, out: 8192, cost: 0, note: "GPT-OSS 120B on Cerebras -- confirmed working" });
+      chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Cerebras -- fast" });
     }
-
-    // Tier 7: Groq (confirmed working)
     if (KEYS.groq && KEYS.groq.length > 0) {
-      chain.push({ p: "groq", key: KEYS.groq[0], m: "openai/gpt-oss-120b", ctx: 8192, out: 8192, cost: 0, note: "GPT-OSS 120B on Groq -- confirmed working" });
-      chain.push({ p: "groq", key: KEYS.groq[0], m: "qwen/qwen3.8-27b", ctx: 8192, out: 8192, cost: 0, note: "Qwen3 on Groq -- confirmed working" });
+      chain.push({ p: "groq", key: KEYS.groq[0], m: "openai/gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Groq -- fast" });
+      chain.push({ p: "groq", key: KEYS.groq[0], m: "qwen/qwen3.8-27b", ctx: 8192, out: 8192, note: "Qwen3 on Groq -- fast" });
+    }
+    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 262144, out: 32768, note: "Gemma 4 31B -- fast fallback" });
+  } else if (isReasoning) {
+    // Reasoning profile: DeepSeek first (best reasoning), then Gemma
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 1000000, out: 8192, note: "DeepSeek V4 -- 1M ctx reasoning" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 262144, out: 32768, note: "Gemma 4 31B -- reasoning" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, note: "Gemini 3.8 Flash -- reasoning" });
+    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128000, out: 4096, note: "Cohere R+ -- reasoning" });
+  } else if (isLongContext) {
+    // Long context: DeepSeek 1M first, then Gemini 1M
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 1000000, out: 8192, note: "DeepSeek V4 -- 1M ctx" });
+    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 1000000, out: 8192, note: "DeepSeek via OpenRouter -- 1M ctx" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, note: "Gemini 3.8 Flash -- 1M ctx" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, note: "Gemini Flash -- 1M ctx" });
+  } else {
+    // BALANCED DEFAULT — confirmed working providers only, OpenRouter as fallback not first
+    // Tier 1: Gemma 4 31B (confirmed working, Simon top pick)
+    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 262144, out: 32768, note: "Gemma 4 31B -- confirmed working" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-26b-a4b-it", ctx: 262144, out: 32768, note: "Gemma 4 26B -- fallback" });
+
+    // Tier 2: Cerebras and Groq (fast, confirmed working from CF)
+    if (KEYS.cerebras && KEYS.cerebras.length > 0) {
+      chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Cerebras -- confirmed" });
+    }
+    if (KEYS.groq && KEYS.groq.length > 0) {
+      chain.push({ p: "groq", key: KEYS.groq[0], m: "openai/gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Groq -- confirmed" });
+      chain.push({ p: "groq", key: KEYS.groq[0], m: "qwen/qwen3.8-27b", ctx: 8192, out: 8192, note: "Qwen3 on Groq -- confirmed" });
     }
 
-    // Tier 8: Cohere (v2 API, confirmed working)
-    if (KEYS.cohere_paid) chain.push({ p: "cohere", key: KEYS.cohere_paid, m: "command-a-03-2025", ctx: 256000, out: 8192, cost: 2.5, note: "Cohere Command A -- paid" });
-    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128000, out: 4096, cost: 3, note: "Cohere R+ -- confirmed working" });
+    // Tier 3: DeepSeek direct (confirmed working from CF)
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 1000000, out: 8192, note: "DeepSeek V4 -- 1M ctx" });
 
-    // Tier 9: Kimi, Mistral Small, Together, Fireworks, Chutes
-    if (KEYS.kimi) chain.push({ p: "kimi", key: KEYS.kimi, m: "moonshot-v1-32k", ctx: 32000, out: 4096, cost: 0.12, note: "Kimi 32K" });
-    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-small-latest", ctx: 32000, out: 8192, cost: 0.2, note: "Mistral Small -- fast" });
-    if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "meta-llama/Llama-3.3-70B-Instruct-Turbo", ctx: 131072, out: 8192, cost: 0.18, note: "Together Llama 70B" });
-    if (KEYS.fireworks) chain.push({ p: "fireworks", key: KEYS.fireworks, m: "accounts/fireworks/models/llama-v3p3-70b-instruct", ctx: 131072, out: 8192, cost: 0.2, note: "Fireworks Llama 70B" });
-    if (KEYS.chutes) chain.push({ p: "chutes", key: KEYS.chutes, m: "deepseek-ai/DeepSeek-V3-0324", ctx: 64000, out: 8192, cost: 0, note: "Chutes DeepSeek free" });
+    // Tier 4: Gemini Flash (confirmed working)
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, note: "Gemini 3.8 Flash -- confirmed" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, note: "Gemini Flash latest -- confirmed" });
 
-    // More Gemini
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.7-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.7 Flash" });
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.6-flash", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 3.6 Flash" });
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-2.5-flash-lite", ctx: 1048576, out: 65536, cost: 0, note: "Gemini 2.5 Flash Lite" });
+    // Tier 5: Cohere (confirmed working)
+    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128000, out: 4096, note: "Cohere R+ -- confirmed" });
+    if (KEYS.cohere_paid) chain.push({ p: "cohere", key: KEYS.cohere_paid, m: "command-a-03-2025", ctx: 256000, out: 8192, note: "Cohere Command A -- paid" });
+
+    // Tier 6: Together, Fireworks, Chutes
+    if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "meta-llama/Llama-3.3-70B-Instruct-Turbo", ctx: 131072, out: 8192, note: "Together Llama 70B" });
+    if (KEYS.fireworks) chain.push({ p: "fireworks", key: KEYS.fireworks, m: "accounts/fireworks/models/llama-v3p3-70b-instruct", ctx: 131072, out: 8192, note: "Fireworks Llama 70B" });
+    if (KEYS.chutes) chain.push({ p: "chutes", key: KEYS.chutes, m: "deepseek-ai/DeepSeek-V3-0324", ctx: 64000, out: 8192, note: "Chutes DeepSeek free" });
+
+    // Tier 7: OpenRouter as fallback (not first — it was winning by default)
+    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 1000000, out: 8192, note: "OpenRouter DeepSeek -- fallback" });
+    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "google/gemma-3-27b-it:free", ctx: 131072, out: 8192, note: "OpenRouter Gemma 3 free" });
   }
 
+  // Unconditional fallback
   chain.push({ p: "pollinations", key: null, m: "openai", note: "Pollinations -- unconditional fallback" });
   chain.push({ p: "pollinations", key: null, m: "mistral", note: "Pollinations Mistral" });
+
 
 for (var ci = 0; ci < chain.length; ci++) {
     var entry = chain[ci];
