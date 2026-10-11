@@ -1600,7 +1600,7 @@ function setModelOverride(value) {
 
 // ── Multi-model mode ──────────────────────────────────────────────────────────
 var multiModelActive = false;
-var multiModelSelection = ['cerebras/llama-3.3-70b', 'deepseek/deepseek-chat', 'gemini/gemini-2.0-flash'];
+var multiModelSelection = ['gemini/gemma-4-31b-it', 'openrouter/deepseek/deepseek-chat', 'groq/openai/gpt-oss-120b'];
 
 function openMultiModelModal() {
   var existing = document.getElementById('multi-model-modal');
@@ -1611,14 +1611,18 @@ function openMultiModelModal() {
   modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:20px;z-index:9999;width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.2);font-family:Inter,sans-serif;';
   
   var models = [
-    {id:'cerebras/llama-3.3-70b', label:'Llama 3.3 70B (Cerebras)'},
-    {id:'groq/llama-3.3-70b-versatile', label:'Llama 3.3 70B (Groq)'},
-    {id:'deepseek/deepseek-chat', label:'DeepSeek V3'},
+    {id:'gemini/gemma-4-31b-it', label:'Gemma 4 31B (262K) ★'},
+    {id:'openrouter/deepseek/deepseek-chat', label:'DeepSeek V4 via OpenRouter (1M)'},
+    {id:'deepseek/deepseek-chat', label:'DeepSeek V4 direct (1M)'},
+    {id:'nvidia/nvidia/llama-3.1-nemotron-ultra-253b-v1', label:'Nemotron Ultra 253B (128K)'},
+    {id:'gemini/gemini-3.8-flash', label:'Gemini 3.8 Flash (1M)'},
+    {id:'gemini/gemini-3.5-flash', label:'Gemini 3.5 Flash (1M)'},
+    {id:'mistral/mistral-large-latest', label:'Mistral Large (128K)'},
+    {id:'cerebras/gpt-oss-120b', label:'GPT-OSS 120B on Cerebras (8K, fast)'},
+    {id:'groq/openai/gpt-oss-120b', label:'GPT-OSS 120B on Groq (8K, fast)'},
+    {id:'groq/qwen/qwen3.8-27b', label:'Qwen3 on Groq (8K, fast)'},
+    {id:'cohere/command-r-plus-08-2024', label:'Cohere Command R+ (128K)'},
     {id:'kimi/moonshot-v1-128k', label:'Kimi 128K'},
-    {id:'mistral/mistral-small-latest', label:'Mistral Small'},
-    {id:'gemini/gemini-2.5-pro', label:'Gemini 2.5 Pro'},
-    {id:'gemini/gemini-2.0-flash', label:'Gemini Flash'},
-    {id:'cohere/command-r-plus-08-2024', label:'Cohere Command R+'},
   ];
   
   modal.innerHTML = '<div style="font-weight:700;font-size:14px;margin-bottom:4px;">⚡ Multi-model mode</div>' +
