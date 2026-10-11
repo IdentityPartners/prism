@@ -1395,6 +1395,7 @@ async function orchestrate(env, messages, profile, intent, threadId) {
   var isLongContext = msgLen > 50000 || profile === "frontier";
   var isReasoning = profile === "reasoning" || /\b(reason through|analyse in depth|evaluate critically|compare and contrast|formal logic|proof|deduce)\b/i.test(lastMsg);
   var isFast = profile === "fast";
+  var isSearch = profile === "search";
 
   // Confirmed working models (tested 2026-10-11):
   // ✓ Gemma 4 31B (Google AI Studio key)
@@ -1416,7 +1417,15 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, note: "Gemini Flash -- vision" });
   }
 
-  if (isFast) {
+  if (isSearch) {
+    // Search profile: Perplexity Sonar first (built-in web search), then Grok (real-time X)
+    if (KEYS.perplexity) chain.push({ p: "perplexity", key: KEYS.perplexity, m: "sonar", ctx: 127000, out: 8192, note: "Perplexity Sonar -- built-in web search" });
+    if (KEYS.perplexity) chain.push({ p: "perplexity", key: KEYS.perplexity, m: "sonar-pro", ctx: 200000, out: 8192, note: "Perplexity Sonar Pro -- web search" });
+    if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-3", ctx: 131072, out: 8192, note: "Grok-3 -- real-time X/web data" });
+    if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-3-fast", ctx: 131072, out: 8192, note: "Grok-3-fast -- real-time X data" });
+    // Fallback to Gemma with Tavily injection
+    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 262144, out: 32768, note: "Gemma 4 31B -- search fallback" });
+  } else if (isFast) {
     // Fast profile: Cerebras and Groq first
     if (KEYS.cerebras && KEYS.cerebras.length > 0) {
       chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Cerebras -- fast" });
@@ -2315,7 +2324,7 @@ function json(data, status, origin) {
 }
 __name(json, "json");
 var DEV_TEAM_PROMPTS = {
-  pm: "You are the Programme Manager for Argentica (prism.identitypartners.uk). Worker: prism-api.identitypartners.workers.dev. Repo: IdentityPartners/prism. You coordinate the dev team and own the roadmap. RULES: Never describe actions — execute them. Use the available tools: search_web, post_to_social, generate_canvas, run_research, send_telegram, update_kv. When asked to fix something, call the appropriate tool immediately. When asked to post content, call post_to_social. When asked to research, call run_research. Never say 'I would' — do it. Never hallucinate metrics. British English. Direct, technical, concise.",
+  pm: "You are the Programme Manager for Argentica (prism.identitypartners.uk). Worker: prism-api.identitypartners.workers.dev. Repo: IdentityPartners/prism. You coordinate the dev team and own the roadmap. RULES: Never describe actions — execute them. Use the available tools: search_web, post_to_social, generate_canvas, run_research, send_telegram, update_kv, generate_image, transcribe_audio, test_provider. When asked to fix something, call the appropriate tool immediately. When asked to post content, call post_to_social. When asked to research, call run_research. When asked to generate an image, call generate_image. Never say 'I would' — do it. Never hallucinate metrics. British English. Direct, technical, concise. Routing: Gemma 4 31B → Cerebras → Groq → DeepSeek → Gemini → Mistral → Cohere → GLM → xAI → Perplexity → OpenRouter → Pollinations.",
   troubleshooter: "You are the Troubleshooter for Argentica. Diagnose and fix issues by calling tools directly. Available tools: check_worker_health, get_kv_value, set_kv_value, push_github_file, run_diagnostic. When you identify a bug, fix it immediately using push_github_file. Do not ask Simon to do anything technical. Common JS rules: var not const/let at top level, no arrow functions in onclick, use document.createElement not innerHTML with mixed quotes. British English.",
   researcher: "You are the Research Agent for Argentica. Find information and synthesise research using search_web and run_research tools. Focus on addiction, trauma, mental health, community wellbeing, social policy. When research is complete, offer to post findings via post_to_social or save to memory via save_memory. British English. Cite sources. Never hallucinate citations.",
   creator: "You are the Creator Agent for Argentica. Create content using generate_canvas, generate_voice, and post_to_social tools. Identity Partners brand: warm, professional, evidence-based, focused on addiction and mental health. When asked to create a post, generate it AND queue it via post_to_social immediately. When asked for a canvas, call generate_canvas. British English.",
