@@ -1340,8 +1340,8 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     deepseek_f1: k(["deepseek_free_1","DEEPSEEK_FREE_1"]),
     // Kimi — new paid key
     kimi: k(["kimi_api_key","KIMI_API_KEY"]),
-    // Mistral — confirmed working
-    mistral: k(["mistral_api_key","MISTRAL_API_KEY"]),
+    // Mistral — new key 2026-10-11
+    mistral: k(["mistral_api_key","MISTRAL_API_KEY","mistral_new_key","MISTRAL_NEW_KEY"]),
     // Cohere — free + paid, v2 API
     cohere: k(["cohere_api_key","COHERE_API_KEY"]),
     cohere_paid: k(["cohere_paid_key","cohere_F1cbQGH0glbNU3cUb3gwtu0m4Xli4azAn0p8uyw42GtbM0"]),
@@ -1360,6 +1360,8 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     nvidia2: k(["nvidia_build_api_key_2"]),
     // xAI
     xai: k(["xai_api_key"]),
+    // Z.AI (ZhipuAI / GLM-4) — key needs regeneration
+    zai: k(["zai_api_key","ZAI_API_KEY","zhipu_api_key","ZHIPU_API_KEY"]),
     // OpenRouter
     openrouter: k(["openrouter_api_key","OPENROUTER_API_KEY"]),
     // HuggingFace
@@ -1457,6 +1459,8 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     // Tier 5: Cohere (confirmed working)
     if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128000, out: 4096, note: "Cohere R+ -- confirmed" });
     if (KEYS.cohere_paid) chain.push({ p: "cohere", key: KEYS.cohere_paid, m: "command-a-03-2025", ctx: 256000, out: 8192, note: "Cohere Command A -- paid" });
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-latest", ctx: 128000, out: 8192, note: "Mistral Large -- confirmed working" });
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-small-latest", ctx: 32000, out: 8192, note: "Mistral Small -- fast" });
 
     // Tier 6: Together, Fireworks, Chutes
     if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "meta-llama/Llama-3.3-70B-Instruct-Turbo", ctx: 131072, out: 8192, note: "Together Llama 70B" });
@@ -1466,6 +1470,7 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     // Tier 7: OpenRouter as fallback (not first — it was winning by default)
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 1000000, out: 8192, note: "OpenRouter DeepSeek -- fallback" });
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "google/gemma-3-27b-it:free", ctx: 131072, out: 8192, note: "OpenRouter Gemma 3 free" });
+    if (KEYS.zai) chain.push({ p: "zai", key: KEYS.zai, m: "glm-4-plus", ctx: 128000, out: 8192, note: "Z.AI GLM-4-Plus -- when key active" });
   }
 
   // Unconditional fallback
@@ -1766,7 +1771,23 @@ async function callProvider(env, provider, key, model, messages) {
     if (!kieContent) throw new Error("No content from KIE.ai");
     return { content: kieContent };
   }
-  if (provider === "pollinations") {
+  if (provider === "zai") {
+    // Z.AI (ZhipuAI) — OpenAI-compatible endpoint
+    var r = await fetch("https://api.z.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: model, messages: messages, max_tokens: 8192, temperature: 0.7 })
+    });
+    if (!r.ok) {
+      var e = await r.text();
+      throw new Error("Z.AI " + r.status + ": " + e.substring(0, 100));
+    }
+    var d = await r.json();
+    var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+    if (!content) throw new Error("No content from Z.AI");
+    return { content };
+  }
+    if (provider === "pollinations") {
     var pollinationsMessages = messages.map(function(m) {
       return { role: m.role, content: m.content };
     });
