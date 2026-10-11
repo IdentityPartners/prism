@@ -2400,10 +2400,11 @@ var index_default = {
 
 
           var ragContext = "";
-          // RAG: auto-create table and query
+          // RAG: auto-create table and query — non-blocking, 2s timeout
           try {
             if (env.PRISM_D1) {
-              await env.PRISM_D1.prepare("CREATE TABLE IF NOT EXISTS rag_index (id TEXT PRIMARY KEY, title TEXT, content_preview TEXT, keywords TEXT, source_type TEXT, module TEXT, tags TEXT, created_at TEXT)").run().catch(function(){});
+              // Fire-and-forget table creation
+              env.PRISM_D1.prepare("CREATE TABLE IF NOT EXISTS rag_index (id TEXT PRIMARY KEY, title TEXT, content_preview TEXT, keywords TEXT, source_type TEXT, module TEXT, tags TEXT, created_at TEXT)").run().catch(function(){});
               var lastUserForRag = "";
               for (var rmi = messages.length - 1; rmi >= 0; rmi--) {
                 if (messages[rmi].role === "user") { lastUserForRag = (messages[rmi].content || "").substring(0, 200); break; }
@@ -2420,26 +2421,29 @@ var index_default = {
             }
           } catch(ragErr) { /* RAG non-fatal */ }
 
-          // Web search injection — for queries needing current information
+          // Web search injection — 3s timeout, truly non-blocking
           var webSearchContext = "";
           try {
             var lastUserForSearch = "";
             for (var wsi = messages.length - 1; wsi >= 0; wsi--) {
               if (messages[wsi].role === "user") { lastUserForSearch = (messages[wsi].content || "").substring(0, 300); break; }
             }
-            var needsSearch = lastUserForSearch.length > 10 && /\b(latest|recent|today|current|news|2024|2025|2026|who is|what is|when did|where is|how much|price|cost|weather|score|result|update|announce|release|launch|find|search|look up)\b/i.test(lastUserForSearch);
+            var needsSearch = lastUserForSearch.length > 10 && /\b(latest|recent|today|current|news|2024|2025|2026|who is|what is|when did|where is|how much|price|cost|weather|score|result|update|announce|release|launch|find|search|look up|this week|past week|last week)\b/i.test(lastUserForSearch);
             if (needsSearch) {
               var tavilyKey = env.tavily_api_key || env.TAVILY_API_KEY || env.TAVILY_PAID_1;
               if (tavilyKey) {
-                var searchResp = await fetch("https://api.tavily.com/search", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ api_key: tavilyKey, query: lastUserForSearch.substring(0, 200), max_results: 3, include_answer: true, search_depth: "basic" })
-                });
-                if (searchResp.ok) {
-                  var searchData = await searchResp.json();
+                var searchResult = await Promise.race([
+                  fetch("https://api.tavily.com/search", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ api_key: tavilyKey, query: lastUserForSearch.substring(0, 200), max_results: 3, include_answer: true, search_depth: "basic" })
+                  }),
+                  new Promise(function(_, rej) { setTimeout(function() { rej(new Error("search timeout")); }, 3000); })
+                ]);
+                if (searchResult && searchResult.ok) {
+                  var searchData = await searchResult.json();
                   if (searchData.answer) {
-                    webSearchContext = "\n\n[Live web search for: " + lastUserForSearch.substring(0, 60) + "]\n" + searchData.answer;
+                    webSearchContext = "\n\n[Web search: " + lastUserForSearch.substring(0, 60) + "]\n" + searchData.answer;
                     if (searchData.results && searchData.results.length > 0) {
                       webSearchContext += "\nSources: " + searchData.results.slice(0, 2).map(function(r){ return r.title + " — " + r.url; }).join("; ");
                     }
@@ -2447,7 +2451,7 @@ var index_default = {
                 }
               }
             }
-          } catch(searchErr) { /* web search non-fatal */ }
+          } catch(searchErr) { /* web search non-fatal — never blocks chat */ }
 
           var orchestratorPrompt = "You are the Orchestrator for Argentica, the personal AI operating environment of Simon Johnson / Identity Partners. " +
             "You are omnipotent within this system. You know every module, every agent, every tool, and every rule. " +
@@ -8085,6 +8089,58 @@ var index_default = {
           }
         }
 
+        return json({ results: results, synthesis: synthesis, count: results.length, successful: successful.length }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+
+    if (path === "/api/chat/multi" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var messages = body.messages || [];
+        var models = body.models || ["gemini/gemma-4-31b-it", "openrouter/deepseek/deepseek-chat", "groq/openai/gpt-oss-120b"];
+        var synthesise = body.synthesise !== false;
+        var GKEY2 = env.google_ai_key || env.GOOGLE_AI_KEY || env.gemini_api_key || "";
+        function getKeyForMulti(provider) {
+          if (provider === "gemini") return GKEY2;
+          if (provider === "deepseek") return env.deepseek_paid || env.DEEPSEEK_PAID || "";
+          if (provider === "openrouter") return env.openrouter_api_key || env.OPENROUTER_API_KEY || "";
+          if (provider === "mistral") return env.mistral_api_key || env.MISTRAL_API_KEY || "";
+          if (provider === "cerebras") return env.cerebras_paid || env.CEREBRAS_PAID || env.cerebras_free_1 || env.CEREBRAS_FREE_1 || "";
+          if (provider === "groq") return env.groq_free_1 || env.GROQ_FREE_1 || "";
+          if (provider === "cohere") return env.cohere_paid_key || env.cohere_api_key || "";
+          if (provider === "kimi") return env.kimi_api_key || env.KIMI_API_KEY || "";
+          if (provider === "nvidia") return env.nvidia_build_api_key || env.NVIDIA_BUILD_API_KEY || "";
+          return "";
+        }
+        var modelCalls = models.map(function(modelStr) {
+          var parts = modelStr.split("/");
+          var provider = parts[0];
+          var model = parts.slice(1).join("/");
+          var key = getKeyForMulti(provider);
+          return Promise.race([
+            callProvider(env, provider, key, model, messages)
+              .then(function(r) { return { model: modelStr, provider: provider, content: r.content, ok: true }; })
+              .catch(function(e) { return { model: modelStr, provider: provider, content: null, error: e.message, ok: false }; }),
+            new Promise(function(resolve) {
+              setTimeout(function() { resolve({ model: modelStr, provider: provider, content: null, error: "timeout", ok: false }); }, 20000);
+            })
+          ]);
+        });
+        var results = await Promise.all(modelCalls);
+        var successful = results.filter(function(r) { return r.ok && r.content; });
+        var synthesis = null;
+        if (synthesise && successful.length > 1) {
+          var synthPrompt = "Synthesise these " + successful.length + " AI responses to the same question. Note agreements and differences. Be concise. British English.\n\n" +
+            successful.map(function(r, i) { return "Model " + (i+1) + " (" + r.model + "):\n" + r.content.substring(0, 600); }).join("\n\n---\n\n");
+          try {
+            var synthR = await Promise.race([
+              callProvider(env, "openrouter", env.openrouter_api_key || env.OPENROUTER_API_KEY, "deepseek/deepseek-chat", [{role:"user",content:synthPrompt}]),
+              new Promise(function(_, rej) { setTimeout(function() { rej(new Error("timeout")); }, 12000); })
+            ]);
+            synthesis = synthR.content;
+          } catch(e) { synthesis = null; }
+        }
         return json({ results: results, synthesis: synthesis, count: results.length, successful: successful.length }, 200, origin);
       } catch(e) { return json({ error: e.message }, 500, origin); }
     }
