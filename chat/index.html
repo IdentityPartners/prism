@@ -477,32 +477,43 @@
 <div class="context-section-title">Model</div>
 <div class="model-info-card" onclick="openModelModal()" title="Change model or routing profile">
 <div class="model-name" id="ctx-model-name">Auto (Orchestrator)</div>
-<div class="model-provider" id="ctx-model-provider">Gemma 4 → DeepSeek → Nemotron → Gemini</div>
+<div class="model-provider" id="ctx-model-provider">Gemma 4 → Cerebras → Groq → DeepSeek → Gemini</div>
 </div>
 <select id="model-override" onchange="setModelOverride(this.value)"
   style="width:100%;margin-top:6px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;background:var(--bg);color:var(--fg);cursor:pointer;">
 <option value="">Auto (Orchestrator decides)</option>
-<optgroup label="Free — Recommended">
-  <option value="gemini/gemma-4-31b-it" title="262K context">Gemma 4 31B (262K ctx) ★</option>
-  <option value="openrouter/deepseek/deepseek-chat" title="1M context, free via OpenRouter">DeepSeek V4 via OpenRouter (1M ctx)</option>
-  <option value="gemini/gemini-3.8-flash" title="1M context">Gemini 3.8 Flash (1M ctx)</option>
-  <option value="gemini/gemini-3.5-flash" title="1M context">Gemini 3.5 Flash (1M ctx)</option>
-  <option value="nvidia/nvidia/llama-3.1-nemotron-ultra-253b-v1" title="128K context, free">Nemotron Ultra 253B (128K ctx)</option>
-  <option value="groq/openai/gpt-oss-120b" title="8K context, very fast">GPT-OSS 120B on Groq (8K ctx, fast)</option>
-  <option value="groq/qwen/qwen3.8-27b" title="8K context, fast">Qwen3 on Groq (8K ctx, fast)</option>
+<optgroup label="Free — Confirmed Working">
+  <option value="gemini/gemma-4-31b-it">Gemma 4 31B (262K) ★ top pick</option>
+  <option value="gemini/gemma-4-26b-a4b-it">Gemma 4 26B (262K)</option>
+  <option value="gemini/gemini-3.8-flash">Gemini 3.8 Flash (1M ctx)</option>
+  <option value="gemini/gemini-flash-latest">Gemini Flash latest (1M ctx)</option>
+  <option value="glm/glm-4.5-flash">GLM-4.5-flash — thinking (128K)</option>
+  <option value="glm/glm-4.7-flash">GLM-4.7-flash — thinking (128K)</option>
+  <option value="groq/openai/gpt-oss-120b">GPT-OSS 120B on Groq (8K, fast)</option>
+  <option value="groq/qwen/qwen3.8-27b">Qwen3 on Groq (8K, fast)</option>
+  <option value="groq/meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout on Groq (fast)</option>
+  <option value="groq/google/gemma-3-27b-it">Gemma 3 27B on Groq (fast)</option>
+  <option value="openrouter/deepseek/deepseek-chat">DeepSeek V4 via OpenRouter (1M)</option>
+  <option value="perplexity/sonar">Perplexity Sonar (web search built-in)</option>
 </optgroup>
 <optgroup label="Paid — High Quality">
-  <option value="deepseek/deepseek-chat" title="1M context, paid key">DeepSeek V4 Flash direct (1M ctx)</option>
-  <option value="cerebras/gpt-oss-120b" title="8K context, very fast">GPT-OSS 120B on Cerebras (8K ctx)</option>
-  <option value="mistral/mistral-large-latest" title="128K context">Mistral Large (128K ctx)</option>
-  <option value="cohere/command-r-plus-08-2024" title="128K context">Cohere Command R+ (128K ctx)</option>
-  <option value="kimi/moonshot-v1-32k" title="32K context">Kimi 32K</option>
-  <option value="kimi/moonshot-v1-128k" title="128K context">Kimi 128K</option>
+  <option value="deepseek/deepseek-chat">DeepSeek V4 direct (1M ctx)</option>
+  <option value="cerebras/gpt-oss-120b">GPT-OSS 120B on Cerebras (8K, fast)</option>
+  <option value="mistral/mistral-large-latest">Mistral Large (128K)</option>
+  <option value="mistral/mistral-medium-latest">Mistral Medium (128K)</option>
+  <option value="mistral/codestral-latest">Codestral — code specialist</option>
+  <option value="mistral/mistral-small-latest">Mistral Small (32K, fast)</option>
+  <option value="xai/grok-3">Grok-3 (real-time X data)</option>
+  <option value="xai/grok-3-fast">Grok-3-fast (real-time X, fast)</option>
+  <option value="xai/grok-3-mini">Grok-3-mini (reasoning)</option>
+  <option value="cohere/command-r-plus-08-2024">Cohere Command R+ (128K)</option>
+  <option value="kimi/moonshot-v1-128k">Kimi 128K (when key active)</option>
 </optgroup>
 <optgroup label="Profiles">
-  <option value="__profile_reasoning">Reasoning profile (DeepSeek → Gemini Pro)</option>
-  <option value="__profile_longctx">Long context profile (DeepSeek 1M → Gemini 1M)</option>
-  <option value="__profile_fast">Fast profile (Gemma 4 → DeepSeek → Groq)</option>
+  <option value="__profile_reasoning">Reasoning (DeepSeek → GLM thinking → Mistral)</option>
+  <option value="__profile_longctx">Long Context (DeepSeek 1M → Gemini 1M)</option>
+  <option value="__profile_fast">Fast (Cerebras → Groq → Gemma)</option>
+  <option value="__profile_search">Web Search (Perplexity Sonar → Grok)</option>
 </optgroup>
 </select>
 <button onclick="openMultiModelModal()" style="width:100%;margin-top:6px;padding:5px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer;text-align:left;">
@@ -1234,11 +1245,12 @@ function openModelModal() {
   var list = document.getElementById('model-list');
   if (!modal || !list) return;
   var models = [
-    {name: 'Auto (Balanced)', provider: 'Gemma 4 31B → DeepSeek 1M → Nemotron → Gemini', profile: 'balanced'},
-    {name: 'Auto (Free)', provider: 'Gemma 4 31B → DeepSeek OpenRouter → Gemini Flash', profile: 'free'},
-    {name: 'Auto (Frontier Free)', provider: 'Nemotron Ultra → Gemini 3.8 → DeepSeek 1M', profile: 'frontier-free'},
-    {name: 'Auto (Full Frontier)', provider: 'DeepSeek V4 1M → Gemini Pro → Mistral Large', profile: 'frontier'},
-    {name: 'Auto (Local)', provider: 'Ollama (local, manual activation)', profile: 'local'},
+    {name: 'Auto (Balanced)', provider: 'Gemma 4 31B → Cerebras → Groq → DeepSeek → Gemini', profile: 'balanced'},
+    {name: 'Auto (Free)', provider: 'Gemma 4 31B → GLM-4.5-flash → Groq → OpenRouter', profile: 'free'},
+    {name: 'Reasoning', provider: 'DeepSeek 1M → GLM thinking → Mistral Large', profile: 'reasoning'},
+    {name: 'Long Context', provider: 'DeepSeek 1M → Gemini 1M → Kimi 128K', profile: 'frontier'},
+    {name: 'Fast', provider: 'Cerebras GPT-OSS → Groq GPT-OSS → Gemma 4', profile: 'fast'},
+    {name: 'Web Search', provider: 'Perplexity Sonar → Grok-3 (live web data)', profile: 'search'},
   ];
   list.innerHTML = '';
   for (var i = 0; i < models.length; i++) {
