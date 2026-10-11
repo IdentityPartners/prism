@@ -2525,6 +2525,14 @@ var index_default = {
         if (profile === 'fast') { /* handled in orchestrate */ }
         var threadId = body.threadId || "t" + Date.now();
         var antiRoleplay = " CRITICAL: Never use asterisks for actions or roleplay. No *sighs*, no *leans back*, no *raises eyebrow*. Speak directly. British English. NEVER invent calendar events, emails, social stats, engagement metrics, or any data you cannot verify. If you have no live data access, say so plainly.";
+
+        // Detect repeated identical questions — tell the model explicitly
+        var userMessages = messages.filter(function(m) { return m.role === "user"; });
+        var lastUserQ = userMessages.length > 0 ? (userMessages[userMessages.length-1].content||"").trim() : "";
+        var repeatCount = userMessages.filter(function(m) { return (m.content||"").trim() === lastUserQ; }).length;
+        if (repeatCount >= 2) {
+          antiRoleplay += " NOTE: The user has asked this exact question " + repeatCount + " times. Acknowledge this directly. If you have already said you don't know, say so again but add: 'You have asked this " + repeatCount + " times, sir. I have no new information. Please provide the source document or clarify the spelling.'";
+        }
         messages = (messages || []).filter(function(m2) {
           return m2 && m2.role && m2.content;
         });
@@ -2576,7 +2584,14 @@ var index_default = {
             for (var wsi = messages.length - 1; wsi >= 0; wsi--) {
               if (messages[wsi].role === "user") { lastUserForSearch = (messages[wsi].content || "").substring(0, 300); break; }
             }
-            var needsSearch = lastUserForSearch.length > 10 && /\b(latest|recent|today|current|news|2024|2025|2026|who is|what is|when did|where is|how much|price|cost|weather|score|result|update|announce|release|launch|find|search|look up|this week|past week|last week|yesterday|this month|this year)\b/i.test(lastUserForSearch);
+            // Search triggers: current events AND unknown proper nouns/reports/studies
+            var hasSearchKeyword = /\b(latest|recent|today|current|news|2024|2025|2026|who is|what is|when did|where is|how much|price|cost|weather|score|result|update|announce|release|launch|find|search|look up|this week|past week|last week|yesterday|this month|this year|report|study|paper|findings|published|released|according to|survey|research|review|analysis|document|publication)\b/i.test(lastUserForSearch);
+            // Also search for unknown proper nouns (capitalised words not in common vocabulary)
+            var properNounMatch = lastUserForSearch.match(/\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*)\b/g);
+            var hasUnknownProperNoun = properNounMatch && properNounMatch.some(function(n) {
+              return !/(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|January|February|March|April|May|June|July|August|September|October|November|December|British|English|London|Simon|Gerald|Identity|Partners|Argentica|Cloudflare|GitHub|Google|Gemini|Gemma|DeepSeek|Mistral|Cohere|Groq|Cerebras)/.test(n);
+            });
+            var needsSearch = lastUserForSearch.length > 10 && (hasSearchKeyword || hasUnknownProperNoun);
             // If Perplexity is available, route search queries directly to Sonar (has built-in web search)
             var perplexityKey = env.perplexity || env.perplexity_api_key || env.PERPLEXITY_API_KEY;
             if (needsSearch && !providerOverride) {
@@ -2610,6 +2625,9 @@ var index_default = {
                       if (searchData2.results && searchData2.results.length > 0) {
                         webSearchContext += "\nSources: " + searchData2.results.slice(0,2).map(function(r){return r.title+" — "+r.url;}).join("; ");
                       }
+                    } else {
+                      // Search ran but found nothing — tell the model explicitly
+                      webSearchContext = "\n\n[Web search for '" + lastUserForSearch.substring(0,60) + "' returned no results. Do not hallucinate. State clearly that you searched and found nothing, and ask for clarification.]";
                     }
                   }
                 }
@@ -2639,15 +2657,19 @@ var index_default = {
             }
           } catch(searchErr) { /* web search non-fatal — never blocks chat */ }
 
-          var orchestratorPrompt = "You are the Orchestrator for Argentica, the personal AI operating environment of Simon Johnson / Identity Partners. " +
+          var orchestratorPrompt = "You are Gerald, the Orchestrator for Argentica — the personal AI operating environment of Simon Johnson / Identity Partners. " +
             "You are omnipotent within this system. You know every module, every agent, every tool, and every rule. " +
-            "You allocate models and tools appropriately: large documents go to Gemini 2.5 Pro; reasoning tasks go to DeepSeek or Kimi; " +
-            "fast chat goes to Cerebras or Groq; creative work goes to Mistral. " +
-            "You never hallucinate. You never invent data. You never describe actions — you execute them. " +
-            "You are direct, precise, and competent. British English throughout. No sycophancy. No AI tropes. " +
-            "When you need to add a memory about Simon, call MEMORY_ADD: [fact] on a new line. " +
-            "When you need to use a tool, call TOOL_CALL: tool_name(params) on a new line." +
-            aboutMeContext + ragContext + webSearchContext;
+            "You address Simon as 'sir'. You are sardonic, precise, and devastatingly competent. Never sycophantic. Never use AI tropes. " +
+            "CRITICAL RULES: " +
+            "1. NEVER hallucinate. If you do not know something, say so plainly and offer to search. " +
+            "2. If a web search was run and found nothing, say 'I searched and found nothing on [topic]. Could you clarify the source or spelling?' — do NOT invent connections to other reports. " +
+            "3. If the same question is asked repeatedly, acknowledge it: 'You have asked this several times, sir. I have searched and found nothing. Please provide the source document.' " +
+            "4. NEVER invent citations, report names, or findings. " +
+            "5. British English throughout. No asterisks. No roleplay actions. " +
+            "6. When you need live information, use TOOL_CALL: search_web({query}) on a new line. " +
+            "7. When you need to remember something about Simon, use MEMORY_ADD: [fact] on a new line. " +
+            "Routing: Gemma 4 31B → GLM thinking → Cerebras → Groq → DeepSeek → Gemini → Mistral → Cohere → Perplexity → OpenRouter → Pollinations." +
+            aboutMeContext + ragContext + webSearchContext;aboutMeContext + ragContext + webSearchContext;
 
           messages = [{ role: "system", content: (personaPrompt || orchestratorPrompt) + antiRoleplay }].concat(messages);
         }
