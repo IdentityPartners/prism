@@ -1,352 +1,481 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Podcasts — Argentica</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<style>
+.pod-layout { display:grid; grid-template-columns:1fr 340px; gap:16px; padding:16px; height:calc(100vh - var(--topbar-h,48px)); box-sizing:border-box; overflow:hidden; }
+.pod-main { display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
+.pod-panel { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
+.pod-title { font-family:var(--font-heading,Georgia,serif); font-size:15px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.pod-label { font-size:11px; font-weight:600; color:var(--fg-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; }
+.pod-textarea { width:100%; min-height:120px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-family:inherit; resize:vertical; background:var(--bg); color:var(--fg); box-sizing:border-box; }
+.pod-input { width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; background:var(--bg); color:var(--fg); box-sizing:border-box; }
+.pod-select { width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; background:var(--bg); color:var(--fg); cursor:pointer; }
+.pod-row { display:flex; gap:8px; margin-bottom:10px; }
+.pod-row .pod-select { flex:1; }
+.pod-btn { padding:8px 16px; border:none; border-radius:6px; cursor:pointer; font-size:12.5px; font-family:inherit; font-weight:600; transition:all 0.15s; }
+.pod-btn-primary { background:var(--accent); color:#fff; }
+.pod-btn-primary:hover { opacity:0.85; }
+.pod-btn-secondary { background:var(--bg-sunken); color:var(--fg); border:1px solid var(--border); }
+.pod-btn-secondary:hover { border-color:var(--accent); color:var(--accent); }
+.pod-btn:disabled { opacity:0.5; cursor:not-allowed; }
+.script-section { border:1px solid var(--border); border-radius:8px; margin-bottom:8px; overflow:hidden; }
+.script-section-hdr { padding:8px 12px; background:var(--bg-sunken); display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; cursor:pointer; }
+.script-section-body { padding:12px; font-size:12.5px; line-height:1.6; color:var(--fg); white-space:pre-wrap; }
+.speaker-tag { display:inline-block; padding:1px 8px; border-radius:10px; font-size:10px; font-weight:700; text-transform:uppercase; margin-right:6px; }
+.speaker-host { background:rgba(45,106,159,0.15); color:var(--accent); }
+.speaker-guest { background:rgba(92,45,63,0.15); color:var(--rose,#5c2d3f); }
+.audio-player { width:100%; margin-top:8px; border-radius:6px; }
+.voice-card { padding:10px 12px; border:1px solid var(--border); border-radius:8px; cursor:pointer; transition:all 0.15s; margin-bottom:6px; display:flex; align-items:center; gap:10px; }
+.voice-card:hover, .voice-card.selected { border-color:var(--accent); background:var(--accent-light,#e8f0f8); }
+.voice-avatar { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--rose,#5c2d3f)); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+.voice-name { font-size:12.5px; font-weight:600; }
+.voice-desc { font-size:11px; color:var(--fg-muted); }
+.progress-bar { height:4px; background:var(--border); border-radius:2px; margin:8px 0; overflow:hidden; }
+.progress-fill { height:100%; background:var(--accent); border-radius:2px; transition:width 0.3s; }
+.status-msg { font-size:12px; color:var(--fg-muted); padding:8px 0; }
+.pod-side { display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
+</style>
 </head>
 <body>
-<div class="prism-shell">
-  <div id="sidebar-mount"></div>
-  <div class="main-content" id="main-content">
-    <div class="topbar">
-      <div class="topbar-title">Podcasts</div>
-      <div class="topbar-actions">
-        <button class="btn btn-sm btn-primary" onclick="generateEpisode()" title="Generate a full podcast episode script">✨ Generate Episode</button>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="pod-layout">
+
+<!-- Left: Script + Generation -->
+<div class="pod-main">
+
+  <!-- Topic & Format -->
+  <div class="pod-panel">
+    <div class="pod-title">🎙️ Podcast Creator</div>
+    <div class="pod-label">Topic or source material</div>
+    <textarea class="pod-textarea" id="pod-topic" placeholder="Paste an article, research finding, or describe the topic. The AI will generate a full podcast script with host and guest dialogue."></textarea>
+    <div class="pod-row" style="margin-top:10px;">
+      <div style="flex:1;">
+        <div class="pod-label">Format</div>
+        <select class="pod-select" id="pod-format">
+          <option value="interview">Interview (Host + Guest)</option>
+          <option value="debate">Debate (Two perspectives)</option>
+          <option value="explainer">Explainer (Host solo)</option>
+          <option value="roundtable">Round Table (3 voices)</option>
+          <option value="narrative">Narrative documentary</option>
+        </select>
+      </div>
+      <div style="flex:1;">
+        <div class="pod-label">Length</div>
+        <select class="pod-select" id="pod-length">
+          <option value="short">Short (~5 min)</option>
+          <option value="medium" selected>Medium (~10 min)</option>
+          <option value="long">Long (~20 min)</option>
+        </select>
+      </div>
+      <div style="flex:1;">
+        <div class="pod-label">Tone</div>
+        <select class="pod-select" id="pod-tone">
+          <option value="professional">Professional</option>
+          <option value="conversational" selected>Conversational</option>
+          <option value="academic">Academic</option>
+          <option value="accessible">Accessible / warm</option>
+        </select>
       </div>
     </div>
-    <div class="page-content">
-      <div class="grid-2" style="gap:20px;align-items:start;">
-        <div>
-          <div class="card" style="margin-bottom:16px;">
-            <div class="card-header"><span class="card-title">Episode Setup</span></div>
-            <div class="form-group"><label class="form-label">Episode Topic *</label>
-              <input class="input" id="ep-topic" type="text" placeholder="e.g. Understanding trauma responses in addiction recovery"></div>
-            <div class="form-group"><label class="form-label">Episode Type</label>
-              <select class="select" id="ep-type" title="Episode format">
-                <option value="solo">Solo — Simon speaks directly to audience</option>
-                <option value="interview">Interview — Simon interviews a guest</option>
-                <option value="educational">Educational — deep dive into a topic</option>
-                <option value="story">Story — case study or narrative</option>
-                <option value="roundtable">Round Table — multiple perspectives</option>
-              </select></div>
-            <div class="form-group"><label class="form-label">Duration</label>
-              <select class="select" id="ep-duration" title="Target episode length">
-                <option value="10">~10 minutes (short)</option>
-                <option value="20" selected>~20 minutes (standard)</option>
-                <option value="40">~40 minutes (long)</option>
-                <option value="60">~60 minutes (deep dive)</option>
-              </select></div>
-            <div class="form-group"><label class="form-label">Key Points to Cover</label>
-              <textarea class="textarea" id="ep-points" placeholder="List the main points you want to cover, one per line…" rows="4"></textarea></div>
-            <div class="form-group"><label class="form-label">Target Audience</label>
-              <input class="input" id="ep-audience" type="text" placeholder="e.g. People in recovery, family members, practitioners" value="People in recovery and those who support them"></div>
-            <div class="form-group"><label class="form-label">Tone</label>
-              <select class="select" id="ep-tone" title="Episode tone">
-                <option value="warm">Warm and supportive</option>
-                <option value="educational">Educational and informative</option>
-                <option value="conversational">Conversational and accessible</option>
-                <option value="authoritative">Authoritative and evidence-based</option>
-              </select></div>
-            <button class="btn btn-primary" style="width:100%;" onclick="generateEpisode()" title="Generate full episode script">✨ Generate Full Episode Script</button>
-          </div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="pod-btn pod-btn-primary" onclick="generateScript()" id="gen-script-btn">✍ Generate Script</button>
+      <button class="pod-btn pod-btn-secondary" onclick="clearAll()">Clear</button>
+    </div>
+    <div class="status-msg" id="script-status"></div>
+    <div class="progress-bar" id="script-progress" style="display:none;"><div class="progress-fill" id="script-progress-fill" style="width:0%"></div></div>
+  </div>
 
-          <div class="card">
-            <div class="card-header"><span class="card-title">Saved Episodes</span></div>
-            <div id="saved-episodes">
-              <div style="font-size:12.5px;color:var(--fg-muted);">No saved episodes yet.</div>
-            </div>
-          </div>
-        </div>
+  <!-- Script display -->
+  <div class="pod-panel" id="script-panel" style="display:none;">
+    <div class="pod-title">📄 Script <span id="script-word-count" style="font-size:11px;color:var(--fg-muted);font-weight:400;"></span></div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;">
+      <button class="pod-btn pod-btn-secondary" onclick="editScript()" style="font-size:11px;padding:5px 12px;">✏ Edit</button>
+      <button class="pod-btn pod-btn-secondary" onclick="copyScript()" style="font-size:11px;padding:5px 12px;">📋 Copy</button>
+      <button class="pod-btn pod-btn-secondary" onclick="saveToWriteHandy()" style="font-size:11px;padding:5px 12px;">✒ Save to WriteHandy</button>
+      <button class="pod-btn pod-btn-primary" onclick="generateAudio()" id="gen-audio-btn" style="font-size:11px;padding:5px 12px;">🔊 Generate Audio</button>
+    </div>
+    <div id="script-display"></div>
+    <textarea id="script-edit" class="pod-textarea" style="display:none;min-height:300px;"></textarea>
+  </div>
 
-        <div>
-          <div class="card" style="margin-bottom:16px;" id="script-card">
-            <div class="card-header">
-              <span class="card-title" id="script-title">Episode Script</span>
-              <div style="display:flex;gap:6px;">
-                <button class="btn btn-sm btn-secondary" onclick="copyScript()" title="Copy script to clipboard">📋 Copy</button>
-                <button class="btn btn-sm btn-secondary" onclick="exportScript()" title="Export as Markdown">⬇ Export</button>
-                <button class="btn btn-sm btn-secondary" onclick="saveEpisode()" title="Save this episode">💾 Save</button>
-                <button class="btn btn-sm btn-secondary" onclick="sendToDrafting()" title="Send to Drafting Desk">✍ Drafting</button>
-              </div>
-            </div>
-            <div id="script-output" style="font-size:13.5px;line-height:1.8;color:var(--fg-secondary);min-height:200px;padding:4px 0;">
-              <div style="text-align:center;padding:40px;color:var(--fg-muted);">Fill in the episode details and click Generate.</div>
-            </div>
-          <!-- Voice generation panel -->
-          <div id="voice-panel" style="display:none;margin-top:16px;padding:16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;">
-            <div style="font-size:12px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">&#x1F3A4; Generate Audio</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-              <div>
-                <label style="font-size:11px;color:var(--fg-muted);display:block;margin-bottom:4px;">Voice Provider</label>
-                <select id="voice-provider" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);font-size:12px;">
-                  <option value="elevenlabs">ElevenLabs</option>
-                  <option value="cartesia">Cartesia</option>
-                  <option value="fishaudio">Fish Audio</option>
-                </select>
-              </div>
-              <div>
-                <label style="font-size:11px;color:var(--fg-muted);display:block;margin-bottom:4px;">Voice</label>
-                <select id="voice-select" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);font-size:12px;">
-                  <option value="pNInz6obpgDQGcFmaJgB">Adam (ElevenLabs)</option>
-                  <option value="EXAVITQu4vr4xnSDxMaL">Bella (ElevenLabs)</option>
-                  <option value="VR6AewLTigWG4xSOukaG">Arnold (ElevenLabs)</option>
-                  <option value="21m00Tcm4TlvDq8ikWAM">Rachel (ElevenLabs)</option>
-                  <option value="sonic-english">Sonic English (Cartesia)</option>
-                </select>
-              </div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <button id="voice-btn" class="btn btn-primary btn-sm" onclick="generateVoice()">&#x1F3A4; Generate Audio</button>
-              <button class="btn btn-secondary btn-sm" onclick="downloadAudio()" style="display:inline-flex;align-items:center;gap:4px;">&#x2B07; Download</button>
-              <span id="voice-status" style="font-size:11px;color:var(--fg-muted);"></span>
-            </div>
-            <audio id="voice-player" controls style="display:none;width:100%;margin-top:10px;border-radius:4px;"></audio>
-          </div>
-          </div>
+  <!-- Audio output -->
+  <div class="pod-panel" id="audio-panel" style="display:none;">
+    <div class="pod-title">🔊 Audio Output</div>
+    <div class="status-msg" id="audio-status"></div>
+    <div class="progress-bar" id="audio-progress" style="display:none;"><div class="progress-fill" id="audio-progress-fill" style="width:0%"></div></div>
+    <div id="audio-segments"></div>
+    <div style="margin-top:10px;display:flex;gap:8px;">
+      <button class="pod-btn pod-btn-secondary" onclick="downloadAll()" id="download-btn" style="display:none;">⬇ Download all segments</button>
+    </div>
+  </div>
 
-          <div class="card">
-            <div class="card-header"><span class="card-title">Show Notes Generator</span></div>
-            <p style="font-size:12.5px;color:var(--fg-muted);margin-bottom:12px;">Generate show notes, timestamps, and social media copy from your script.</p>
-            <button class="btn btn-secondary" style="width:100%;margin-bottom:8px;" onclick="generateShowNotes()" title="Generate show notes from script">📝 Generate Show Notes</button>
-            <button class="btn btn-secondary" style="width:100%;" onclick="generateSocialCopy()" title="Generate social media copy for this episode">📱 Generate Social Copy</button>
-            <div id="show-notes-output" style="margin-top:12px;font-size:13px;line-height:1.7;color:var(--fg-secondary);"></div>
-          </div>
-        </div>
+</div>
+
+<!-- Right: Voice selection + settings -->
+<div class="pod-side">
+
+  <div class="pod-panel">
+    <div class="pod-title">🎤 Voice Settings</div>
+    <div class="pod-label">TTS Provider</div>
+    <select class="pod-select" id="tts-provider" onchange="updateVoiceOptions()" style="margin-bottom:10px;">
+      <option value="cartesia">Cartesia Sonic 2 (recommended)</option>
+      <option value="gemini">Gemini TTS (free)</option>
+      <option value="elevenlabs">ElevenLabs (paid)</option>
+    </select>
+
+    <div class="pod-label">Host voice</div>
+    <select class="pod-select" id="host-voice" style="margin-bottom:10px;">
+      <option value="a0e99841-438c-4a64-b679-ae501e7d6091">Cartesia — British Male</option>
+      <option value="79a125e8-cd45-4c13-8a67-188112f4dd22">Cartesia — British Female</option>
+      <option value="b7d50908-b17c-442d-ad8d-810c63997ed9">Cartesia — American Male</option>
+    </select>
+
+    <div class="pod-label">Guest voice</div>
+    <select class="pod-select" id="guest-voice" style="margin-bottom:10px;">
+      <option value="79a125e8-cd45-4c13-8a67-188112f4dd22">Cartesia — British Female</option>
+      <option value="a0e99841-438c-4a64-b679-ae501e7d6091">Cartesia — British Male</option>
+      <option value="b7d50908-b17c-442d-ad8d-810c63997ed9">Cartesia — American Male</option>
+    </select>
+
+    <div class="pod-label">Gemini voices (when using Gemini TTS)</div>
+    <div style="font-size:11px;color:var(--fg-muted);margin-bottom:8px;">Aoede, Puck, Charon, Kore, Fenrir, Leda, Orus, Zephyr</div>
+    <div class="pod-row">
+      <div style="flex:1;">
+        <div class="pod-label" style="font-size:10px;">Host</div>
+        <select class="pod-select" id="gemini-host-voice" style="font-size:11px;">
+          <option value="Puck">Puck (male)</option>
+          <option value="Charon">Charon (male)</option>
+          <option value="Fenrir">Fenrir (male)</option>
+          <option value="Orus">Orus (male)</option>
+          <option value="Aoede">Aoede (female)</option>
+          <option value="Kore">Kore (female)</option>
+          <option value="Leda">Leda (female)</option>
+          <option value="Zephyr">Zephyr (female)</option>
+        </select>
+      </div>
+      <div style="flex:1;">
+        <div class="pod-label" style="font-size:10px;">Guest</div>
+        <select class="pod-select" id="gemini-guest-voice" style="font-size:11px;">
+          <option value="Aoede">Aoede (female)</option>
+          <option value="Kore">Kore (female)</option>
+          <option value="Leda">Leda (female)</option>
+          <option value="Zephyr">Zephyr (female)</option>
+          <option value="Puck">Puck (male)</option>
+          <option value="Charon">Charon (male)</option>
+        </select>
       </div>
     </div>
   </div>
+
+  <div class="pod-panel">
+    <div class="pod-title">📚 Recent Podcasts</div>
+    <div id="recent-pods" style="font-size:12px;color:var(--fg-muted);">No podcasts yet.</div>
+  </div>
+
+  <div class="pod-panel">
+    <div class="pod-title">ℹ️ How it works</div>
+    <div style="font-size:12px;color:var(--fg-muted);line-height:1.6;">
+      <p style="margin:0 0 8px;">1. Paste your topic or source material</p>
+      <p style="margin:0 0 8px;">2. Choose format, length and tone</p>
+      <p style="margin:0 0 8px;">3. Generate Script — AI writes full dialogue</p>
+      <p style="margin:0 0 8px;">4. Edit if needed, then Generate Audio</p>
+      <p style="margin:0 0 8px;">5. Each speaker line is synthesised separately and stitched together</p>
+      <p style="margin:0;">Cartesia Sonic 2 is recommended — fast, high quality, British voices available.</p>
+    </div>
+  </div>
+
 </div>
-<script src="/shared/prism.js"></script>
+</div>
+</div>
+
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
 var currentScript = '';
-var savedEpisodes = [];
+var audioBlobs = [];
+var scriptSections = [];
 
-function loadSaved() {
-  try { savedEpisodes = JSON.parse(localStorage.getItem('prism-podcast-episodes') || '[]'); } catch(e) { savedEpisodes = []; }
-  renderSaved();
-}
-
-function renderSaved() {
-  var list = document.getElementById('saved-episodes');
-  if (!list) return;
-  if (savedEpisodes.length === 0) { list.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">No saved episodes yet.</div>'; return; }
-  list.innerHTML = '';
-  for (var i = savedEpisodes.length - 1; i >= 0; i--) {
-    (function(ep) {
-      var el = document.createElement('div');
-      el.style.cssText = 'padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s;';
-      el.onmouseover = function() { el.style.borderColor = 'var(--accent)'; };
-      el.onmouseout = function() { el.style.borderColor = 'var(--border)'; };
-      var title = document.createElement('div');
-      title.style.cssText = 'font-weight:600;font-size:13px;margin-bottom:3px;';
-      title.textContent = ep.topic;
-      var meta = document.createElement('div');
-      meta.style.cssText = 'font-size:11px;color:var(--fg-muted);';
-      meta.textContent = ep.type + ' · ' + ep.duration + ' min · ' + new Date(ep.created).toLocaleDateString('en-GB');
-      el.appendChild(title); el.appendChild(meta);
-      el.onclick = function() { currentScript = ep.script; renderScript(ep.script, ep.topic); };
-      list.appendChild(el);
-    })(savedEpisodes[i]);
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/creator/podcasts/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
   }
+  loadRecent();
+});
+
+function setStatus(el, msg) {
+  var e = document.getElementById(el);
+  if (e) e.textContent = msg;
 }
 
-function generateEpisode() {
-  var topic = document.getElementById('ep-topic').value.trim();
-  if (!topic) { Toast.warning('Enter an episode topic'); return; }
-  var type = document.getElementById('ep-type').value;
-  var duration = document.getElementById('ep-duration').value;
-  var points = document.getElementById('ep-points').value.trim();
-  var audience = document.getElementById('ep-audience').value.trim();
-  var tone = document.getElementById('ep-tone').value;
-  var output = document.getElementById('script-output');
-  if (output) output.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div><div style="margin-top:10px;font-size:13px;color:var(--fg-muted);">Generating ' + duration + '-minute episode script…</div></div>';
-  var systemPrompt = 'You are a podcast script writer for Identity Partners, a professional services firm focused on addiction, trauma, mental health, and community wellbeing. The host is Simon Johnson. Write in British English. The tone is ' + tone + '. No sycophancy. No AI tropes. Format the script with clear sections: INTRO, MAIN CONTENT (with subsections), and OUTRO. Include natural speech patterns, pauses [PAUSE], and emphasis *like this*. Include approximate timestamps.';
-  var userPrompt = 'Write a complete ' + duration + '-minute podcast script for a ' + type + ' episode.\n\nTopic: ' + topic + '\nAudience: ' + audience + (points ? '\n\nKey points to cover:\n' + points : '') + '\n\nInclude: engaging intro hook, main content with clear structure, practical takeaways, call to action, and outro. Make it feel natural and conversational, not like a lecture.';  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/chat', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      var r = JSON.parse(xhr.responseText);
-      currentScript = r.content || '';
-      renderScript(currentScript, topic);
-    } catch(e) { if (output) output.innerHTML = '<div style="color:var(--danger);">Generation failed: ' + e.message + '</div>'; }
-  };
-  xhr.onerror = function() { if (output) output.innerHTML = '<div style="color:var(--danger);">Network error</div>'; };
-  xhr.send(JSON.stringify({messages:[{role:'system',content:systemPrompt},{role:'user',content:userPrompt}],profile:'balanced'}));
+function setProgress(id, pct) {
+  var bar = document.getElementById(id);
+  var fill = document.getElementById(id + '-fill');
+  if (bar) bar.style.display = pct >= 0 ? 'block' : 'none';
+  if (fill) fill.style.width = pct + '%';
 }
 
-function renderScript(script, topic) {
-  var output = document.getElementById('script-output');
-  var titleEl = document.getElementById('script-title');
-  if (titleEl) titleEl.textContent = topic || 'Episode Script';
-  if (output) {
-    output.className = 'md-content';
-    output.innerHTML = Markdown.render(script);
-  }
-  // Show voice generation panel
-  var voicePanel = document.getElementById('voice-panel');
-  if (voicePanel) voicePanel.style.display = 'block';
-}
-
-// ── Voice generation ──────────────────────────────────────────────────────────
-var currentAudioUrl = null;
-
-function generateVoice() {
-  if (!currentScript) { Toast.warning('Generate a script first.'); return; }
-  var voice = document.getElementById('voice-select').value;
-  var provider = document.getElementById('voice-provider').value;
-  var btn = document.getElementById('voice-btn');
-  var status = document.getElementById('voice-status');
-  var player = document.getElementById('voice-player');
-
+function generateScript() {
+  var topic = document.getElementById('pod-topic').value.trim();
+  if (!topic) { Toast.warning('Enter a topic or paste source material.'); return; }
+  var format = document.getElementById('pod-format').value;
+  var length = document.getElementById('pod-length').value;
+  var tone = document.getElementById('pod-tone').value;
+  var lengthWords = {short: '600-800', medium: '1200-1500', long: '2500-3000'}[length];
+  var btn = document.getElementById('gen-script-btn');
   btn.disabled = true;
-  btn.textContent = 'Generating audio...';
-  if (status) status.textContent = 'Sending to ' + provider + '...';
+  setStatus('script-status', 'Generating script...');
+  setProgress('script-progress', 10);
 
-  // Strip stage directions and markdown for TTS
-  var ttsText = currentScript
-    .replace(/\[PAUSE\]/gi, '...')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/#{1,6}\s/g, '')
-    .replace(/\[\d+:\d+\]/g, '')
-    .substring(0, 4000); // ElevenLabs limit
+  var formatInstructions = {
+    interview: 'Write a podcast interview script with HOST and GUEST speakers. HOST asks questions, GUEST provides expert insights. Format each line as "HOST: [dialogue]" or "GUEST: [dialogue]".',
+    debate: 'Write a podcast debate script with SPEAKER_A and SPEAKER_B taking opposing views. Format each line as "SPEAKER_A: [dialogue]" or "SPEAKER_B: [dialogue]".',
+    explainer: 'Write a podcast explainer script with a single HOST speaker. Format each line as "HOST: [dialogue]".',
+    roundtable: 'Write a roundtable podcast script with HOST, GUEST_1, and GUEST_2. Format each line as "HOST: [dialogue]", "GUEST_1: [dialogue]", or "GUEST_2: [dialogue]".',
+    narrative: 'Write a narrative documentary podcast script with a NARRATOR. Format each line as "NARRATOR: [dialogue]".',
+  }[format];
 
-  fetch(WORKER + '/api/voice/generate', {
+  var prompt = formatInstructions + ' Topic: ' + topic.substring(0, 2000) +
+    ' Length: approximately ' + lengthWords + ' words total. Tone: ' + tone +
+    '. British English throughout. Include an engaging introduction, substantive content, and a clear conclusion. No stage directions, no [music], no [pause] — just the spoken dialogue lines.';
+
+  fetch(WORKER + '/api/chat', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      text: ttsText,
-      voice_id: voice,
-      provider: provider,
-      model: provider === 'elevenlabs' ? 'eleven_turbo_v2_5' : 'sonic-english'
-    })
+    body: JSON.stringify({messages: [{role:'user', content: prompt}], profile: 'balanced'})
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
     btn.disabled = false;
-    btn.textContent = '\uD83C\uDFA4 Generate Audio';
-    if (d.url || d.audio_url) {
-      currentAudioUrl = d.url || d.audio_url;
-      if (player) {
-        player.src = currentAudioUrl;
-        player.style.display = 'block';
-      }
-      if (status) status.textContent = 'Audio ready. Duration: ' + (d.duration_seconds ? Math.round(d.duration_seconds) + 's' : 'unknown');
-      Toast.success('Audio generated successfully.');
-    } else if (d.audio_base64) {
-      // Base64 audio response
-      var blob = new Blob([Uint8Array.from(atob(d.audio_base64), function(c){ return c.charCodeAt(0); })], {type: 'audio/mpeg'});
-      currentAudioUrl = URL.createObjectURL(blob);
-      if (player) { player.src = currentAudioUrl; player.style.display = 'block'; }
-      if (status) status.textContent = 'Audio ready.';
-      Toast.success('Audio generated.');
+    setProgress('script-progress', -1);
+    if (d.content) {
+      currentScript = d.content;
+      renderScript(d.content);
+      setStatus('script-status', 'Script generated via ' + (d.provider || 'AI') + '. Review and edit before generating audio.');
+      saveToRecent(topic.substring(0, 60), d.content);
     } else {
-      if (status) status.textContent = 'Error: ' + (d.error || 'Unknown error');
-      Toast.error('Voice generation failed: ' + (d.error || 'check console'));
+      setStatus('script-status', 'Error: ' + (d.error || 'No response'));
     }
   })
   .catch(function(e) {
     btn.disabled = false;
-    btn.textContent = '\uD83C\uDFA4 Generate Audio';
-    if (status) status.textContent = 'Network error: ' + e.message;
-    Toast.error('Voice generation failed.');
+    setProgress('script-progress', -1);
+    setStatus('script-status', 'Error: ' + e.message);
   });
 }
 
-function downloadAudio() {
-  if (!currentAudioUrl) return;
-  var a = document.createElement('a');
-  a.href = currentAudioUrl;
-  a.download = 'ip-podcast-' + Date.now() + '.mp3';
-  a.click();
+function renderScript(text) {
+  var panel = document.getElementById('script-panel');
+  var display = document.getElementById('script-display');
+  if (!panel || !display) return;
+  panel.style.display = 'block';
+
+  var lines = text.split('
+').filter(function(l) { return l.trim(); });
+  var words = text.split(/\s+/).length;
+  var wc = document.getElementById('script-word-count');
+  if (wc) wc.textContent = '(' + words + ' words, ~' + Math.round(words/130) + ' min)';
+
+  scriptSections = [];
+  display.innerHTML = '';
+
+  lines.forEach(function(line) {
+    var match = line.match(/^(HOST|GUEST|GUEST_1|GUEST_2|SPEAKER_A|SPEAKER_B|NARRATOR):\s*(.+)/i);
+    if (match) {
+      var speaker = match[1].toUpperCase();
+      var dialogue = match[2];
+      scriptSections.push({speaker: speaker, text: dialogue});
+
+      var div = document.createElement('div');
+      div.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:flex-start;';
+      var tag = document.createElement('span');
+      tag.className = 'speaker-tag ' + (['HOST','NARRATOR','SPEAKER_A'].includes(speaker) ? 'speaker-host' : 'speaker-guest');
+      tag.textContent = speaker;
+      var text2 = document.createElement('span');
+      text2.style.cssText = 'flex:1;font-size:12.5px;line-height:1.6;';
+      text2.textContent = dialogue;
+      div.appendChild(tag);
+      div.appendChild(text2);
+      display.appendChild(div);
+    } else if (line.trim()) {
+      var p = document.createElement('p');
+      p.style.cssText = 'font-size:12px;color:var(--fg-muted);margin:4px 0;font-style:italic;';
+      p.textContent = line;
+      display.appendChild(p);
+    }
+  });
+}
+
+function editScript() {
+  var display = document.getElementById('script-display');
+  var edit = document.getElementById('script-edit');
+  if (!display || !edit) return;
+  if (edit.style.display === 'none') {
+    edit.value = currentScript;
+    edit.style.display = 'block';
+    display.style.display = 'none';
+  } else {
+    currentScript = edit.value;
+    renderScript(currentScript);
+    edit.style.display = 'none';
+    display.style.display = 'block';
+  }
 }
 
 function copyScript() {
-  if (!currentScript) { Toast.warning('Generate a script first'); return; }
-  if (navigator.clipboard) navigator.clipboard.writeText(currentScript).then(function() { Toast.success('Copied to clipboard'); });
+  navigator.clipboard.writeText(currentScript).then(function() { Toast.success('Script copied.'); });
 }
 
-function exportScript() {
-  if (!currentScript) { Toast.warning('Generate a script first'); return; }
-  var topic = document.getElementById('ep-topic').value || 'episode';
-  var blob = new Blob([currentScript], {type:'text/markdown'});
-  var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'podcast-' + topic.replace(/[^a-z0-9]/gi,'-').toLowerCase() + '.md'; a.click();
+function saveToWriteHandy() {
+  var topic = document.getElementById('pod-topic').value.substring(0, 60);
+  fetch(WORKER + '/api/notes/save', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({title: 'Podcast: ' + topic, content: currentScript, module: 'Podcasts', tags: ['podcast', 'script']})
+  }).then(function() { Toast.success('Saved to WriteHandy.'); });
 }
 
-function saveEpisode() {
-  if (!currentScript) { Toast.warning('Generate a script first'); return; }
-  var ep = {
-    id: 'ep-' + Date.now(),
-    topic: document.getElementById('ep-topic').value,
-    type: document.getElementById('ep-type').value,
-    duration: document.getElementById('ep-duration').value,
-    script: currentScript,
-    created: new Date().toISOString()
-  };
-  savedEpisodes.push(ep);
-  try { localStorage.setItem('prism-podcast-episodes', JSON.stringify(savedEpisodes)); } catch(e) {}
-  renderSaved();
-  Toast.success('Episode saved');
+function generateAudio() {
+  if (!scriptSections.length) { Toast.warning('Generate a script first.'); return; }
+  var provider = document.getElementById('tts-provider').value;
+  var hostVoice = provider === 'gemini' ? document.getElementById('gemini-host-voice').value : document.getElementById('host-voice').value;
+  var guestVoice = provider === 'gemini' ? document.getElementById('gemini-guest-voice').value : document.getElementById('guest-voice').value;
+
+  var audioPanel = document.getElementById('audio-panel');
+  var audioSegs = document.getElementById('audio-segments');
+  if (audioPanel) audioPanel.style.display = 'block';
+  if (audioSegs) audioSegs.innerHTML = '';
+  audioBlobs = [];
+
+  var btn = document.getElementById('gen-audio-btn');
+  btn.disabled = true;
+  setStatus('audio-status', 'Generating audio for ' + scriptSections.length + ' lines...');
+  setProgress('audio-progress', 0);
+
+  var total = scriptSections.length;
+  var done = 0;
+
+  function processNext(idx) {
+    if (idx >= total) {
+      btn.disabled = false;
+      setProgress('audio-progress', -1);
+      setStatus('audio-status', 'Audio complete. ' + total + ' segments generated.');
+      var dlBtn = document.getElementById('download-btn');
+      if (dlBtn) dlBtn.style.display = 'inline-block';
+      return;
+    }
+    var section = scriptSections[idx];
+    var isHost = ['HOST','NARRATOR','SPEAKER_A'].includes(section.speaker);
+    var voice = isHost ? hostVoice : guestVoice;
+
+    setStatus('audio-status', 'Generating: ' + section.speaker + ' (' + (idx+1) + '/' + total + ')');
+    setProgress('audio-progress', Math.round((idx/total)*100));
+
+    fetch(WORKER + '/api/voice/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: section.text, voice: voice, provider: provider, model: 'auto'})
+    })
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.blob();
+    })
+    .then(function(blob) {
+      audioBlobs.push({speaker: section.speaker, blob: blob, text: section.text});
+      var url = URL.createObjectURL(blob);
+      var div = document.createElement('div');
+      div.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--border);';
+      var tag = document.createElement('span');
+      tag.className = 'speaker-tag ' + (isHost ? 'speaker-host' : 'speaker-guest');
+      tag.textContent = section.speaker;
+      var preview = document.createElement('span');
+      preview.style.cssText = 'font-size:11px;color:var(--fg-muted);margin:0 8px;';
+      preview.textContent = section.text.substring(0, 60) + '...';
+      var audio = document.createElement('audio');
+      audio.controls = true;
+      audio.src = url;
+      audio.className = 'audio-player';
+      div.appendChild(tag);
+      div.appendChild(preview);
+      div.appendChild(audio);
+      if (audioSegs) audioSegs.appendChild(div);
+      done++;
+      processNext(idx + 1);
+    })
+    .catch(function(e) {
+      var div = document.createElement('div');
+      div.style.cssText = 'padding:6px 0;color:#dc2626;font-size:12px;';
+      div.textContent = section.speaker + ': Error — ' + e.message;
+      if (audioSegs) audioSegs.appendChild(div);
+      done++;
+      processNext(idx + 1);
+    });
+  }
+
+  processNext(0);
 }
 
-function sendToDrafting() {
-  if (!currentScript) { Toast.warning('Generate a script first'); return; }
-  try { sessionStorage.setItem('prism-draft', currentScript); } catch(e) {}
-  window.location.href = '/drafting/';
+function downloadAll() {
+  audioBlobs.forEach(function(seg, i) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(seg.blob);
+    a.download = 'podcast-segment-' + (i+1) + '-' + seg.speaker.toLowerCase() + '.mp3';
+    a.click();
+  });
 }
 
-function generateShowNotes() {
-  if (!currentScript) { Toast.warning('Generate a script first'); return; }
-  var output = document.getElementById('show-notes-output');
-  if (output) output.innerHTML = '<div class="spinner"></div>';
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/chat', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      var r = JSON.parse(xhr.responseText);
-      if (output) { output.className = 'md-content'; output.innerHTML = Markdown.render(r.content || ''); }
-    } catch(e) { if (output) output.textContent = 'Failed'; }
-  };
-  xhr.onerror = function() { if (output) output.textContent = 'Network error'; };
-  xhr.send(JSON.stringify({messages:[
-    {role:'system',content:'Generate podcast show notes in British English. Include: episode summary (2-3 sentences), key takeaways (bullet points), timestamps, and resources mentioned.'},
-    {role:'user',content:'Generate show notes for this podcast script:\n\n' + currentScript.substring(0, 3000)}
-  ],profile:'balanced'}));
+function clearAll() {
+  currentScript = '';
+  scriptSections = [];
+  audioBlobs = [];
+  document.getElementById('pod-topic').value = '';
+  document.getElementById('script-panel').style.display = 'none';
+  document.getElementById('audio-panel').style.display = 'none';
+  setStatus('script-status', '');
 }
 
-function generateSocialCopy() {
-  if (!currentScript) { Toast.warning('Generate a script first'); return; }
-  var output = document.getElementById('show-notes-output');
-  if (output) output.innerHTML = '<div class="spinner"></div>';
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/chat', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      var r = JSON.parse(xhr.responseText);
-      if (output) { output.className = 'md-content'; output.innerHTML = Markdown.render(r.content || ''); }
-    } catch(e) { if (output) output.textContent = 'Failed'; }
-  };
-  xhr.onerror = function() { if (output) output.textContent = 'Network error'; };
-  xhr.send(JSON.stringify({messages:[
-    {role:'system',content:'Generate social media copy for a podcast episode. British English. Include: LinkedIn post (150 words), Bluesky thread (5 posts under 300 chars each), and 3 quote cards. Format clearly with headers.'},
-    {role:'user',content:'Generate social media copy for this podcast episode:\n\n' + currentScript.substring(0, 2000)}
-  ],profile:'balanced'}));
+function saveToRecent(title, script) {
+  try {
+    var recent = JSON.parse(localStorage.getItem('pod-recent') || '[]');
+    recent.unshift({title: title, script: script, ts: Date.now()});
+    recent = recent.slice(0, 10);
+    localStorage.setItem('pod-recent', JSON.stringify(recent));
+    loadRecent();
+  } catch(e) {}
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-  var mount = document.getElementById('sidebar-mount');
-  if (mount) { var sb = buildSidebar('/creator/podcasts/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  loadSaved();
-});
+function loadRecent() {
+  try {
+    var recent = JSON.parse(localStorage.getItem('pod-recent') || '[]');
+    var el = document.getElementById('recent-pods');
+    if (!el) return;
+    if (!recent.length) { el.textContent = 'No podcasts yet.'; return; }
+    el.innerHTML = recent.slice(0, 5).map(function(p) {
+      return '<div style="padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer;" onclick="loadPodcast(' + JSON.stringify(p.script) + ')">' +
+        '<div style="font-size:12px;font-weight:600;">' + p.title + '</div>' +
+        '<div style="font-size:10px;color:var(--fg-muted);">' + new Date(p.ts).toLocaleDateString('en-GB') + '</div>' +
+        '</div>';
+    }).join('');
+  } catch(e) {}
+}
+
+function loadPodcast(script) {
+  currentScript = script;
+  renderScript(script);
+}
+
+function updateVoiceOptions() {
+  var provider = document.getElementById('tts-provider').value;
+  // Could show/hide provider-specific options
+}
 </script>
 </body>
 </html>
