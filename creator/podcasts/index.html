@@ -125,8 +125,8 @@
     <div class="pod-title">🎤 Voice Settings</div>
     <div class="pod-label">TTS Provider</div>
     <select class="pod-select" id="tts-provider" onchange="updateVoiceOptions()" style="margin-bottom:10px;">
-      <option value="cartesia">Cartesia Sonic 2 (recommended)</option>
-      <option value="gemini">Gemini TTS (free)</option>
+      <option value="cartesia">Cartesia Sonic 2 (recommended, British voices)</option>
+      <option value="gemini">Gemini 3.8 Flash TTS (free, 8 voices)</option>
       <option value="elevenlabs">ElevenLabs (paid)</option>
     </select>
 
@@ -177,6 +177,21 @@
   <div class="pod-panel">
     <div class="pod-title">📚 Recent Podcasts</div>
     <div id="recent-pods" style="font-size:12px;color:var(--fg-muted);">No podcasts yet.</div>
+  </div>
+
+  <div class="pod-panel">
+    <div class="pod-title">🎵 Music Generation</div>
+    <div class="pod-label">Prompt</div>
+    <input class="pod-input" id="music-prompt" type="text" placeholder="e.g. Upbeat jazz piano, 120bpm, warm" style="margin-bottom:8px;">
+    <div class="pod-label">Model</div>
+    <select class="pod-select" id="music-model" style="margin-bottom:8px;">
+      <option value="lyria-3.5">Lyria 3.5 (best, full composition)</option>
+      <option value="lyria-3-pro-preview">Lyria 3 Pro (high quality)</option>
+      <option value="lyria-3-clip-preview">Lyria 3 Clip (fastest)</option>
+    </select>
+    <button class="pod-btn pod-btn-primary" onclick="generateMusic()" id="gen-music-btn" style="width:100%;margin-bottom:8px;">🎵 Generate Music</button>
+    <div class="status-msg" id="music-status"></div>
+    <div id="music-output"></div>
   </div>
 
   <div class="pod-panel">
@@ -475,6 +490,49 @@ function loadPodcast(script) {
 function updateVoiceOptions() {
   var provider = document.getElementById('tts-provider').value;
   // Could show/hide provider-specific options
+}
+
+function generateMusic() {
+  var prompt = document.getElementById('music-prompt').value.trim() || 'Upbeat jazz piano, 120bpm, warm and professional';
+  var model = document.getElementById('music-model').value;
+  var btn = document.getElementById('gen-music-btn');
+  btn.disabled = true;
+  setStatus('music-status', 'Generating music with Lyria...');
+  var output = document.getElementById('music-output');
+  if (output) output.innerHTML = '';
+
+  fetch(WORKER + '/api/music/generate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({prompt: prompt, model: model})
+  })
+  .then(function(r) {
+    if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || 'HTTP ' + r.status); });
+    return r.blob();
+  })
+  .then(function(blob) {
+    btn.disabled = false;
+    setStatus('music-status', 'Music generated (' + Math.round(blob.size/1024) + ' KB)');
+    var url = URL.createObjectURL(blob);
+    var div = document.createElement('div');
+    div.style.cssText = 'margin-top:8px;';
+    var audio = document.createElement('audio');
+    audio.controls = true;
+    audio.src = url;
+    audio.style.width = '100%';
+    var dl = document.createElement('a');
+    dl.href = url;
+    dl.download = 'lyria-music.mp3';
+    dl.textContent = '⬇ Download';
+    dl.style.cssText = 'display:block;margin-top:6px;font-size:12px;color:var(--accent);';
+    div.appendChild(audio);
+    div.appendChild(dl);
+    if (output) output.appendChild(div);
+  })
+  .catch(function(e) {
+    btn.disabled = false;
+    setStatus('music-status', 'Error: ' + e.message);
+  });
 }
 </script>
 </body>
