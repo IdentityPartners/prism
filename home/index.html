@@ -9,8 +9,8 @@
 <link href="/shared/prism.css" rel="stylesheet"/>
 <link href="/shared/themes.css" rel="stylesheet"/>
 <style>
-.home-layout { display: grid; grid-template-columns: 280px 1fr 280px; gap: 20px; padding: 20px; max-width: 1400px; margin: 0 auto; }
-@media(max-width:1280px){ .home-layout{ grid-template-columns: 240px 1fr; } .home-right{ display:none; } }
+.home-layout { display: grid; grid-template-columns: 260px 1fr 260px; gap: 16px; padding: 16px; max-width: 1600px; margin: 0 auto; }
+@media(max-width:1100px){ .home-layout{ grid-template-columns: 240px 1fr; } .home-right{ display:none; } }
 @media(max-width:900px){ .home-layout{ grid-template-columns: 1fr; } .home-left{ display:none; } }
 .home-hero {
   position: relative;
@@ -163,8 +163,10 @@
 <button class="hero-cycle-btn" onclick="cycleHeroImage()" title="Next background image">Next image</button>
 <div class="home-hero-content">
 <div style="font-family:'Playfair Display',Georgia,serif;margin-bottom:6px;"><span style="font-size:20px;font-weight:600;color:#7ecfcd;">Identity</span><span style="font-size:20px;font-weight:600;color:#d4899a;">Partners</span><div style="font-size:10px;color:#f7f3e9;opacity:0.75;margin-top:2px;">Understand your past &middot; Appreciate the present &middot; Define your future</div></div>
+<div style="font-family:var(--font-heading,Georgia,serif);margin-bottom:6px;"><span style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.5px;">Identity</span><span style="font-size:22px;font-weight:700;color:rgba(255,255,255,0.75);letter-spacing:-0.5px;">Partners</span></div>
 <div class="home-hero-greeting" id="hero-greeting">Good morning, Simon.</div>
 <div class="home-hero-date" id="hero-date"></div>
+<div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:4px;font-style:italic;">Understand your past · Appreciate the present · Define your future</div>
 </div>
 </div>
 <!-- Atmosphere strip -->
