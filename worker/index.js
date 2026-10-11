@@ -1384,6 +1384,50 @@ async function orchestrate(env, messages, profile, intent, threadId) {
   ;
   var chain = [];
   var log = [];
+
+  // Check if API Champion has a fresh routing config in KV
+  var champConfig = null;
+  if (env.PRISM_KV) {
+    try {
+      var champRaw = await env.PRISM_KV.get("api-champion:routing-config");
+      if (champRaw) {
+        var parsed = JSON.parse(champRaw);
+        // Use if less than 25 hours old
+        if (parsed.ts && (Date.now() - new Date(parsed.ts).getTime()) < 90000000) {
+          champConfig = parsed;
+        }
+      }
+    } catch(e) {}
+  }
+
+  // If champion config exists, use it to build chain (skip dead providers)
+  if (champConfig && champConfig.chain && champConfig.chain.length > 0) {
+    var GKEY_CHAMP = env.gemini_api_key || env.GEMINI_API_KEY || "";
+    champConfig.chain.forEach(function(entry) {
+      var key = null;
+      if (entry.p === "gemini") key = GKEY_CHAMP;
+      else if (entry.p === "glm") key = env.zhipu_api_key || env.ZHIPU_API_KEY || "";
+      else if (entry.p === "cerebras") key = env.cerebras_paid || env.CEREBRAS_PAID || env.cerebras_free_1 || env.CEREBRAS_FREE_1 || "";
+      else if (entry.p === "groq") key = env.groq_free_1 || env.GROQ_FREE_1 || "";
+      else if (entry.p === "deepseek") key = env.deepseek_paid || env.DEEPSEEK_PAID || "";
+      else if (entry.p === "openrouter") key = env.openrouter_api_key || env.OPENROUTER_API_KEY || "";
+      else if (entry.p === "mistral") key = env.mistral_api_key || env.MISTRAL_API_KEY || "";
+      else if (entry.p === "cohere") key = env.cohere_api_key || env.COHERE_API_KEY || "";
+      else if (entry.p === "xai") key = env.xai_api_key || env.XAI_API_KEY || "";
+      else if (entry.p === "perplexity") key = env.perplexity || env.perplexity_api_key || "";
+      else if (entry.p === "kimi") key = env.kimi_api_key || env.KIMI_API_KEY || "";
+      else if (entry.p === "together") key = env.together_api_key || env.TOGETHER_API_KEY || "";
+      else if (entry.p === "fireworks") key = env.fireworks_api_key || env.FIREWORKS_API_KEY || "";
+      else if (entry.p === "chutes") key = env.chutes_api_key || env.CHUTES_API_KEY || "";
+      else if (entry.p === "sambanova") key = env.sambanova_api_key || env.SAMBANOVA_API_KEY || "";
+      if (key !== null || entry.p === "pollinations") {
+        chain.push({p:entry.p, key:key, m:entry.m, note:entry.name+" (champion-verified)"});
+      }
+    });
+    // Always add Pollinations as final fallback
+    chain.push({p:"pollinations", key:null, m:"openai", note:"Pollinations -- unconditional fallback"});
+    log.push("Using API Champion routing config from " + champConfig.ts);
+  } else {
   var t0 = Date.now();
 
   var lastMsg = "";
@@ -1498,6 +1542,7 @@ async function orchestrate(env, messages, profile, intent, threadId) {
   // Unconditional fallback
   chain.push({ p: "pollinations", key: null, m: "openai", note: "Pollinations -- unconditional fallback" });
   chain.push({ p: "pollinations", key: null, m: "mistral", note: "Pollinations Mistral" });
+  } // end else (no champion config)
 
 
 for (var ci = 0; ci < chain.length; ci++) {
@@ -8210,81 +8255,143 @@ var index_default = {
     }
 
 
-    // ── API Champion: test all providers and update routing config ────────────
-    if (path === "/api/champion/test-providers" && request.method === "POST") {
+    // ── API Champion: full provider test + routing update ─────────────────────
+    if ((path === "/api/champion/run" || path === "/api/champion/test-providers") && request.method === "POST") {
       try {
-        var GKEY2 = env.google_ai_key || env.GOOGLE_AI_KEY || "";
+        var t0champ = Date.now();
+        var GKEY_C = env.gemini_api_key || env.GEMINI_API_KEY || "";
         var testMsg = [{role:"user",content:"Say OK in 2 words"}];
-        var results = {};
-        var working = [];
-        var failed = [];
+        var testMsgGemini = {contents:[{parts:[{text:"Say OK in 2 words"}]}],generationConfig:{maxOutputTokens:20,thinkingConfig:{thinkingBudget:0}}};
 
-        // Test each provider with a quick call
-        var providerTests = [
-          { name: "gemma-4-31b", p: "gemini", key: GKEY2, m: "gemma-4-31b-it" },
-          { name: "gemini-3.8-flash", p: "gemini", key: GKEY2, m: "gemini-3.8-flash" },
-          { name: "deepseek-openrouter", p: "openrouter", key: env.openrouter_api_key || env.OPENROUTER_API_KEY, m: "deepseek/deepseek-chat" },
-          { name: "mistral-large", p: "mistral", key: env.mistral_api_key || env.MISTRAL_API_KEY, m: "mistral-large-latest" },
-          { name: "cerebras-gpt-oss", p: "cerebras", key: env.cerebras_paid || env.CEREBRAS_PAID, m: "gpt-oss-120b" },
-          { name: "groq-gpt-oss", p: "groq", key: env.groq_free_1 || env.GROQ_FREE_1, m: "openai/gpt-oss-120b" },
-          { name: "cohere-r-plus", p: "cohere", key: env.cohere_api_key, m: "command-r-plus-08-2024" },
+        // Full provider test suite
+        var providers = [
+          // Gemini/Google
+          {name:"gemma-4-31b", p:"gemini", key:GKEY_C, m:"gemma-4-31b-it", tier:1},
+          {name:"gemma-4-26b", p:"gemini", key:GKEY_C, m:"gemma-4-26b-a4b-it", tier:1},
+          {name:"gemini-3.8-flash", p:"gemini", key:GKEY_C, m:"gemini-3.8-flash", tier:1},
+          {name:"gemini-3.7-flash", p:"gemini", key:GKEY_C, m:"gemini-3.7-flash", tier:1},
+          {name:"gemini-3.5-flash", p:"gemini", key:GKEY_C, m:"gemini-3.5-flash", tier:1},
+          {name:"gemini-3.1-flash-lite", p:"gemini", key:GKEY_C, m:"gemini-3.1-flash-lite", tier:1},
+          {name:"gemini-flash-latest", p:"gemini", key:GKEY_C, m:"gemini-flash-latest", tier:1},
+          {name:"gemini-2.5-flash", p:"gemini", key:GKEY_C, m:"gemini-2.5-flash", tier:1},
+          {name:"gemini-2.5-pro", p:"gemini", key:GKEY_C, m:"gemini-2.5-pro", tier:2},
+          {name:"gemini-3.1-pro", p:"gemini", key:GKEY_C, m:"gemini-3.1-pro-preview", tier:2},
+          // GLM
+          {name:"glm-4.5-flash", p:"glm", key:env.zhipu_api_key||env.ZHIPU_API_KEY||"", m:"glm-4.5-flash", tier:1},
+          {name:"glm-4.7-flash", p:"glm", key:env.zhipu_api_key||env.ZHIPU_API_KEY||"", m:"glm-4.7-flash", tier:1},
+          // Cerebras
+          {name:"cerebras-gpt-oss", p:"cerebras", key:env.cerebras_paid||env.CEREBRAS_PAID||env.cerebras_free_1||env.CEREBRAS_FREE_1||"", m:"gpt-oss-120b", tier:1},
+          // Groq
+          {name:"groq-gpt-oss", p:"groq", key:env.groq_free_1||env.GROQ_FREE_1||"", m:"openai/gpt-oss-120b", tier:1},
+          {name:"groq-qwen3", p:"groq", key:env.groq_free_1||env.GROQ_FREE_1||"", m:"qwen/qwen3.8-27b", tier:1},
+          {name:"groq-llama4", p:"groq", key:env.groq_free_1||env.GROQ_FREE_1||"", m:"meta-llama/llama-4-scout-17b-16e-instruct", tier:1},
+          // DeepSeek
+          {name:"deepseek-v4", p:"deepseek", key:env.deepseek_paid||env.DEEPSEEK_PAID||"", m:"deepseek-chat", tier:1},
+          {name:"deepseek-openrouter", p:"openrouter", key:env.openrouter_api_key||env.OPENROUTER_API_KEY||"", m:"deepseek/deepseek-chat", tier:2},
+          // Mistral
+          {name:"mistral-large", p:"mistral", key:env.mistral_api_key||env.MISTRAL_API_KEY||"", m:"mistral-large-latest", tier:2},
+          {name:"mistral-medium", p:"mistral", key:env.mistral_api_key||env.MISTRAL_API_KEY||"", m:"mistral-medium-latest", tier:2},
+          {name:"mistral-small", p:"mistral", key:env.mistral_api_key||env.MISTRAL_API_KEY||"", m:"mistral-small-latest", tier:2},
+          {name:"codestral", p:"mistral", key:env.mistral_api_key||env.MISTRAL_API_KEY||"", m:"codestral-latest", tier:2},
+          // Cohere
+          {name:"cohere-r-plus", p:"cohere", key:env.cohere_api_key||env.COHERE_API_KEY||"", m:"command-r-plus-08-2024", tier:2},
+          {name:"cohere-command-a", p:"cohere", key:env.cohere_paid_key||"", m:"command-a-03-2025", tier:2},
+          // xAI
+          {name:"grok-3", p:"xai", key:env.xai_api_key||env.XAI_API_KEY||"", m:"grok-3", tier:2},
+          {name:"grok-3-fast", p:"xai", key:env.xai_api_key||env.XAI_API_KEY||"", m:"grok-3-fast", tier:2},
+          {name:"grok-3-mini", p:"xai", key:env.xai_api_key||env.XAI_API_KEY||"", m:"grok-3-mini", tier:2},
+          // Perplexity
+          {name:"perplexity-sonar", p:"perplexity", key:env.perplexity||env.perplexity_api_key||env.PERPLEXITY_API_KEY||"", m:"sonar", tier:2},
+          // Kimi
+          {name:"kimi-32k", p:"kimi", key:env.kimi_api_key||env.KIMI_API_KEY||"", m:"moonshot-v1-32k", tier:3},
+          // Together
+          {name:"together-llama", p:"together", key:env.together_api_key||env.TOGETHER_API_KEY||"", m:"meta-llama/Llama-3.3-70B-Instruct-Turbo", tier:3},
+          // Fireworks
+          {name:"fireworks-llama", p:"fireworks", key:env.fireworks_api_key||env.FIREWORKS_API_KEY||"", m:"accounts/fireworks/models/llama-v3p3-70b-instruct", tier:3},
+          // Chutes
+          {name:"chutes-deepseek", p:"chutes", key:env.chutes_api_key||env.CHUTES_API_KEY||"", m:"deepseek-ai/DeepSeek-V3-0324", tier:3},
+          // SambaNova
+          {name:"sambanova-llama", p:"sambanova", key:env.sambanova_api_key||env.SAMBANOVA_API_KEY||"", m:"Meta-Llama-3.3-70B-Instruct", tier:3},
+          // Pollinations (always last)
+          {name:"pollinations", p:"pollinations", key:null, m:"openai", tier:99},
         ];
 
-        for (var ti = 0; ti < providerTests.length; ti++) {
-          var pt = providerTests[ti];
-          if (!pt.key) { failed.push(pt.name + ": no key"); continue; }
-          try {
-            var testResult = await Promise.race([
-              callProvider(env, pt.p, pt.key, pt.m, testMsg),
-              new Promise(function(_, rej) { setTimeout(function() { rej(new Error("timeout")); }, 8000); })
-            ]);
-            if (testResult && testResult.content) {
-              working.push(pt.name);
-              results[pt.name] = "OK: " + testResult.content.substring(0, 30);
-            } else {
-              failed.push(pt.name + ": empty response");
-              results[pt.name] = "empty";
+        var working = [];
+        var failed = [];
+        var results = {};
+        var TIMEOUT_MS = 8000;
+
+        // Test all providers in parallel (batched to avoid CPU limits)
+        var batchSize = 6;
+        for (var bi = 0; bi < providers.length; bi += batchSize) {
+          var batch = providers.slice(bi, bi + batchSize);
+          var batchResults = await Promise.all(batch.map(function(prov) {
+            if (!prov.key && prov.p !== "pollinations") {
+              return Promise.resolve({name:prov.name, ok:false, reason:"no key", ms:0});
             }
-          } catch(e) {
-            failed.push(pt.name + ": " + e.message.substring(0, 40));
-            results[pt.name] = "error: " + e.message.substring(0, 30);
-          }
+            var startT = Date.now();
+            return Promise.race([
+              callProvider(env, prov.p, prov.key, prov.m, testMsg)
+                .then(function(r) { return {name:prov.name, ok:!!(r&&r.content), reason:r&&r.content?"ok":"empty", ms:Date.now()-startT, tier:prov.tier, model:prov.m, provider:prov.p}; })
+                .catch(function(e) { return {name:prov.name, ok:false, reason:e.message.substring(0,60), ms:Date.now()-startT, tier:prov.tier}; }),
+              new Promise(function(resolve) {
+                setTimeout(function() { resolve({name:prov.name, ok:false, reason:"timeout "+TIMEOUT_MS+"ms", ms:TIMEOUT_MS, tier:prov.tier}); }, TIMEOUT_MS);
+              })
+            ]);
+          }));
+          batchResults.forEach(function(r) {
+            results[r.name] = r;
+            if (r.ok) working.push(r.name);
+            else failed.push(r.name + ":" + r.reason);
+          });
         }
 
-        // Store results in KV for API Champion to read
+        // Build updated routing chain config based on results
+        var workingProviders = providers.filter(function(p) { return results[p.name] && results[p.name].ok; });
+        workingProviders.sort(function(a,b) { return a.tier - b.tier; });
+        var routingConfig = {
+          ts: new Date().toISOString(),
+          working: working,
+          failed: failed,
+          chain: workingProviders.map(function(p) { return {p:p.p, m:p.m, name:p.name, tier:p.tier}; }),
+          totalMs: Date.now() - t0champ
+        };
+
+        // Store in KV for orchestrate() to use
         if (env.PRISM_KV) {
-          env.PRISM_KV.put("api-champion:last-test", JSON.stringify({
-            ts: new Date().toISOString(),
-            working: working,
-            failed: failed,
-            results: results
-          }), { expirationTtl: 86400 }).catch(function(){});
+          await env.PRISM_KV.put("api-champion:routing-config", JSON.stringify(routingConfig), {expirationTtl: 86400 * 2});
+          await env.PRISM_KV.put("api-champion:last-run", new Date().toISOString(), {expirationTtl: 86400 * 7});
         }
 
-        // Send Telegram notification
+        // Send Telegram report
         var tgTok = env.TELEGRAM_TOKEN || env.telegram_token;
-        var tgChat = env.TELEGRAM_CHAT_ID || env.TELEGRAM_CHAT || env.telegram_chat_id;
+        var tgChat = env.TELEGRAM_CHAT_ID || env.telegram_chat_id || env.TELEGRAM_CHAT;
         if (tgTok && tgChat) {
-          var msg = "API Champion Report\n\nWorking (" + working.length + "): " + working.join(", ") +
-            "\n\nFailed (" + failed.length + "): " + failed.join(", ");
-          fetch("https://api.telegram.org/bot" + tgTok + "/sendMessage", {
-            method: "POST", headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({chat_id: tgChat, text: msg})
+          var report = "🤖 API Champion Report\n" + new Date().toISOString().slice(0,16).replace("T"," ") + " UTC\n\n" +
+            "✅ Working (" + working.length + "):\n" + working.join(", ") + "\n\n" +
+            "❌ Failed (" + failed.length + "):\n" + failed.slice(0,10).join("\n") +
+            "\n\nRouting chain updated. " + workingProviders.length + " providers active.";
+          fetch("https://api.telegram.org/bot"+tgTok+"/sendMessage", {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({chat_id:tgChat, text:report})
           }).catch(function(){});
         }
 
-        return json({ success: true, working, failed, results }, 200, origin);
-      } catch(e) { return json({ error: e.message }, 500, origin); }
+        return json({success:true, working:working.length, failed:failed.length, results:results, chain:routingConfig.chain, totalMs:routingConfig.totalMs}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
-    // Get last API Champion test results
+    // Get last champion results
     if (path === "/api/champion/status" && request.method === "GET") {
       try {
-        if (!env.PRISM_KV) return json({ error: "KV not available" }, 200, origin);
-        var raw = await env.PRISM_KV.get("api-champion:last-test");
-        return json(raw ? JSON.parse(raw) : { message: "No test run yet. POST /api/champion/test-providers" }, 200, origin);
-      } catch(e) { return json({ error: e.message }, 500, origin); }
+        if (!env.PRISM_KV) return json({error:"KV not available"}, 200, origin);
+        var raw = await env.PRISM_KV.get("api-champion:routing-config");
+        var lastRun = await env.PRISM_KV.get("api-champion:last-run");
+        return json(raw ? {...JSON.parse(raw), lastRun} : {message:"No test run yet. POST /api/champion/run"}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
     }
+
+
 
 
     // ── Multi-model: fire same prompt at multiple providers simultaneously ────
