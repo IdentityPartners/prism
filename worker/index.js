@@ -2984,20 +2984,39 @@ var index_default = {
           } catch(e) {}
         }
 
-        // Gemini image generation (imagen-3)
+        // Gemini image generation — multiple confirmed working models
         var gKey2 = env.gemini_api_key || env.GEMINI_API_KEY;
-        if (gKey2 && (modelName === "imagen-3" || modelName === "auto")) {
-          try {
-            var imgR = await fetch("https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key="+gKey2, {
-              method: "POST", headers: {"Content-Type":"application/json"},
-              body: JSON.stringify({instances:[{prompt: prompt}], parameters:{sampleCount:1}})
-            });
-            if (imgR.ok) {
-              var imgD = await imgR.json();
-              var b64img = imgD.predictions && imgD.predictions[0] && imgD.predictions[0].bytesBase64Encoded;
-              if (b64img) return json({url: "data:image/png;base64,"+b64img, provider:"gemini", model:"imagen-3"}, 200, origin);
-            }
-          } catch(e) {}
+        if (gKey2) {
+          var gemImgModels = {
+            "gemini-image": "gemini-3.1-flash-image",
+            "gemini-image-pro": "gemini-3-pro-image",
+            "gemini-image-lite": "gemini-3.1-flash-lite-image",
+            "gemini-2.5-image": "gemini-2.5-flash-image",
+            "auto": "gemini-3.1-flash-image"
+          };
+          var gemImgModel = gemImgModels[modelName] || (modelName.includes("gemini") ? modelName : null);
+          if (gemImgModel || modelName === "auto") {
+            var useModel = gemImgModel || "gemini-3.1-flash-image";
+            try {
+              var gemImgR = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+useModel+":generateContent", {
+                method: "POST", headers: {"Content-Type":"application/json","x-goog-api-key":gKey2},
+                body: JSON.stringify({contents:[{parts:[{text:prompt+(style?", "+style:"")}]}], generationConfig:{responseModalities:["IMAGE","TEXT"]}})
+              });
+              if (gemImgR.ok) {
+                var gemImgD = await gemImgR.json();
+                var gemParts = gemImgD.candidates && gemImgD.candidates[0] && gemImgD.candidates[0].content && gemImgD.candidates[0].content.parts;
+                if (gemParts) {
+                  for (var gpi = 0; gpi < gemParts.length; gpi++) {
+                    if (gemParts[gpi].inlineData) {
+                      var b64 = gemParts[gpi].inlineData.data;
+                      var mime = gemParts[gpi].inlineData.mimeType || "image/jpeg";
+                      return json({url:"data:"+mime+";base64,"+b64, provider:"gemini", model:useModel}, 200, origin);
+                    }
+                  }
+                }
+              }
+            } catch(e) {}
+          }
         }
 
         // Pollinations fallback (always works, free)
@@ -3017,6 +3036,10 @@ var index_default = {
         {id:"recraft-v3", name:"Recraft V3", provider:"fal", free:true, speed:"medium", notes:"Design/illustration"},
         {id:"imagen-3", name:"Imagen 3", provider:"gemini", free:true, speed:"medium", notes:"Google photorealistic"},
         {id:"pollinations", name:"Pollinations Flux", provider:"pollinations", free:true, speed:"fast", notes:"Always available"},
+        {id:"gemini-image", name:"Gemini 3.1 Flash Image", provider:"gemini", free:true, speed:"medium", notes:"Confirmed working"},
+        {id:"gemini-image-pro", name:"Gemini 3 Pro Image", provider:"gemini", free:true, speed:"slow", notes:"Highest quality"},
+        {id:"gemini-image-lite", name:"Gemini 3.1 Flash Lite Image", provider:"gemini", free:true, speed:"fast", notes:"Fast, good quality"},
+        {id:"gemini-2.5-image", name:"Gemini 2.5 Flash Image", provider:"gemini", free:true, speed:"medium"},
       ]}, 200, origin);
     }
     if (path === "/api/image/models") {
@@ -7621,12 +7644,17 @@ var index_default = {
           } catch(e) {}
         }
 
-        // Gemini TTS (confirmed working, free)
+        // Gemini TTS — multiple confirmed working models
         var gKey3 = env.gemini_api_key || env.GEMINI_API_KEY;
         if (gKey3 && (provider === "gemini" || provider === "auto")) {
           try {
-            var gemVoice = voiceId === "default" ? "Aoede" : voiceId;
-            var gemTtsR = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key="+gKey3, {
+            var gemVoice = voiceId === "default" ? "Puck" : voiceId;
+            // Use best available TTS model
+            var ttsMod = modelId === "gemini-3.8-tts" ? "gemini-3.8-flash-tts" :
+                         modelId === "gemini-3.8-lite-tts" ? "gemini-3.8-flash-lite-tts" :
+                         modelId === "gemini-3.1-tts" ? "gemini-3.1-flash-tts-preview" :
+                         "gemini-3.8-flash-tts"; // default: best confirmed
+            var gemTtsR = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+ttsMod+":generateContent?key="+gKey3, {
               method: "POST", headers: {"Content-Type":"application/json"},
               body: JSON.stringify({
                 contents: [{parts:[{text:text}]}],
@@ -7674,6 +7702,9 @@ var index_default = {
         {id:"gemini-puck", name:"Gemini TTS (Puck)", provider:"gemini", free:true, quality:"good", latency:"medium"},
         {id:"gemini-charon", name:"Gemini TTS (Charon)", provider:"gemini", free:true, quality:"good", latency:"medium"},
         {id:"elevenlabs", name:"ElevenLabs (paid)", provider:"elevenlabs", free:false, quality:"best", latency:"medium"},
+        {id:"gemini-3.8-tts", name:"Gemini 3.8 Flash TTS", provider:"gemini", free:true, quality:"high", latency:"low"},
+        {id:"gemini-3.8-lite-tts", name:"Gemini 3.8 Flash Lite TTS", provider:"gemini", free:true, quality:"good", latency:"very-low"},
+        {id:"gemini-3.1-tts", name:"Gemini 3.1 Flash TTS", provider:"gemini", free:true, quality:"good", latency:"low"},
       ]}, 200, origin);
     }
 
@@ -8373,6 +8404,62 @@ var index_default = {
         }
         return json({ results: results, synthesis: synthesis, count: results.length, successful: successful.length }, 200, origin);
       } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+
+    // ── Lyria music generation ────────────────────────────────────────────────
+    if (path === "/api/music/generate" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var prompt = body.prompt || "upbeat jazz piano";
+        var model = body.model || "lyria-3.5";
+        var gKey4 = env.gemini_api_key || env.GEMINI_API_KEY;
+        if (!gKey4) return json({error: "No Gemini key configured"}, 400, origin);
+
+        var lyriaBodies = {
+          "lyria-3-clip-preview": {contents:[{parts:[{text:prompt}]}]},
+          "lyria-3-pro-preview": {contents:[{parts:[{text:prompt}]}]},
+          "lyria-3.5": {contents:[{parts:[{text:prompt}]}]},
+        };
+        var lyriaBody = lyriaBodies[model] || lyriaBodies["lyria-3.5"];
+
+        var lyriaR = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
+          method: "POST",
+          headers: {"Content-Type":"application/json","x-goog-api-key":gKey4},
+          body: JSON.stringify(lyriaBody)
+        });
+        if (!lyriaR.ok) {
+          var lyriaErr = await lyriaR.text();
+          return json({error:"Lyria " + lyriaR.status + ": " + lyriaErr.substring(0,200)}, 500, origin);
+        }
+        var lyriaD = await lyriaR.json();
+        var lyriaParts = lyriaD.candidates && lyriaD.candidates[0] && lyriaD.candidates[0].content && lyriaD.candidates[0].content.parts;
+        if (!lyriaParts) return json({error:"No audio generated"}, 500, origin);
+
+        var audioData = null;
+        var mimeType = "audio/mpeg";
+        for (var lpi = 0; lpi < lyriaParts.length; lpi++) {
+          if (lyriaParts[lpi].inlineData) {
+            audioData = lyriaParts[lpi].inlineData.data;
+            mimeType = lyriaParts[lpi].inlineData.mimeType || "audio/mpeg";
+            break;
+          }
+        }
+        if (!audioData) return json({error:"No audio in response"}, 500, origin);
+
+        // Return as audio file
+        var audioBuf = Uint8Array.from(atob(audioData), function(c){return c.charCodeAt(0);});
+        return new Response(audioBuf, {status:200, headers:{"Content-Type":mimeType,"Access-Control-Allow-Origin":origin||"*","Content-Disposition":"attachment; filename=\"music.mp3\""}});
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // Music models list
+    if (path === "/api/music/models") {
+      return json({models:[
+        {id:"lyria-3.5", name:"Lyria 3.5", provider:"gemini", free:true, quality:"best", notes:"Full composition with structure"},
+        {id:"lyria-3-pro-preview", name:"Lyria 3 Pro", provider:"gemini", free:true, quality:"high", notes:"Professional quality"},
+        {id:"lyria-3-clip-preview", name:"Lyria 3 Clip", provider:"gemini", free:true, quality:"good", notes:"Short clips, fastest"},
+      ]}, 200, origin);
     }
 
 return json({ error: "Not found", path }, 404, origin);
