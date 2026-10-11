@@ -8021,6 +8021,74 @@ var index_default = {
       } catch(e) { return json({ error: e.message }, 500, origin); }
     }
 
+
+    // ── Multi-model: fire same prompt at multiple providers simultaneously ────
+    if (path === "/api/chat/multi" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var messages = body.messages || [];
+        var models = body.models || ["gemini/gemma-4-31b-it", "openrouter/deepseek/deepseek-chat", "groq/openai/gpt-oss-120b"];
+        var synthesise = body.synthesise !== false;
+
+        var GKEY2 = env.google_ai_key || env.GOOGLE_AI_KEY || env.gemini_api_key || "";
+
+        function getKey(provider) {
+          if (provider === "gemini") return GKEY2;
+          if (provider === "deepseek") return env.deepseek_paid || env.DEEPSEEK_PAID || "";
+          if (provider === "openrouter") return env.openrouter_api_key || env.OPENROUTER_API_KEY || "";
+          if (provider === "mistral") return env.mistral_api_key || env.MISTRAL_API_KEY || "";
+          if (provider === "cerebras") return env.cerebras_paid || env.CEREBRAS_PAID || env.cerebras_free_1 || env.CEREBRAS_FREE_1 || "";
+          if (provider === "groq") return env.groq_free_1 || env.GROQ_FREE_1 || "";
+          if (provider === "cohere") return env.cohere_paid_key || env.cohere_api_key || "";
+          if (provider === "kimi") return env.kimi_api_key || env.KIMI_API_KEY || "";
+          if (provider === "nvidia") return env.nvidia_build_api_key || env.NVIDIA_BUILD_API_KEY || "";
+          if (provider === "together") return env.together_api_key || env.TOGETHER_API_KEY || "";
+          return "";
+        }
+
+        // Fire all models in parallel with 20s timeout each
+        var modelCalls = models.map(function(modelStr) {
+          var parts = modelStr.split("/");
+          var provider = parts[0];
+          var model = parts.slice(1).join("/");
+          var key = getKey(provider);
+          return Promise.race([
+            callProvider(env, provider, key, model, messages)
+              .then(function(r) { return { model: modelStr, provider: provider, content: r.content, ok: true }; })
+              .catch(function(e) { return { model: modelStr, provider: provider, content: null, error: e.message, ok: false }; }),
+            new Promise(function(resolve) {
+              setTimeout(function() { resolve({ model: modelStr, provider: provider, content: null, error: "timeout", ok: false }); }, 20000);
+            })
+          ]);
+        });
+
+        var results = await Promise.all(modelCalls);
+        var successful = results.filter(function(r) { return r.ok && r.content; });
+
+        var synthesis = null;
+        if (synthesise && successful.length > 1) {
+          // Ask the best available model to synthesise the responses
+          var synthPrompt = "You have received responses to the same question from " + successful.length + " different AI models. " +
+            "Synthesise the best answer, noting where models agree and where they differ. Be concise. British English.\n\n" +
+            successful.map(function(r, i) {
+              return "Model " + (i+1) + " (" + r.model + "):\n" + r.content.substring(0, 800);
+            }).join("\n\n---\n\n");
+          try {
+            var synthResult = await Promise.race([
+              callProvider(env, "openrouter", env.openrouter_api_key || env.OPENROUTER_API_KEY, "deepseek/deepseek-chat",
+                [{ role: "user", content: synthPrompt }]),
+              new Promise(function(_, rej) { setTimeout(function() { rej(new Error("timeout")); }, 15000); })
+            ]);
+            synthesis = synthResult.content;
+          } catch(e) {
+            synthesis = "Synthesis failed: " + e.message;
+          }
+        }
+
+        return json({ results: results, synthesis: synthesis, count: results.length, successful: successful.length }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
 return json({ error: "Not found", path }, 404, origin);
   }
 };
