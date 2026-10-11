@@ -477,7 +477,7 @@
 <div class="context-section-title">Model</div>
 <div class="model-info-card" onclick="openModelModal()" title="Change model or routing profile">
 <div class="model-name" id="ctx-model-name">Auto (Orchestrator)</div>
-<div class="model-provider" id="ctx-model-provider">Cerebras → Groq → DeepSeek</div>
+<div class="model-provider" id="ctx-model-provider">Gemma 4 → DeepSeek → Nemotron → Gemini</div>
 </div>
 <select id="model-override" onchange="setModelOverride(this.value)"
   style="width:100%;margin-top:6px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;background:var(--bg);color:var(--fg);cursor:pointer;">
@@ -502,7 +502,7 @@
 <optgroup label="Profiles">
   <option value="__profile_reasoning">Reasoning profile (DeepSeek → Gemini Pro)</option>
   <option value="__profile_longctx">Long context profile (DeepSeek 1M → Gemini 1M)</option>
-  <option value="__profile_fast">Fast profile (Cerebras → Groq)</option>
+  <option value="__profile_fast">Fast profile (Gemma 4 → DeepSeek → Groq)</option>
 </optgroup>
 </select>
 <button onclick="openMultiModelModal()" style="width:100%;margin-top:6px;padding:5px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer;text-align:left;">
@@ -1234,11 +1234,11 @@ function openModelModal() {
   var list = document.getElementById('model-list');
   if (!modal || !list) return;
   var models = [
-    {name: 'Auto (Balanced)', provider: 'Cerebras → Groq → DeepSeek', profile: 'balanced'},
-    {name: 'Auto (Free)', provider: 'Cerebras → Groq → SambaNova', profile: 'free'},
-    {name: 'Auto (Frontier Free)', provider: 'Gemini → NVIDIA → DeepSeek', profile: 'frontier-free'},
-    {name: 'Auto (Full Frontier)', provider: 'DeepSeek R1 → Gemini Pro', profile: 'frontier'},
-    {name: 'Auto (Local)', provider: 'Ollama on Surface Pro', profile: 'local'},
+    {name: 'Auto (Balanced)', provider: 'Gemma 4 31B → DeepSeek 1M → Nemotron → Gemini', profile: 'balanced'},
+    {name: 'Auto (Free)', provider: 'Gemma 4 31B → DeepSeek OpenRouter → Gemini Flash', profile: 'free'},
+    {name: 'Auto (Frontier Free)', provider: 'Nemotron Ultra → Gemini 3.8 → DeepSeek 1M', profile: 'frontier-free'},
+    {name: 'Auto (Full Frontier)', provider: 'DeepSeek V4 1M → Gemini Pro → Mistral Large', profile: 'frontier'},
+    {name: 'Auto (Local)', provider: 'Ollama (local, manual activation)', profile: 'local'},
   ];
   list.innerHTML = '';
   for (var i = 0; i < models.length; i++) {
