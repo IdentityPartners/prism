@@ -1330,8 +1330,8 @@ async function orchestrate(env, messages, profile, intent, threadId) {
       k(["groq_free_2","GROQ_FREE_2"]),
       k(["groq_free_3","GROQ_FREE_3"])
     ].filter(Boolean),
-    // Google AI Studio — free key confirmed working
-    google: k(["google_ai_key","GOOGLE_AI_KEY"]),
+    // Google AI Studio — uses gemini_api_key (confirmed in secrets)
+    google: k(["gemini_api_key","GEMINI_API_KEY","google_ai_key","GOOGLE_AI_KEY"]),
     // Gemini paid
     gemini_free: k(["gemini_api_key","GEMINI_API_KEY"]),
     gemini_paid: k(["gemini_paid_api_key","GEMINI_PAID_API_KEY"]),
@@ -2534,8 +2534,8 @@ var index_default = {
           // Direct model override — skip the chain, call this provider directly
           try {
             var overrideKey = null;
-            var GKEY2 = env.google_ai_key || env.GOOGLE_AI_KEY || env.gemini_api_key || "";
-            if (providerOverride === "gemini") overrideKey = GKEY2;
+            var GKEY2 = env.gemini_api_key || env.GEMINI_API_KEY || env.google_ai_key || env.GOOGLE_AI_KEY || "";
+            if (providerOverride === "gemini") overrideKey = env.gemini_api_key || env.GEMINI_API_KEY || env.google_ai_key || env.GOOGLE_AI_KEY || "";
             else if (providerOverride === "deepseek") overrideKey = env.deepseek_paid || env.DEEPSEEK_PAID || "";
             else if (providerOverride === "openrouter") overrideKey = env.openrouter_api_key || env.OPENROUTER_API_KEY || "";
             else if (providerOverride === "mistral") overrideKey = env.mistral_api_key || env.MISTRAL_API_KEY || "";
@@ -8034,7 +8034,7 @@ var index_default = {
         var models = body.models || ["gemini/gemma-4-31b-it", "openrouter/deepseek/deepseek-chat", "groq/openai/gpt-oss-120b"];
         var synthesise = body.synthesise !== false;
 
-        var GKEY2 = env.google_ai_key || env.GOOGLE_AI_KEY || env.gemini_api_key || "";
+        var GKEY2 = env.gemini_api_key || env.GEMINI_API_KEY || env.google_ai_key || env.GOOGLE_AI_KEY || "";
 
         function getKey(provider) {
           if (provider === "gemini") return GKEY2;
@@ -8100,7 +8100,7 @@ var index_default = {
         var messages = body.messages || [];
         var models = body.models || ["gemini/gemma-4-31b-it", "openrouter/deepseek/deepseek-chat", "groq/openai/gpt-oss-120b"];
         var synthesise = body.synthesise !== false;
-        var GKEY2 = env.google_ai_key || env.GOOGLE_AI_KEY || env.gemini_api_key || "";
+        var GKEY2 = env.gemini_api_key || env.GEMINI_API_KEY || env.google_ai_key || env.GOOGLE_AI_KEY || "";
         function getKeyForMulti(provider) {
           if (provider === "gemini") return GKEY2;
           if (provider === "deepseek") return env.deepseek_paid || env.DEEPSEEK_PAID || "";
