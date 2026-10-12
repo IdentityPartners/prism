@@ -1615,10 +1615,12 @@ async function callProvider(env, provider, key, model, messages) {
   });
   var system = systemMsg ? systemMsg.content : "";
   if (provider === "cerebras") {
+    // Cerebras has 8K context — trim to last 6 messages to avoid overflow
+    var cerebrasMessages = messages.length > 8 ? [messages[0]].concat(messages.slice(-6)) : messages;
     var r = await fetch("https://api.cerebras.ai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, max_tokens: 8192, temperature: 0.7 })
+      body: JSON.stringify({ model, messages: cerebrasMessages, max_tokens: 4096, temperature: 0.7 })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -1630,10 +1632,12 @@ async function callProvider(env, provider, key, model, messages) {
     return { content: content || "" };
   }
   if (provider === "groq") {
+    // Groq has 8K context — trim to last 6 messages to avoid overflow
+    var groqMessages = messages.length > 8 ? [messages[0]].concat(messages.slice(-6)) : messages;
     var r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, max_tokens: 8192, temperature: 0.7 })
+      body: JSON.stringify({ model, messages: groqMessages, max_tokens: 4096, temperature: 0.7 })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -1715,13 +1719,16 @@ async function callProvider(env, provider, key, model, messages) {
   }
   if (provider === "cohere") {
     // Cohere v2 API — uses messages array like OpenAI, not chat_history+message
-    var cohereV2Messages = messages.map(function(m) {
-      return { role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user", content: m.content };
+    // Cohere 128K context — trim very long conversations
+    var cohereRaw = messages.length > 20 ? [messages[0]].concat(messages.slice(-18)) : messages;
+    var cohereV2Messages = cohereRaw.map(function(m) {
+      var content = typeof m.content === "string" ? m.content.substring(0, 4000) : JSON.stringify(m.content).substring(0, 4000);
+      return { role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user", content: content };
     });
     var r = await fetch("https://api.cohere.com/v2/chat", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: model, messages: cohereV2Messages, max_tokens: 8192, temperature: 0.7 })
+      body: JSON.stringify({ model: model, messages: cohereV2Messages, max_tokens: 4096, temperature: 0.7 })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -8430,6 +8437,48 @@ var index_default = {
         var body = await request.json();
         var messages = body.messages || [];
         var models = body.models || ["gemini/gemma-4-31b-it", "openrouter/deepseek/deepseek-chat", "groq/openai/gpt-oss-120b"];
+        // Inject web search for multi-model if query needs current info
+        var multiLastMsg = "";
+        for (var mmi = messages.length - 1; mmi >= 0; mmi--) {
+          if (messages[mmi].role === "user") { multiLastMsg = (messages[mmi].content || "").substring(0, 300); break; }
+        }
+        var multiNeedsSearch = /\b(latest|recent|today|news|report|study|paper|findings|published|this week|past week|who is|what is)\b/i.test(multiLastMsg);
+        var multiSearchCtx = "";
+        if (multiNeedsSearch) {
+          var multiTavilyKey = env.tavily_api_key || env.TAVILY_API_KEY;
+          if (multiTavilyKey) {
+            try {
+              var msr = await Promise.race([
+                fetch("https://api.tavily.com/search", {
+                  method: "POST", headers: {"Content-Type":"application/json"},
+                  body: JSON.stringify({api_key: multiTavilyKey, query: multiLastMsg.substring(0,200), max_results:3, include_answer:true, search_depth:"basic"})
+                }),
+                new Promise(function(_,rej){setTimeout(function(){rej(new Error("timeout"));},3000);})
+              ]);
+              if (msr && msr.ok) {
+                var msd = await msr.json();
+                if (msd.answer) {
+                  multiSearchCtx = "\n\n[Web search: " + multiLastMsg.substring(0,60) + "]\n" + msd.answer;
+                  if (msd.results && msd.results.length > 0) {
+                    multiSearchCtx += "\nSources: " + msd.results.slice(0,2).map(function(r){return r.title+" — "+r.url;}).join("; ");
+                  }
+                } else {
+                  multiSearchCtx = "\n\n[Web search for '" + multiLastMsg.substring(0,60) + "' returned no results. Do not hallucinate. State you searched and found nothing.]";
+                }
+              }
+            } catch(e) {}
+          }
+        }
+        // Inject search context into system message for all models
+        if (multiSearchCtx) {
+          var hasSystem = messages.length > 0 && messages[0].role === "system";
+          if (hasSystem) {
+            messages = messages.slice();
+            messages[0] = {role:"system", content: messages[0].content + multiSearchCtx};
+          } else {
+            messages = [{role:"system", content: "You are Gerald, the Orchestrator for Argentica. British English. No hallucination. If you searched and found nothing, say so." + multiSearchCtx}].concat(messages);
+          }
+        }
         var synthesise = body.synthesise !== false;
 
         var GKEY2 = env.gemini_api_key || env.GEMINI_API_KEY || env.google_ai_key || env.GOOGLE_AI_KEY || "";
