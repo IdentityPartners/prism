@@ -451,6 +451,7 @@
 </div>
 </div>
 <!-- Input area -->
+<div id="attach-strip" style="display:none;padding:5px 16px;background:var(--bg-sunken);border-top:1px solid var(--border);font-size:11.5px;color:var(--accent);flex-wrap:wrap;gap:6px;align-items:center;min-height:30px;"></div>
 <div class="chat-input-area">
 <div class="chat-chips">
 <span class="chat-chip" onclick="insertChip('Research: ')" data-tooltip="Search 80+ sources and synthesise results" title="Start a research query">🔍 Research</span>
@@ -463,7 +464,7 @@
 <div class="chat-input-row">
 <textarea class="chat-textarea" id="chat-input" placeholder="Type, write, or dictate… (Enter to send, Shift+Enter for new line)" rows="3"></textarea>
 <div style="display:flex;flex-direction:column;gap:4px;">
-  <button class="chat-send-btn" id="send-btn" onclick="doSend()" title="Send message (Enter)"><span id="model-badge" style="font-size:10px;color:var(--fg-muted);padding:2px 6px;border:1px solid var(--border);border-radius:8px;margin-left:4px;">Auto</span>➤</button>
+  <button class="chat-send-btn" id="send-btn" onclick="doSend()" title="Send message (Enter)">➤</button>
   <button style="width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--bg-surface);cursor:pointer;font-size:14px;" onclick="document.getElementById('chat-file-input').click()" title="Attach file">📎</button>
 </div>
 </div>
@@ -476,49 +477,9 @@
 <div>
 <div class="context-section-title">Model</div>
 <div class="model-info-card" onclick="openModelModal()" title="Change model or routing profile">
-<div class="model-name" id="ctx-model-name">Auto (Orchestrator)</div>
-<div class="model-provider" id="ctx-model-provider">Gemma 4 → Cerebras → Groq → DeepSeek → Gemini</div>
+<div class="model-name" id="ctx-model-name">Auto (Balanced)</div>
+<div class="model-provider" id="ctx-model-provider">Cerebras → Groq → DeepSeek</div>
 </div>
-<select id="model-override" onchange="setModelOverride(this.value)"
-  style="width:100%;margin-top:6px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;background:var(--bg);color:var(--fg);cursor:pointer;">
-<option value="">Auto (Orchestrator decides)</option>
-<optgroup label="Free — Confirmed Working">
-  <option value="gemini/gemma-4-31b-it">Gemma 4 31B (262K) ★ top pick</option>
-  <option value="gemini/gemma-4-26b-a4b-it">Gemma 4 26B (262K)</option>
-  <option value="gemini/gemini-3.8-flash">Gemini 3.8 Flash (1M ctx)</option>
-  <option value="gemini/gemini-flash-latest">Gemini Flash latest (1M ctx)</option>
-  <option value="glm/glm-4.5-flash">GLM-4.5-flash — thinking (128K)</option>
-  <option value="glm/glm-4.7-flash">GLM-4.7-flash — thinking (128K)</option>
-  <option value="groq/openai/gpt-oss-120b">GPT-OSS 120B on Groq (8K, fast)</option>
-  <option value="groq/qwen/qwen3.8-27b">Qwen3 on Groq (8K, fast)</option>
-  <option value="groq/meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout on Groq (fast)</option>
-  <option value="groq/google/gemma-3-27b-it">Gemma 3 27B on Groq (fast)</option>
-  <option value="openrouter/deepseek/deepseek-chat">DeepSeek V4 via OpenRouter (1M)</option>
-  <option value="perplexity/sonar">Perplexity Sonar (web search built-in)</option>
-</optgroup>
-<optgroup label="Paid — High Quality">
-  <option value="deepseek/deepseek-chat">DeepSeek V4 direct (1M ctx)</option>
-  <option value="cerebras/gpt-oss-120b">GPT-OSS 120B on Cerebras (8K, fast)</option>
-  <option value="mistral/mistral-large-latest">Mistral Large (128K)</option>
-  <option value="mistral/mistral-medium-latest">Mistral Medium (128K)</option>
-  <option value="mistral/codestral-latest">Codestral — code specialist</option>
-  <option value="mistral/mistral-small-latest">Mistral Small (32K, fast)</option>
-  <option value="xai/grok-3">Grok-3 (real-time X data)</option>
-  <option value="xai/grok-3-fast">Grok-3-fast (real-time X, fast)</option>
-  <option value="xai/grok-3-mini">Grok-3-mini (reasoning)</option>
-  <option value="cohere/command-r-plus-08-2024">Cohere Command R+ (128K)</option>
-  <option value="kimi/moonshot-v1-128k">Kimi 128K (when key active)</option>
-</optgroup>
-<optgroup label="Profiles">
-  <option value="__profile_reasoning">Reasoning (DeepSeek → GLM thinking → Mistral)</option>
-  <option value="__profile_longctx">Long Context (DeepSeek 1M → Gemini 1M)</option>
-  <option value="__profile_fast">Fast (Cerebras → Groq → Gemma)</option>
-  <option value="__profile_search">Web Search (Perplexity Sonar → Grok)</option>
-</optgroup>
-</select>
-<button onclick="openMultiModelModal()" style="width:100%;margin-top:6px;padding:5px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer;text-align:left;">
-  ⚡ Multi-model mode
-</button>
 </div>
 <div>
 <div class="context-section-title">Routing Profile</div>
@@ -567,12 +528,38 @@
 </div>
 </div>
 </div>
-<input type="file" id="chat-file-input" accept="image/*,.pdf,.txt,.csv,.md,.markdown,.json,.js,.py,.html,.css,.docx,.doc,.rtf" multiple style="display:none;" onchange="handleChatAttachment(this)">
+<input type="file" id="chat-file-input" accept="image/*,.pdf,.txt,.csv,.md,.json,.js,.py,.html,.css" multiple style="display:none;" onchange="handleChatAttachment(this)">
 <script src="/shared/prism.js"></script>
 <script>
-var WORKER = 'https://prism-api.identitypartners.workers.dev';
 // ── State ─────────────────────────────────────────────────────────────────────
-var currentThreadId = 't' + Date.now();
+var currentThreadId = localStorage.getItem('argentica-last-thread') || ('t' + Date.now());
+// Restore last thread on load
+(function() {
+  var lastThread = localStorage.getItem('argentica-last-thread');
+  if (lastThread) {
+    currentThreadId = lastThread;
+    // Load thread from KV after DOM ready
+    setTimeout(function() {
+      fetch(WORKER + '/api/chat/thread/' + lastThread)
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(d) {
+          if (d && d.messages && d.messages.length > 0) {
+            // Restore messages to UI
+            var chat2 = document.getElementById('chat-messages');
+            if (!chat2) return;
+            d.messages.forEach(function(m) {
+              if (m.role === 'user' || m.role === 'assistant') {
+                appendMessage(m.role === 'user' ? 'user' : 'assistant', m.content, m.provider, m.model);
+              }
+            });
+            // Update thread title
+            if (d.title) updateTabTitle(document.querySelector('.chat-tab.active'), d.title);
+          }
+        })
+        .catch(function() {});
+    }, 300);
+  }
+})();
 var currentProfile = 'balanced';
 var currentPersona = {name: 'Gerald', avatar: '🎩', systemPrompt: 'You are Gerald, the sardonic butler and default AI assistant for Identity Partners. You call Simon "sir". You are devastatingly competent, dry, precise, and never sycophantic. British English throughout. No AI tropes. No "delve". No "Great question!". Execute tasks; do not describe them.'};
 
@@ -644,25 +631,11 @@ function handleChatAttachment(input) {
       } else {
         // Text/document — extract content
         var textContent = typeof data === 'string' ? data : new TextDecoder().decode(data);
-        // Large files: send first 100KB and note truncation
-        var maxChars = 100000;
-        var truncated = textContent.length > maxChars;
-        var fileData = truncated ? textContent.substring(0, maxChars) : textContent;
-        chatAttachments.push({
-          type: 'text',
-          data: fileData,
-          name: file.name,
-          size: textContent.length,
-          truncated: truncated
-        });
-        if (truncated) {
-          console.log('File truncated: ' + file.name + ' (' + textContent.length + ' chars, showing first 100K)');
-        }
+        chatAttachments.push({type:'text', data:textContent.substring(0,10000), name:file.name});
         if (preview) {
           var chip = document.createElement('div');
           chip.style.cssText = 'padding:4px 8px;background:var(--accent-light);border:1px solid var(--accent);border-radius:6px;font-size:11.5px;color:var(--accent);display:flex;align-items:center;gap:4px;';
-          var sizeStr = file.size > 1024*1024 ? (file.size/1024/1024).toFixed(1)+'MB' : file.size > 1024 ? (file.size/1024).toFixed(0)+'KB' : file.size+'B';
-          chip.textContent = '📄 ' + file.name + ' (' + sizeStr + ')';
+          chip.textContent = '📄 ' + file.name;
           var del = document.createElement('button');
           del.textContent = '×';
           del.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--accent);font-size:14px;';
@@ -679,21 +652,7 @@ function handleChatAttachment(input) {
       reader.readAsText(file);
     }
   });
-  input.value = '';
-  // Attachment success indicator
-  var attachCount = chatAttachments.length;
-  if (attachCount > 0) {
-    var prev = document.getElementById('attachment-preview');
-    if (prev) {
-      var existing = prev.querySelector('.attach-ok');
-      if (existing) existing.remove();
-      var ok = document.createElement('div');
-      ok.className = 'attach-ok';
-      ok.style.cssText = 'font-size:10px;color:#16a34a;padding:2px 8px;background:rgba(22,163,74,0.1);border-radius:4px;align-self:center;';
-      ok.textContent = '✓ ' + attachCount + ' file' + (attachCount > 1 ? 's' : '') + ' ready to send';
-      prev.appendChild(ok);
-    }
-  }
+  input.value = ''; // Reset so same file can be re-attached
 }
 
 // ── Send Message — self-contained, no shared library dependency ───────────────
@@ -711,7 +670,7 @@ function doSend() {
   appendMessage('user', text, null, null);
 
   // Build messages array with attachments
-  var messages = [{role: 'system', content: currentPersona.systemPrompt + ' To output a downloadable file, write FILE_OUTPUT: filename.ext on its own line, then triple backticks, then the file content, then triple backticks.'}];
+  var messages = [{role: 'system', content: currentPersona.systemPrompt}];
   
   // Add attachment context
   if (chatAttachments.length > 0) {
@@ -775,19 +734,6 @@ function doSend() {
       if (result.content) {
         messageHistory.push({role: 'assistant', content: result.content});
         appendMessage('assistant', result.content, result.provider, result.model);
-        // Handle file outputs from model
-        if (result.fileOutputs && result.fileOutputs.length > 0) {
-          result.fileOutputs.forEach(function(f) {
-            var fileMsg = document.createElement('div');
-            fileMsg.className = 'message assistant';
-            fileMsg.innerHTML = '<div class="message-avatar">📎</div><div class="message-body"><div class="message-bubble" style="background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);">' +
-              '<div style="font-size:12px;font-weight:600;margin-bottom:6px;">📄 ' + f.filename + '</div>' +
-              '<a href="' + f.url + '" download="' + f.filename + '" style="display:inline-block;padding:5px 12px;background:var(--accent,#2d6a9f);color:#fff;border-radius:6px;font-size:11px;text-decoration:none;">⬇ Download ' + f.filename + '</a>' +
-              '</div></div>';
-            var container = document.getElementById('chat-messages');
-            if (container) { container.appendChild(fileMsg); container.scrollTop = container.scrollHeight; }
-          });
-        }
         updateThreadInfo(result.threadId);
         // Update tab title
         updateTabTitle(activeTab, text.substring(0, 30));
@@ -806,29 +752,17 @@ function doSend() {
   // Include image attachments for vision models
   var imageAttachments = chatAttachments.filter(function(a){return a.type==='image';});
   var payload = {messages: messages, profile: currentProfile, threadId: currentThreadId};
-  // Apply manual model override if set
-  if (modelOverride) {
-    var moParts = modelOverride.split('/');
-    payload.providerOverride = moParts[0];
-    payload.modelOverride = moParts.slice(1).join('/');
-    payload.profile = 'override';
-  }
   if (imageAttachments.length > 0) {
     payload.images = imageAttachments.map(function(a){return {data:a.data,mimeType:a.mimeType||'image/jpeg'};});
     payload.profile = 'multimodal'; // Route to vision-capable model
   }
-  // Include text/document file attachments
-  var textAttachments = chatAttachments.filter(function(a){return a.type==='text';});
-  if (textAttachments.length > 0) {
-    payload.fileAttachments = textAttachments.map(function(a){
-      return {name:a.name, content:a.data, truncated:a.truncated||false};
-    });
-  }
+  localStorage.setItem('argentica-last-thread', currentThreadId);
   xhr2.send(JSON.stringify(payload));
   // Clear attachments after send
   chatAttachments = [];
   var preview = document.getElementById('attachment-preview');
   if (preview) { preview.innerHTML = ''; preview.style.display = 'none'; }
+  updateAttachStrip();
 }
 
 // ── DOM Helpers ───────────────────────────────────────────────────────────────
@@ -876,7 +810,6 @@ function appendMessage(role, content, provider, model) {
       {label: '✍ Draft', fn: function() { sendToDraftingText(content); }},
       {label: '⚡ Atomise', fn: function() { sendToAtomiseText(content); }},
       {label: '🧠 Memory', fn: function() { saveTextToMemory(content); }},
-      {label: '✍ WriteHandy', fn: function() { saveToWriteHandy(content); }},
       {label: '🗑 Delete', fn: function() { if(msg.parentNode) msg.parentNode.removeChild(msg); }},
     ];
     for (var i = 0; i < actDefs.length; i++) {
@@ -1252,12 +1185,11 @@ function openModelModal() {
   var list = document.getElementById('model-list');
   if (!modal || !list) return;
   var models = [
-    {name: 'Auto (Balanced)', provider: 'Gemma 4 31B → Cerebras → Groq → DeepSeek → Gemini', profile: 'balanced'},
-    {name: 'Auto (Free)', provider: 'Gemma 4 31B → GLM-4.5-flash → Groq → OpenRouter', profile: 'free'},
-    {name: 'Reasoning', provider: 'DeepSeek 1M → GLM thinking → Mistral Large', profile: 'reasoning'},
-    {name: 'Long Context', provider: 'DeepSeek 1M → Gemini 1M → Kimi 128K', profile: 'frontier'},
-    {name: 'Fast', provider: 'Cerebras GPT-OSS → Groq GPT-OSS → Gemma 4', profile: 'fast'},
-    {name: 'Web Search', provider: 'Perplexity Sonar → Grok-3 (live web data)', profile: 'search'},
+    {name: 'Auto (Balanced)', provider: 'Cerebras → Groq → DeepSeek', profile: 'balanced'},
+    {name: 'Auto (Free)', provider: 'Cerebras → Groq → SambaNova', profile: 'free'},
+    {name: 'Auto (Frontier Free)', provider: 'Gemini → NVIDIA → DeepSeek', profile: 'frontier-free'},
+    {name: 'Auto (Full Frontier)', provider: 'DeepSeek R1 → Gemini Pro', profile: 'frontier'},
+    {name: 'Auto (Local)', provider: 'Ollama on Surface Pro', profile: 'local'},
   ];
   list.innerHTML = '';
   for (var i = 0; i < models.length; i++) {
@@ -1599,147 +1531,6 @@ function cleanupTestThreads() {
       Toast.success('Cleaned up ' + (d.deleted||[]).length + ' test threads.');
       loadThreadList();
     });
-}
-
-// ── Manual model selection ────────────────────────────────────────────────────
-var modelOverride = null;
-
-function setModelOverride(value) {
-  modelOverride = value || null;
-  var nameEl = document.getElementById('ctx-model-name');
-  if (nameEl) {
-    if (modelOverride) {
-      var parts = modelOverride.split('/');
-      nameEl.textContent = parts[parts.length-1].substring(0,25);
-    } else {
-      nameEl.textContent = 'Auto (Orchestrator)';
-    }
-  }
-}
-
-// ── Multi-model mode ──────────────────────────────────────────────────────────
-var multiModelActive = false;
-var multiModelSelection = ['gemini/gemma-4-31b-it', 'openrouter/deepseek/deepseek-chat', 'groq/openai/gpt-oss-120b'];
-
-function openMultiModelModal() {
-  var existing = document.getElementById('multi-model-modal');
-  if (existing) { existing.remove(); return; }
-  
-  var modal = document.createElement('div');
-  modal.id = 'multi-model-modal';
-  modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:20px;z-index:9999;width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.2);font-family:Inter,sans-serif;';
-  
-  var models = [
-    {id:'gemini/gemma-4-31b-it', label:'Gemma 4 31B (262K) ★'},
-    {id:'openrouter/deepseek/deepseek-chat', label:'DeepSeek V4 via OpenRouter (1M)'},
-    {id:'deepseek/deepseek-chat', label:'DeepSeek V4 direct (1M)'},
-    {id:'nvidia/nvidia/llama-3.1-nemotron-ultra-253b-v1', label:'Nemotron Ultra 253B (128K)'},
-    {id:'gemini/gemini-3.8-flash', label:'Gemini 3.8 Flash (1M)'},
-    {id:'gemini/gemini-3.5-flash', label:'Gemini 3.5 Flash (1M)'},
-    {id:'mistral/mistral-large-latest', label:'Mistral Large (128K)'},
-    {id:'cerebras/gpt-oss-120b', label:'GPT-OSS 120B on Cerebras (8K, fast)'},
-    {id:'groq/openai/gpt-oss-120b', label:'GPT-OSS 120B on Groq (8K, fast)'},
-    {id:'groq/qwen/qwen3.8-27b', label:'Qwen3 on Groq (8K, fast)'},
-    {id:'cohere/command-r-plus-08-2024', label:'Cohere Command R+ (128K)'},
-    {id:'kimi/moonshot-v1-128k', label:'Kimi 128K'},
-  ];
-  
-  modal.innerHTML = '<div style="font-weight:700;font-size:14px;margin-bottom:4px;">⚡ Multi-model mode</div>' +
-    '<div style="font-size:11px;color:var(--fg-muted);margin-bottom:12px;">Select up to 3 models. Your next message fires to all of them.</div>' +
-    '<div id="mm-model-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">' +
-    models.map(function(m) {
-      var checked = multiModelSelection.includes(m.id) ? 'checked' : '';
-      return '<label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">' +
-        '<input type="checkbox" value="' + m.id + '" ' + checked + ' onchange="updateMultiSelection(this)"> ' + m.label + '</label>';
-    }).join('') +
-    '</div>' +
-    '<div style="display:flex;gap:6px;align-items:center;">' +
-    '<label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">' +
-    '<input type="checkbox" id="mm-synthesise"> Synthesise responses</label>' +
-    '<button onclick="closeMultiModal()" style="margin-left:auto;padding:5px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">>Done</button>' +
-    '</div>';
-  
-  document.body.appendChild(modal);
-  multiModelActive = true;
-}
-
-function updateMultiSelection(cb) {
-  if (cb.checked) {
-    if (multiModelSelection.length >= 5) { cb.checked = false; Toast.warning('Maximum 5 models.'); return; }
-    multiModelSelection.push(cb.value);
-  } else {
-    multiModelSelection = multiModelSelection.filter(function(m){ return m !== cb.value; });
-  }
-}
-
-// Override doSend to handle model override and multi-model
-var _originalDoSend = null;
-document.addEventListener('DOMContentLoaded', function() {
-  _originalDoSend = window.doSend;
-  window.doSend = function() {
-    if (multiModelActive && multiModelSelection.length > 0) {
-      doMultiModelSend();
-    } else {
-      _originalDoSend && _originalDoSend();
-    }
-  };
-});
-
-function doMultiModelSend() {
-  var input = document.getElementById('chat-input');
-  if (!input) return;
-  var text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  
-  appendMessage('user', text, null, null);
-  var synthesise = document.getElementById('mm-synthesise') && document.getElementById('mm-synthesise').checked;
-  var typingId = showTyping();
-  
-  var messages = [{role:'system', content: currentPersona.systemPrompt}];
-  for (var i = 0; i < messageHistory.length; i++) messages.push(messageHistory[i]);
-  messages.push({role:'user', content: text});
-  messageHistory.push({role:'user', content: text});
-  
-  fetch(WORKER + '/api/chat/multi', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({messages: messages, models: multiModelSelection, synthesise: synthesise})
-  }).then(function(r){ return r.json(); })
-  .then(function(d) {
-    removeTyping(typingId);
-    var results = d.results || [];
-    
-    if (synthesise && d.synthesis) {
-      appendMessage('assistant', d.synthesis, 'synthesis', 'multi-model');
-      messageHistory.push({role:'assistant', content: d.synthesis});
-    }
-    
-    results.forEach(function(r) {
-      if (r.content) {
-        var label = r.model.split('/').pop();
-        appendMessage('assistant', '**[' + label + ']** ' + r.content, r.model, label);
-        if (!synthesise) messageHistory.push({role:'assistant', content: r.content});
-      } else if (r.error) {
-        appendMessage('assistant', '[' + r.model + ' failed: ' + r.error + ']', null, null);
-      }
-    });
-  })
-  .catch(function(e) {
-    removeTyping(typingId);
-    appendMessage('assistant', 'Multi-model error: ' + e.message, null, null);
-  });
-}
-
-function saveToWriteHandy(content) {
-  var title = content.split('\n')[0].substring(0, 80) || 'Chat note';
-  fetch(WORKER + '/api/notes/save', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ title: title, content: content, module: 'Chat', tags: ['chat', 'saved'] })
-  }).then(function(r){ return r.json(); })
-  .then(function(d){ if(d.success) Toast.success('Saved to WriteHandy'); })
-  .catch(function(){ Toast.error('Save failed'); });
 }
 </script>
 </body>
