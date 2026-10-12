@@ -3570,6 +3570,8 @@ var index_default = {
     }
     if (path === "/api/devteam" && request.method === "POST") {
       try {
+        var CF_ACCOUNT_ID = env.CF_ACCOUNT_ID || env.cf_account_id || "d741de91f8cfff2306cc0f850a76ee07";
+
         var body = await request.json();
         var agent = body.agent || "pm";
         var userMessage = body.message || "";
