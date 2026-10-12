@@ -3727,7 +3727,7 @@ var index_default = {
           "- post_to_social({\"text\":\"...\"}) — post to Bluesky\n" +
           "- generate_image({\"prompt\":\"...\",\"model\":\"auto\"}) — generate an image\n" +
           "- test_provider() — run API Champion to test all providers\n" +
-          "\nCF Account: " + CF_ACCOUNT + " | Worker: prism-api | Repo: IdentityPartners/prism\n" +
+          "\nCF Account: " + "d741de91f8cfff2306cc0f850a76ee07" + " | Worker: prism-api | Repo: IdentityPartners/prism\n" +
           "You have full access to Cloudflare and GitHub via these tools. Use them. Never say you cannot access them.";
 
         var messages2 = [{ role: "system", content: sysPrompt }].concat(history.slice(-10)).concat([{ role: "user", content: userMessage }]);
