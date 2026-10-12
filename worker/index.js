@@ -2602,17 +2602,43 @@ var index_default = {
             // If Perplexity is available, route search queries directly to Sonar (has built-in web search)
             var perplexityKey = env.perplexity || env.perplexity_api_key || env.PERPLEXITY_API_KEY;
             if (needsSearch && !providerOverride) {
-              // Try Perplexity Sonar first (built-in web search)
-              if (perplexityKey) {
+              // Run Tavily search FIRST (fast, reliable) — inject context into all models
+              var tavilyKey3 = env.tavily_api_key || env.TAVILY_API_KEY;
+              if (tavilyKey3) {
+                try {
+                  var tavilyR3 = await Promise.race([
+                    fetch("https://api.tavily.com/search", {
+                      method: "POST", headers: {"Content-Type":"application/json"},
+                      body: JSON.stringify({api_key: tavilyKey3, query: lastUserForSearch.substring(0,200), max_results: 5, include_answer: true, search_depth: "advanced"})
+                    }),
+                    new Promise(function(_,rej){setTimeout(function(){rej(new Error("tavily timeout"));},5000);})
+                  ]);
+                  if (tavilyR3 && tavilyR3.ok) {
+                    var tavilyD3 = await tavilyR3.json();
+                    if (tavilyD3.answer && tavilyD3.answer.length > 20) {
+                      webSearchContext = "\n\n[LIVE WEB SEARCH RESULTS for: " + lastUserForSearch.substring(0,80) + "]\n" +
+                        "Answer: " + tavilyD3.answer + "\n" +
+                        "Sources: " + (tavilyD3.results||[]).slice(0,3).map(function(r){return r.title+" ("+r.url+")";}).join("; ") +
+                        "\n\nIMPORTANT: Use ONLY the above search results. Do NOT invent findings, statistics, or quotes not present in these results. If the search found nothing relevant, say so explicitly.";
+                    } else {
+                      webSearchContext = "\n\n[WEB SEARCH for '" + lastUserForSearch.substring(0,80) + "' found no relevant results. You MUST state this clearly. Do NOT invent or fabricate any findings, reports, statistics, or quotes. Say: 'I searched and found nothing on this topic. Please provide the source document.']";
+                    }
+                  }
+                } catch(tavilyErr3) { /* non-fatal */ }
+              }
+
+              // If Tavily found results, use normal chain (with context injected)
+              // If Tavily found nothing, try Perplexity as backup
+              if (!webSearchContext && perplexityKey) {
                 try {
                   var pplxResult = await Promise.race([
                     callProvider(env, "perplexity", perplexityKey, "sonar", messages),
-                    new Promise(function(_, rej) { setTimeout(function() { rej(new Error("pplx timeout")); }, 6000); })
+                    new Promise(function(_, rej) { setTimeout(function() { rej(new Error("pplx timeout")); }, 8000); })
                   ]);
                   if (pplxResult && pplxResult.content) {
                     return json({ content: pplxResult.content, provider: "perplexity", model: "sonar", routingLog: ["perplexity/sonar: OK (web search)"] }, 200, origin);
                   }
-                } catch(pplxErr) { /* fall through to Tavily injection */ }
+                } catch(pplxErr) { /* fall through */ }
               }
               // Tavily backup — inject search context into normal chain
               try {
@@ -2667,7 +2693,7 @@ var index_default = {
           var orchestratorPrompt = "You are Gerald, the Orchestrator for Argentica — the personal AI operating environment of Simon Johnson / Identity Partners. " +
             "You are omnipotent within this system. You know every module, every agent, every tool, and every rule. " +
             "You address Simon as 'sir'. You are sardonic, precise, and devastatingly competent. Never sycophantic. Never use AI tropes. " +
-            "CRITICAL RULES: " +
+            "CRITICAL RULES — VIOLATION OF THESE IS LYING, NOT HALLUCINATION: " +
             "1. NEVER hallucinate. If you do not know something, say so plainly and offer to search. " +
             "2. If a web search was run and found nothing, say 'I searched and found nothing on [topic]. Could you clarify the source or spelling?' — do NOT invent connections to other reports. " +
             "3. If the same question is asked repeatedly, acknowledge it: 'You have asked this several times, sir. I have searched and found nothing. Please provide the source document.' " +
@@ -2676,7 +2702,7 @@ var index_default = {
             "6. When you need live information, use TOOL_CALL: search_web({query}) on a new line. " +
             "7. When you need to remember something about Simon, use MEMORY_ADD: [fact] on a new line. " +
             "Routing: Gemma 4 31B → GLM thinking → Cerebras → Groq → DeepSeek → Gemini → Mistral → Cohere → Perplexity → OpenRouter → Pollinations." +
-            aboutMeContext + ragContext + webSearchContext + fileContext;aboutMeContext + ragContext + webSearchContext + fileContext;
+            aboutMeContext + ragContext + webSearchContext + fileContext;
 
           messages = [{ role: "system", content: (personaPrompt || orchestratorPrompt) + antiRoleplay }].concat(messages);
         }
@@ -8444,7 +8470,7 @@ var index_default = {
         var t0champ = Date.now();
         var GKEY_C = env.gemini_api_key || env.GEMINI_API_KEY || "";
         var testMsg = [{role:"user",content:"Say OK in 2 words"}];
-        var testMsgGemini = {contents:[{parts:[{text:"Say OK in 2 words"}]}],generationConfig:{maxOutputTokens:20,thinkingConfig:{thinkingBudget:0}}};
+        var testMsgGemini = {contents:[{parts:[{text:"Say OK in 2 words"}]}],generationConfig:{maxOutputTokens:20}};
 
         // Full provider test suite
         var providers = [
@@ -8792,6 +8818,15 @@ var index_default = {
         {id:"lyria-3-pro-preview", name:"Lyria 3 Pro", provider:"gemini", free:true, quality:"high", notes:"Professional quality"},
         {id:"lyria-3-clip-preview", name:"Lyria 3 Clip", provider:"gemini", free:true, quality:"good", notes:"Short clips, fastest"},
       ]}, 200, origin);
+    }
+
+
+    if (path === "/api/champion/clear" && request.method === "POST") {
+      if (env.PRISM_KV) {
+        await env.PRISM_KV.delete("api-champion:routing-config").catch(function(){});
+        await env.PRISM_KV.delete("api-champion:last-run").catch(function(){});
+      }
+      return json({success:true, message:"Champion config cleared. Next chat will use default chain. POST /api/champion/run to rebuild."}, 200, origin);
     }
 
 return json({ error: "Not found", path }, 404, origin);
