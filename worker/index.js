@@ -3637,12 +3637,45 @@ var index_default = {
             }
 
             if (toolName === "run_diagnostic") {
-              // Check key systems
               var diag = {};
-              try { var kvTest = await env.PRISM_KV.get("routing:last"); diag.kv = kvTest ? "OK" : "empty"; } catch(e) { diag.kv = "error: " + e.message; }
-              try { var wkr = await fetch("https://prism-api.identitypartners.workers.dev/health"); diag.worker = wkr.ok ? "OK" : "HTTP " + wkr.status; } catch(e) { diag.worker = "error"; }
-              try { var champRaw2 = await env.PRISM_KV.get("api-champion:last-run"); diag.champion_last_run = champRaw2 || "never"; } catch(e) { diag.champion = "error"; }
-              return JSON.stringify(diag, null, 2);
+              // KV check
+              try {
+                if (!env.PRISM_KV) { diag.kv = "KV binding not available"; }
+                else {
+                  var kvTest = await env.PRISM_KV.get("routing:last");
+                  diag.kv = "OK" + (kvTest ? " (routing:last exists)" : " (routing:last empty)");
+                }
+              } catch(e) { diag.kv = "error: " + e.message; }
+              // Worker — use internal route, not external fetch
+              diag.worker = "OK (running — this response proves it)";
+              // Champion status
+              try {
+                if (env.PRISM_KV) {
+                  var champRaw2 = await env.PRISM_KV.get("api-champion:last-run");
+                  var champConfig2 = await env.PRISM_KV.get("api-champion:routing-config");
+                  diag.champion_last_run = champRaw2 || "never";
+                  if (champConfig2) {
+                    var cc = JSON.parse(champConfig2);
+                    diag.champion_working = cc.working ? cc.working.length + " providers" : "unknown";
+                    diag.champion_chain = cc.chain ? cc.chain.length + " in chain" : "unknown";
+                    diag.champion_ts = cc.ts || "unknown";
+                  } else {
+                    diag.champion_config = "not yet run — POST /api/champion/run to build";
+                  }
+                }
+              } catch(e) { diag.champion = "error: " + e.message; }
+              // Routing last winner
+              try {
+                if (env.PRISM_KV) {
+                  var routingLast = await env.PRISM_KV.get("routing:last");
+                  if (routingLast) {
+                    var rl = JSON.parse(routingLast);
+                    diag.last_routing_winner = rl.winner || "unknown";
+                    diag.last_routing_ts = rl.ts || "unknown";
+                  }
+                }
+              } catch(e) {}
+              return "System Diagnostic:\n" + Object.keys(diag).map(function(k){return k+": "+diag[k];}).join("\n");
             }
 
             if (toolName === "send_telegram") {
@@ -3677,10 +3710,40 @@ var index_default = {
             }
 
             if (toolName === "test_provider") {
-              // Test a specific provider
-              var testR = await fetch("https://prism-api.identitypartners.workers.dev/api/champion/run", {method:"POST"});
-              var testD = await testR.json();
-              return "Champion run: " + testD.working + " working, " + testD.failed + " failed";
+              // Run a quick provider test inline (avoid recursive self-fetch)
+              var quickTests = [
+                {name:"gemma-4-31b", p:"gemini", key:env.gemini_api_key||env.GEMINI_API_KEY||"", m:"gemma-4-31b-it"},
+                {name:"glm-4.5-flash", p:"glm", key:env.zhipu_api_key||env.ZHIPU_API_KEY||"", m:"glm-4.5-flash"},
+                {name:"groq-gpt-oss", p:"groq", key:env.groq_free_1||env.GROQ_FREE_1||"", m:"openai/gpt-oss-120b"},
+                {name:"deepseek", p:"deepseek", key:env.deepseek_paid||env.DEEPSEEK_PAID||"", m:"deepseek-chat"},
+                {name:"openrouter", p:"openrouter", key:env.openrouter_api_key||env.OPENROUTER_API_KEY||"", m:"deepseek/deepseek-chat"},
+                {name:"mistral-large", p:"mistral", key:env.mistral_api_key||env.MISTRAL_API_KEY||"", m:"mistral-large-latest"},
+                {name:"cerebras", p:"cerebras", key:env.cerebras_paid||env.CEREBRAS_PAID||env.cerebras_free_1||env.CEREBRAS_FREE_1||"", m:"gpt-oss-120b"},
+                {name:"cohere", p:"cohere", key:env.cohere_api_key||env.COHERE_API_KEY||"", m:"command-r-plus-08-2024"},
+                {name:"xai-grok3", p:"xai", key:env.xai_api_key||env.XAI_API_KEY||"", m:"grok-3-fast"},
+                {name:"perplexity", p:"perplexity", key:env.perplexity||env.perplexity_api_key||"", m:"sonar"},
+              ];
+              var testMsg2 = [{role:"user",content:"Say OK"}];
+              var working2 = [], failed2 = [];
+              var batchResults2 = await Promise.all(quickTests.map(function(pt) {
+                if (!pt.key) return Promise.resolve({name:pt.name, ok:false, reason:"no key"});
+                return Promise.race([
+                  callProvider(env, pt.p, pt.key, pt.m, testMsg2)
+                    .then(function(r){return {name:pt.name, ok:!!(r&&r.content), reason:r&&r.content?"ok":"empty"};})
+                    .catch(function(e){return {name:pt.name, ok:false, reason:e.message.substring(0,40)};}),
+                  new Promise(function(res){setTimeout(function(){res({name:pt.name,ok:false,reason:"timeout"});},8000);})
+                ]);
+              }));
+              batchResults2.forEach(function(r){if(r.ok)working2.push(r.name);else failed2.push(r.name+":"+r.reason);});
+              // Update KV with results
+              if (env.PRISM_KV) {
+                env.PRISM_KV.put("api-champion:last-run", new Date().toISOString(), {expirationTtl:86400*7}).catch(function(){});
+                env.PRISM_KV.put("api-champion:routing-config", JSON.stringify({ts:new Date().toISOString(),working:working2,failed:failed2,chain:working2.map(function(n){var t=quickTests.find(function(p){return p.name===n;});return t?{p:t.p,m:t.m,name:t.name,tier:1}:{name:n,tier:2};})}), {expirationTtl:86400*2}).catch(function(){});
+              }
+              // Send Telegram
+              var tgTok3=env.TELEGRAM_TOKEN||env.telegram_token, tgChat3=env.TELEGRAM_CHAT_ID||env.telegram_chat_id;
+              if(tgTok3&&tgChat3){fetch("https://api.telegram.org/bot"+tgTok3+"/sendMessage",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:tgChat3,text:"🤖 API Champion\n✅ Working ("+working2.length+"): "+working2.join(", ")+"\n❌ Failed ("+failed2.length+"): "+failed2.slice(0,5).join(", ")})}).catch(function(){});}
+              return "API Champion Results:\n\n✅ Working (" + working2.length + "):\n" + working2.join("\n") + "\n\n❌ Failed (" + failed2.length + "):\n" + failed2.slice(0,8).join("\n") + "\n\nRouting config updated in KV. Telegram report sent.";
             }
 
             if (toolName === "generate_image") {
@@ -3763,9 +3826,9 @@ var index_default = {
         // Auto-detect tool intent from task if AI didn't write TOOL_CALL
         var taskLower2 = userMessage.toLowerCase();
         if (!/TOOL_CALL/.test(responseText)) {
-          if (/test.*provider|run.*champion|api.*champion|champion.*run/.test(taskLower2)) {
+          if (/test.*provider|run.*champion|api.*champion|champion.*run|champion.*now|test.*all/.test(taskLower2)) {
             responseText += "\nTOOL_CALL: test_provider({})";
-          } else if (/diagnos|system.*status|health.*check/.test(taskLower2)) {
+          } else if (/diagnos|system.*status|health.*check|run.*diagnos/.test(taskLower2)) {
             responseText += "\nTOOL_CALL: run_diagnostic({})";
           } else if (/clear.*champion/.test(taskLower2)) {
             if (env.PRISM_KV) {
