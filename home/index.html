@@ -340,11 +340,50 @@ function setGreeting() {
   if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',day:'numeric',month:'long',year:'numeric'});
 }
 
+var heroImageList = [];
+var heroImageIdx = 0;
+
+function loadHeroImages() {
+  // Try to load background images from R2
+  fetch('https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/bg-index.json')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      heroImageList = Array.isArray(d) ? d : (d.images || []);
+      if (heroImageList.length > 0) {
+        heroImageIdx = Math.floor(Math.random() * heroImageList.length);
+        setHeroImage();
+      }
+    })
+    .catch(function() {
+      // Fallback to IP gradient
+      setHeroImage();
+    });
+}
+
 function setHeroImage() {
   var bg = document.getElementById('hero-bg');
   if (!bg) return;
+  if (heroImageList.length > 0) {
+    var img = heroImageList[heroImageIdx];
+    var url = typeof img === 'string' ? img : (img.url || img.src || '');
+    if (url) {
+      bg.style.backgroundImage = 'url(' + url + ')';
+      bg.style.backgroundSize = 'cover';
+      bg.style.backgroundPosition = 'center';
+      bg.style.opacity = '0.35';
+      return;
+    }
+  }
+  // IP brand gradient fallback
   bg.style.backgroundImage = 'linear-gradient(135deg, #0f3b3a 0%, #1a5c5a 45%, #5c2d3f 100%)';
   bg.style.opacity = '1';
+}
+
+function cycleHeroImage() {
+  if (heroImageList.length > 0) {
+    heroImageIdx = (heroImageIdx + 1) % heroImageList.length;
+    setHeroImage();
+  }
 }
 
 function cycleHeroImage() {
@@ -754,6 +793,7 @@ function quickImage() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  loadHeroImages();
   // Restore pinned day from localStorage
   try {
     var pinned = localStorage.getItem('thinker-pinned');
