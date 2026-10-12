@@ -817,6 +817,13 @@ function doSend() {
     payload.images = imageAttachments.map(function(a){return {data:a.data,mimeType:a.mimeType||'image/jpeg'};});
     payload.profile = 'multimodal'; // Route to vision-capable model
   }
+  // Include text/document file attachments
+  var textAttachments = chatAttachments.filter(function(a){return a.type==='text';});
+  if (textAttachments.length > 0) {
+    payload.fileAttachments = textAttachments.map(function(a){
+      return {name:a.name, content:a.data, truncated:a.truncated||false};
+    });
+  }
   xhr2.send(JSON.stringify(payload));
   // Clear attachments after send
   chatAttachments = [];
@@ -1658,7 +1665,7 @@ function openMultiModelModal() {
 
 function updateMultiSelection(cb) {
   if (cb.checked) {
-    if (multiModelSelection.length >= 3) { cb.checked = false; Toast.warning('Maximum 3 models.'); return; }
+    if (multiModelSelection.length >= 5) { cb.checked = false; Toast.warning('Maximum 5 models.'); return; }
     multiModelSelection.push(cb.value);
   } else {
     multiModelSelection = multiModelSelection.filter(function(m){ return m !== cb.value; });
