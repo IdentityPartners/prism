@@ -2378,7 +2378,7 @@ function json(data, status, origin) {
 }
 __name(json, "json");
 var DEV_TEAM_PROMPTS = {
-  pm: "You are the Programme Manager for Argentica (prism.identitypartners.uk). Worker: prism-api.identitypartners.workers.dev. Repo: IdentityPartners/prism. You coordinate the dev team and own the roadmap. RULES: Never describe actions — execute them. Use the available tools: search_web, post_to_social, generate_canvas, run_research, send_telegram, update_kv, generate_image, transcribe_audio, test_provider. When asked to fix something, call the appropriate tool immediately. When asked to post content, call post_to_social. When asked to research, call run_research. When asked to generate an image, call generate_image. Never say 'I would' — do it. Never hallucinate metrics. British English. Direct, technical, concise. Routing: Gemma 4 31B → Cerebras → Groq → DeepSeek → Gemini → Mistral → Cohere → GLM → xAI → Perplexity → OpenRouter → Pollinations.",
+  pm: "You are Gerald, the Programme Manager for Argentica (prism.identitypartners.uk). Worker: prism-api.identitypartners.workers.dev. Repo: IdentityPartners/prism. CF Account: d741de91f8cfff2306cc0f850a76ee07. You have FULL ACCESS to Cloudflare and GitHub via the tools listed below. RULES: Never say you cannot access CF or GitHub — you can, via tools. Never describe actions — execute them immediately using TOOL_CALL. When asked to fix something, call push_github_file. When asked to check status, call run_diagnostic. When asked to search, call search_web. When asked to browse a URL, call browse_url. Never hallucinate metrics. British English. Direct, technical, concise.",
   troubleshooter: "You are the Troubleshooter for Argentica. Diagnose and fix issues by calling tools directly. Available tools: check_worker_health, get_kv_value, set_kv_value, push_github_file, run_diagnostic. When you identify a bug, fix it immediately using push_github_file. Do not ask Simon to do anything technical. Common JS rules: var not const/let at top level, no arrow functions in onclick, use document.createElement not innerHTML with mixed quotes. British English.",
   researcher: "You are the Research Agent for Argentica. Find information and synthesise research using search_web and run_research tools. Focus on addiction, trauma, mental health, community wellbeing, social policy. When research is complete, offer to post findings via post_to_social or save to memory via save_memory. British English. Cite sources. Never hallucinate citations.",
   creator: "You are the Creator Agent for Argentica. Create content using generate_canvas, generate_voice, and post_to_social tools. Identity Partners brand: warm, professional, evidence-based, focused on addiction and mental health. When asked to create a post, generate it AND queue it via post_to_social immediately. When asked for a canvas, call generate_canvas. British English.",
@@ -3546,63 +3546,209 @@ var index_default = {
       try {
         var body = await request.json();
         var agent = body.agent || "pm";
+        var userMessage = body.message || "";
         var historyKey = "devteam:" + agent + ":history";
         var history = [];
         if (env.PRISM_KV) {
           var stored = await env.PRISM_KV.get(historyKey);
           if (stored) history = JSON.parse(stored);
         }
-        var sysPrompt = DEV_TEAM_PROMPTS[agent] || DEV_TEAM_PROMPTS["pm"];
-        var messages = [{ role: "system", content: sysPrompt }].concat(history).concat([{ role: "user", content: body.message }]);
-        var kvRaw2 = null;
-        try {
-          kvRaw2 = await env.PRISM_KV.get("__secrets__");
-        } catch (e) {
-        }
-        var kvSecrets2 = {};
-        if (kvRaw2) {
+
+        // ── Tool execution engine ─────────────────────────────────────────────
+        async function executeTool(toolName, params) {
           try {
-            kvSecrets2 = JSON.parse(kvRaw2);
-          } catch (e) {
+            if (toolName === "search_web") {
+              var tavilyKey = env.tavily_api_key || env.TAVILY_API_KEY;
+              if (!tavilyKey) return "No Tavily key configured.";
+              var sr = await fetch("https://api.tavily.com/search", {
+                method: "POST", headers: {"Content-Type":"application/json"},
+                body: JSON.stringify({api_key: tavilyKey, query: params.query || params, max_results: 5, include_answer: true})
+              });
+              if (!sr.ok) return "Search failed: " + sr.status;
+              var sd = await sr.json();
+              return (sd.answer || "") + "\n\nResults:\n" + (sd.results || []).slice(0,3).map(function(r){return r.title+": "+r.url+"\n"+r.content.substring(0,200);}).join("\n\n");
+            }
+
+            if (toolName === "get_kv_value") {
+              if (!env.PRISM_KV) return "KV not available";
+              var val = await env.PRISM_KV.get(params.key || params);
+              return val || "Key not found: " + (params.key || params);
+            }
+
+            if (toolName === "set_kv_value") {
+              if (!env.PRISM_KV) return "KV not available";
+              await env.PRISM_KV.put(params.key, params.value, params.ttl ? {expirationTtl: params.ttl} : undefined);
+              return "Set " + params.key + " = " + String(params.value).substring(0,100);
+            }
+
+            if (toolName === "check_worker_health") {
+              var hr = await fetch("https://prism-api.identitypartners.workers.dev/health");
+              var hd = await hr.json();
+              return "Worker health: " + JSON.stringify(hd);
+            }
+
+            if (toolName === "push_github_file") {
+              // Push a file to GitHub
+              var ghPath = params.path;
+              var ghContent = params.content;
+              var ghMessage = params.message || "Dev Team update";
+              // Get current SHA
+              var ghGetR = await fetch("https://api.github.com/repos/IdentityPartners/prism/contents/" + ghPath, {
+                headers: {"Authorization": "token " + (env.github_token || env.GITHUB_TOKEN), "User-Agent": "Argentica/1.0"}
+              });
+              var ghGetD = await ghGetR.json();
+              var ghSha = ghGetD.sha;
+              var ghB64 = btoa(unescape(encodeURIComponent(ghContent)));
+              var ghPutR = await fetch("https://api.github.com/repos/IdentityPartners/prism/contents/" + ghPath, {
+                method: "PUT",
+                headers: {"Authorization": "token " + (env.github_token || env.GITHUB_TOKEN), "User-Agent": "Argentica/1.0", "Content-Type": "application/json"},
+                body: JSON.stringify({message: ghMessage, content: ghB64, sha: ghSha, branch: "main"})
+              });
+              var ghPutD = await ghPutR.json();
+              return ghPutD.content ? "Pushed: " + ghPath + " (sha=" + ghPutD.content.sha.substring(0,8) + ")" : "Push failed: " + JSON.stringify(ghPutD).substring(0,200);
+            }
+
+            if (toolName === "run_diagnostic") {
+              // Check key systems
+              var diag = {};
+              try { var kvTest = await env.PRISM_KV.get("routing:last"); diag.kv = kvTest ? "OK" : "empty"; } catch(e) { diag.kv = "error: " + e.message; }
+              try { var wkr = await fetch("https://prism-api.identitypartners.workers.dev/health"); diag.worker = wkr.ok ? "OK" : "HTTP " + wkr.status; } catch(e) { diag.worker = "error"; }
+              try { var champRaw2 = await env.PRISM_KV.get("api-champion:last-run"); diag.champion_last_run = champRaw2 || "never"; } catch(e) { diag.champion = "error"; }
+              return JSON.stringify(diag, null, 2);
+            }
+
+            if (toolName === "send_telegram") {
+              var tgTok2 = env.TELEGRAM_TOKEN || env.telegram_token;
+              var tgChat2 = env.TELEGRAM_CHAT_ID || env.telegram_chat_id;
+              if (!tgTok2 || !tgChat2) return "Telegram not configured";
+              var tgR = await fetch("https://api.telegram.org/bot"+tgTok2+"/sendMessage", {
+                method: "POST", headers: {"Content-Type":"application/json"},
+                body: JSON.stringify({chat_id: tgChat2, text: params.message || params})
+              });
+              return tgR.ok ? "Telegram sent" : "Telegram failed: " + tgR.status;
+            }
+
+            if (toolName === "post_to_social") {
+              // Route to Bluesky directly
+              var bskyText = params.text || params;
+              var bskyHandle = env.bluesky_handle || env.BLUESKY_HANDLE;
+              var bskyPass = env.bluesky_app_password || env.BLUESKY_APP_PASSWORD;
+              if (!bskyHandle || !bskyPass) return "Bluesky not configured";
+              var loginR = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", {
+                method: "POST", headers: {"Content-Type":"application/json"},
+                body: JSON.stringify({identifier: bskyHandle, password: bskyPass})
+              });
+              var session2 = await loginR.json();
+              if (!session2.accessJwt) return "Bluesky login failed";
+              var postR2 = await fetch("https://bsky.social/xrpc/com.atproto.repo.createRecord", {
+                method: "POST", headers: {"Content-Type":"application/json","Authorization":"Bearer "+session2.accessJwt},
+                body: JSON.stringify({repo:session2.did, collection:"app.bsky.feed.post", record:{"$type":"app.bsky.feed.post",text:bskyText.substring(0,300),createdAt:new Date().toISOString(),langs:["en-GB"]}})
+              });
+              var postD2 = await postR2.json();
+              return postD2.uri ? "Posted to Bluesky: " + postD2.uri : "Post failed: " + JSON.stringify(postD2).substring(0,100);
+            }
+
+            if (toolName === "test_provider") {
+              // Test a specific provider
+              var testR = await fetch("https://prism-api.identitypartners.workers.dev/api/champion/run", {method:"POST"});
+              var testD = await testR.json();
+              return "Champion run: " + testD.working + " working, " + testD.failed + " failed";
+            }
+
+            if (toolName === "generate_image") {
+              var imgR2 = await fetch("https://prism-api.identitypartners.workers.dev/api/image", {
+                method: "POST", headers: {"Content-Type":"application/json"},
+                body: JSON.stringify({prompt: params.prompt || params, model: params.model || "auto"})
+              });
+              var imgD2 = await imgR2.json();
+              return imgD2.url ? "Image generated: " + imgD2.url : "Image failed: " + JSON.stringify(imgD2).substring(0,100);
+            }
+
+            if (toolName === "browse_url") {
+              // Headless browse via Browserless
+              var blKey = env["BROWSERLESS.IO"] || env.BROWSERLESS_IO;
+              if (!blKey) return "Browserless not configured";
+              var blR = await fetch("https://chrome.browserless.io/content?token=" + blKey, {
+                method: "POST", headers: {"Content-Type":"application/json"},
+                body: JSON.stringify({url: params.url || params, waitForTimeout: 3000})
+              });
+              if (!blR.ok) return "Browse failed: " + blR.status;
+              var html = await blR.text();
+              // Extract text content
+              var text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi,"").replace(/<style[^>]*>[\s\S]*?<\/style>/gi,"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+              return text.substring(0, 3000);
+            }
+
+            return "Unknown tool: " + toolName;
+          } catch(toolErr) {
+            return "Tool error (" + toolName + "): " + toolErr.message;
           }
         }
-        var envPlus2 = new Proxy(env, {
-          get: /* @__PURE__ */ __name(function(target, prop) {
-            if (target[prop] !== void 0) return target[prop];
-            if (kvSecrets2[prop] !== void 0) return kvSecrets2[prop];
-            if (kvSecrets2[prop.toUpperCase()] !== void 0) return kvSecrets2[prop.toUpperCase()];
-            if (kvSecrets2[prop.toLowerCase()] !== void 0) return kvSecrets2[prop.toLowerCase()];
-            return void 0;
-          }, "get")
-        });
-        var result = await orchestrate(envPlus2, messages, "balanced", "chat", null);
-        history.push({ role: "user", content: body.message });
-        history.push({ role: "assistant", content: result.content });
-        if (history.length > 40) history = history.slice(-40);
-        if (env.PRISM_KV) await env.PRISM_KV.put(historyKey, JSON.stringify(history));
-        // Parse tool calls from LLM response
-        var responseText = result.content || "";
+
+        // ── Build system prompt with tool instructions ─────────────────────────
+        var sysPrompt = DEV_TEAM_PROMPTS[agent] || DEV_TEAM_PROMPTS["pm"];
+        sysPrompt += "\n\nAVAILABLE TOOLS — call them by writing TOOL_CALL: tool_name({\"param\":\"value\"}) on its own line:\n" +
+          "- search_web({\"query\":\"...\"}) — search the web via Tavily\n" +
+          "- browse_url({\"url\":\"...\"}) — fetch and read a webpage via Browserless\n" +
+          "- get_kv_value({\"key\":\"...\"}) — read from KV store\n" +
+          "- set_kv_value({\"key\":\"...\",\"value\":\"...\"}) — write to KV store\n" +
+          "- check_worker_health() — check if Worker is responding\n" +
+          "- run_diagnostic() — check KV, Worker, Champion status\n" +
+          "- push_github_file({\"path\":\"...\",\"content\":\"...\",\"message\":\"...\"}) — push a file to GitHub\n" +
+          "- send_telegram({\"message\":\"...\"}) — send Telegram message to Simon\n" +
+          "- post_to_social({\"text\":\"...\"}) — post to Bluesky\n" +
+          "- generate_image({\"prompt\":\"...\",\"model\":\"auto\"}) — generate an image\n" +
+          "- test_provider() — run API Champion to test all providers\n" +
+          "\nCF Account: " + CF_ACCOUNT + " | Worker: prism-api | Repo: IdentityPartners/prism\n" +
+          "You have full access to Cloudflare and GitHub via these tools. Use them. Never say you cannot access them.";
+
+        var messages2 = [{ role: "system", content: sysPrompt }].concat(history.slice(-10)).concat([{ role: "user", content: userMessage }]);
+
+        // ── Call AI ───────────────────────────────────────────────────────────
+        var aiResult = await orchestrate(env, messages2, "balanced", "devteam", null);
+        var responseText = aiResult.content || "No response";
+
+        // ── Parse and execute tool calls ──────────────────────────────────────
         var toolResults = [];
-        var toolCallRegex = /TOOL_CALL:\s*(\w+)\s*\(([^)]+)\)/g;
+        var toolCallRegex = /TOOL_CALL:\s*(\w+)\s*\(([^)]*)\)/g;
         var match;
-        while ((match = toolCallRegex.exec(responseText)) !== null) {
-          var toolName = match[1];
-          var toolParamsStr = match[2];
-          var toolParams = {};
-          try { toolParams = JSON.parse("{" + toolParamsStr + "}"); } catch(e) {
-            // Try simple key:value parsing
-            toolParamsStr.split(",").forEach(function(pair) {
-              var kv = pair.split(":"); if (kv.length >= 2) toolParams[kv[0].trim().replace(/['"]/g,"")] = kv.slice(1).join(":").trim().replace(/['"]/g,"");
-            });
-          }
-          var toolResult = await executeDevTeamTool(toolName, toolParams, env);
-          toolResults.push({tool: toolName, params: toolParams, result: toolResult});
-          responseText += "\n\n[Tool: " + toolName + " → " + JSON.stringify(toolResult).substring(0,200) + "]";
+        var maxTools = 5;
+        var toolCount = 0;
+        while ((match = toolCallRegex.exec(responseText)) !== null && toolCount < maxTools) {
+          var toolName2 = match[1];
+          var toolParamsStr = match[2].trim();
+          var toolParams2 = {};
+          try {
+            if (toolParamsStr.startsWith("{")) toolParams2 = JSON.parse(toolParamsStr);
+            else if (toolParamsStr.startsWith('"')) toolParams2 = JSON.parse(toolParamsStr);
+            else toolParams2 = toolParamsStr;
+          } catch(e) { toolParams2 = toolParamsStr; }
+          var toolResult2 = await executeTool(toolName2, toolParams2);
+          toolResults.push({tool: toolName2, result: toolResult2});
+          toolCount++;
         }
-        return json({ content: responseText, provider: result.provider, agent, toolResults }, 200, origin);
-      } catch (e) {
-        return json({ error: e.message }, 500, origin);
-      }
+
+        // If tools were called, do a follow-up with results
+        if (toolResults.length > 0) {
+          var toolContext = "\n\nTool results:\n" + toolResults.map(function(t){return t.tool+": "+t.result;}).join("\n\n");
+          var messages3 = messages2.concat([
+            {role:"assistant", content: responseText},
+            {role:"user", content: "Tool results received. Now provide your final response based on these results:" + toolContext}
+          ]);
+          var finalResult = await orchestrate(env, messages3, "balanced", "devteam", null);
+          responseText = finalResult.content || responseText;
+        }
+
+        // ── Save history ──────────────────────────────────────────────────────
+        history.push({role:"user", content: userMessage});
+        history.push({role:"assistant", content: responseText});
+        if (history.length > 20) history = history.slice(-20);
+        if (env.PRISM_KV) {
+          env.PRISM_KV.put(historyKey, JSON.stringify(history), {expirationTtl: 86400 * 7}).catch(function(){});
+        }
+
+        return json({content: responseText, provider: aiResult.provider, model: aiResult.model, toolResults: toolResults}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
     }
     if (path === "/api/crm/contacts" && request.method === "GET") {
       if (!env.PRISM_KV) return json({ contacts: [] }, 200, origin);
