@@ -984,9 +984,12 @@ function addPage() {
 function initCanvas() {
   var canvas = document.getElementById('wh-ink');
   var surface = document.getElementById('wh-surface');
-  if (!canvas || !surface) return;
-  canvas.width = surface.offsetWidth;
-  canvas.height = Math.max(surface.offsetHeight, 1400);
+  if (!canvas) return;
+  // Use surface dimensions if available, otherwise use window dimensions
+  var w = (surface && surface.offsetWidth > 50) ? surface.offsetWidth : (window.innerWidth - 280 - 200);
+  var h = Math.max((surface && surface.offsetHeight > 100) ? surface.offsetHeight : window.innerHeight - 100, 1400);
+  canvas.width = Math.max(w, 400);
+  canvas.height = h;
   canvas.style.width = canvas.width + 'px';
   canvas.style.height = canvas.height + 'px';
 
@@ -1710,6 +1713,14 @@ document.addEventListener('DOMContentLoaded', function() {
   buildOSK();
   initNotebooks();
   buildColorStrip(document.getElementById('wh-colors') || document.createElement('div'));
+  // Delay canvas init to ensure layout is complete
+  setTimeout(function() {
+    initCanvas();
+    // Re-init on resize
+    window.addEventListener('resize', function() {
+      setTimeout(initCanvas, 100);
+    });
+  }, 150);
 
   window.addEventListener('resize', function() {
     var canvas = document.getElementById('wh-ink');
