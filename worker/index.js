@@ -1791,29 +1791,196 @@ async function callProvider(env, provider, key, model, messages) {
     if (!content) throw new Error("No content from Chutes");
     return { content };
   }
-  if (provider === "gemini") {
-    var geminiMessages = messages.filter(function(m) {
-      return m.role !== "system";
-    }).map(function(m) {
-      var content2 = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
-      return { role: m.role === "user" ? "user" : "model", parts: [{ text: content2 }] };
-    });
-    var geminiBody = { contents: geminiMessages, generationConfig: { maxOutputTokens: 8192, temperature: 0.7 } };
-    if (system) geminiBody.systemInstruction = { parts: [{ text: system }] };
-    var isAIStudioKey = key && key.startsWith("AQ.");
-    var geminiUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent" + (isAIStudioKey ? "" : "?key=" + key);
+    if (provider === "gemini") {
+    // ── Gemini/Gemma API — correct format per ai.google.dev/api/generate-content ──
+    var geminiKey = key;
+    var isAIStudioKey = geminiKey && (geminiKey.startsWith("AQ.") || geminiKey.startsWith("AIza"));
+    var geminiUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent" + (isAIStudioKey ? "" : "?key=" + geminiKey);
     var geminiHeaders = { "Content-Type": "application/json" };
-    if (isAIStudioKey) geminiHeaders["x-goog-api-key"] = key;
-    var r = await fetch(geminiUrl, { method: "POST", headers: geminiHeaders, body: JSON.stringify(geminiBody) });
-    if (!r.ok) {
-      var e = await r.text();
-      throw new Error("Gemini " + r.status + ": " + e.substring(0, 150));
+    if (isAIStudioKey) geminiHeaders["x-goog-api-key"] = geminiKey;
+
+    // ── Extract system message -> systemInstruction (text only per docs) ──────
+    var systemMsg2 = messages.find(function(m) { return m.role === "system"; });
+    var systemText = "";
+    if (systemMsg2) {
+      systemText = typeof systemMsg2.content === "string" ? systemMsg2.content : JSON.stringify(systemMsg2.content);
+      // Truncate system instruction to avoid overflow (keep last 6000 chars if too long)
+      if (systemText.length > 6000) systemText = systemText.substring(systemText.length - 6000);
     }
+
+    // ── Build contents array — strict user/model alternation required ─────────
+    var nonSystemMsgs = messages.filter(function(m) { return m.role !== "system"; });
+
+    // Map messages to Gemini format, handling multimodal content
+    var geminiContents = nonSystemMsgs.map(function(m) {
+      var role = m.role === "user" ? "user" : "model";
+      var parts = [];
+
+      // Handle text content
+      if (typeof m.content === "string") {
+        if (m.content.trim()) parts.push({ text: m.content });
+      } else if (Array.isArray(m.content)) {
+        // OpenAI-style multimodal content array
+        m.content.forEach(function(part) {
+          if (part.type === "text" && part.text) {
+            parts.push({ text: part.text });
+          } else if (part.type === "image_url" && part.image_url) {
+            var url = part.image_url.url || part.image_url;
+            if (url.startsWith("data:")) {
+              var mimeMatch = url.match(/^data:([^;]+);base64,(.+)$/);
+              if (mimeMatch) {
+                parts.push({ inlineData: { mimeType: mimeMatch[1], data: mimeMatch[2] } });
+              }
+            } else {
+              parts.push({ fileData: { mimeType: "image/jpeg", fileUri: url } });
+            }
+          }
+        });
+      }
+
+      if (parts.length === 0) parts.push({ text: "" });
+      return { role: role, parts: parts };
+    });
+
+    // ── Handle image attachments passed separately ─────────────────────────────
+    // (These come from the chat UI's image attachment feature)
+    // Already handled above via content array
+
+    // ── Fix message alternation (Gemini strict requirement) ───────────────────
+    // Rule 1: Remove leading model messages
+    while (geminiContents.length > 0 && geminiContents[0].role === "model") {
+      geminiContents.shift();
+    }
+
+    // Rule 2: Merge consecutive same-role messages
+    var merged = [];
+    for (var gi = 0; gi < geminiContents.length; gi++) {
+      var curr = geminiContents[gi];
+      if (merged.length > 0 && merged[merged.length-1].role === curr.role) {
+        // Append parts to previous message
+        merged[merged.length-1].parts = merged[merged.length-1].parts.concat(curr.parts);
+      } else {
+        merged.push({ role: curr.role, parts: curr.parts.slice() });
+      }
+    }
+    geminiContents = merged;
+
+    // Rule 3: Must end with user role
+    if (geminiContents.length === 0 || geminiContents[geminiContents.length-1].role !== "user") {
+      // Find last user message
+      var lastUserMsg = null;
+      for (var li = messages.length-1; li >= 0; li--) {
+        if (messages[li].role === "user") { lastUserMsg = messages[li]; break; }
+      }
+      if (lastUserMsg) {
+        var lastUserText = typeof lastUserMsg.content === "string" ? lastUserMsg.content : JSON.stringify(lastUserMsg.content);
+        geminiContents.push({ role: "user", parts: [{ text: lastUserText }] });
+      }
+    }
+
+    // Rule 4: Fallback — if still broken, use just the last user message
+    if (geminiContents.length === 0 || geminiContents[0].role === "model") {
+      var fallbackText = "";
+      for (var fi = messages.length-1; fi >= 0; fi--) {
+        if (messages[fi].role === "user") {
+          fallbackText = typeof messages[fi].content === "string" ? messages[fi].content : JSON.stringify(messages[fi].content);
+          break;
+        }
+      }
+      geminiContents = [{ role: "user", parts: [{ text: fallbackText || "Hello" }] }];
+    }
+
+    // ── Build request body ────────────────────────────────────────────────────
+    var geminiBody = {
+      contents: geminiContents,
+      generationConfig: {
+        maxOutputTokens: 8192,
+        temperature: 0.7
+      }
+    };
+
+    // System instruction (text only per docs)
+    if (systemText) {
+      geminiBody.systemInstruction = { parts: [{ text: systemText }] };
+    }
+
+    // Google Search grounding — enable for search-profile queries
+    // Only for models that support it (not Gemma)
+    var isGemma = model.startsWith("gemma-");
+    if (!isGemma && model.includes("flash") || model.includes("pro")) {
+      // Add Google Search grounding for non-Gemma models
+      // geminiBody.tools = [{ googleSearch: {} }];  // Uncomment to enable grounding
+    }
+
+    // Code execution — available on flash/pro models
+    // geminiBody.tools = [{ codeExecution: {} }];  // Uncomment to enable
+
+    // ── Make the request ──────────────────────────────────────────────────────
+    var r = await fetch(geminiUrl, {
+      method: "POST",
+      headers: geminiHeaders,
+      body: JSON.stringify(geminiBody)
+    });
+
+    if (!r.ok) {
+      var errText = await r.text();
+      // Parse error for better diagnostics
+      var errMsg = "Gemini " + r.status + ": " + errText.substring(0, 200);
+      try {
+        var errJson = JSON.parse(errText);
+        if (errJson.error && errJson.error.message) errMsg = "Gemini " + r.status + ": " + errJson.error.message.substring(0, 150);
+      } catch(e) {}
+      throw new Error(errMsg);
+    }
+
     var d = await r.json();
-    var content = d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts[0] && d.candidates[0].content.parts[0].text;
-    if (!content) throw new Error("No content from Gemini: " + JSON.stringify(d).substring(0, 100));
-    return { content };
+
+    // ── Extract response content ──────────────────────────────────────────────
+    var candidates = d.candidates;
+    if (!candidates || candidates.length === 0) {
+      // Check for prompt feedback (safety block)
+      if (d.promptFeedback && d.promptFeedback.blockReason) {
+        throw new Error("Gemini blocked: " + d.promptFeedback.blockReason);
+      }
+      throw new Error("No candidates from Gemini: " + JSON.stringify(d).substring(0, 150));
+    }
+
+    var candidate = candidates[0];
+    var finishReason = candidate.finishReason;
+
+    // Handle thinking models — extract thought + response
+    var content = "";
+    var thoughtText = "";
+    if (candidate.content && candidate.content.parts) {
+      candidate.content.parts.forEach(function(part) {
+        if (part.thought) {
+          thoughtText += part.text || "";
+        } else if (part.text) {
+          content += part.text;
+        } else if (part.executableCode) {
+          content += "\n```\n" + part.executableCode.code + "\n```\n";
+        } else if (part.codeExecutionResult) {
+          content += "\nResult: " + part.codeExecutionResult.output + "\n";
+        } else if (part.inlineData) {
+          // Image/audio response — return as base64
+          content += "[" + part.inlineData.mimeType + " data]";
+        }
+      });
+    }
+
+    if (!content && finishReason === "MAX_TOKENS") {
+      throw new Error("Gemini MAX_TOKENS — increase maxOutputTokens");
+    }
+    if (!content && finishReason === "SAFETY") {
+      throw new Error("Gemini SAFETY block");
+    }
+    if (!content) {
+      throw new Error("No content from Gemini (finishReason=" + finishReason + "): " + JSON.stringify(d).substring(0, 150));
+    }
+
+    return { content: content, thought: thoughtText || undefined };
   }
+
   if (provider === "openrouter") {
     var r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
