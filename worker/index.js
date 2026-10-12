@@ -1791,7 +1791,7 @@ async function callProvider(env, provider, key, model, messages) {
       var content2 = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
       return { role: m.role === "user" ? "user" : "model", parts: [{ text: content2 }] };
     });
-    var geminiBody = { contents: geminiMessages, generationConfig: { maxOutputTokens: 8192, temperature: 0.7, thinkingConfig: { thinkingBudget: 0 } } };
+    var geminiBody = { contents: geminiMessages, generationConfig: { maxOutputTokens: 8192, temperature: 0.7 } };
     if (system) geminiBody.systemInstruction = { parts: [{ text: system }] };
     var isAIStudioKey = key && key.startsWith("AQ.");
     var geminiUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent" + (isAIStudioKey ? "" : "?key=" + key);
@@ -2669,7 +2669,7 @@ var index_default = {
             "6. When you need live information, use TOOL_CALL: search_web({query}) on a new line. " +
             "7. When you need to remember something about Simon, use MEMORY_ADD: [fact] on a new line. " +
             "Routing: Gemma 4 31B → GLM thinking → Cerebras → Groq → DeepSeek → Gemini → Mistral → Cohere → Perplexity → OpenRouter → Pollinations." +
-            aboutMeContext + ragContext + webSearchContext;aboutMeContext + ragContext + webSearchContext;
+            aboutMeContext + ragContext + webSearchContext + fileContext;aboutMeContext + ragContext + webSearchContext + fileContext;
 
           messages = [{ role: "system", content: (personaPrompt || orchestratorPrompt) + antiRoleplay }].concat(messages);
         }
@@ -2732,6 +2732,14 @@ var index_default = {
           }
         }
         var images = body.images || [];
+        // Handle text file attachments (md, txt, csv, json, etc.)
+        var fileAttachments = body.fileAttachments || [];
+        var fileContext = "";
+        if (fileAttachments.length > 0) {
+          fileContext = "\n\n[Attached files]\n" + fileAttachments.map(function(f) {
+            return "File: " + f.name + "\n" + (f.content || "").substring(0, 8000);
+          }).join("\n\n---\n\n");
+        }
         if (images.length > 0) {
           try {
             var visionResult = await callGemini(envPlus, messages, "gemini-2.5-flash", images);
