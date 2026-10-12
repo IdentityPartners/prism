@@ -3734,10 +3734,47 @@ var index_default = {
 
         // ── Call AI ───────────────────────────────────────────────────────────
         var aiResult = await orchestrate(env, messages2, "balanced", "devteam", null);
-        var responseText = aiResult.content || "No response";
+        var responseText = (aiResult && aiResult.content && aiResult.content.trim()) ? aiResult.content : null;
+        if (!responseText) {
+          // AI returned empty — execute default action based on task keywords
+          var taskLower = userMessage.toLowerCase();
+          if (/test|champion|provider|routing|check/.test(taskLower)) {
+            var champResult = await executeTool("test_provider", {});
+            responseText = "API Champion results:\n\n" + champResult;
+          } else if (/diagnos|status|health/.test(taskLower)) {
+            var diagResult = await executeTool("run_diagnostic", {});
+            responseText = "System diagnostic:\n\n" + diagResult;
+          } else if (/search|find|look/.test(taskLower)) {
+            var searchResult = await executeTool("search_web", {query: userMessage});
+            responseText = "Search results:\n\n" + searchResult;
+          } else if (/clear.*champion|champion.*clear/.test(taskLower)) {
+            if (env.PRISM_KV) {
+              await env.PRISM_KV.delete("api-champion:routing-config").catch(function(){});
+              await env.PRISM_KV.delete("api-champion:last-run").catch(function(){});
+            }
+            responseText = "Champion config cleared. The routing chain will rebuild on next chat or when you run the champion again.";
+          } else {
+            responseText = "I received your request but got no response from the AI. Provider: " + (aiResult && aiResult.provider || "unknown") + ". Try again or check the routing chain.";
+          }
+        }
 
         // ── Parse and execute tool calls ──────────────────────────────────────
         var toolResults = [];
+        // Auto-detect tool intent from task if AI didn't write TOOL_CALL
+        var taskLower2 = userMessage.toLowerCase();
+        if (!/TOOL_CALL/.test(responseText)) {
+          if (/test.*provider|run.*champion|api.*champion|champion.*run/.test(taskLower2)) {
+            responseText += "\nTOOL_CALL: test_provider({})";
+          } else if (/diagnos|system.*status|health.*check/.test(taskLower2)) {
+            responseText += "\nTOOL_CALL: run_diagnostic({})";
+          } else if (/clear.*champion/.test(taskLower2)) {
+            if (env.PRISM_KV) {
+              await env.PRISM_KV.delete("api-champion:routing-config").catch(function(){});
+              await env.PRISM_KV.delete("api-champion:last-run").catch(function(){});
+            }
+            responseText = "Champion config cleared. Routing chain will rebuild on next run.";
+          }
+        }
         var toolCallRegex = /TOOL_CALL:\s*(\w+)\s*\(([^)]*)\)/g;
         var match;
         var maxTools = 5;
