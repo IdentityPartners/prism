@@ -1465,8 +1465,8 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     // Search profile: Perplexity Sonar first (built-in web search), then Grok (real-time X)
     if (KEYS.perplexity) chain.push({ p: "perplexity", key: KEYS.perplexity, m: "sonar", ctx: 127000, out: 8192, note: "Perplexity Sonar -- built-in web search" });
     if (KEYS.perplexity) chain.push({ p: "perplexity", key: KEYS.perplexity, m: "sonar-pro", ctx: 200000, out: 8192, note: "Perplexity Sonar Pro -- web search" });
-    if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-3", ctx: 131072, out: 8192, note: "Grok-3 -- real-time X/web data" });
-    if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-3-fast", ctx: 131072, out: 8192, note: "Grok-3-fast -- real-time X data" });
+    if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-4.7", ctx: 500000, out: 32768, note: "Grok-4.7 -- flagship, 500K ctx" });
+    if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-4.7", ctx: 500000, out: 32768, note: "Grok-4.7 -- flagship, 500K ctx, real-time X" });
     // Fallback to Gemma with Tavily injection
     chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 262144, out: 32768, note: "Gemma 4 31B -- search fallback" });
   } else if (isFast) {
@@ -1481,14 +1481,14 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 262144, out: 32768, note: "Gemma 4 31B -- fast fallback" });
   } else if (isReasoning) {
     // Reasoning profile: DeepSeek first (best reasoning), then Gemma
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 1000000, out: 8192, note: "DeepSeek V4 -- 1M ctx reasoning" });
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-flash", ctx: 1000000, out: 8192, note: "DeepSeek V4 -- 1M ctx reasoning" });
     chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 262144, out: 32768, note: "Gemma 4 31B -- reasoning" });
     chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, note: "Gemini 3.8 Flash -- reasoning" });
     if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128000, out: 4096, note: "Cohere R+ -- reasoning" });
   } else if (isLongContext) {
     // Long context: DeepSeek 1M first, then Gemini 1M
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 1000000, out: 8192, note: "DeepSeek V4 -- 1M ctx" });
-    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 1000000, out: 8192, note: "DeepSeek via OpenRouter -- 1M ctx" });
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-flash", ctx: 1000000, out: 8192, note: "DeepSeek V4 -- 1M ctx" });
+    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-flash", ctx: 1000000, out: 8192, note: "DeepSeek via OpenRouter -- 1M ctx" });
     chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, note: "Gemini 3.8 Flash -- 1M ctx" });
     chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, note: "Gemini Flash -- 1M ctx" });
   } else {
@@ -1512,7 +1512,7 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     }
 
     // Tier 4: DeepSeek direct (confirmed working from CF)
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-chat", ctx: 1000000, out: 8192, note: "DeepSeek V4 -- 1M ctx" });
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-flash", ctx: 1000000, out: 8192, note: "DeepSeek V4 -- 1M ctx" });
 
     // Tier 4: Gemini Flash (confirmed working)
     chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, note: "Gemini 3.8 Flash -- confirmed" });
@@ -1521,8 +1521,8 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     // Tier 5: Cohere (confirmed working)
     if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128000, out: 4096, note: "Cohere R+ -- confirmed" });
     if (KEYS.cohere_paid) chain.push({ p: "cohere", key: KEYS.cohere_paid, m: "command-a-03-2025", ctx: 256000, out: 8192, note: "Cohere Command A -- paid" });
-    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-latest", ctx: 128000, out: 8192, note: "Mistral Large -- confirmed working" });
-    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-small-latest", ctx: 32000, out: 8192, note: "Mistral Small -- fast" });
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-2512", ctx: 128000, out: 8192, note: "Mistral Large -- confirmed working" });
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-small-2506", ctx: 32000, out: 8192, note: "Mistral Small -- fast" });
 
     // Tier 6: Together, Fireworks, Chutes
     if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "meta-llama/Llama-3.3-70B-Instruct-Turbo", ctx: 131072, out: 8192, note: "Together Llama 70B" });
@@ -1530,10 +1530,10 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     if (KEYS.chutes) chain.push({ p: "chutes", key: KEYS.chutes, m: "deepseek-ai/DeepSeek-V3-0324", ctx: 64000, out: 8192, note: "Chutes DeepSeek free" });
 
     // Tier 7: OpenRouter as fallback (not first — it was winning by default)
-    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-chat", ctx: 1000000, out: 8192, note: "OpenRouter DeepSeek -- fallback" });
+    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-flash", ctx: 1000000, out: 8192, note: "OpenRouter DeepSeek -- fallback" });
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "google/gemma-3-27b-it:free", ctx: 131072, out: 8192, note: "OpenRouter Gemma 3 free" });
     // xAI Grok (real-time X data)
-    if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-3-fast", ctx: 131072, out: 8192, note: "Grok-3-fast -- real-time X data" });
+    if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-4.7", ctx: 500000, out: 32768, note: "Grok-4.7 -- flagship, 500K ctx, real-time X" });
     // Perplexity Sonar (built-in web search — use instead of Tavily for search queries)
     if (KEYS.perplexity) chain.push({ p: "perplexity", key: KEYS.perplexity, m: "sonar", ctx: 127000, out: 8192, note: "Perplexity Sonar -- built-in web search" });
     if (KEYS.zai) chain.push({ p: "zai", key: KEYS.zai, m: "glm-4-plus", ctx: 128000, out: 8192, note: "Z.AI GLM-4-Plus -- when key active" });
@@ -1615,12 +1615,24 @@ async function callProvider(env, provider, key, model, messages) {
   });
   var system = systemMsg ? systemMsg.content : "";
   if (provider === "cerebras") {
-    // Cerebras has 8K context — trim to last 6 messages to avoid overflow
+    // Cerebras API — cloud.cerebras.ai
+    // Models: gpt-oss-120b (8K, very fast ~780 tok/s), llama3.3-70b (8K), qwen-3-32b (8K)
+    // No vision support. Tool calling supported on gpt-oss-120b.
+    // Context: 8K — trim aggressively
+
     var cerebrasMessages = messages.length > 8 ? [messages[0]].concat(messages.slice(-6)) : messages;
+    // Cerebras only accepts text content — strip any image parts
+    var cerebrasMsgs = cerebrasMessages.map(function(m) {
+      var content2 = Array.isArray(m.content)
+        ? m.content.filter(function(p){return p.type==="text";}).map(function(p){return p.text;}).join("\n")
+        : (typeof m.content === "string" ? m.content : JSON.stringify(m.content));
+      return {role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user", content: content2};
+    });
+
     var r = await fetch("https://api.cerebras.ai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages: cerebrasMessages, max_tokens: 4096, temperature: 0.7 })
+      body: JSON.stringify({ model, messages: cerebrasMsgs, max_tokens: 4096, temperature: 0.7 })
     });
     if (!r.ok) {
       var e = await r.text();
@@ -1632,16 +1644,54 @@ async function callProvider(env, provider, key, model, messages) {
     return { content: content || "" };
   }
   if (provider === "groq") {
-    // Groq has 8K context — trim to last 6 messages to avoid overflow
-    var groqMessages = messages.length > 8 ? [messages[0]].concat(messages.slice(-6)) : messages;
+    // Groq API — console.groq.com/docs
+    // LLM models: openai/gpt-oss-120b (8K), qwen/qwen3.8-27b (8K), meta-llama/llama-4-scout-17b-16e-instruct (131K)
+    //             google/gemma-3-27b-it (8K), mistral/mistral-saba-v1
+    // Vision models: llama-3.2-11b-vision-preview, llama-3.2-90b-vision-preview
+    // Whisper STT: whisper-large-v3 via /openai/v1/audio/transcriptions
+    // Tool calling: standard OpenAI format (supported on most models)
+    // JSON mode: response_format: {type: "json_object"}
+
+    // Detect vision request
+    var hasGroqImages = messages.some(function(m) {
+      return Array.isArray(m.content) && m.content.some(function(p){return p.type==="image_url";});
+    });
+
+    // Route to vision model if images present
+    var groqModel = model;
+    if (hasGroqImages && !groqModel.includes("vision")) {
+      groqModel = "llama-3.2-90b-vision-preview";
+    }
+
+    // Context limit: most Groq models are 8K — trim aggressively
+    // Exception: llama-4-scout has 131K
+    var groqCtxLimit = groqModel.includes("llama-4") ? 50 : 8;
+    var groqMessages = messages.length > groqCtxLimit ? [messages[0]].concat(messages.slice(-(groqCtxLimit-1))) : messages;
+
+    // Build messages with multimodal support
+    var groqMsgs = groqMessages.map(function(m) {
+      if (Array.isArray(m.content)) {
+        var parts = m.content.map(function(p) {
+          if (p.type === "text") return {type:"text", text:p.text};
+          if (p.type === "image_url") return {type:"image_url", image_url:{url:p.image_url.url||p.image_url}};
+          return {type:"text", text:JSON.stringify(p)};
+        });
+        return {role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user", content: parts};
+      }
+      return {role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user",
+              content: typeof m.content === "string" ? m.content : JSON.stringify(m.content)};
+    });
+
+    var groqBody = {model: groqModel, messages: groqMsgs, max_tokens: 4096, temperature: 0.7};
+
     var r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages: groqMessages, max_tokens: 4096, temperature: 0.7 })
+      headers: {"Authorization": "Bearer " + key, "Content-Type": "application/json"},
+      body: JSON.stringify(groqBody)
     });
     if (!r.ok) {
       var e = await r.text();
-      throw new Error("Groq " + r.status + ": " + e.substring(0, 100));
+      throw new Error("Groq " + r.status + ": " + e.substring(0, 150));
     }
     var d = await r.json();
     var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
@@ -1665,21 +1715,114 @@ async function callProvider(env, provider, key, model, messages) {
     return { content };
   }
   if (provider === "deepseek") {
+    // ── DeepSeek API — per api-docs.deepseek.com ──────────────────────────────
+    // Models: deepseek-flash (V4 Flash, was deepseek-chat), deepseek-v4-pro (paid)
+    //         deepseek-v4-flash-vision-exp (vision), deepseek-reasoner (R1, no tools)
+    // Base URL: https://api.deepseek.com
+    // Compatible with OpenAI format
+
+    // Normalise model names (legacy -> current)
+    var dsModel = model;
+    if (dsModel === "deepseek-chat") dsModel = "deepseek-flash";
+    if (dsModel === "deepseek-v3") dsModel = "deepseek-flash";
+    if (dsModel === "deepseek-v4-flash") dsModel = "deepseek-flash";
+
+    // Detect if this is a vision request (has image attachments)
+    var hasImages = messages.some(function(m) {
+      return Array.isArray(m.content) && m.content.some(function(p) { return p.type === "image_url"; });
+    });
+    if (hasImages && !dsModel.includes("vision") && !dsModel.includes("reasoner")) {
+      dsModel = "deepseek-v4-flash-vision-exp";
+    }
+
+    // Detect if reasoning model (R1) — no tools, no vision
+    var isReasoner = dsModel.includes("reasoner") || dsModel.includes("r1");
+
+    // Build messages — DeepSeek supports system role correctly (unlike Gemini)
+    // Vision: images only in user messages (not system/assistant)
+    var dsMessages = messages.map(function(m) {
+      var role = m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user";
+      // Handle multimodal content
+      if (Array.isArray(m.content)) {
+        if (role !== "user") {
+          // Images only allowed in user messages — extract text only
+          var textOnly = m.content.filter(function(p){return p.type==="text";}).map(function(p){return p.text;}).join("\n");
+          return {role: role, content: textOnly};
+        }
+        // User message with mixed content
+        var parts = m.content.map(function(p) {
+          if (p.type === "text") return {type:"text", text:p.text};
+          if (p.type === "image_url") {
+            return {type:"image_url", image_url:{url:p.image_url.url||p.image_url, detail:"auto"}};
+          }
+          return {type:"text", text:JSON.stringify(p)};
+        });
+        return {role: role, content: parts};
+      }
+      return {role: role, content: typeof m.content === "string" ? m.content : JSON.stringify(m.content)};
+    });
+
+    // Build request body
+    var dsBody = {
+      model: dsModel,
+      messages: dsMessages,
+      max_tokens: 8192,
+      temperature: 0.7
+    };
+
+    // Thinking/reasoning — enable for reasoner model or reasoning profile
+    if (isReasoner) {
+      dsBody.thinking = {type: "enabled"};
+      dsBody.reasoning_effort = "high";
+      // Reasoner doesn't support temperature
+      delete dsBody.temperature;
+    }
+
+    // JSON mode — can be requested via profile
+    // dsBody.response_format = {type: "json_object"};  // Uncomment when needed
+
     var r = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
-      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, max_tokens: 8192, temperature: 0.7 })
+      headers: {"Authorization": "Bearer " + key, "Content-Type": "application/json"},
+      body: JSON.stringify(dsBody)
     });
+
     if (!r.ok) {
       var e = await r.text();
-      throw new Error("DeepSeek " + r.status + ": " + e.substring(0, 100));
+      throw new Error("DeepSeek " + r.status + ": " + e.substring(0, 150));
     }
+
     var d = await r.json();
-    var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
-    if (!content) throw new Error("No content from DeepSeek");
-    content = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-    return { content };
+    var choice = d.choices && d.choices[0];
+    if (!choice) throw new Error("No choices from DeepSeek: " + JSON.stringify(d).substring(0, 100));
+
+    var content = choice.message && choice.message.content;
+    var reasoningContent = choice.message && choice.message.reasoning_content;
+
+    // Strip <think> tags if present (some models wrap reasoning)
+    if (content) content = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+
+    // Handle tool calls in response
+    var toolCalls = choice.message && choice.message.tool_calls;
+    if (toolCalls && toolCalls.length > 0 && !content) {
+      // Model wants to call a tool — return tool call info
+      content = "TOOL_CALLS: " + JSON.stringify(toolCalls);
+    }
+
+    if (!content && reasoningContent) {
+      // Reasoner returned only reasoning, no final answer yet
+      content = reasoningContent.substring(0, 500) + "...";
+    }
+
+    if (!content) throw new Error("No content from DeepSeek (finish=" + choice.finish_reason + ")");
+
+    // Log cache hit info
+    var cacheHit = d.usage && d.usage.prompt_tokens_details && d.usage.prompt_tokens_details.cached_tokens;
+    if (cacheHit) content = content; // Cache hit logged silently
+
+    return {content: content, reasoning: reasoningContent || undefined};
   }
+
   if (provider === "kimi") {
     try {
       var kimiR = await fetch("https://api.moonshot.cn/v1/chat/completions", {
@@ -1741,14 +1884,55 @@ async function callProvider(env, provider, key, model, messages) {
     return { content };
   }
   if (provider === "mistral") {
+    // Mistral API — docs.mistral.ai
+    // Vision models: mistral-large-2512, mistral-medium-2508, mistral-small-2506, ministral-14b-2512
+    // Image format: content array with {type:"text"} and {type:"image_url", image_url:"url_or_base64"}
+    // Note: image_url can be a string (not object) in Mistral's format
+
+    // Normalise model names
+    var mistralModel = model;
+    if (mistralModel === "mistral-large-latest") mistralModel = "mistral-large-2512";
+    if (mistralModel === "mistral-medium-latest") mistralModel = "mistral-medium-2508";
+    if (mistralModel === "mistral-small-latest") mistralModel = "mistral-small-2506";
+
+    // Check for vision content
+    var hasMistralImages = messages.some(function(m) {
+      return Array.isArray(m.content) && m.content.some(function(p) { return p.type === "image_url"; });
+    });
+
+    // Build messages — Mistral supports system role and multimodal content
+    var mistralMessages = messages.map(function(m) {
+      if (Array.isArray(m.content)) {
+        var parts = m.content.map(function(p) {
+          if (p.type === "text") return {type:"text", text:p.text};
+          if (p.type === "image_url") {
+            // Mistral accepts image_url as string or {url:...}
+            var imgUrl = p.image_url && (p.image_url.url || p.image_url);
+            return {type:"image_url", image_url: imgUrl};
+          }
+          return {type:"text", text:JSON.stringify(p)};
+        });
+        return {role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user", content: parts};
+      }
+      return {role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user",
+              content: typeof m.content === "string" ? m.content : JSON.stringify(m.content)};
+    });
+
+    var mistralBody = {
+      model: mistralModel,
+      messages: mistralMessages,
+      max_tokens: 8192,
+      temperature: 0.7
+    };
+
     var r = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
-      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, max_tokens: 8192, temperature: 0.7 })
+      headers: {"Authorization": "Bearer " + key, "Content-Type": "application/json"},
+      body: JSON.stringify(mistralBody)
     });
     if (!r.ok) {
       var e = await r.text();
-      throw new Error("Mistral " + r.status + ": " + e.substring(0, 100));
+      throw new Error("Mistral " + r.status + ": " + e.substring(0, 150));
     }
     var d = await r.json();
     var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
@@ -2047,15 +2231,43 @@ async function callProvider(env, provider, key, model, messages) {
     return { content };
   }
   if (provider === "xai") {
-    // xAI Grok — real-time X/Twitter data, web search
+    // xAI Grok API — docs.x.ai
+    // Models: grok-4.7 (flagship, 500K ctx), grok-3, grok-3-mini, grok-3-fast
+    // Vision: grok-4.7 supports images via image_url in content array
+    // Image gen: /v1/images/generations with model grok-2-image
+    // Voice: /v1/audio/speech (TTS) and /v1/audio/transcriptions (STT)
+    // Tool calling: standard OpenAI format
+
+    // Normalise model names to current
+    var xaiModel = model;
+    if (xaiModel === "grok-3") xaiModel = "grok-4.7";
+    if (xaiModel === "grok-3-fast") xaiModel = "grok-4.7";
+    if (xaiModel === "grok-3-mini") xaiModel = "grok-4.7-mini";
+
+    // Build messages with multimodal support
+    var xaiMessages = messages.map(function(m) {
+      if (Array.isArray(m.content)) {
+        var parts = m.content.map(function(p) {
+          if (p.type === "text") return {type:"text", text:p.text};
+          if (p.type === "image_url") return {type:"image_url", image_url:{url:p.image_url.url||p.image_url}};
+          return {type:"text", text:JSON.stringify(p)};
+        });
+        return {role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user", content: parts};
+      }
+      return {role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user",
+              content: typeof m.content === "string" ? m.content : JSON.stringify(m.content)};
+    });
+
+    var xaiBody = {model: xaiModel, messages: xaiMessages, max_tokens: 8192, temperature: 0.7};
+
     var r = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
-      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: model, messages: messages, max_tokens: 8192, temperature: 0.7 })
+      headers: {"Authorization": "Bearer " + key, "Content-Type": "application/json"},
+      body: JSON.stringify(xaiBody)
     });
     if (!r.ok) {
       var e = await r.text();
-      throw new Error("xAI " + r.status + ": " + e.substring(0, 100));
+      throw new Error("xAI " + r.status + ": " + e.substring(0, 150));
     }
     var d = await r.json();
     var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
@@ -2063,19 +2275,50 @@ async function callProvider(env, provider, key, model, messages) {
     return { content };
   }
   if (provider === "perplexity") {
-    // Perplexity Sonar — has built-in web search, no Tavily needed
+    // Perplexity Sonar API — OpenAI-compatible with live web search
+    // Models: sonar ($1/1M), sonar-pro ($3/$15 per 1M), sonar-deep-research ($5/call)
+    // Extra params: search_recency_filter (day/week/month), return_images, return_related_questions
+    // Response includes citations array with source URLs
+
+    // Detect if query is time-sensitive
+    var pplxLastMsg = "";
+    for (var pmi = messages.length-1; pmi >= 0; pmi--) {
+      if (messages[pmi].role === "user") { pplxLastMsg = (messages[pmi].content||"").substring(0,200); break; }
+    }
+    var isRecent = /\b(today|this week|past week|last week|yesterday|this month|latest|recent|breaking|just|now|current)\b/i.test(pplxLastMsg);
+
+    var pplxBody = {
+      model: model || "sonar",
+      messages: messages.map(function(m) {
+        return {role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user",
+                content: typeof m.content === "string" ? m.content : JSON.stringify(m.content)};
+      }),
+      max_tokens: 8192,
+      temperature: 0.7,
+      return_related_questions: false
+    };
+
+    // Add recency filter for time-sensitive queries
+    if (isRecent) pplxBody.search_recency_filter = "week";
+
     var r = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
-      headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: model, messages: messages, max_tokens: 8192, temperature: 0.7 })
+      headers: {"Authorization": "Bearer " + key, "Content-Type": "application/json"},
+      body: JSON.stringify(pplxBody)
     });
     if (!r.ok) {
       var e = await r.text();
-      throw new Error("Perplexity " + r.status + ": " + e.substring(0, 100));
+      throw new Error("Perplexity " + r.status + ": " + e.substring(0, 150));
     }
     var d = await r.json();
     var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
     if (!content) throw new Error("No content from Perplexity");
+
+    // Append citations if present
+    if (d.citations && d.citations.length > 0) {
+      content += "\n\nSources: " + d.citations.slice(0,5).map(function(c,i){return "["+(i+1)+"] "+(c.url||c);}).join(" ");
+    }
+
     return { content };
   }
     if (provider === "pollinations") {
@@ -9096,6 +9339,37 @@ var index_default = {
         await env.PRISM_KV.delete("api-champion:last-run").catch(function(){});
       }
       return json({success:true, message:"Champion config cleared. Next chat will use default chain. POST /api/champion/run to rebuild."}, 200, origin);
+    }
+
+
+    // ── Audio transcription via Groq Whisper ──────────────────────────────────
+    if (path === "/api/transcribe" && request.method === "POST") {
+      try {
+        var groqKey2 = env.groq_free_1 || env.GROQ_FREE_1;
+        if (!groqKey2) return json({error:"No Groq key for transcription"}, 400, origin);
+        // Forward the audio file to Groq Whisper
+        var formData = await request.formData();
+        var audioFile = formData.get("file") || formData.get("audio");
+        if (!audioFile) return json({error:"No audio file in request"}, 400, origin);
+        var model2 = formData.get("model") || "whisper-large-v3";
+        var language = formData.get("language") || "en";
+        var newForm = new FormData();
+        newForm.append("file", audioFile);
+        newForm.append("model", model2);
+        newForm.append("language", language);
+        newForm.append("response_format", "json");
+        var tResp = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: {"Authorization": "Bearer " + groqKey2},
+          body: newForm
+        });
+        if (!tResp.ok) {
+          var tErr = await tResp.text();
+          return json({error:"Transcription failed: " + tErr.substring(0,100)}, 500, origin);
+        }
+        var tData = await tResp.json();
+        return json({text: tData.text, language: tData.language, duration: tData.duration}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
 return json({ error: "Not found", path }, 404, origin);
