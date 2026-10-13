@@ -483,42 +483,58 @@
   <div class="ctx-title">Model</div>
   <div class="model-info-card" onclick="openModelModal()" title="Click to change model">
     <div class="model-name" id="ctx-model-name">Auto (Balanced)</div>
-    <div class="model-provider" id="ctx-model-provider">Gemma 4 → GLM → Cerebras → Groq → DeepSeek</div>
+    <div class="model-provider" id="ctx-model-provider">GLM-5.3 → Gemma 4 → Gemini → Mistral L4 → DeepSeek</div>
   </div>
   <select id="model-override" onchange="setModelOverride(this.value)"
-    style="width:100%;margin-top:6px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;background:var(--bg);color:var(--fg);cursor:pointer;">
-    <option value="">Auto (Orchestrator decides)</option>
-    <optgroup label="Free — Confirmed Working">
-      <option value="gemini/gemma-4-31b-it">Gemma 4 31B (262K) ★</option>
-      <option value="gemini/gemma-4-26b-a4b-it">Gemma 4 26B (262K)</option>
-      <option value="glm/glm-4.5-flash">GLM-4.5-flash — thinking (128K)</option>
-      <option value="glm/glm-4.7-flash">GLM-4.7-flash — thinking (128K)</option>
-      <option value="gemini/gemini-3.8-flash">Gemini 3.8 Flash (1M)</option>
-      <option value="gemini/gemini-flash-latest">Gemini Flash latest (1M)</option>
-      <option value="groq/openai/gpt-oss-120b">GPT-OSS 120B on Groq (8K, fast)</option>
-      <option value="groq/qwen/qwen3.8-27b">Qwen3 on Groq (8K, fast)</option>
-      <option value="groq/meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout on Groq (131K)</option>
-      <option value="openrouter/deepseek/deepseek-flash">DeepSeek via OpenRouter (1M)</option>
-      <option value="perplexity/sonar">Perplexity Sonar (web search built-in)</option>
-    </optgroup>
-    <optgroup label="Paid — High Quality">
-      <option value="deepseek/deepseek-flash">DeepSeek V4 Flash direct (1M)</option>
-      <option value="cerebras/gpt-oss-120b">GPT-OSS on Cerebras (8K, fastest)</option>
-      <option value="mistral/mistral-large-4">Mistral Large 4 (524K, vision)</option>
-      <option value="mistral/mistral-small-4">Mistral Small 4 (262K, vision)</option>
-      <option value="mistral/codestral-2508">Codestral (256K, code)</option>
-      <option value="xai/grok-4.7">Grok-4.7 (500K, real-time X)</option>
-      <option value="xai/grok-4.7-mini">Grok-4.7-mini (reasoning)</option>
-      <option value="cohere/command-r-plus-08-2024">Cohere Command R+ (128K)</option>
-      <option value="glm/glm-5.3">GLM-5.3 — thinking (128K)</option>
-    </optgroup>
-    <optgroup label="Profiles">
-      <option value="__profile_reasoning">Reasoning (DeepSeek → GLM → Mistral)</option>
-      <option value="__profile_longctx">Long Context (DeepSeek 1M → Gemini 1M)</option>
-      <option value="__profile_fast">Fast (Cerebras → Groq → Gemma)</option>
-      <option value="__profile_search">Web Search (Perplexity → Grok)</option>
-    </optgroup>
-  </select>
+  style="width:100%;margin-top:6px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;background:var(--bg);color:var(--fg);cursor:pointer;">
+<option value="">Auto (Orchestrator decides)</option>
+<optgroup label="GLM via Mistral — Thinking + Web Search">
+  <option value="mistral/zai-glm-5-3">GLM-5.3 via Mistral (1M, thinking) ★</option>
+  <option value="mistral/zai-glm-5">GLM-5 via Mistral (1M, thinking)</option>
+  <option value="mistral/zai-glm-latest">GLM latest via Mistral</option>
+</optgroup>
+<optgroup label="Gemma / Gemini — Google Search Grounding">
+  <option value="gemini/gemma-4-31b-it">Gemma 4 31B (1M, Google Search)</option>
+  <option value="gemini/gemini-3.8-flash">Gemini 3.8 Flash (1M, Google Search)</option>
+  <option value="gemini/gemini-flash-latest">Gemini Flash latest (1M)</option>
+</optgroup>
+<optgroup label="Mistral — Web Search + Vision">
+  <option value="mistral/mistral-large-4">Mistral Large 4 (1M, thinking, web search)</option>
+  <option value="mistral/magistral-medium-latest">Magistral Medium (reasoning specialist)</option>
+  <option value="mistral/mistral-medium-latest">Mistral Medium (262K)</option>
+  <option value="mistral/mistral-small-latest">Mistral Small (262K)</option>
+  <option value="mistral/ministral-14b-latest">Ministral 14B (262K)</option>
+  <option value="mistral/ministral-8b-latest">Ministral 8B (262K, fast)</option>
+  <option value="mistral/codestral-latest">Codestral (256K, code)</option>
+  <option value="mistral/mistral-ocr-latest">Mistral OCR (document extraction)</option>
+</optgroup>
+<optgroup label="DeepSeek — 1M Context">
+  <option value="deepseek/deepseek-flash">DeepSeek V4 Flash direct (1M)</option>
+  <option value="openrouter/deepseek/deepseek-flash">DeepSeek via OpenRouter (1M, free)</option>
+</optgroup>
+<optgroup label="GLM — Free Thinking Models">
+  <option value="glm/glm-4.7-flash">GLM-4.7-flash (128K, thinking, free)</option>
+</optgroup>
+<optgroup label="Fast — GPT-OSS / Llama">
+  <option value="cerebras/gpt-oss-120b">GPT-OSS on Cerebras (8K, fastest)</option>
+  <option value="groq/openai/gpt-oss-120b">GPT-OSS on Groq (8K, fast)</option>
+  <option value="groq/meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout (131K)</option>
+  <option value="groq/qwen/qwen3.8-27b">Qwen3 on Groq (8K)</option>
+</optgroup>
+<optgroup label="Real-time / Search">
+  <option value="xai/grok-4.7">Grok-4.7 (500K, real-time X)</option>
+  <option value="perplexity/sonar">Perplexity Sonar (live web search)</option>
+</optgroup>
+<optgroup label="Other">
+  <option value="cohere/command-r-plus-08-2024">Cohere Command R+ (128K)</option>
+</optgroup>
+<optgroup label="Profiles">
+  <option value="__profile_reasoning">Reasoning (GLM-5.3 → Mistral Large 4 → DeepSeek)</option>
+  <option value="__profile_longctx">Long Context (DeepSeek 1M → Gemini 1M)</option>
+  <option value="__profile_fast">Fast (Cerebras → Groq → Gemma)</option>
+  <option value="__profile_search">Web Search (Perplexity → Grok)</option>
+</optgroup>
+</select>
   <span id="model-badge" style="display:inline-block;margin-top:4px;font-size:10px;color:var(--fg-muted);padding:2px 6px;border:1px solid var(--border);border-radius:8px;">Auto</span>
 </div>
 
@@ -527,7 +543,7 @@
   <div class="ctx-title">Routing Profile</div>
   <div class="profile-selector" id="profile-selector">
     <div class="profile-option" onclick="setProfile('free')" title="Gemma 4 → GLM → Groq → OpenRouter">🆓 Free</div>
-    <div class="profile-option active" onclick="setProfile('balanced')" title="Gemma 4 → GLM → Cerebras → Groq → DeepSeek → Gemini">⚖ Balanced</div>
+    <div class="profile-option active" onclick="setProfile('balanced')" title="GLM-5.3 → Gemma 4 → Gemini → Mistral L4 → DeepSeek → Gemini">⚖ Balanced</div>
     <div class="profile-option" onclick="setProfile('reasoning')" title="DeepSeek 1M → GLM thinking → Mistral Large 4">🧠 Reasoning</div>
     <div class="profile-option" onclick="setProfile('frontier')" title="DeepSeek 1M → Gemini 1M → Mistral Large 4 (524K)">💎 Frontier</div>
     <div class="profile-option" onclick="setProfile('search')" title="Perplexity Sonar (live web) → Grok-4.7 (real-time X)">🔍 Search</div>
@@ -569,16 +585,16 @@
 <div class="ctx-section">
   <div class="ctx-title">Active Chain</div>
   <div id="routing-chain-display" style="font-size:10px;color:var(--fg-muted);line-height:1.6;">
-    <div>1. Gemma 4 31B (262K, free)</div>
-    <div>2. GLM-4.5-flash (128K, thinking)</div>
-    <div>3. Cerebras GPT-OSS (8K, fast)</div>
-    <div>4. Groq GPT-OSS/Qwen3 (8K, fast)</div>
+    <div>1. GLM-5.3 via Mistral (1M, thinking)</div>
+    <div>2. Gemma 4 31B (1M, Google Search)</div>
+    <div>3. Gemini 3.8 Flash (1M, Google Search)</div>
+    <div>4. Mistral Large 4 (1M, web search)</div>
     <div>5. DeepSeek V4 Flash (1M)</div>
-    <div>6. Gemini 3.8 Flash (1M)</div>
-    <div>7. Mistral Large 4 (524K)</div>
-    <div>8. xAI Grok-4.7 (500K)</div>
-    <div>9. Perplexity Sonar (search)</div>
-    <div>10. OpenRouter (fallback)</div>
+    <div>6. GLM-4.7-flash (128K, thinking)</div>
+    <div>7. GPT-OSS Cerebras/Groq (8K, fast)</div>
+    <div>8. Llama 4 Scout (131K)</div>
+    <div>9. Grok-4.7 (500K, real-time X)</div>
+    <div>10. Cohere/Mistral Small (fallback)</div>
     <div>11. Pollinations (always)</div>
   </div>
   <button onclick="loadChainFromChampion()" style="margin-top:4px;font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);cursor:pointer;width:100%;">↻ Refresh from Champion</button>
