@@ -1492,57 +1492,21 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, note: "Gemini 3.8 Flash -- 1M ctx" });
     chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, note: "Gemini Flash -- 1M ctx" });
   } else {
-    // BALANCED DEFAULT — final correct order
-    // 1. GLM 5.3 | 2. Gemma 4 31B | 3. Gemini 3.8 Flash | 4. Mistral Large 4
-    // 5. DeepSeek | 6. GLM 4.7 | 7. GPT-OSS | 8. Llama 4 | 9. Grok-4.7
-
-    // 1. GLM 5.3 — thinking + native web search, 128K
-    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-5.3-flashx", ctx: 128000, out: 8192, note: "GLM-5.3-flashx -- fastest thinking + web search" });
-    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-5.3-flash", ctx: 128000, out: 8192, note: "GLM-5.3-flash -- thinking + web search" });
-    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-5.3", ctx: 128000, out: 8192, note: "GLM-5.3 -- thinking + web search" });
-
-    // 2. Gemma 4 31B — 1M context, Google Search grounding, free
-    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 1000000, out: 32768, note: "Gemma 4 31B -- 1M ctx, Google Search" });
-
-    // 3. Gemini 3.8 Flash — 1M context, Google Search grounding, free
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, note: "Gemini 3.8 Flash -- 1M ctx, Google Search" });
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, note: "Gemini Flash latest -- 1M ctx" });
-
-    // 4. Mistral Large 4 — 1M context, web_search_premium, vision, reasoning
-    // NOTE: Key needs activation at console.mistral.ai — both keys currently returning 401
-    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-4", ctx: 1000000, out: 8192, note: "Mistral Large 4 -- 1M ctx, web search, vision" });
-    // GLM-5.3 via Mistral (zai-glm-5-3) — same key issue
+    // BALANCED DEFAULT — GLM-5.3 → Gemma 4 → Gemini → Mistral L4 → DeepSeek → GLM 4.7 → GPT-OSS → Llama 4 → Grok
     if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "zai-glm-5-3", ctx: 1000000, out: 131072, note: "GLM-5.3 via Mistral -- 1M ctx, thinking" });
-
-    // 5. DeepSeek V4 Flash — 1M context
+    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 1000000, out: 32768, note: "Gemma 4 31B -- 1M ctx, Google Search" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, note: "Gemini 3.8 Flash -- 1M ctx, Google Search" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, note: "Gemini Flash latest" });
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-4", ctx: 1000000, out: 8192, note: "Mistral Large 4 -- 1M ctx, web search, thinking" });
     if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-flash", ctx: 1000000, out: 8192, note: "DeepSeek V4 Flash -- 1M ctx" });
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-flash", ctx: 1000000, out: 8192, note: "DeepSeek via OpenRouter -- 1M ctx" });
-
-    // 6. GLM 4.7-flash — thinking (NOT 4.5)
     if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.7-flash", ctx: 128000, out: 8192, note: "GLM-4.7-flash -- thinking" });
-    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.6", ctx: 128000, out: 8192, note: "GLM-4.6" });
-
-    // 7. GPT-OSS — fast, 8K
-    if (KEYS.cerebras && KEYS.cerebras.length > 0) {
-      chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Cerebras -- fast" });
-    }
-    if (KEYS.groq && KEYS.groq.length > 0) {
-      chain.push({ p: "groq", key: KEYS.groq[0], m: "openai/gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Groq -- fast" });
-    }
-
-    // 8. Llama 4 Scout — 131K
-    if (KEYS.groq && KEYS.groq.length > 0) {
-      chain.push({ p: "groq", key: KEYS.groq[0], m: "meta-llama/llama-4-scout-17b-16e-instruct", ctx: 131072, out: 8192, note: "Llama 4 Scout -- 131K" });
-    }
-
-    // 9. Grok-4.7 — 500K, real-time X data (paid key confirmed)
+    if (KEYS.cerebras && KEYS.cerebras.length > 0) chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Cerebras -- fast" });
+    if (KEYS.groq && KEYS.groq.length > 0) { chain.push({ p: "groq", key: KEYS.groq[0], m: "openai/gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Groq -- fast" }); chain.push({ p: "groq", key: KEYS.groq[0], m: "meta-llama/llama-4-scout-17b-16e-instruct", ctx: 131072, out: 8192, note: "Llama 4 Scout -- 131K" }); }
     if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-4.7", ctx: 500000, out: 32768, note: "Grok-4.7 -- 500K, real-time X" });
-
-    // Remaining fallbacks
     if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128000, out: 4096, note: "Cohere R+" });
-    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-small-4", ctx: 262144, out: 8192, note: "Mistral Small 4" });
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-small-latest", ctx: 262144, out: 8192, note: "Mistral Small" });
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "google/gemma-3-27b-it:free", ctx: 131072, out: 8192, note: "OpenRouter Gemma 3 free" });
-
 chain.push({ p: "pollinations", key: null, m: "openai", note: "Pollinations -- unconditional fallback" });
   chain.push({ p: "pollinations", key: null, m: "mistral", note: "Pollinations Mistral" });
   } // end else (no champion config)
@@ -3002,7 +2966,7 @@ var index_default = {
         if (profile === 'longctx') { profile = 'frontier'; }
         if (profile === 'fast') { /* handled in orchestrate */ }
         var threadId = body.threadId || "t" + Date.now();
-        var antiRoleplay = " CRITICAL: Never use asterisks for actions or roleplay. No *sighs*, no *leans back*, no *raises eyebrow*. Speak directly. British English. NEVER invent calendar events, emails, social stats, engagement metrics, or any data you cannot verify. If you have no live data access, say so plainly.";
+        var antiRoleplay = " CURRENT DATE: " + new Date().toISOString().slice(0,10) + ". You are operating in " + new Date().getFullYear() + ". Do not say any date is in the future if it is before today. CRITICAL: Never use asterisks for actions or roleplay. No *sighs*, no *leans back*, no *raises eyebrow*. Speak directly. British English. NEVER invent calendar events, emails, social stats, engagement metrics, or any data you cannot verify. If you have no live data access, say so plainly.";
 
         // Detect repeated identical questions — tell the model explicitly
         var userMessages = messages.filter(function(m) { return m.role === "user"; });
