@@ -308,6 +308,9 @@
 .model-info-card:hover { border-color: var(--accent); }
 .model-name { font-size: 13px; font-weight: 600; color: var(--fg-primary); }
 .model-provider { font-size: 11px; color: var(--fg-muted); }
+.ctx-section { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.ctx-section:last-child { border-bottom: none; }
+.ctx-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--fg-muted); margin-bottom: 6px; }
 .profile-selector { display: flex; flex-direction: column; gap: 4px; }
 .profile-option {
   padding: 6px 10px;
@@ -474,35 +477,119 @@
 </div>
 <!-- Right context pane -->
 <div class="chat-context">
-<div>
-<div class="context-section-title">Model</div>
-<div class="model-info-card" onclick="openModelModal()" title="Change model or routing profile">
-<div class="model-name" id="ctx-model-name">Auto (Balanced)</div>
-<div class="model-provider" id="ctx-model-provider">Cerebras → Groq → DeepSeek</div>
+
+<!-- ── Model selector ─────────────────────────────────────────────────────── -->
+<div class="ctx-section">
+  <div class="ctx-title">Model</div>
+  <div class="model-info-card" onclick="openModelModal()" title="Click to change model">
+    <div class="model-name" id="ctx-model-name">Auto (Balanced)</div>
+    <div class="model-provider" id="ctx-model-provider">Gemma 4 → GLM → Cerebras → Groq → DeepSeek</div>
+  </div>
+  <select id="model-override" onchange="setModelOverride(this.value)"
+    style="width:100%;margin-top:6px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;background:var(--bg);color:var(--fg);cursor:pointer;">
+    <option value="">Auto (Orchestrator decides)</option>
+    <optgroup label="Free — Confirmed Working">
+      <option value="gemini/gemma-4-31b-it">Gemma 4 31B (262K) ★</option>
+      <option value="gemini/gemma-4-26b-a4b-it">Gemma 4 26B (262K)</option>
+      <option value="glm/glm-4.5-flash">GLM-4.5-flash — thinking (128K)</option>
+      <option value="glm/glm-4.7-flash">GLM-4.7-flash — thinking (128K)</option>
+      <option value="gemini/gemini-3.8-flash">Gemini 3.8 Flash (1M)</option>
+      <option value="gemini/gemini-flash-latest">Gemini Flash latest (1M)</option>
+      <option value="groq/openai/gpt-oss-120b">GPT-OSS 120B on Groq (8K, fast)</option>
+      <option value="groq/qwen/qwen3.8-27b">Qwen3 on Groq (8K, fast)</option>
+      <option value="groq/meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout on Groq (131K)</option>
+      <option value="openrouter/deepseek/deepseek-flash">DeepSeek via OpenRouter (1M)</option>
+      <option value="perplexity/sonar">Perplexity Sonar (web search built-in)</option>
+    </optgroup>
+    <optgroup label="Paid — High Quality">
+      <option value="deepseek/deepseek-flash">DeepSeek V4 Flash direct (1M)</option>
+      <option value="cerebras/gpt-oss-120b">GPT-OSS on Cerebras (8K, fastest)</option>
+      <option value="mistral/mistral-large-4">Mistral Large 4 (524K, vision)</option>
+      <option value="mistral/mistral-small-4">Mistral Small 4 (262K, vision)</option>
+      <option value="mistral/codestral-2508">Codestral (256K, code)</option>
+      <option value="xai/grok-4.7">Grok-4.7 (500K, real-time X)</option>
+      <option value="xai/grok-4.7-mini">Grok-4.7-mini (reasoning)</option>
+      <option value="cohere/command-r-plus-08-2024">Cohere Command R+ (128K)</option>
+      <option value="glm/glm-5.3">GLM-5.3 — thinking (128K)</option>
+    </optgroup>
+    <optgroup label="Profiles">
+      <option value="__profile_reasoning">Reasoning (DeepSeek → GLM → Mistral)</option>
+      <option value="__profile_longctx">Long Context (DeepSeek 1M → Gemini 1M)</option>
+      <option value="__profile_fast">Fast (Cerebras → Groq → Gemma)</option>
+      <option value="__profile_search">Web Search (Perplexity → Grok)</option>
+    </optgroup>
+  </select>
+  <span id="model-badge" style="display:inline-block;margin-top:4px;font-size:10px;color:var(--fg-muted);padding:2px 6px;border:1px solid var(--border);border-radius:8px;">Auto</span>
 </div>
+
+<!-- ── Routing profiles ────────────────────────────────────────────────────── -->
+<div class="ctx-section">
+  <div class="ctx-title">Routing Profile</div>
+  <div class="profile-selector" id="profile-selector">
+    <div class="profile-option" onclick="setProfile('free')" title="Gemma 4 → GLM → Groq → OpenRouter">🆓 Free</div>
+    <div class="profile-option active" onclick="setProfile('balanced')" title="Gemma 4 → GLM → Cerebras → Groq → DeepSeek → Gemini">⚖ Balanced</div>
+    <div class="profile-option" onclick="setProfile('reasoning')" title="DeepSeek 1M → GLM thinking → Mistral Large 4">🧠 Reasoning</div>
+    <div class="profile-option" onclick="setProfile('frontier')" title="DeepSeek 1M → Gemini 1M → Mistral Large 4 (524K)">💎 Frontier</div>
+    <div class="profile-option" onclick="setProfile('search')" title="Perplexity Sonar (live web) → Grok-4.7 (real-time X)">🔍 Search</div>
+    <div class="profile-option" onclick="setProfile('fast')" title="Cerebras → Groq → Gemma 4 (fastest responses)">⚡ Fast</div>
+  </div>
 </div>
-<div>
-<div class="context-section-title">Routing Profile</div>
-<div class="profile-selector" id="profile-selector">
-<div class="profile-option" onclick="setProfile('local')" title="All processing on your Surface Pro. Zero cost.">🔒 Local</div>
-<div class="profile-option" onclick="setProfile('free')" title="Maximum free-tier usage. No cost.">🆓 Free</div>
-<div class="profile-option active" onclick="setProfile('balanced')" title="Free providers first; escalates when quality requires it.">⚖ Balanced</div>
-<div class="profile-option" onclick="setProfile('frontier-free')" title="Best available models on free quotas.">🧪 Frontier Free</div>
-<div class="profile-option" onclick="setProfile('frontier')" title="Best model for the task, regardless of cost.">💎 Full Frontier</div>
+
+<!-- ── Multi-model mode ────────────────────────────────────────────────────── -->
+<div class="ctx-section">
+  <div class="ctx-title" style="display:flex;align-items:center;justify-content:space-between;">
+    Multi-model
+    <button onclick="openMultiModelModal()" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);cursor:pointer;" id="multi-model-toggle">
+      ⚡ Configure
+    </button>
+  </div>
+  <div id="multi-model-status" style="font-size:11px;color:var(--fg-muted);">Off — single model mode</div>
+  <div id="multi-model-active-list" style="font-size:10px;color:var(--accent);margin-top:3px;"></div>
 </div>
+
+<!-- ── Conversation ────────────────────────────────────────────────────────── -->
+<div class="ctx-section">
+  <div class="ctx-title">Conversation</div>
+  <div id="ctx-thread-info" style="font-size:11px;color:var(--fg-muted);">New conversation</div>
+  <button onclick="startNewConversation()" style="margin-top:4px;font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);cursor:pointer;width:100%;">+ New conversation</button>
 </div>
-<div>
-<div class="context-section-title">Conversation</div>
-<div id="ctx-thread-info" style="font-size:12px;color:var(--fg-muted);">New conversation</div>
+
+<!-- ── Actions ─────────────────────────────────────────────────────────────── -->
+<div class="ctx-section">
+  <div class="ctx-title">Actions</div>
+  <div style="display:flex;flex-direction:column;gap:5px;">
+    <button class="btn btn-sm btn-secondary" onclick="saveToMemory()">🧠 Save to Memory</button>
+    <button class="btn btn-sm btn-secondary" onclick="sendToDrafting()">✍ Send to Drafting</button>
+    <button class="btn btn-sm btn-secondary" onclick="sendToAtomise()">⚡ Send to Atomise</button>
+    <button class="btn btn-sm btn-secondary" onclick="saveToWriteHandy()">✒ Save to WriteHandy</button>
+  </div>
 </div>
-<div>
-<div class="context-section-title">Actions</div>
-<div style="display:flex;flex-direction:column;gap:6px;">
-<button class="btn btn-sm btn-secondary" onclick="saveToMemory()" title="Save last response to memory">🧠 Save to Memory</button>
-<button class="btn btn-sm btn-secondary" onclick="sendToDrafting()" title="Send last response to Drafting Desk">✍ Send to Drafting</button>
-<button class="btn btn-sm btn-secondary" onclick="sendToAtomise()" title="Send last response to Atomise">⚡ Send to Atomise</button>
+
+<!-- ── Routing chain display ───────────────────────────────────────────────── -->
+<div class="ctx-section">
+  <div class="ctx-title">Active Chain</div>
+  <div id="routing-chain-display" style="font-size:10px;color:var(--fg-muted);line-height:1.6;">
+    <div>1. Gemma 4 31B (262K, free)</div>
+    <div>2. GLM-4.5-flash (128K, thinking)</div>
+    <div>3. Cerebras GPT-OSS (8K, fast)</div>
+    <div>4. Groq GPT-OSS/Qwen3 (8K, fast)</div>
+    <div>5. DeepSeek V4 Flash (1M)</div>
+    <div>6. Gemini 3.8 Flash (1M)</div>
+    <div>7. Mistral Large 4 (524K)</div>
+    <div>8. xAI Grok-4.7 (500K)</div>
+    <div>9. Perplexity Sonar (search)</div>
+    <div>10. OpenRouter (fallback)</div>
+    <div>11. Pollinations (always)</div>
+  </div>
+  <button onclick="loadChainFromChampion()" style="margin-top:4px;font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);cursor:pointer;width:100%;">↻ Refresh from Champion</button>
 </div>
+
+<!-- ── Last response info ──────────────────────────────────────────────────── -->
+<div class="ctx-section">
+  <div class="ctx-title">Last Response</div>
+  <div id="last-provider" style="font-size:11px;color:var(--fg-muted);">—</div>
 </div>
+
 </div>
 </div>
 <!-- Persona Modal -->
@@ -1228,17 +1315,19 @@ function closeModelModal() {
 // ── Profile ───────────────────────────────────────────────────────────────────
 function setProfile(profile) {
   currentProfile = profile;
-  var options = document.querySelectorAll('.profile-option');
-  for (var i = 0; i < options.length; i++) {
-    options[i].classList.remove('active');
-  }
-  var profileLabels = {'local':'🔒 Local','free':'🆓 Free','balanced':'⚖ Balanced','frontier-free':'🧪 Frontier Free','frontier':'💎 Full Frontier'};
-  for (var i = 0; i < options.length; i++) {
-    if (options[i].textContent.trim() === (profileLabels[profile] || '')) {
-      options[i].classList.add('active');
-    }
-  }
-  Toast.info('Profile: ' + profile);
+  document.querySelectorAll('.profile-option').forEach(function(el) { el.classList.remove('active'); });
+  var profileNames = {free:'Free',balanced:'Balanced',reasoning:'Reasoning',frontier:'Frontier',search:'Search',fast:'Fast'};
+  document.querySelectorAll('.profile-option').forEach(function(el) {
+    if (el.textContent.trim().includes(profileNames[profile] || profile)) el.classList.add('active');
+  });
+  // Update chain display
+  var chains = {"free": ["Gemma 4 31B (262K)", "GLM-4.5-flash (128K)", "Groq GPT-OSS (8K)", "OpenRouter DeepSeek (1M)", "Pollinations"], "balanced": ["Gemma 4 31B (262K)", "GLM-4.5-flash (128K)", "Cerebras GPT-OSS (8K)", "Groq GPT-OSS (8K)", "DeepSeek V4 (1M)", "Gemini 3.8 Flash (1M)", "Mistral Large 4 (524K)", "Perplexity Sonar", "OpenRouter"], "reasoning": ["DeepSeek V4 (1M)", "GLM-4.7-flash thinking", "Mistral Large 4 (524K)", "Gemini 3.8 Flash (1M)"], "frontier": ["DeepSeek V4 (1M)", "Gemini 3.8 Flash (1M)", "Mistral Large 4 (524K)", "xAI Grok-4.7 (500K)"], "search": ["Perplexity Sonar (live web)", "xAI Grok-4.7 (real-time X)", "Gemma 4 31B"], "fast": ["Cerebras GPT-OSS (8K)", "Groq GPT-OSS (8K)", "Groq Qwen3 (8K)", "Gemma 4 31B"]};
+  var chain = chains[profile] || chains['balanced'];
+  var chainEl = document.getElementById('routing-chain-display');
+  if (chainEl) chainEl.innerHTML = chain.map(function(p,i){return '<div>'+(i+1)+'. '+p+'</div>';}).join('');
+  // Update model provider display
+  var providerEl = document.getElementById('ctx-model-provider');
+  if (providerEl && chain.length > 0) providerEl.textContent = chain.slice(0,3).join(' → ');
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -1531,6 +1620,66 @@ function cleanupTestThreads() {
       Toast.success('Cleaned up ' + (d.deleted||[]).length + ' test threads.');
       loadThreadList();
     });
+}
+
+function loadChainFromChampion() {
+  fetch(WORKER + '/api/champion/status')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.working && d.working.length > 0) {
+        var chainEl = document.getElementById('routing-chain-display');
+        if (chainEl) chainEl.innerHTML = d.working.map(function(p,i){return '<div>'+(i+1)+'. '+p+'</div>';}).join('');
+        Toast.success('Chain updated: ' + d.working.length + ' providers active');
+      }
+    }).catch(function(){});
+}
+
+function updateMultiModelStatus() {
+  var statusEl = document.getElementById('multi-model-status');
+  var listEl = document.getElementById('multi-model-active-list');
+  if (!statusEl) return;
+  if (multiModelActive && multiModelSelection.length > 0) {
+    statusEl.textContent = 'On — ' + multiModelSelection.length + ' models';
+    statusEl.style.color = 'var(--accent)';
+    if (listEl) listEl.textContent = multiModelSelection.map(function(m){return m.split('/').slice(-1)[0];}).join(', ');
+  } else {
+    statusEl.textContent = 'Off — single model mode';
+    statusEl.style.color = 'var(--fg-muted)';
+    if (listEl) listEl.textContent = '';
+  }
+}
+
+function startNewConversation() {
+  currentThreadId = 't' + Date.now();
+  localStorage.setItem('argentica-last-thread', currentThreadId);
+  var chatEl = document.getElementById('chat-messages');
+  if (chatEl) chatEl.innerHTML = '';
+  if (typeof messageHistory !== 'undefined') messageHistory = [];
+  var threadInfo = document.getElementById('ctx-thread-info');
+  if (threadInfo) threadInfo.textContent = 'New conversation';
+}
+
+function updateAttachStrip() {
+  var strip = document.getElementById('attach-strip');
+  if (!strip) return;
+  var count = (typeof chatAttachments !== 'undefined') ? chatAttachments.length : 0;
+  if (count === 0) { strip.style.display = 'none'; strip.innerHTML = ''; return; }
+  strip.style.display = 'flex';
+  strip.innerHTML = '<span style="color:var(--fg-muted);margin-right:4px;">📎</span>' +
+    chatAttachments.map(function(a, i) {
+      var icon = a.type === 'image' ? '🖼' : '📄';
+      return '<span style="background:var(--accent-light,#e8f0f8);border:1px solid var(--accent);border-radius:4px;padding:2px 8px;display:inline-flex;align-items:center;gap:4px;">' +
+        icon + ' ' + a.name +
+        ' <button onclick="removeAttachmentAt(' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:13px;padding:0 2px;">&times;</button>' +
+        '</span>';
+    }).join('');
+}
+
+function removeAttachmentAt(idx) {
+  if (typeof chatAttachments !== 'undefined') {
+    chatAttachments.splice(idx, 1);
+    updateAttachStrip();
+  }
 }
 </script>
 </body>
