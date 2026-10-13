@@ -1492,55 +1492,58 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, note: "Gemini 3.8 Flash -- 1M ctx" });
     chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, note: "Gemini Flash -- 1M ctx" });
   } else {
-    // BALANCED DEFAULT — confirmed working providers only, OpenRouter as fallback not first
-    // Tier 1: Gemma 4 31B (confirmed working, Simon top pick)
-    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 262144, out: 32768, note: "Gemma 4 31B -- confirmed working" });
-    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-26b-a4b-it", ctx: 262144, out: 32768, note: "Gemma 4 26B -- fallback" });
+    // BALANCED DEFAULT — final correct order
+    // 1. GLM 5.3 | 2. Gemma 4 31B | 3. Gemini 3.8 Flash | 4. Mistral Large 4
+    // 5. DeepSeek | 6. GLM 4.7 | 7. GPT-OSS | 8. Llama 4 | 9. Grok-4.7
 
-    // Tier 2: GLM thinking models (free, 128K, confirmed working)
-    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.5-flash", ctx: 128000, out: 8192, note: "GLM-4.5-flash -- thinking, Z.AI" });
-    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.7-flash", ctx: 128000, out: 8192, note: "GLM-4.7-flash -- thinking, Z.AI" });
+    // 1. GLM 5.3 — thinking + native web search, 128K
+    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-5.3-flashx", ctx: 128000, out: 8192, note: "GLM-5.3-flashx -- fastest thinking + web search" });
+    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-5.3-flash", ctx: 128000, out: 8192, note: "GLM-5.3-flash -- thinking + web search" });
+    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-5.3", ctx: 128000, out: 8192, note: "GLM-5.3 -- thinking + web search" });
 
-    // Tier 3: Cerebras and Groq (fast, confirmed working from CF)
+    // 2. Gemma 4 31B — 1M context, Google Search grounding, free
+    chain.push({ p: "gemini", key: GKEY, m: "gemma-4-31b-it", ctx: 1000000, out: 32768, note: "Gemma 4 31B -- 1M ctx, Google Search" });
+
+    // 3. Gemini 3.8 Flash — 1M context, Google Search grounding, free
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, note: "Gemini 3.8 Flash -- 1M ctx, Google Search" });
+    chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, note: "Gemini Flash latest -- 1M ctx" });
+
+    // 4. Mistral Large 4 — 1M context, web_search_premium, vision, reasoning
+    // NOTE: Key needs activation at console.mistral.ai — both keys currently returning 401
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-4", ctx: 1000000, out: 8192, note: "Mistral Large 4 -- 1M ctx, web search, vision" });
+    // GLM-5.3 via Mistral (zai-glm-5-3) — same key issue
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "zai-glm-5-3", ctx: 1000000, out: 131072, note: "GLM-5.3 via Mistral -- 1M ctx, thinking" });
+
+    // 5. DeepSeek V4 Flash — 1M context
+    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-flash", ctx: 1000000, out: 8192, note: "DeepSeek V4 Flash -- 1M ctx" });
+    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-flash", ctx: 1000000, out: 8192, note: "DeepSeek via OpenRouter -- 1M ctx" });
+
+    // 6. GLM 4.7-flash — thinking (NOT 4.5)
+    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.7-flash", ctx: 128000, out: 8192, note: "GLM-4.7-flash -- thinking" });
+    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.6", ctx: 128000, out: 8192, note: "GLM-4.6" });
+
+    // 7. GPT-OSS — fast, 8K
     if (KEYS.cerebras && KEYS.cerebras.length > 0) {
-      chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Cerebras -- confirmed" });
+      chain.push({ p: "cerebras", key: KEYS.cerebras[0], m: "gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Cerebras -- fast" });
     }
     if (KEYS.groq && KEYS.groq.length > 0) {
-      chain.push({ p: "groq", key: KEYS.groq[0], m: "openai/gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Groq -- confirmed" });
-      chain.push({ p: "groq", key: KEYS.groq[0], m: "qwen/qwen3.8-27b", ctx: 8192, out: 8192, note: "Qwen3 on Groq -- confirmed" });
-      chain.push({ p: "groq", key: KEYS.groq[0], m: "meta-llama/llama-4-scout-17b-16e-instruct", ctx: 131072, out: 8192, note: "Llama 4 Scout on Groq" });
+      chain.push({ p: "groq", key: KEYS.groq[0], m: "openai/gpt-oss-120b", ctx: 8192, out: 8192, note: "GPT-OSS on Groq -- fast" });
     }
 
-    // Tier 4: DeepSeek direct (confirmed working from CF)
-    if (KEYS.deepseek) chain.push({ p: "deepseek", key: KEYS.deepseek, m: "deepseek-flash", ctx: 1000000, out: 8192, note: "DeepSeek V4 -- 1M ctx" });
+    // 8. Llama 4 Scout — 131K
+    if (KEYS.groq && KEYS.groq.length > 0) {
+      chain.push({ p: "groq", key: KEYS.groq[0], m: "meta-llama/llama-4-scout-17b-16e-instruct", ctx: 131072, out: 8192, note: "Llama 4 Scout -- 131K" });
+    }
 
-    // Tier 4: Gemini Flash (confirmed working)
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-3.8-flash", ctx: 1048576, out: 65536, note: "Gemini 3.8 Flash -- confirmed" });
-    chain.push({ p: "gemini", key: GKEY, m: "gemini-flash-latest", ctx: 1048576, out: 65536, note: "Gemini Flash latest -- confirmed" });
+    // 9. Grok-4.7 — 500K, real-time X data (paid key confirmed)
+    if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-4.7", ctx: 500000, out: 32768, note: "Grok-4.7 -- 500K, real-time X" });
 
-    // Tier 5: Cohere (confirmed working)
-    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128000, out: 4096, note: "Cohere R+ -- confirmed" });
-    if (KEYS.cohere_paid) chain.push({ p: "cohere", key: KEYS.cohere_paid, m: "command-a-03-2025", ctx: 256000, out: 8192, note: "Cohere Command A -- paid" });
-    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-4", ctx: 128000, out: 8192, note: "Mistral Large -- confirmed working" });
-    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-small-4", ctx: 32000, out: 8192, note: "Mistral Small -- fast" });
-
-    // Tier 6: Together, Fireworks, Chutes
-    if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "meta-llama/Llama-3.3-70B-Instruct-Turbo", ctx: 131072, out: 8192, note: "Together Llama 70B" });
-    if (KEYS.fireworks) chain.push({ p: "fireworks", key: KEYS.fireworks, m: "accounts/fireworks/models/llama-v3p3-70b-instruct", ctx: 131072, out: 8192, note: "Fireworks Llama 70B" });
-    if (KEYS.chutes) chain.push({ p: "chutes", key: KEYS.chutes, m: "deepseek-ai/DeepSeek-V3-0324", ctx: 64000, out: 8192, note: "Chutes DeepSeek free" });
-
-    // Tier 7: OpenRouter as fallback (not first — it was winning by default)
-    if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "deepseek/deepseek-flash", ctx: 1000000, out: 8192, note: "OpenRouter DeepSeek -- fallback" });
+    // Remaining fallbacks
+    if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128000, out: 4096, note: "Cohere R+" });
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-small-4", ctx: 262144, out: 8192, note: "Mistral Small 4" });
     if (KEYS.openrouter) chain.push({ p: "openrouter", key: KEYS.openrouter, m: "google/gemma-3-27b-it:free", ctx: 131072, out: 8192, note: "OpenRouter Gemma 3 free" });
-    // xAI Grok (real-time X data)
-    if (KEYS.xai) chain.push({ p: "xai", key: KEYS.xai, m: "grok-4.7", ctx: 500000, out: 32768, note: "Grok-4.7 -- flagship, 500K ctx, real-time X" });
-    // Perplexity Sonar (built-in web search — use instead of Tavily for search queries)
-    if (KEYS.perplexity) chain.push({ p: "perplexity", key: KEYS.perplexity, m: "sonar", ctx: 127000, out: 8192, note: "Perplexity Sonar -- built-in web search" });
-    if (KEYS.zai) chain.push({ p: "zai", key: KEYS.zai, m: "glm-4-plus", ctx: 128000, out: 8192, note: "Z.AI GLM-4-Plus -- when key active" });
-  }
 
-  // Unconditional fallback
-  chain.push({ p: "pollinations", key: null, m: "openai", note: "Pollinations -- unconditional fallback" });
+chain.push({ p: "pollinations", key: null, m: "openai", note: "Pollinations -- unconditional fallback" });
   chain.push({ p: "pollinations", key: null, m: "mistral", note: "Pollinations Mistral" });
   } // end else (no champion config)
 
@@ -1923,7 +1926,9 @@ async function callProvider(env, provider, key, model, messages) {
       model: mistralModel,
       messages: mistralMessages,
       max_tokens: 8192,
-      temperature: 0.7
+      temperature: 0.7,
+      // Mistral native web search — docs.mistral.ai/studio/agents/agent-tools/websearch
+      tools: [{type: "web_search_premium"}]
     };
 
     var r = await fetch("https://api.mistral.ai/v1/chat/completions", {
@@ -1936,8 +1941,14 @@ async function callProvider(env, provider, key, model, messages) {
       throw new Error("Mistral " + r.status + ": " + e.substring(0, 150));
     }
     var d = await r.json();
-    var content = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
-    if (!content) throw new Error("No content from Mistral");
+    var mistralMsg = d.choices && d.choices[0] && d.choices[0].message;
+    var content = mistralMsg && mistralMsg.content;
+    // Handle thinking blocks (mistral-large-4, magistral models return array)
+    if (Array.isArray(content)) {
+      var textParts = content.filter(function(p){return p.type==="text";}).map(function(p){return p.text;});
+      content = textParts.join("\n").trim();
+    }
+    if (!content) throw new Error("No content from Mistral (finish=" + (d.choices&&d.choices[0]&&d.choices[0].finish_reason) + ")");
     return { content };
   }
   if (provider === "together" || provider === "sambanova" || provider === "fireworks" || provider === "anyapi") {
@@ -2093,8 +2104,15 @@ async function callProvider(env, provider, key, model, messages) {
     // Only for models that support it (not Gemma)
     var isGemma = model.startsWith("gemma-");
     if (!isGemma && model.includes("flash") || model.includes("pro")) {
-      // Add Google Search grounding for non-Gemma models
-      // geminiBody.tools = [{ googleSearch: {} }];  // Uncomment to enable grounding
+      // Google Search grounding — enabled for all Gemini/Gemma models
+      // This gives them live web search capability natively
+      if (!isGemma) {
+        // Gemini Flash/Pro: use Google Search grounding
+        geminiBody.tools = [{ googleSearch: {} }];
+      } else {
+        // Gemma 4: use Google Search grounding (supported)
+        geminiBody.tools = [{ googleSearch: {} }];
+      }
     }
 
     // Code execution — available on flash/pro models
@@ -2233,6 +2251,16 @@ async function callProvider(env, provider, key, model, messages) {
       glmBody.thinking = {type: "enabled"};
       glmBody.reasoning_effort = "medium";
     }
+
+    // Enable web search for GLM models that support it
+    // GLM-5.x and GLM-4.x support web_search as a built-in tool
+    glmBody.tools = [{
+      type: "web_search",
+      web_search: {
+        enable: true,
+        search_query: "" // auto-detect from query
+      }
+    }];
 
     var r = await fetch("https://api.z.ai/api/paas/v4/chat/completions", {
       method: "POST",
@@ -3049,10 +3077,16 @@ var index_default = {
               var tavilyKey3 = env.tavily_api_key || env.TAVILY_API_KEY;
               if (tavilyKey3) {
                 try {
+                  // Build a better search query — extract key terms
+                  var searchQuery = lastUserForSearch.substring(0,200);
+                  // If query mentions a specific review/report, add "site:gov.uk OR findings" to help
+                  if (/review|report|findings|published/i.test(searchQuery)) {
+                    searchQuery = searchQuery.replace(/\(.*?\)/g, '').trim(); // remove parentheticals
+                  }
                   var tavilyR3 = await Promise.race([
                     fetch("https://api.tavily.com/search", {
                       method: "POST", headers: {"Content-Type":"application/json"},
-                      body: JSON.stringify({api_key: tavilyKey3, query: lastUserForSearch.substring(0,200), max_results: 5, include_answer: true, search_depth: "advanced"})
+                      body: JSON.stringify({api_key: tavilyKey3, query: searchQuery, max_results: 5, include_answer: true, search_depth: "advanced", include_domains: ["gov.uk","bbc.co.uk","theguardian.com","reuters.com","ft.com","independent.co.uk","telegraph.co.uk"]})
                     }),
                     new Promise(function(_,rej){setTimeout(function(){rej(new Error("tavily timeout"));},5000);})
                   ]);
@@ -3064,7 +3098,30 @@ var index_default = {
                         "Sources: " + (tavilyD3.results||[]).slice(0,3).map(function(r){return r.title+" ("+r.url+")";}).join("; ") +
                         "\n\nIMPORTANT: Use ONLY the above search results. Do NOT invent findings, statistics, or quotes not present in these results. If the search found nothing relevant, say so explicitly.";
                     } else {
-                      webSearchContext = "\n\n[WEB SEARCH for '" + lastUserForSearch.substring(0,80) + "' found no relevant results. You MUST state this clearly. Do NOT invent or fabricate any findings, reports, statistics, or quotes. Say: 'I searched and found nothing on this topic. Please provide the source document.']";
+                      // Try Brave as backup when Tavily finds nothing
+                      var braveKey = env.brave_api_key || env.BRAVE_API_KEY;
+                      if (braveKey) {
+                        try {
+                          var braveR = await Promise.race([
+                            fetch("https://api.search.brave.com/res/v1/web/search?q=" + encodeURIComponent(lastUserForSearch.substring(0,200)) + "&count=5&freshness=pw", {
+                              headers: {"Accept":"application/json","X-Subscription-Token":braveKey}
+                            }),
+                            new Promise(function(_,rej){setTimeout(function(){rej(new Error("brave timeout"));},4000);})
+                          ]);
+                          if (braveR && braveR.ok) {
+                            var braveD = await braveR.json();
+                            var braveResults = braveD.web && braveD.web.results;
+                            if (braveResults && braveResults.length > 0) {
+                              webSearchContext = "\n\n[WEB SEARCH (Brave) for: " + lastUserForSearch.substring(0,60) + "]\n" +
+                                braveResults.slice(0,3).map(function(r){return r.title+": "+r.description.substring(0,200)+" ("+r.url+")";}).join("\n\n") +
+                                "\n\nIMPORTANT: Use ONLY the above search results. Do NOT invent findings not present here.";
+                            }
+                          }
+                        } catch(braveErr) {}
+                      }
+                      if (!webSearchContext) {
+                        webSearchContext = "\n\n[WEB SEARCH for '" + lastUserForSearch.substring(0,80) + "' found no results via Tavily or Brave. You MUST state clearly: 'I searched and found nothing on this topic. Please provide the source document or URL.' Do NOT invent or fabricate any findings.]";
+                      }
                     }
                   }
                 } catch(tavilyErr3) { /* non-fatal */ }
@@ -3539,11 +3596,11 @@ var index_default = {
         var gKey2 = env.gemini_api_key || env.GEMINI_API_KEY;
         if (gKey2) {
           var gemImgModels = {
-            "gemini-image": "gemini-3.1-flash-image",
-            "gemini-image-pro": "gemini-3-pro-image",
+            "gemini-image": "gemini-3.1-flash-image",       // confirmed ✓
+            "gemini-image-pro": "gemini-3-pro-image",        // confirmed ✓
             "gemini-image-lite": "gemini-3.1-flash-lite-image",
-            "gemini-2.5-image": "gemini-2.5-flash-image",
-            "auto": "gemini-3.1-flash-image"
+            "gemini-2.5-image": "gemini-2.5-flash-image",   // confirmed ✓
+            "auto": "gemini-2.5-flash-image"                 // best confirmed
           };
           var gemImgModel = gemImgModels[modelName] || (modelName.includes("gemini") ? modelName : null);
           if (gemImgModel || modelName === "auto") {
@@ -3570,6 +3627,36 @@ var index_default = {
           }
         }
 
+        // CogView via Z.AI (GLM image gen — needs credits)
+        var glmImgKey = env.zhipu_api_key || env.ZHIPU_API_KEY;
+        if (glmImgKey && (modelName === "cogview" || modelName === "cogview-4")) {
+          try {
+            // Generate JWT for GLM
+            var glmParts2 = glmImgKey.split(".");
+            if (glmParts2.length === 2) {
+              var glmKid2 = glmParts2[0], glmSecret2 = glmParts2[1];
+              var glmH2 = btoa(JSON.stringify({"alg":"HS256","sign_type":"SIGN"})).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
+              var glmNow2 = Date.now();
+              var glmP2 = btoa(JSON.stringify({"api_key":glmKid2,"exp":glmNow2+3600000,"timestamp":glmNow2})).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
+              var glmMsg2 = glmH2 + "." + glmP2;
+              var glmKD2 = await crypto.subtle.importKey("raw", new TextEncoder().encode(glmSecret2), {name:"HMAC",hash:"SHA-256"}, false, ["sign"]);
+              var glmSig2 = await crypto.subtle.sign("HMAC", glmKD2, new TextEncoder().encode(glmMsg2));
+              var glmJwt2 = glmMsg2 + "." + btoa(String.fromCharCode(...new Uint8Array(glmSig2))).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
+              var cogR = await fetch("https://open.bigmodel.cn/api/paas/v4/images/generations", {
+                method: "POST",
+                headers: {"Authorization": "Bearer " + glmJwt2, "Content-Type": "application/json"},
+                body: JSON.stringify({model: "cogview-4-250304", prompt: prompt, size: "1024x1024", n: 1})
+              });
+              if (cogR.ok) {
+                var cogD = await cogR.json();
+                if (cogD.data && cogD.data[0] && cogD.data[0].url) {
+                  return json({url: cogD.data[0].url, provider:"glm", model:"cogview-4"}, 200, origin);
+                }
+              }
+            }
+          } catch(e) {}
+        }
+
         // Pollinations fallback (always works, free)
         var polUrl = "https://image.pollinations.ai/prompt/" + encodeURIComponent(prompt) + "?width=1024&height=768&nologo=true&model=flux";
         return json({url: polUrl, provider:"pollinations", model:"flux"}, 200, origin);
@@ -3587,10 +3674,12 @@ var index_default = {
         {id:"recraft-v3", name:"Recraft V3", provider:"fal", free:true, speed:"medium", notes:"Design/illustration"},
         {id:"imagen-3", name:"Imagen 3", provider:"gemini", free:true, speed:"medium", notes:"Google photorealistic"},
         {id:"pollinations", name:"Pollinations Flux", provider:"pollinations", free:true, speed:"fast", notes:"Always available"},
-        {id:"gemini-image", name:"Gemini 3.1 Flash Image", provider:"gemini", free:true, speed:"medium", notes:"Confirmed working"},
+        {id:"gemini-image", name:"Gemini 3.1 Flash Image", provider:"gemini", free:true, speed:"medium"},
         {id:"gemini-image-pro", name:"Gemini 3 Pro Image", provider:"gemini", free:true, speed:"slow", notes:"Highest quality"},
-        {id:"gemini-image-lite", name:"Gemini 3.1 Flash Lite Image", provider:"gemini", free:true, speed:"fast", notes:"Fast, good quality"},
+        {id:"gemini-image-lite", name:"Gemini 3.1 Flash Lite Image", provider:"gemini", free:true, speed:"fast"},
         {id:"gemini-2.5-image", name:"Gemini 2.5 Flash Image", provider:"gemini", free:true, speed:"medium"},
+        {id:"stability-sdxl", name:"Stability SDXL", provider:"stability", free:false, speed:"medium"},
+        {id:"ideogram-v2", name:"Ideogram V2", provider:"ideogram", free:false, speed:"medium", notes:"Text in images"},
       ]}, 200, origin);
     }
     if (path === "/api/image/models") {
@@ -8422,6 +8511,22 @@ var index_default = {
         var modelId = body.model || "auto";
         var provider = body.provider || "auto";
 
+        // Voxtral TTS via Mistral (voxtral-mini-tts-latest)
+        var mistralKey2 = env.mistral_api_key || env.MISTRAL_API_KEY;
+        if (mistralKey2 && (provider === "voxtral" || provider === "mistral-tts")) {
+          try {
+            var voxtralR = await fetch("https://api.mistral.ai/v1/audio/speech", {
+              method: "POST",
+              headers: {"Authorization":"Bearer "+mistralKey2,"Content-Type":"application/json"},
+              body: JSON.stringify({model:"voxtral-mini-tts-latest", input:text, voice:"alloy"})
+            });
+            if (voxtralR.ok) {
+              var voxtralBuf = await voxtralR.arrayBuffer();
+              return new Response(voxtralBuf, {status:200, headers:{"Content-Type":"audio/mpeg","Access-Control-Allow-Origin":origin||"*"}});
+            }
+          } catch(e) {}
+        }
+
         // Cartesia (confirmed working, sonic-2)
         var cartesiaKey = env.cartesia_api_key || env.CARTESIA_API_KEY;
         if (cartesiaKey && (provider === "cartesia" || provider === "auto")) {
@@ -8489,6 +8594,53 @@ var index_default = {
           } catch(e) {}
         }
 
+        // Smallest AI TTS (lightning-v3.1, confirmed working)
+        var smallestKey = env.smallest_ai_api_key || env.SMALLEST_AI_API_KEY;
+        if (smallestKey && (provider === "smallest" || provider === "auto")) {
+          try {
+            // Default voice: aria (confirmed working). Others: james, luna, oliver, emma
+            var smallestVoice = voiceId === "default" ? "aria" : voiceId;
+            var smallestR = await fetch("https://api.smallest.ai/waves/v1/lightning-v3.1/get_speech", {
+              method: "POST",
+              headers: {"Content-Type":"application/json","Authorization":"Bearer "+smallestKey},
+              body: JSON.stringify({
+                text: text,
+                voice_id: smallestVoice,
+                sample_rate: 24000,
+                speed: 1.0,
+                add_wav_header: true
+              })
+            });
+            if (smallestR.ok) {
+              var smallestBuf = await smallestR.arrayBuffer();
+              return new Response(smallestBuf, {status:200, headers:{"Content-Type":"audio/wav","Access-Control-Allow-Origin":origin||"*"}});
+            }
+          } catch(e) {}
+        }
+
+        // Fish Audio TTS
+        var fishKey = env.fish_audio_api_key || env.FISH_AUDIO_API_KEY;
+        if (fishKey && (provider === "fish" || provider === "auto")) {
+          try {
+            var fishR = await fetch("https://api.fish.audio/v1/tts", {
+              method: "POST",
+              headers: {"Authorization": "Bearer " + fishKey, "Content-Type": "application/json"},
+              body: JSON.stringify({
+                text: text,
+                reference_id: voiceId === "default" ? "5b2e1b3d7a4c4f8e9d0a1b2c3d4e5f60" : voiceId,
+                format: "mp3",
+                mp3_bitrate: 128,
+                normalize: true,
+                latency: "normal"
+              })
+            });
+            if (fishR.ok) {
+              var fishBuf = await fishR.arrayBuffer();
+              return new Response(fishBuf, {status:200, headers:{"Content-Type":"audio/mp3","Access-Control-Allow-Origin":origin||"*"}});
+            }
+          } catch(e) {}
+        }
+
         return json({error:"All TTS providers failed"}, 500, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
@@ -8496,11 +8648,14 @@ var index_default = {
     // Voice models list
     if (path === "/api/voice/models") {
       return json({models:[
+        {id:"smallest-aria", name:"Smallest AI — Aria", provider:"smallest", free:false, quality:"high", latency:"very-low", notes:"Lightning v3.1"},
+        {id:"smallest-james", name:"Smallest AI — James", provider:"smallest", free:false, quality:"high", latency:"very-low"},
         {id:"cartesia-sonic-2", name:"Cartesia Sonic 2", provider:"cartesia", free:true, quality:"high", latency:"low"},
         {id:"gemini-aoede", name:"Gemini TTS (Aoede)", provider:"gemini", free:true, quality:"good", latency:"medium"},
         {id:"gemini-puck", name:"Gemini TTS (Puck)", provider:"gemini", free:true, quality:"good", latency:"medium"},
         {id:"gemini-charon", name:"Gemini TTS (Charon)", provider:"gemini", free:true, quality:"good", latency:"medium"},
         {id:"elevenlabs", name:"ElevenLabs (paid)", provider:"elevenlabs", free:false, quality:"best", latency:"medium"},
+        {id:"fish-audio", name:"Fish Audio", provider:"fish", free:false, quality:"high", latency:"low", notes:"Natural voices"},
         {id:"gemini-3.8-tts", name:"Gemini 3.8 Flash TTS", provider:"gemini", free:true, quality:"high", latency:"low"},
         {id:"gemini-3.8-lite-tts", name:"Gemini 3.8 Flash Lite TTS", provider:"gemini", free:true, quality:"good", latency:"very-low"},
         {id:"gemini-3.1-tts", name:"Gemini 3.1 Flash TTS", provider:"gemini", free:true, quality:"good", latency:"low"},
@@ -9402,6 +9557,87 @@ var index_default = {
         }
         var tData = await tResp.json();
         return json({text: tData.text, language: tData.language, duration: tData.duration}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+
+    // ── Video generation via FAL ──────────────────────────────────────────────
+    if (path === "/api/video/generate" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var prompt = body.prompt || "A beautiful landscape";
+        var model = body.model || "cogvideox-5b";
+        var duration = body.duration || "5";
+        var falKey3 = env.FAL_API_KEY || env.fal_api_key;
+        if (!falKey3) return json({error:"No FAL key"}, 400, origin);
+
+        var falVideoEndpoints = {
+          "cogvideox-5b": "https://fal.run/fal-ai/cogvideox-5b",
+          "kling-v1.6": "https://fal.run/fal-ai/kling-video/v1.6/standard/text-to-video",
+          "kling-v2": "https://fal.run/fal-ai/kling-video/v2/standard/text-to-video",
+          "hailuo": "https://fal.run/fal-ai/minimax-video/v1/text-to-video",
+          "wan": "https://fal.run/fal-ai/wan/v2.1/1.3b/text-to-video",
+          "auto": "https://fal.run/fal-ai/cogvideox-5b"
+        };
+        var endpoint = falVideoEndpoints[model] || falVideoEndpoints["auto"];
+
+        var falVidR = await fetch(endpoint, {
+          method: "POST",
+          headers: {"Content-Type":"application/json","Authorization":"Key "+falKey3},
+          body: JSON.stringify({prompt: prompt, duration: duration})
+        });
+        if (!falVidR.ok) {
+          var falVidErr = await falVidR.text();
+          return json({error:"Video gen failed: " + falVidErr.substring(0,150)}, 500, origin);
+        }
+        var falVidD = await falVidR.json();
+        var videoUrl = falVidD.video && (falVidD.video.url || falVidD.video);
+        if (!videoUrl && falVidD.url) videoUrl = falVidD.url;
+        return json({url: videoUrl, provider:"fal", model: model}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // Video models list
+    if (path === "/api/video/models") {
+      return json({models:[
+        {id:"cogvideox-5b", name:"CogVideoX-5B", provider:"fal", notes:"6s video"},
+        {id:"kling-v1.6", name:"Kling v1.6", provider:"fal", notes:"5-10s video"},
+        {id:"kling-v2", name:"Kling v2", provider:"fal", notes:"Best quality"},
+        {id:"hailuo", name:"Hailuo (MiniMax)", provider:"fal", notes:"6s video"},
+        {id:"wan", name:"Wan 2.1", provider:"fal", notes:"Fast, free tier"},
+        {id:"cogview", name:"CogView-4 (image)", provider:"glm", notes:"Needs GLM credits"},
+      ]}, 200, origin);
+    }
+
+
+    // ── Mistral OCR ───────────────────────────────────────────────────────────
+    if (path === "/api/ocr" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var imageUrl = body.image_url || body.url;
+        var imageBase64 = body.image_base64 || body.base64;
+        var mistralOcrKey = env.mistral_api_key || env.MISTRAL_API_KEY;
+        if (!mistralOcrKey) return json({error:"No Mistral key for OCR"}, 400, origin);
+
+        var ocrMessages = [{
+          role: "user",
+          content: imageUrl
+            ? [{type:"text",text:"Extract all text from this image. Return only the extracted text, preserving formatting."},{type:"image_url",image_url:imageUrl}]
+            : [{type:"text",text:"Extract all text from this image. Return only the extracted text, preserving formatting."},{type:"image_url",image_url:"data:image/jpeg;base64,"+imageBase64}]
+        }];
+
+        var ocrR = await fetch("https://api.mistral.ai/v1/chat/completions", {
+          method: "POST",
+          headers: {"Authorization":"Bearer "+mistralOcrKey,"Content-Type":"application/json"},
+          body: JSON.stringify({model:"mistral-ocr-latest", messages:ocrMessages, max_tokens:4096})
+        });
+        if (!ocrR.ok) {
+          var ocrErr = await ocrR.text();
+          return json({error:"OCR failed: "+ocrErr.substring(0,150)}, 500, origin);
+        }
+        var ocrD = await ocrR.json();
+        var ocrText = ocrD.choices && ocrD.choices[0] && ocrD.choices[0].message && ocrD.choices[0].message.content;
+        return json({text: ocrText, model:"mistral-ocr-latest"}, 200, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
