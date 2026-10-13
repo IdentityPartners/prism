@@ -1406,7 +1406,7 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     champConfig.chain.forEach(function(entry) {
       var key = null;
       if (entry.p === "gemini") key = GKEY_CHAMP;
-      else if (entry.p === "glm") key = env.zhipu_api_key || env.ZHIPU_API_KEY || "";
+      else if (entry.p === "glm") key = env.zhipu_api_key || env.ZHIPU_API_KEY || env.glm_api_key || env.GLM_API_KEY || "";
       else if (entry.p === "cerebras") key = env.cerebras_paid || env.CEREBRAS_PAID || env.cerebras_free_1 || env.CEREBRAS_FREE_1 || "";
       else if (entry.p === "groq") key = env.groq_free_1 || env.GROQ_FREE_1 || "";
       else if (entry.p === "deepseek") key = env.deepseek_paid || env.DEEPSEEK_PAID || "";
@@ -1498,8 +1498,8 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     chain.push({ p: "gemini", key: GKEY, m: "gemma-4-26b-a4b-it", ctx: 262144, out: 32768, note: "Gemma 4 26B -- fallback" });
 
     // Tier 2: GLM thinking models (free, 128K, confirmed working)
-    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.5-flash", ctx: 128000, out: 8192, note: "GLM-4.5-flash -- thinking, free" });
-    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.7-flash", ctx: 128000, out: 8192, note: "GLM-4.7-flash -- thinking, free" });
+    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.5-flash", ctx: 128000, out: 8192, note: "GLM-4.5-flash -- thinking, Z.AI" });
+    if (KEYS.glm) chain.push({ p: "glm", key: KEYS.glm, m: "glm-4.7-flash", ctx: 128000, out: 8192, note: "GLM-4.7-flash -- thinking, Z.AI" });
 
     // Tier 3: Cerebras and Groq (fast, confirmed working from CF)
     if (KEYS.cerebras && KEYS.cerebras.length > 0) {
@@ -1521,8 +1521,8 @@ async function orchestrate(env, messages, profile, intent, threadId) {
     // Tier 5: Cohere (confirmed working)
     if (KEYS.cohere) chain.push({ p: "cohere", key: KEYS.cohere, m: "command-r-plus-08-2024", ctx: 128000, out: 4096, note: "Cohere R+ -- confirmed" });
     if (KEYS.cohere_paid) chain.push({ p: "cohere", key: KEYS.cohere_paid, m: "command-a-03-2025", ctx: 256000, out: 8192, note: "Cohere Command A -- paid" });
-    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-2512", ctx: 128000, out: 8192, note: "Mistral Large -- confirmed working" });
-    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-small-2506", ctx: 32000, out: 8192, note: "Mistral Small -- fast" });
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-large-4", ctx: 128000, out: 8192, note: "Mistral Large -- confirmed working" });
+    if (KEYS.mistral) chain.push({ p: "mistral", key: KEYS.mistral, m: "mistral-small-4", ctx: 32000, out: 8192, note: "Mistral Small -- fast" });
 
     // Tier 6: Together, Fireworks, Chutes
     if (KEYS.together) chain.push({ p: "together", key: KEYS.together, m: "meta-llama/Llama-3.3-70B-Instruct-Turbo", ctx: 131072, out: 8192, note: "Together Llama 70B" });
@@ -1891,9 +1891,10 @@ async function callProvider(env, provider, key, model, messages) {
 
     // Normalise model names
     var mistralModel = model;
-    if (mistralModel === "mistral-large-latest") mistralModel = "mistral-large-2512";
-    if (mistralModel === "mistral-medium-latest") mistralModel = "mistral-medium-2508";
-    if (mistralModel === "mistral-small-latest") mistralModel = "mistral-small-2506";
+    if (mistralModel === "mistral-large-latest") mistralModel = "mistral-large-4";  // Latest flagship: 524K ctx
+    if (mistralModel === "mistral-large-2512") mistralModel = "mistral-large-4";
+    if (mistralModel === "mistral-medium-latest") mistralModel = "mistral-medium-3.1";  // 262K ctx, vision
+    if (mistralModel === "mistral-small-latest") mistralModel = "mistral-small-4";  // 262K ctx, vision, reasoning
 
     // Check for vision content
     var hasMistralImages = messages.some(function(m) {
@@ -2196,40 +2197,72 @@ async function callProvider(env, provider, key, model, messages) {
     if (!kieContent) throw new Error("No content from KIE.ai");
     return { content: kieContent };
   }
-  if (provider === "glm") {
-    // ZhipuAI GLM — requires JWT auth (key format: id.secret)
-    var glmParts = key.split(".");
-    var glmJwt = key; // fallback: use as-is
-    if (glmParts.length === 2) {
-      try {
-        var glmKid = glmParts[0];
-        var glmSecret = glmParts[1];
-        var glmHeader = btoa(JSON.stringify({"alg":"HS256","sign_type":"SIGN"})).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
-        var glmNow = Date.now();
-        var glmPayload = btoa(JSON.stringify({"api_key":glmKid,"exp":glmNow+3600000,"timestamp":glmNow})).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
-        var glmMsg = glmHeader + "." + glmPayload;
-        // HMAC-SHA256 using Web Crypto (available in CF Workers)
-        var glmKeyData = await crypto.subtle.importKey("raw", new TextEncoder().encode(glmSecret), {name:"HMAC",hash:"SHA-256"}, false, ["sign"]);
-        var glmSig = await crypto.subtle.sign("HMAC", glmKeyData, new TextEncoder().encode(glmMsg));
-        var glmSigB64 = btoa(String.fromCharCode(...new Uint8Array(glmSig))).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
-        glmJwt = glmMsg + "." + glmSigB64;
-      } catch(jwtErr) { /* use key as-is */ }
+    if (provider === "glm") {
+    // Z.AI (ZhipuAI GLM) — docs.z.ai
+    // Endpoint: https://api.z.ai/api/paas/v4/chat/completions
+    // Auth: Bearer token (simple API key, no JWT needed)
+    // Models: glm-5.3, glm-5.2, glm-4.5-flash, glm-4.7-flash
+    // Thinking: thinking:{type:"enabled"}, reasoning_effort:"max"
+    // OpenAI-compatible format
+
+    // Normalise model names
+    var glmModel = model;
+    if (glmModel === "glm-4.5-flash" || glmModel === "glm-4.7-flash") {
+      // These are confirmed working — keep as-is
+    } else if (!glmModel.startsWith("glm-")) {
+      glmModel = "glm-4.5-flash"; // safe default
     }
-    var r = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+
+    // Detect if thinking model requested
+    var isGlmThinking = glmModel.includes("5.") || glmModel.includes("z1");
+
+    var glmBody = {
+      model: glmModel,
+      messages: messages.map(function(m) {
+        return {
+          role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user",
+          content: typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+        };
+      }),
+      max_tokens: 8192,
+      temperature: 0.7
+    };
+
+    // Enable thinking for capable models
+    if (isGlmThinking) {
+      glmBody.thinking = {type: "enabled"};
+      glmBody.reasoning_effort = "medium";
+    }
+
+    var r = await fetch("https://api.z.ai/api/paas/v4/chat/completions", {
       method: "POST",
-      headers: { "Authorization": "Bearer " + glmJwt, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: model, messages: messages, max_tokens: 8192, temperature: 0.7 })
+      headers: {
+        "Authorization": "Bearer " + key,
+        "Content-Type": "application/json",
+        "Accept-Language": "en-US,en"
+      },
+      body: JSON.stringify(glmBody)
     });
+
     if (!r.ok) {
       var e = await r.text();
-      throw new Error("GLM " + r.status + ": " + e.substring(0, 100));
+      throw new Error("GLM " + r.status + ": " + e.substring(0, 150));
     }
+
     var d = await r.json();
-    var content = d.choices && d.choices[0] && d.choices[0].message &&
-      (d.choices[0].message.content || d.choices[0].message.reasoning_content);
-    if (!content) throw new Error("No content from GLM");
-    return { content };
+    var choice = d.choices && d.choices[0];
+    if (!choice) throw new Error("No choices from GLM: " + JSON.stringify(d).substring(0, 100));
+
+    var content = choice.message && choice.message.content;
+    var reasoning = choice.message && choice.message.reasoning_content;
+
+    // For thinking models, content may be empty while reasoning is populated
+    if (!content && reasoning) content = reasoning.substring(0, 500);
+    if (!content) throw new Error("No content from GLM (finish=" + choice.finish_reason + ")");
+
+    return { content: content, reasoning: reasoning || undefined };
   }
+
   if (provider === "xai") {
     // xAI Grok API — docs.x.ai
     // Models: grok-4.7 (flagship, 500K ctx), grok-3, grok-3-mini, grok-3-fast
