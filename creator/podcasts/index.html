@@ -125,16 +125,31 @@
     <div class="pod-title">🎤 Voice Settings</div>
     <div class="pod-label">TTS Provider</div>
     <select class="pod-select" id="tts-provider" onchange="updateVoiceOptions()" style="margin-bottom:10px;">
-      <option value="cartesia">Cartesia Sonic 2 (recommended, British voices)</option>
+      <option value="cartesia">Cartesia Sonic 2 (British voices, recommended)</option>
       <option value="gemini">Gemini 3.8 Flash TTS (free, 8 voices)</option>
-      <option value="elevenlabs">ElevenLabs (paid)</option>
+      <option value="smallest">Smallest AI Lightning v3.1 (fast)</option>
+      <option value="fish">Fish Audio (natural voices)</option>
+      <option value="elevenlabs">ElevenLabs (paid plan required)</option>
     </select>
 
     <div class="pod-label">Host voice</div>
     <select class="pod-select" id="host-voice" style="margin-bottom:10px;">
-      <option value="a0e99841-438c-4a64-b679-ae501e7d6091">Cartesia — British Male</option>
-      <option value="79a125e8-cd45-4c13-8a67-188112f4dd22">Cartesia — British Female</option>
-      <option value="b7d50908-b17c-442d-ad8d-810c63997ed9">Cartesia — American Male</option>
+      <optgroup label="Cartesia">
+        <option value="a0e99841-438c-4a64-b679-ae501e7d6091">Cartesia — British Male</option>
+        <option value="79a125e8-cd45-4c13-8a67-188112f4dd22">Cartesia — British Female</option>
+        <option value="b7d50908-b17c-442d-ad8d-810c63997ed9">Cartesia — American Male</option>
+      </optgroup>
+      <optgroup label="Gemini TTS (free)">
+        <option value="Puck">Gemini — Puck (male)</option>
+        <option value="Charon">Gemini — Charon (male)</option>
+        <option value="Fenrir">Gemini — Fenrir (male)</option>
+        <option value="Aoede">Gemini — Aoede (female)</option>
+        <option value="Kore">Gemini — Kore (female)</option>
+        <option value="Leda">Gemini — Leda (female)</option>
+      </optgroup>
+      <optgroup label="Smallest AI">
+        <option value="aria">Smallest AI — Aria</option>
+      </optgroup>
     </select>
 
     <div class="pod-label">Guest voice</div>
