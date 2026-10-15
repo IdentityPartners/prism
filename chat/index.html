@@ -863,6 +863,14 @@ function doSend() {
     payload.profile = 'multimodal'; // Route to vision-capable model
   }
   localStorage.setItem('argentica-last-thread', currentThreadId);
+  // Save message history to KV for cross-device persistence
+  if (typeof messageHistory !== 'undefined' && messageHistory.length > 0) {
+    fetch(WORKER + '/api/chat/history', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({user: 'simon', history: messageHistory.slice(-50)})
+    }).catch(function(){});
+  }
   // Inject workspace document context if present
   if (window._wsDocContext && payload.messages && payload.messages.length > 0) {
     var sysIdx = payload.messages.findIndex(function(m){return m.role==='system';});
