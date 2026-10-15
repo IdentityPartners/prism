@@ -249,6 +249,18 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }, 800);
   }
+  // Resume any running analysis jobs
+  var runningJob = sessionStorage.getItem('agent-running-job');
+  if (runningJob) {
+    try {
+      var jobInfo = JSON.parse(runningJob);
+      setTimeout(function() {
+        addChatMsg('system', '\u23F3 Resuming analysis of ' + jobInfo.docName + ' (job ' + jobInfo.jobId.slice(-8) + ')...');
+        resumeJobPolling(jobInfo.jobId, jobInfo.docName, jobInfo.task);
+      }, 1000);
+    } catch(e) {}
+  }
+
   // Pick up document sent from Workspaces
   var wsDocContent = sessionStorage.getItem('agent-doc-content');
   var wsDocName = sessionStorage.getItem('agent-doc-name');
@@ -514,6 +526,8 @@ function runDocumentAnalysis(task, files) {
       return;
     }
     var jobId = d.job_id;
+    // Save to sessionStorage so polling resumes after refresh
+    sessionStorage.setItem('agent-running-job', JSON.stringify({jobId:jobId, docName:file.name, task:task}));
     var progressEl = null;
     var progressMsg = document.createElement('div');
     progressMsg.className = 'agent-msg system';
@@ -856,6 +870,44 @@ function clearAgentAttachments() {
 function removeAgentAttachment(idx) {
   window._agentAttachments.splice(idx, 1);
   updateAttachmentIndicator();
+}
+
+function resumeJobPolling(jobId, docName, task) {
+  sessionStorage.setItem('agent-running-job', JSON.stringify({jobId:jobId, docName:docName, task:task}));
+  var pollCount = 0;
+  var maxPolls = 72;
+  var pollInterval = setInterval(function() {
+    pollCount++;
+    if (pollCount > maxPolls) {
+      clearInterval(pollInterval);
+      sessionStorage.removeItem('agent-running-job');
+      addChatMsg('system', '\u26A0\uFE0F Job timed out waiting. Check /api/agent/job/' + jobId + ' manually.');
+      return;
+    }
+    fetch(WORKER + '/api/agent/job/' + jobId)
+      .then(function(r){return r.json();})
+      .then(function(job){
+        if (job.status === 'running') {
+          var msgs = document.querySelectorAll('.agent-msg.system .agent-bubble');
+          if (msgs.length > 0) msgs[msgs.length-1].textContent = '\u23F3 ' + (job.progress||'Processing...') + ' (check '+pollCount+')';
+        } else if (job.status === 'complete') {
+          clearInterval(pollInterval);
+          sessionStorage.removeItem('agent-running-job');
+          var header = '## Analysis: ' + (job.document_name||docName) + '\n\n**Sections:** ' + job.chunks_successful + '/' + job.chunks_total + '\n\n---\n\n';
+          var response = header + (job.synthesis || 'No synthesis.');
+          addChatMsg('agent', response);
+          chatHistory.push({role:'user',content:task});
+          chatHistory.push({role:'assistant',content:response});
+          persistAgentState();
+          addOutput('Research Agent', task, response, []);
+          Toast.success('Analysis complete: ' + (job.document_name||docName));
+        } else if (job.status === 'error') {
+          clearInterval(pollInterval);
+          sessionStorage.removeItem('agent-running-job');
+          addChatMsg('system', '\u274C Analysis failed: ' + (job.error||'Unknown'));
+        }
+      }).catch(function(){});
+  }, 10000);
 }
 </script>
 
