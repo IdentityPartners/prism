@@ -247,8 +247,10 @@ function loadFromLocalStorage() {
   } catch(e) {
     workspaces = DEFAULT_WORKSPACES.slice();
   }
+  // Always save to localStorage as backup
+  try { localStorage.setItem('prism-workspaces-v2', JSON.stringify(workspaces)); } catch(e) {}
   renderWorkspaceList();
-  // Migrate to KV in background (don't block render)
+  // Save to KV in background
   setTimeout(function() {
     workspaces.forEach(function(w) {
       fetch(WORKER + '/api/workspaces', {
@@ -257,7 +259,7 @@ function loadFromLocalStorage() {
         body: JSON.stringify(w)
       }).catch(function(){});
     });
-  }, 1000);
+  }, 500);
 }
 function saveWorkspaces() {
   try { saveAllWorkspaces(); } catch(e) {}
