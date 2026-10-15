@@ -231,6 +231,24 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // Restore active agent from sessionStorage
+  var savedAgentId = sessionStorage.getItem('agent-active-id');
+  if (savedAgentId) {
+    setTimeout(function() {
+      var agentCard = document.getElementById('card-' + savedAgentId);
+      if (agentCard) agentCard.click();
+      // Restore chat history
+      if (chatHistory.length > 0) {
+        var chat = document.getElementById('agent-chat');
+        if (chat) {
+          chat.innerHTML = '';
+          chatHistory.forEach(function(m) {
+            addChatMsg(m.role === 'user' ? 'user' : 'agent', m.content);
+          });
+        }
+      }
+    }, 800);
+  }
   // Pick up document sent from Workspaces
   var wsDocContent = sessionStorage.getItem('agent-doc-content');
   var wsDocName = sessionStorage.getItem('agent-doc-name');
@@ -263,6 +281,21 @@ var WORKER = 'https://prism-api.identitypartners.workers.dev';
 var agents = [];
 var activeAgent = null;
 var chatHistory = [];
+
+// Restore state from sessionStorage on load
+(function() {
+  try {
+    var saved = sessionStorage.getItem('agent-chat-history');
+    if (saved) chatHistory = JSON.parse(saved);
+  } catch(e) {}
+})();
+
+function persistAgentState() {
+  try {
+    sessionStorage.setItem('agent-chat-history', JSON.stringify(chatHistory.slice(-20)));
+    if (activeAgent) sessionStorage.setItem('agent-active-id', activeAgent.id);
+  } catch(e) {}
+}
 var taskHistory = [];
 
 function loadAgents() {
@@ -449,6 +482,7 @@ function runAgentTask(task) {
     addChatMsg('agent', response);
     chatHistory.push({role:'user', content:task});
     chatHistory.push({role:'assistant', content:response});
+    persistAgentState();
     addOutput(activeAgent.name, task, response, []);
     addSupervisorLog(activeAgent.name + ' (' + (d.provider||'?') + '): ' + task.substring(0,50));
     taskHistory.unshift({agent:activeAgent.name, task:task, response:response, ts:Date.now()});
