@@ -231,6 +231,27 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // Pick up document sent from Workspaces
+  var wsDocContent = sessionStorage.getItem('agent-doc-content');
+  var wsDocName = sessionStorage.getItem('agent-doc-name');
+  if (wsDocContent && wsDocName) {
+    sessionStorage.removeItem('agent-doc-content');
+    sessionStorage.removeItem('agent-doc-name');
+    window._agentAttachments = [{
+      name: wsDocName,
+      size: wsDocContent.length,
+      content: wsDocContent
+    }];
+    setTimeout(function() {
+      updateAttachmentIndicator();
+      var input = document.getElementById('agent-input');
+      if (input) {
+        input.placeholder = 'Document loaded: ' + wsDocName + '. Describe your analysis task...';
+        input.focus();
+      }
+      Toast.info('Document loaded from Workspace: ' + wsDocName);
+    }, 500);
+  }
   var mount = document.getElementById('sidebar-mount');
   if (mount) { var sb = buildSidebar('/agenti/agent-builder/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
   loadAgents();
