@@ -184,11 +184,18 @@
     </div>
   </div>
   
-  <div class="agent-input-area">
+  <class="agent-input-area">
     <div class="quick-tasks" id="quick-tasks"></div>
+    <div id="agent-attach-strip" style="display:none;padding:6px 12px;background:rgba(45,106,159,0.1);border-top:2px solid var(--accent);font-size:12px;flex-wrap:wrap;gap:6px;align-items:center;"></div>
     <div class="agent-input-row">
-      <textarea class="agent-textarea" id="agent-input" placeholder="Describe the task for this agent..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendTask();}"></textarea>
+      <textarea class="agent-textarea" id="agent-input" placeholder="Describe the task... Attach documents below for analysis." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendTask();}"></textarea>
       <button class="agent-send" onclick="sendTask()">Send</button>
+    </div>
+    <div style="display:flex;gap:6px;padding:5px 0 2px;align-items:center;border-top:1px solid var(--border);margin-top:4px;">
+      <input type="file" id="agent-file-input" multiple accept=".txt,.md,.pdf,.docx,.csv,.json,.html,.py,.js" style="display:none;" onchange="handleAgentAttachment(this)">
+      <button onclick="document.getElementById('agent-file-input').click()" style="padding:5px 12px;border:1px solid var(--accent);border-radius:5px;font-size:12px;cursor:pointer;background:var(--accent-light,#e8f0f8);color:var(--accent);font-weight:600;">📎 Attach document</button>
+      <button onclick="clearAgentAttachments()" id="clear-attach-btn" style="display:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;font-size:11px;cursor:pointer;background:var(--bg);color:var(--fg-muted);">✕ Clear</button>
+      <span style="font-size:10px;color:var(--fg-muted);">Large docs are chunked — no truncation</span>
     </div>
   </div>
 </div>
