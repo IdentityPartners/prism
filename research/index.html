@@ -724,19 +724,6 @@ function renderJournals() {
   });
 }
 
-// Override switchSourceTab to handle journals
-var _origSwitchSourceTab = typeof switchSourceTab === 'function' ? switchSourceTab : null;
-function switchSourceTab(tab) {
-  if (_origSwitchSourceTab) _origSwitchSourceTab(tab);
-  if (tab === 'journals') {
-    var panel = document.getElementById('panel-journals');
-    if (panel) panel.style.display = 'block';
-    loadJournals();
-  } else {
-    var jp = document.getElementById('panel-journals');
-    if (jp) jp.style.display = 'none';
-  }
-}
 </script>
 </body>
 </html>
