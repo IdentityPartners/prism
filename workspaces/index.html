@@ -358,6 +358,7 @@ function renderSections() {
     {key:'whiteboards',title:'🖊 Whiteboards',        type:'list',   addPlaceholder:'Whiteboard name…', linkFn:function(item){return '/whiteboard/?name='+encodeURIComponent(item);}},
     {key:'todos',     title:'✅ To-Do',               type:'todos',  addPlaceholder:'Add task…'},
     {key:'notes',     title:'📝 Notes',               type:'notes'},
+    {key:'documents', title:'📄 Documents',           type:'documents'},
   ];
 
   sections.forEach(function(sec) {
@@ -392,6 +393,8 @@ function renderSections() {
       renderEventsSection(body, sec, count);
     } else if (sec.type === 'images') {
       renderImagesSection(body, sec, count);
+    } else if (sec.type === 'documents') {
+      renderDocumentsSection(body, sec, count);
     }
 
     section.appendChild(header);
@@ -681,6 +684,112 @@ window.saveItemToWorkspace = function(section, item) {
   picker.appendChild(cancelBtn);
   document.body.appendChild(picker);
 };
+
+function renderDocumentsSection(body, sec, countEl) {
+  body.innerHTML = '';
+  var docs = currentWS[sec.key] || [];
+  if (countEl) countEl.textContent = docs.length;
+
+  // Upload button
+  var uploadRow = document.createElement('div');
+  uploadRow.style.cssText = 'display:flex;gap:8px;margin-bottom:10px;align-items:center;';
+  var fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = '.txt,.md,.pdf,.docx,.csv,.json,.html,.js,.py,.rtf';
+  fileInput.multiple = true;
+  fileInput.style.display = 'none';
+  fileInput.id = 'ws-doc-upload-' + (currentWS ? currentWS.id : 'ws');
+  fileInput.onchange = function() { handleDocUpload(this.files, sec, body, countEl); };
+  var uploadBtn = document.createElement('button');
+  uploadBtn.className = 'btn btn-sm btn-secondary';
+  uploadBtn.textContent = '📎 Upload Files';
+  uploadBtn.onclick = function() { fileInput.click(); };
+  uploadRow.appendChild(fileInput);
+  uploadRow.appendChild(uploadBtn);
+  var hint = document.createElement('span');
+  hint.style.cssText = 'font-size:10px;color:var(--fg-muted);';
+  hint.textContent = 'txt, md, pdf, docx, csv, json — up to 10MB each';
+  uploadRow.appendChild(hint);
+  body.appendChild(uploadRow);
+
+  // Document list
+  if (docs.length === 0) {
+    var empty = document.createElement('div');
+    empty.style.cssText = 'font-size:12px;color:var(--fg-muted);padding:8px 0;';
+    empty.textContent = 'No documents yet. Upload files to chat with them.';
+    body.appendChild(empty);
+    return;
+  }
+
+  docs.forEach(function(doc, idx) {
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);';
+    var icon = document.createElement('span');
+    icon.style.cssText = 'font-size:18px;flex-shrink:0;';
+    icon.textContent = doc.name.endsWith('.pdf') ? '📕' : doc.name.endsWith('.md') ? '📝' : doc.name.endsWith('.csv') ? '📊' : '📄';
+    var info = document.createElement('div');
+    info.style.cssText = 'flex:1;min-width:0;';
+    var name = document.createElement('div');
+    name.style.cssText = 'font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    name.textContent = doc.name;
+    var meta = document.createElement('div');
+    meta.style.cssText = 'font-size:10px;color:var(--fg-muted);';
+    meta.textContent = (doc.size ? Math.round(doc.size/1024) + 'KB' : '') + (doc.uploaded ? ' · ' + new Date(doc.uploaded).toLocaleDateString('en-GB') : '');
+    info.appendChild(name); info.appendChild(meta);
+    var chatBtn = document.createElement('button');
+    chatBtn.className = 'btn btn-sm btn-primary';
+    chatBtn.textContent = '💬 Chat';
+    chatBtn.title = 'Chat with this document';
+    chatBtn.onclick = function() { chatWithDocument(doc); };
+    var delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-sm btn-ghost';
+    delBtn.textContent = '✕';
+    delBtn.onclick = function() {
+      if (!confirm('Remove ' + doc.name + '?')) return;
+      currentWS.documents = (currentWS.documents || []).filter(function(d,i){return i!==idx;});
+      saveWS(currentWS);
+      renderDocumentsSection(body, sec, countEl);
+    };
+    row.appendChild(icon); row.appendChild(info); row.appendChild(chatBtn); row.appendChild(delBtn);
+    body.appendChild(row);
+  });
+}
+
+function handleDocUpload(files, sec, body, countEl) {
+  if (!files || !files.length) return;
+  var docs = currentWS.documents || [];
+  var processed = 0;
+  Array.from(files).forEach(function(file) {
+    if (file.size > 10 * 1024 * 1024) { Toast.warning(file.name + ' is too large (max 10MB)'); processed++; return; }
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      docs.push({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        content: e.target.result,
+        uploaded: new Date().toISOString()
+      });
+      processed++;
+      if (processed === files.length) {
+        currentWS.documents = docs;
+        saveWS(currentWS);
+        renderDocumentsSection(body, sec, countEl);
+        Toast.success(files.length + ' file' + (files.length > 1 ? 's' : '') + ' uploaded');
+      }
+    };
+    reader.readAsText(file);
+  });
+}
+
+function chatWithDocument(doc) {
+  // Store document content in sessionStorage and open chat
+  var docContext = 'Document: ' + doc.name + '\n\n' + (doc.content || '').substring(0, 50000);
+  sessionStorage.setItem('ws-doc-context', docContext);
+  sessionStorage.setItem('ws-doc-name', doc.name);
+  // Open chat with document context pre-loaded
+  window.location.href = '/chat/?doc=' + encodeURIComponent(doc.name);
+}
 </script>
 </body>
 </html>
