@@ -739,6 +739,11 @@ function renderDocumentsSection(body, sec, countEl) {
     var chatBtn = document.createElement('button');
     chatBtn.className = 'btn btn-sm btn-primary';
     chatBtn.textContent = '💬 Chat';
+    var extractBtn = document.createElement('button');
+    extractBtn.className = 'btn btn-sm btn-secondary';
+    extractBtn.textContent = '🔍 Extract';
+    extractBtn.title = 'Extract data from this document using AI';
+    extractBtn.onclick = function() { extractFromDocument(doc); };
     chatBtn.title = 'Chat with this document';
     chatBtn.onclick = function() { chatWithDocument(doc); };
     var delBtn = document.createElement('button');
@@ -750,7 +755,7 @@ function renderDocumentsSection(body, sec, countEl) {
       saveWS(currentWS);
       renderDocumentsSection(body, sec, countEl);
     };
-    row.appendChild(icon); row.appendChild(info); row.appendChild(chatBtn); row.appendChild(delBtn);
+    row.appendChild(icon); row.appendChild(info); row.appendChild(chatBtn); row.appendChild(extractBtn); row.appendChild(delBtn);
     body.appendChild(row);
   });
 }
@@ -789,6 +794,41 @@ function chatWithDocument(doc) {
   sessionStorage.setItem('ws-doc-name', doc.name);
   // Open chat with document context pre-loaded
   window.location.href = '/chat/?doc=' + encodeURIComponent(doc.name);
+}
+
+function extractFromDocument(doc) {
+  var extractPrompt = prompt('What do you want to extract from "' + doc.name + '"?',
+    'Extract all key facts, data points, names, dates, statistics, and findings. Organise by theme.');
+  if (!extractPrompt) return;
+
+  var content = doc.content || '';
+  if (!content) { Toast.warning('No text content in this document.'); return; }
+
+  Toast.info('Extracting data... this may take 1-3 minutes for large documents.');
+
+  fetch(WORKER + '/api/document/extract', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      text: content,
+      prompt: extractPrompt,
+      chunk_size: 15000
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.error) { Toast.warning('Error: ' + d.error); return; }
+    // Save results to workspace notes
+    if (!currentWS.notes) currentWS.notes = '';
+    currentWS.notes += '\n\n=== Extraction from ' + doc.name + ' ===\n' +
+      'Prompt: ' + extractPrompt + '\n' +
+      'Chunks processed: ' + d.chunks_processed + ' (' + d.chunks_successful + ' successful)\n\n' +
+      (d.merged_summary || 'No summary generated');
+    saveWS(currentWS);
+    renderSections();
+    Toast.success('Extraction complete — saved to Notes');
+  })
+  .catch(function(e) { Toast.warning('Extraction failed: ' + e.message); });
 }
 </script>
 </body>
