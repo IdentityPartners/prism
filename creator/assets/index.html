@@ -31,12 +31,17 @@
     <div class="page-content">
       <!-- Image generation -->
       <div class="gen-section">
-        <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Generate Image</div>
-        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px;">🎨 Generate Image</div>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;">
           <div style="flex:1;min-width:200px;">
             <input class="input" id="gen-prompt" type="text" placeholder="Describe the image… e.g. 'Serene forest path at dawn, warm light, peaceful'">
           </div>
-          <select class="select" style="width:200px;" id="gen-model" title="Image model">
+          <button class="btn btn-primary" onclick="generateImage()" title="Generate with selected model">🖼 Generate</button>
+          <button class="btn btn-secondary" onclick="generateMultiImage()" title="Generate with multiple models and compare">⚡ Compare Models</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+          <label style="font-size:11px;font-weight:600;color:var(--fg-muted);align-self:center;">Single model:</label>
+          <select class="select" style="width:220px;" id="gen-model" title="Image model">
             <optgroup label="Free">
               <option value="auto">Auto (Flux Schnell)</option>
               <option value="gemini-image">Gemini 3.1 Flash Image</option>
@@ -45,16 +50,23 @@
               <option value="pollinations">Pollinations Flux (always free)</option>
             </optgroup>
             <optgroup label="Paid">
-              <option value="grok-2-image">Grok-2 Image (photorealistic)</option>
-              <option value="flux-dev">Flux Dev (quality)</option>
-              <option value="flux-pro">Flux Pro (best quality)</option>
-              <option value="recraft-v3">Recraft V3 (design/illustration)</option>
-              <option value="cogview">CogView-4 (Z.AI)</option>
+              <option value="grok-2-image">Grok-2 Image ($0.07)</option>
+              <option value="flux-dev">Flux Dev ($0.025)</option>
+              <option value="flux-pro">Flux Pro ($0.05)</option>
+              <option value="recraft-v3">Recraft V3 ($0.04)</option>
             </optgroup>
           </select>
-          <button class="btn btn-primary" onclick="generateImage()" title="Generate image">🖼 Generate</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">
+          <label style="font-size:11px;font-weight:600;color:var(--fg-muted);">Compare models:</label>
+          <label style="font-size:11px;cursor:pointer;"><input type="checkbox" class="multi-model-check" value="gemini-image" checked> Gemini Flash (free)</label>
+          <label style="font-size:11px;cursor:pointer;"><input type="checkbox" class="multi-model-check" value="gemini-image-pro" checked> Gemini Pro (free)</label>
+          <label style="font-size:11px;cursor:pointer;"><input type="checkbox" class="multi-model-check" value="pollinations" checked> Pollinations (free)</label>
+          <label style="font-size:11px;cursor:pointer;"><input type="checkbox" class="multi-model-check" value="auto"> Flux Schnell (paid)</label>
+          <label style="font-size:11px;cursor:pointer;"><input type="checkbox" class="multi-model-check" value="grok-2-image"> Grok-2 (paid)</label>
         </div>
         <div id="gen-result" style="margin-top:12px;"></div>
+        <div id="multi-gen-result" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:12px;"></div>
       </div>
 
       <!-- Saved assets -->
@@ -198,6 +210,64 @@ document.addEventListener('DOMContentLoaded', function() {
   if (mount) { var sb = buildSidebar('/creator/assets/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
   loadAssets();
 });
+
+function generateMultiImage() {
+  var prompt = document.getElementById('gen-prompt').value.trim();
+  if (!prompt) { alert('Enter a prompt first.'); return; }
+  var checks = document.querySelectorAll('.multi-model-check:checked');
+  var models = Array.from(checks).map(function(c){return c.value;});
+  if (!models.length) { alert('Select at least one model to compare.'); return; }
+  var result = document.getElementById('multi-gen-result');
+  if (result) result.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);">Generating with ' + models.length + ' models in parallel...</div>';
+
+  fetch(WORKER + '/api/image/multi', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({prompt: prompt, models: models})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (!result) return;
+    result.innerHTML = '';
+    (d.results || []).forEach(function(r2) {
+      var card = document.createElement('div');
+      card.style.cssText = 'border:1px solid var(--border);border-radius:8px;overflow:hidden;width:220px;flex-shrink:0;';
+      var label = document.createElement('div');
+      label.style.cssText = 'padding:6px 8px;font-size:10px;font-weight:600;background:var(--bg-sunken);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;';
+      label.innerHTML = '<span>' + r2.model + '</span><span style="color:var(--fg-muted);">' + (r2.provider||'') + '</span>';
+      card.appendChild(label);
+      if (r2.url) {
+        var img = document.createElement('img');
+        img.src = r2.url;
+        img.style.cssText = 'width:100%;aspect-ratio:4/3;object-fit:cover;display:block;cursor:pointer;';
+        img.title = 'Click to save';
+        img.onclick = function() {
+          var assets2 = JSON.parse(localStorage.getItem('prism-assets')||'[]');
+          assets2.unshift({id:'img-'+Date.now(),url:r2.url,prompt:prompt,model:r2.model,created:new Date().toISOString(),type:'image'});
+          localStorage.setItem('prism-assets',JSON.stringify(assets2.slice(0,200)));
+          loadAssets();
+          Toast.success('Saved: ' + r2.model);
+        };
+        card.appendChild(img);
+        var dl = document.createElement('a');
+        dl.href = r2.url;
+        dl.download = 'ai-' + r2.model + '.png';
+        dl.style.cssText = 'display:block;text-align:center;padding:4px;font-size:10px;color:var(--accent);border-top:1px solid var(--border);';
+        dl.textContent = '⬇ Download';
+        card.appendChild(dl);
+      } else {
+        var err = document.createElement('div');
+        err.style.cssText = 'padding:20px;font-size:11px;color:#dc2626;text-align:center;';
+        err.textContent = r2.error || 'Failed';
+        card.appendChild(err);
+      }
+      result.appendChild(card);
+    });
+  })
+  .catch(function(e) {
+    if (result) result.innerHTML = '<div style="color:#dc2626;font-size:12px;">Error: ' + e.message + '</div>';
+  });
+}
 </script>
 </body>
 </html>
