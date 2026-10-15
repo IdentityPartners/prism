@@ -1,939 +1,514 @@
 <!DOCTYPE html>
-
 <html lang="en-GB">
-  
 <head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Home — Argentica</title>
-<link href="/shared/prism.css" rel="stylesheet"/>
-<link href="/shared/themes.css" rel="stylesheet"/>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
 <style>
-.home-layout { display: grid; grid-template-columns: 260px 1fr 260px; gap: 16px; padding: 16px; max-width: 1600px; margin: 0 auto; }
-@media(max-width:1100px){ .home-layout{ grid-template-columns: 240px 1fr; } .home-right{ display:none; } }
-@media(max-width:900px){ .home-layout{ grid-template-columns: 1fr; } .home-left{ display:none; } }
-.home-hero {
-  position: relative;
-  border-radius: var(--radius);
+.home-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr 280px;
+  gap: 14px;
+  padding: 14px;
+  height: calc(100vh - var(--topbar-h, 48px));
+  box-sizing: border-box;
   overflow: hidden;
-  margin-bottom: 16px;
-  min-height: 160px;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--rose) 100%);
-  display: flex;
-  align-items: flex-end;
-  padding: 20px;
 }
-.home-hero-bg {
-  position: absolute; inset: 0;
-  background-size: cover; background-position: center;
-  opacity: 0.35;
-  transition: opacity 0.5s;
-}
-.home-hero-content { position: relative; z-index: 1; color: #fff; }
-.home-hero-greeting { font-family: var(--font-heading); font-size: 22px; font-weight: 600; margin-bottom: 4px; }
-.home-hero-date { font-size: 13px; opacity: 0.85; }
-.hero-cycle-btn {
-  position: absolute; top: 12px; right: 12px; z-index: 2;
-  background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);
-  color: #fff; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;
-}
-.hero-cycle-btn:hover { background: rgba(255,255,255,0.35); }
-.atmosphere-strip {
-  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;
-}
-.atm-btn {
-  padding: 5px 12px; border: 1px solid var(--border); border-radius: 20px;
-  font-size: 12px; background: var(--bg-elevated); color: var(--fg-secondary);
-  cursor: pointer; transition: all 0.15s;
-}
-.atm-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
-.embed-panel { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 16px; }
-.embed-url-row { display: flex; gap: 8px; margin-bottom: 8px; }
-.embed-url-input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; outline: none; background: var(--bg-primary); color: var(--fg-primary); }
-.embed-url-input:focus { border-color: var(--accent); }
-.embed-frame { width: 100%; height: 200px; border: none; border-radius: 6px; background: var(--bg-surface); }
-.briefing-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
-.briefing-title { font-family: var(--font-heading); font-size: 15px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
-.briefing-item { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; display: flex; gap: 8px; align-items: flex-start; }
-.briefing-item:last-child { border-bottom: none; }
-.briefing-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
-.quick-input-area { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
-.quick-textarea { width: 100%; min-height: 80px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13.5px; font-family: var(--font-ui); resize: none; outline: none; background: var(--bg-primary); color: var(--fg-primary); }
-.quick-textarea:focus { border-color: var(--accent); }
-.quick-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-.news-feed { display: flex; flex-direction: column; gap: 10px; }
-.news-item { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; display: flex; gap: 10px; cursor: pointer; transition: border-color 0.15s; }
-.news-item:hover { border-color: var(--accent); }
-.news-thumb { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: var(--bg-surface); }
-.news-content { flex: 1; min-width: 0; }
-.news-headline { font-size: 13px; font-weight: 500; color: var(--fg-primary); margin-bottom: 4px; line-height: 1.4; }
-.news-meta { font-size: 11px; color: var(--fg-muted); }
-.news-new { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-right: 4px; vertical-align: middle; }
-.calendar-widget { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
-.cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.cal-title { font-family: var(--font-heading); font-size: 14px; font-weight: 600; }
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
-.cal-day-label { font-size: 10px; font-weight: 600; color: var(--fg-muted); padding: 4px 0; }
-.cal-day { font-size: 12px; padding: 5px 2px; border-radius: 4px; cursor: pointer; color: var(--fg-secondary); }
-.cal-day:hover { background: var(--accent-light); color: var(--accent); }
-.cal-day.today { background: var(--accent); color: #fff; font-weight: 600; }
-.cal-day.has-event { position: relative; }
-.cal-day.has-event::after { content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--rose); }
-.event-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
-.event-item { padding: 7px 10px; background: var(--accent-light); border-radius: 6px; font-size: 12.5px; color: var(--accent); display: flex; gap: 8px; align-items: center; }
-.event-time { font-weight: 600; font-size: 11px; flex-shrink: 0; }
-.social-notif { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
-.notif-item { display: flex; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
-.notif-item:last-child { border-bottom: none; }
-.notif-platform { font-size: 18px; flex-shrink: 0; }
-.notif-text { flex: 1; color: var(--fg-secondary); }
-.notif-count { font-weight: 600; color: var(--accent); font-size: 12px; }
-.memory-snapshot { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
-.memory-item { padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; color: var(--fg-secondary); line-height: 1.5; }
-.memory-item:last-child { border-bottom: none; }
-.todo-panel { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
-.todo-item { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-.todo-item:last-child { border-bottom: none; }
-.todo-check { width: 16px; height: 16px; border: 1.5px solid var(--border); border-radius: 3px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; }
-.todo-check.done { background: var(--accent); border-color: var(--accent); color: #fff; }
-.todo-text { flex: 1; }
-.todo-text.done { text-decoration: line-through; color: var(--fg-muted); }
-.todo-add { display: flex; gap: 6px; margin-top: 8px; }
-.todo-input { flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; outline: none; background: var(--bg-primary); color: var(--fg-primary); }
-.todo-input:focus { border-color: var(--accent); }
-.social-queue-preview { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
-.queue-item { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
-.queue-item:last-child { border-bottom: none; }
-.queue-platform { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin-bottom: 2px; }
-.queue-text { color: var(--fg-secondary); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.queue-time { font-size: 10.5px; color: var(--fg-muted); margin-top: 2px; }
+@media(max-width:1100px){.home-grid{grid-template-columns:240px 1fr;}.home-right{display:none;}}
+@media(max-width:800px){.home-grid{grid-template-columns:1fr;}.home-left{display:none;}}
+
+.home-col { display:flex; flex-direction:column; gap:10px; overflow-y:auto; }
+.home-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius,8px); padding:12px; flex-shrink:0; }
+.home-card-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:var(--fg-muted); margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; }
+.home-card-title a { font-size:10px; color:var(--accent); text-decoration:none; font-weight:400; text-transform:none; letter-spacing:0; }
+
+/* Hero */
+.home-hero { background:linear-gradient(135deg,#0f3b3a 0%,#1a5c5a 45%,#5c2d3f 100%); border-radius:var(--radius,8px); padding:16px 20px; color:#fff; flex-shrink:0; }
+.home-hero-greeting { font-family:var(--font-heading,Georgia,serif); font-size:20px; font-weight:600; margin-bottom:2px; }
+.home-hero-date { font-size:12px; opacity:0.75; margin-bottom:8px; }
+.home-hero-tagline { font-size:10px; opacity:0.6; font-style:italic; }
+
+/* Calendar events */
+.cal-period { margin-bottom:10px; }
+.cal-period-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--accent); margin-bottom:5px; padding-bottom:3px; border-bottom:1px solid var(--border); }
+.cal-event { display:flex; gap:8px; padding:5px 0; border-bottom:1px solid var(--border); align-items:flex-start; }
+.cal-event:last-child { border-bottom:none; }
+.cal-event-time { font-size:11px; font-weight:600; color:var(--accent); min-width:40px; flex-shrink:0; }
+.cal-event-title { font-size:12px; color:var(--fg); line-height:1.3; }
+.cal-event-sub { font-size:10px; color:var(--fg-muted); }
+.cal-empty { font-size:11px; color:var(--fg-muted); font-style:italic; padding:4px 0; }
+
+/* News */
+.news-item { display:flex; gap:8px; padding:7px 0; border-bottom:1px solid var(--border); cursor:pointer; }
+.news-item:last-child { border-bottom:none; }
+.news-item:hover .news-headline { color:var(--accent); }
+.news-thumb { width:48px; height:48px; border-radius:5px; object-fit:cover; flex-shrink:0; background:var(--bg-sunken); }
+.news-headline { font-size:12px; font-weight:500; line-height:1.4; color:var(--fg); margin-bottom:2px; }
+.news-meta { font-size:10px; color:var(--fg-muted); }
+
+/* Research papers */
+.paper-item { padding:6px 0; border-bottom:1px solid var(--border); }
+.paper-item:last-child { border-bottom:none; }
+.paper-title { font-size:12px; font-weight:500; color:var(--fg); margin-bottom:2px; cursor:pointer; }
+.paper-title:hover { color:var(--accent); }
+.paper-meta { font-size:10px; color:var(--fg-muted); }
+
+/* Bitesize */
+.bitesize-card { background:linear-gradient(135deg,rgba(15,59,58,0.08),rgba(92,45,63,0.08)); border:1px solid var(--border); border-radius:8px; padding:12px; }
+.bitesize-concept { font-size:15px; font-weight:700; color:var(--fg); margin-bottom:4px; }
+.bitesize-def { font-size:12px; color:var(--fg-muted); line-height:1.5; margin-bottom:8px; }
+.bitesize-actions { display:flex; gap:6px; flex-wrap:wrap; }
+.bitesize-btn { padding:4px 10px; border:1px solid var(--border); border-radius:12px; font-size:11px; cursor:pointer; background:var(--bg); color:var(--fg); text-decoration:none; }
+.bitesize-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+/* WIP */
+.wip-item { padding:6px 0; border-bottom:1px solid var(--border); }
+.wip-item:last-child { border-bottom:none; }
+.wip-name { font-size:12px; font-weight:500; color:var(--fg); }
+.wip-progress { font-size:10px; color:var(--fg-muted); margin-top:2px; }
+.wip-bar { height:3px; background:var(--border); border-radius:2px; margin-top:4px; overflow:hidden; }
+.wip-fill { height:100%; background:var(--accent); border-radius:2px; }
+
+/* Social status */
+.social-row { display:flex; align-items:center; gap:8px; padding:4px 0; font-size:12px; }
+.social-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.social-dot.ok { background:#16a34a; }
+.social-dot.warn { background:#f59e0b; }
+.social-dot.err { background:#dc2626; }
+
+/* Quick notes */
+.quick-notes-ta { width:100%; min-height:80px; padding:7px 9px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; resize:vertical; background:var(--bg); color:var(--fg); box-sizing:border-box; }
+
+/* Input strip */
+.home-input-strip { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius,8px); padding:10px 12px; flex-shrink:0; }
+.home-input-tabs { display:flex; gap:4px; margin-bottom:8px; }
+.home-input-tab { padding:3px 10px; border-radius:10px; font-size:11px; cursor:pointer; border:1px solid var(--border); background:var(--bg); color:var(--fg-muted); }
+.home-input-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.home-input-ta { width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit; background:var(--bg); color:var(--fg); box-sizing:border-box; resize:none; min-height:50px; }
 </style>
 </head>
 <body>
-<div class="prism-shell">
-<div id="sidebar-mount"></div>
-<div class="main-content" id="main-content">
-<div class="topbar">
-<div class="topbar-title">Home</div>
-<div class="topbar-actions">
-<div class="world-clocks" id="world-clocks"></div>
-<div class="pomodoro">
-<span class="pomodoro-time" id="pomo-time">25:00</span>
-<button class="pomodoro-btn" onclick="Pomodoro.start('pomo-time')" title="Start Pomodoro timer">▶</button>
-<button class="pomodoro-btn" onclick="Pomodoro.pause()" title="Pause">⏸</button>
-<button class="pomodoro-btn" onclick="Pomodoro.reset()" title="Reset">↺</button>
-</div>
-</div>
-</div>
-<div class="page-content full-width">
-<div class="home-layout">
-<!-- Left: Calendar -->
-<div class="home-left">
-<div class="calendar-widget">
-<div class="cal-header">
-<span class="cal-title" id="cal-month">September 2026</span>
-<div style="display:flex;gap:4px;">
-<button class="btn btn-ghost btn-sm btn-icon" onclick="calPrev()" title="Previous month">‹</button>
-<button class="btn btn-ghost btn-sm btn-icon" onclick="calNext()" title="Next month">›</button>
-</div>
-</div>
-<div class="cal-grid" id="cal-grid"></div>
-<div class="event-list" id="event-list">
-<div class="event-item"><span class="event-time">09:00</span><span>Morning briefing</span></div>
-<div class="event-item"><span class="event-time">14:00</span><span>Client session</span></div>
-</div>
-</div>
-<div class="todo-panel">
-<div class="card-header" style="margin-bottom:10px;padding-bottom:8px;">
-<span class="card-title">Today's Tasks</span>
-<button class="btn btn-ghost btn-sm" onclick="clearDoneTodos()" title="Clear completed tasks">Clear done</button>
-</div>
-<div id="todo-list"></div>
-<div class="todo-add">
-<input class="todo-input" id="todo-input" placeholder="Add a task…" type="text"/>
-<button class="btn btn-sm btn-primary" onclick="addTodo()" title="Add task">Add</button>
-</div>
-</div>
-</div>
-<!-- Centre: Main content -->
-<div class="home-centre">
-<!-- Hero -->
-<div class="home-hero" id="home-hero">
-<div class="home-hero-bg" id="hero-bg"></div>
-<button class="hero-cycle-btn" onclick="cycleHeroImage()" title="Next background image">Next image</button>
-<div class="home-hero-content">
-<div style="font-family:'Playfair Display',Georgia,serif;margin-bottom:6px;"><span style="font-size:20px;font-weight:600;color:#7ecfcd;">Identity</span><span style="font-size:20px;font-weight:600;color:#d4899a;">Partners</span><div style="font-size:10px;color:#f7f3e9;opacity:0.75;margin-top:2px;">Understand your past &middot; Appreciate the present &middot; Define your future</div></div>
-<div style="font-family:var(--font-heading,Georgia,serif);margin-bottom:6px;"><span style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.5px;">Identity</span><span style="font-size:22px;font-weight:700;color:rgba(255,255,255,0.75);letter-spacing:-0.5px;">Partners</span></div>
-<div class="home-hero-greeting" id="hero-greeting">Good morning, Simon.</div>
-<div class="home-hero-date" id="hero-date"></div>
-<div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:4px;font-style:italic;">Understand your past · Appreciate the present · Define your future</div>
-</div>
-</div>
-<!-- Atmosphere strip -->
-<div class="atmosphere-strip">
-<button class="atm-btn" onclick="toggleEmbed('spotify')" title="Embed a Spotify playlist">🎵 Spotify</button>
-<button class="atm-btn" onclick="toggleEmbed('youtube')" title="Embed a YouTube video">▶ YouTube</button>
-<button class="atm-btn" onclick="window.open('https://www.bbc.co.uk/iplayer','_blank')" title="Open BBC iPlayer">📺 iPlayer</button>
-<button class="atm-btn" onclick="loadPreset('https://www.globalplayer.com/live-player/?stationId=2BR&embedType=player')" title="Embed Global Player live radio">📻 Global Player</button>
-<button class="atm-btn" onclick="window.open('https://music.amazon.co.uk','_blank')" title="Open Amazon Music">🎶 Amazon Music</button>
-<button class="atm-btn" onclick="playAmbient('whitenoise')" title="Play white noise">🌊 White Noise</button>
-<button class="atm-btn" onclick="playAmbient('nature')" title="Play nature sounds">🌿 Nature</button>
-<button class="atm-btn" onclick="playAmbient('lofi')" title="Play lo-fi music">🎹 Lo-Fi</button>
-            <button class="atm-btn" onclick="loadRadioGarden()" title="Radio Garden — world radio map">🌍 Radio Garden</button>
-</div>
-<!-- Embed panel (hidden by default) -->
-<div class="embed-panel hidden" id="embed-panel">
-<div class="embed-url-row">
-<input class="embed-url-input" id="embed-url" placeholder="Paste Spotify playlist or YouTube URL…" type="text"/>
-<button class="btn btn-sm btn-primary" onclick="loadEmbed()" title="Load embed">Load</button>
-<button class="btn btn-sm btn-ghost" onclick="closeEmbed()" title="Close embed">✕</button>
-</div>
-<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
-<button class="atm-btn" onclick="loadPreset('https://open.spotify.com/embed/playlist/37i9dQZF1DX4sWSpwq3LiO')" title="Peaceful Piano playlist">Peaceful Piano</button>
-<button class="atm-btn" onclick="loadPreset('https://open.spotify.com/embed/playlist/37i9dQZF1DWZeKCadgRdKQ')" title="Deep Focus playlist">Deep Focus</button>
-<button class="atm-btn" onclick="loadPreset('https://open.spotify.com/embed/playlist/37i9dQZF1DX3Ogo9pFvBkY')" title="Ambient Chill playlist">Ambient Chill</button>
-<button class="atm-btn" onclick="loadPreset('https://www.youtube.com/embed/jfKfPfyJRdk')" title="Lo-Fi Hip Hop">Lo-Fi Hip Hop</button>
-</div>
-<iframe allow="autoplay; encrypted-media" allowfullscreen="" class="embed-frame" id="embed-frame" src=""></iframe>
-</div>
-<!-- Morning briefing -->
-<div class="briefing-card">
-<div class="briefing-title">☀ Morning Briefing <span class="badge badge-accent" style="font-size:10px;">Auto</span></div>
-<div id="briefing-content">
-<div class="briefing-item"><span class="briefing-icon">📅</span><span>Loading calendar summary…</span></div>
-<div class="briefing-item"><span class="briefing-icon">📱</span><span>Loading social queue…</span></div>
-<div class="briefing-item"><span class="briefing-icon">📧</span><span>Loading inbox preview…</span></div>
-</div>
-</div>
-<!-- Quick input -->
-<div class="quick-input-area">
-<textarea class="quick-textarea" id="quick-input" placeholder="What's on your mind? Type, write, or dictate…"></textarea>
-<div class="quick-actions">
-<button class="btn btn-sm btn-primary" onclick="quickSendToChat()" title="Send to Chat">💬 Chat</button>
-<button class="btn btn-sm btn-secondary" onclick="quickSendToResearch()" title="Send to Research">🔍 Research</button>
-<button class="btn btn-sm btn-secondary" onclick="quickSendToDrafting()" title="Send to Drafting Desk">✍ Draft</button>
-<button class="btn btn-sm btn-secondary" onclick="quickAtomise()" title="Atomise this text">⚡ Atomise</button>
-<button class="btn btn-sm btn-secondary" onclick="quickGenerateImage()" title="Generate an image">🖼 Image</button>
-</div>
-</div>
-<!-- Social queue preview -->
-<div class="social-queue-preview">
-<div class="card-header" style="margin-bottom:10px;padding-bottom:8px;">
-<span class="card-title">Social Queue</span>
-<a class="btn btn-ghost btn-sm" href="/social-queue/" title="View full social queue">View all →</a>
-</div>
-<div id="queue-preview-list">
-<div style="font-size:12.5px;color:var(--fg-muted);padding:8px 0;">Loading queue…</div>
-</div>
-</div>
-<!-- Thinker / Concept of the Day -->
-<div class="card-header" style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">
-<span class="card-title" style="flex:1;">&#x1F9E0; Thinker of the Day</span>
-<button onclick="thinkerPrev()" title="Previous" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px;color:var(--fg-muted);">&#x2039;</button>
-<button onclick="thinkerToday()" title="Today" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 7px;cursor:pointer;font-size:10px;color:var(--fg-muted);">Today</button>
-<button onclick="thinkerNext()" title="Next" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px;color:var(--fg-muted);">&#x203a;</button>
-</div>
-<div id="thinker-card" style="background:linear-gradient(135deg,#0d1520,#1a2d4a);border-radius:8px;padding:12px;margin-bottom:10px;color:#e8f0f8;">
-<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;">
-<div id="thinker-name" style="font-size:15px;font-weight:700;color:#4a9fd4;flex:1;"></div>
-<span id="thinker-day" style="font-size:10px;color:#4a6a8a;white-space:nowrap;margin-left:8px;"></span>
-</div>
-<div id="thinker-concept" style="font-size:12px;color:#7ab0cc;margin-bottom:6px;font-style:italic;"></div>
-<div id="thinker-terms" style="font-size:12px;line-height:1.5;color:#c8d8e8;margin-bottom:8px;"></div>
-<div style="background:rgba(255,255,255,0.06);border-radius:4px;height:3px;margin-bottom:8px;">
-<div id="thinker-progress" style="background:#4a9fd4;height:3px;border-radius:4px;transition:width 0.3s;width:0%;"></div>
-</div>
-<div style="display:flex;gap:5px;flex-wrap:wrap;">
-<button onclick="learnMoreThinker()" style="background:none;border:1px solid #2a3d52;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:10px;color:#4a9fd4;">Learn more</button>
-<button onclick="addToResearch()" style="background:none;border:1px solid #2a3d52;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:10px;color:#4a9fd4;">+ Research</button>
-<button onclick="debateThinker()" style="background:none;border:1px solid #2a3d52;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:10px;color:#4a9fd4;">Debate</button>
-<button id="thinker-pin" onclick="thinkerPin()" style="background:none;border:1px solid #2a3d52;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:10px;color:#7a9ab8;margin-left:auto;">&#x1F4CC; Pin</button>
-</div>
-</div>
-
-<!-- Active Agents -->
-<div class="card-header" style="margin-bottom:10px;">
-<span class="card-title">&#x1F916; Active Agents</span>
-<a class="btn btn-ghost btn-sm" href="/agenti/agent-builder/" style="font-size:11px;">Manage &#x2192;</a>
-</div>
-<div id="active-agents-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
-<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">Loading agents...</div>
-</div>
-
-<!-- News Feed (compact) -->
-<div class="card-header" style="margin-bottom:8px;">
-<span class="card-title">&#x1F4F0; Latest</span>
-<button class="btn btn-ghost btn-sm" onclick="refreshNews()" style="font-size:11px;">&#x21ba;</button>
-</div>
-<div class="news-feed" id="news-feed" style="max-height:200px;overflow-y:auto;">
-<div style="font-size:12px;color:var(--fg-muted);">Loading...</div>
-</div></div>
-</div>
-<!-- Right: Notifications, inbox, memory -->
-<div class="home-right">
-<div class="social-notif">
-<div class="card-header" style="margin-bottom:10px;padding-bottom:8px;">
-<span class="card-title">Social</span>
-<a class="btn btn-ghost btn-sm" href="/social-queue/" title="Social Queue">→</a>
-</div>
-<div id="social-notifs">
-<div class="notif-item"><span class="notif-platform">🦋</span><span class="notif-text">Bluesky</span><span class="notif-count" id="sn-bluesky">—</span></div>
-<div class="notif-item"><span class="notif-platform">𝕏</span><span class="notif-text">X</span><span class="notif-count" id="sn-x">—</span></div>
-<div class="notif-item"><span class="notif-platform">📸</span><span class="notif-text">Instagram</span><span class="notif-count" id="sn-ig">—</span></div>
-<div class="notif-item"><span class="notif-platform">👥</span><span class="notif-text">Facebook</span><span class="notif-count" id="sn-fb">—</span></div>
-<div class="notif-item"><span class="notif-platform">💼</span><span class="notif-text">LinkedIn</span><span class="notif-count" id="sn-li">—</span></div>
-<div class="notif-item"><span class="notif-platform">🐘</span><span class="notif-text">Mastodon</span><span class="notif-count" id="sn-masto">—</span></div>
-<div class="notif-item"><span class="notif-platform">📝</span><span class="notif-text">Substack</span><span class="notif-count" id="sn-sub">via Zapier</span></div>
-<div class="notif-item"><span class="notif-platform">🧵</span><span class="notif-text">Threads (Meta)</span><span class="notif-count" id="sn-threads">via Zapier</span></div>
-</div>
-</div>
-<div class="memory-snapshot">
-<div class="card-header" style="margin-bottom:10px;padding-bottom:8px;">
-<span class="card-title">Recent Memories</span>
-<a class="btn btn-ghost btn-sm" href="/memory/" title="Memory">→</a>
-</div>
-<div id="memory-list">
-<div style="font-size:12.5px;color:var(--fg-muted);">Loading memories…</div>
-</div>
-</div>
-<div class="card">
-<div class="card-header">
-<span class="card-title">Quick Image</span>
-</div>
-<div class="form-group">
-<input class="input" id="img-prompt" placeholder="Describe an image…" type="text"/>
-</div>
-<button class="btn btn-primary" onclick="quickImage()" style="width:100%;" title="Generate image">🖼 Generate</button>
-<div id="img-result" style="margin-top:10px;"></div>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
 <script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="home-grid">
+
+<!-- ── LEFT: Calendar ──────────────────────────────────────────────────────── -->
+<div class="home-col home-left">
+
+  <div class="home-hero">
+    <div class="home-hero-greeting" id="hero-greeting">Good morning, Simon.</div>
+    <div class="home-hero-date" id="hero-date"></div>
+    <div class="home-hero-tagline">Understand your past · Appreciate the present · Define your future</div>
+  </div>
+
+  <div class="home-card">
+    <div class="home-card-title">📅 Calendar <a href="/comms/zoho-calendar/">Open →</a></div>
+    <div id="cal-today">
+      <div class="cal-period">
+        <div class="cal-period-label">Today</div>
+        <div id="cal-today-events"><div class="cal-empty">Loading...</div></div>
+      </div>
+      <div class="cal-period">
+        <div class="cal-period-label">This Week</div>
+        <div id="cal-week-events"><div class="cal-empty">Loading...</div></div>
+      </div>
+      <div class="cal-period">
+        <div class="cal-period-label">Next Week</div>
+        <div id="cal-next-events"><div class="cal-empty">Loading...</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="home-card">
+    <div class="home-card-title">✅ Tasks</div>
+    <div id="tasks-list" style="font-size:12px;color:var(--fg-muted);">No tasks today.</div>
+    <div style="display:flex;gap:6px;margin-top:8px;">
+      <input id="task-input" type="text" placeholder="Add a task..." style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg);color:var(--fg);" onkeydown="if(event.key==='Enter')addTask()">
+      <button onclick="addTask()" style="padding:5px 10px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12px;">+</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── CENTRE: News + Research + Input ────────────────────────────────────── -->
+<div class="home-col home-centre">
+
+  <div class="home-input-strip">
+    <div class="home-input-tabs">
+      <div class="home-input-tab active" onclick="setInputMode('chat',this)">💬 Chat</div>
+      <div class="home-input-tab" onclick="setInputMode('research',this)">🔍 Research</div>
+      <div class="home-input-tab" onclick="setInputMode('draft',this)">✍ Draft</div>
+      <div class="home-input-tab" onclick="setInputMode('atomise',this)">⚡ Atomise</div>
+      <div class="home-input-tab" onclick="setInputMode('image',this)">🎨 Image</div>
+    </div>
+    <textarea class="home-input-ta" id="home-input" placeholder="What's on your mind? Type, write, or dictate..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();homeInputSend();}"></textarea>
+  </div>
+
+  <div class="home-card">
+    <div class="home-card-title">📰 Daily News <a href="/research/">Research →</a></div>
+    <div id="news-list"><div style="font-size:12px;color:var(--fg-muted);">Loading news...</div></div>
+  </div>
+
+  <div class="home-card">
+    <div class="home-card-title">🎓 Latest Research Papers <a href="/research/">All →</a></div>
+    <div id="papers-list"><div style="font-size:12px;color:var(--fg-muted);">Loading papers...</div></div>
+  </div>
+
+  <div class="home-card">
+    <div class="home-card-title">🧠 Sociology Bitesize <span id="bitesize-nav" style="display:flex;gap:4px;"></span></div>
+    <div id="bitesize-content"><div style="font-size:12px;color:var(--fg-muted);">Loading...</div></div>
+  </div>
+
+</div>
+
+<!-- ── RIGHT: WIP + Socials + Inbox + Notes ───────────────────────────────── -->
+<div class="home-col home-right">
+
+  <div class="home-card">
+    <div class="home-card-title">⏳ Agent WIP <a href="/agenti/agent-builder/">Agenti →</a></div>
+    <div id="home-wip-list"><div style="font-size:12px;color:var(--fg-muted);">Loading...</div></div>
+  </div>
+
+  <div class="home-card">
+    <div class="home-card-title">📱 Socials <a href="/social-queue/">Queue →</a></div>
+    <div id="social-status">
+      <div class="social-row"><span class="social-dot ok"></span><span>Bluesky</span><span style="margin-left:auto;font-size:10px;color:var(--fg-muted);">Active</span></div>
+      <div class="social-row"><span class="social-dot warn"></span><span>Instagram</span><span style="margin-left:auto;font-size:10px;color:var(--fg-muted);">Check queue</span></div>
+      <div class="social-row"><span class="social-dot ok"></span><span>LinkedIn</span><span style="margin-left:auto;font-size:10px;color:var(--fg-muted);">Active</span></div>
+      <div class="social-row"><span class="social-dot warn"></span><span>X/Twitter</span><span style="margin-left:auto;font-size:10px;color:var(--fg-muted);">Image issues</span></div>
+    </div>
+    <div id="social-queue-preview" style="margin-top:8px;font-size:11px;color:var(--fg-muted);">Loading queue...</div>
+  </div>
+
+  <div class="home-card">
+    <div class="home-card-title">📬 Inbox <a href="/mail/">Mail →</a></div>
+    <div id="inbox-preview" style="font-size:12px;color:var(--fg-muted);">Loading...</div>
+  </div>
+
+  <div class="home-card">
+    <div class="home-card-title">📝 Quick Notes</div>
+    <textarea class="quick-notes-ta" id="quick-notes" placeholder="Jot something down..." onblur="saveQuickNotes()"></textarea>
+  </div>
+
+</div>
+</div>
+</div>
+
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
-var heroImages = [];
-var heroIdx = 0;
-var todos = [];
-var calYear = 2026;
-var calMonth = 8; // 0-indexed, 8 = September
-
-function init() {
-  setGreeting();
-  setHeroImage();
-  renderCalendar();
-  loadTodos();
-  loadMemories();
-  loadQueuePreview();
-  loadNews();
-  WorldClocks.start('world-clocks');
-}
-
-function setGreeting() {
-  var h = new Date().getHours();
-  var greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-  var el = document.getElementById('hero-greeting');
-  if (el) el.textContent = greeting + ', Simon.';
-  var dateEl = document.getElementById('hero-date');
-  if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',day:'numeric',month:'long',year:'numeric'});
-}
-
-var heroImageList = [];
-var heroImageIdx = 0;
-
-function loadHeroImages() {
-  // Try to load background images from R2
-  fetch('https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/bg-index.json')
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      heroImageList = Array.isArray(d) ? d : (d.images || []);
-      if (heroImageList.length > 0) {
-        heroImageIdx = Math.floor(Math.random() * heroImageList.length);
-        setHeroImage();
-      }
-    })
-    .catch(function() {
-      // Fallback to IP gradient
-      setHeroImage();
-    });
-}
-
-function setHeroImage() {
-  var bg = document.getElementById('hero-bg');
-  if (!bg) return;
-  if (heroImageList.length > 0) {
-    var img = heroImageList[heroImageIdx];
-    var url = typeof img === 'string' ? img : (img.url || img.src || '');
-    if (url) {
-      bg.style.backgroundImage = 'url(' + url + ')';
-      bg.style.backgroundSize = 'cover';
-      bg.style.backgroundPosition = 'center';
-      bg.style.opacity = '0.35';
-      return;
-    }
-  }
-  // IP brand gradient fallback
-  bg.style.backgroundImage = 'linear-gradient(135deg, #0f3b3a 0%, #1a5c5a 45%, #5c2d3f 100%)';
-  bg.style.opacity = '1';
-}
-
-function cycleHeroImage() {
-  if (heroImageList.length > 0) {
-    heroImageIdx = (heroImageIdx + 1) % heroImageList.length;
-    setHeroImage();
-  }
-}
-
-function cycleHeroImage() {
-  heroIdx = (heroIdx + 1) % heroImages.length;
-  setHeroImage();
-}
-
-function toggleEmbed(type) {
-  var panel = document.getElementById('embed-panel');
-  if (!panel) return;
-  panel.classList.toggle('hidden');
-  if (!panel.classList.contains('hidden')) {
-    var input = document.getElementById('embed-url');
-    if (input) input.placeholder = type === 'spotify' ? 'Paste Spotify playlist URL…' : 'Paste YouTube URL…';
-  }
-}
-
-function closeEmbed() {
-  var panel = document.getElementById('embed-panel');
-  if (panel) panel.classList.add('hidden');
-  var frame = document.getElementById('embed-frame');
-  if (frame) frame.src = '';
-}
-
-function loadEmbed() {
-  var url = document.getElementById('embed-url').value.trim();
-  if (!url) return;
-  var embedUrl = url;
-  if (url.includes('youtube.com/watch')) {
-    var vid = url.split('v=')[1];
-    if (vid) embedUrl = 'https://www.youtube.com/embed/' + vid.split('&')[0] + '?autoplay=1';
-  } else if (url.includes('youtu.be/')) {
-    var vid = url.split('youtu.be/')[1];
-    if (vid) embedUrl = 'https://www.youtube.com/embed/' + vid + '?autoplay=1';
-  } else if (url.includes('spotify.com') && !url.includes('/embed/')) {
-    embedUrl = url.replace('open.spotify.com/', 'open.spotify.com/embed/');
-  } else if (url.includes('radio.garden')) {
-    // Radio Garden embed
-    var match = url.match(/radio\.garden\/listen\/[^/]+\/([^/]+)/);
-    if (match) embedUrl = 'https://radio.garden/embed/' + match[1];
-  }
-  var frame = document.getElementById('embed-frame');
-  if (frame) { frame.src = embedUrl; frame.style.height = '200px'; }
-  var panel = document.getElementById('embed-panel');
-  if (panel) panel.classList.remove('hidden');
-}
-
-function loadRadioGarden() {
-  // Radio Garden — world radio map
-  var frame = document.getElementById('embed-frame');
-  if (frame) { frame.src = 'https://radio.garden/embed'; frame.style.height = '400px'; }
-  var panel = document.getElementById('embed-panel');
-  if (panel) panel.classList.remove('hidden');
-}
-
-function loadPreset(url) {
-  var frame = document.getElementById('embed-frame');
-  if (frame) frame.src = url;
-  var panel = document.getElementById('embed-panel');
-  if (panel) panel.classList.remove('hidden');
-}
-
-function playAmbient(type) {
-  var urls = {
-    whitenoise: 'https://www.youtube.com/embed/nMfPqeZjc2c?autoplay=1',
-    nature: 'https://www.youtube.com/embed/eKFTSSKCzWA?autoplay=1',
-    lofi: 'https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1',
-  };
-  if (urls[type]) loadPreset(urls[type]);
-}
-
-// Calendar
-function renderCalendar() {
-  var grid = document.getElementById('cal-grid');
-  var monthEl = document.getElementById('cal-month');
-  if (!grid) return;
-  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  if (monthEl) monthEl.textContent = months[calMonth] + ' ' + calYear;
-  grid.innerHTML = '';
-  var days = ['Mo','Tu','We','Th','Fr','Sa','Su'];
-  for (var i = 0; i < days.length; i++) {
-    var lbl = document.createElement('div');
-    lbl.className = 'cal-day-label';
-    lbl.textContent = days[i];
-    grid.appendChild(lbl);
-  }
-  var firstDay = new Date(calYear, calMonth, 1).getDay();
-  var offset = firstDay === 0 ? 6 : firstDay - 1;
-  var daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-  var today = new Date();
-  for (var i = 0; i < offset; i++) {
-    var empty = document.createElement('div');
-    grid.appendChild(empty);
-  }
-  for (var d = 1; d <= daysInMonth; d++) {
-    var cell = document.createElement('div');
-    cell.className = 'cal-day';
-    cell.textContent = d;
-    if (d === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear()) {
-      cell.classList.add('today');
-    }
-    grid.appendChild(cell);
-  }
-}
-
-function calPrev() { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); }
-function calNext() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); }
-
-// Todos
-function loadTodos() {
-  try { todos = JSON.parse(localStorage.getItem('prism-todos') || '[]'); } catch(e) { todos = []; }
-  renderTodos();
-}
-
-function saveTodos() {
-  try { localStorage.setItem('prism-todos', JSON.stringify(todos)); } catch(e) {}
-}
-
-function renderTodos() {
-  var list = document.getElementById('todo-list');
-  if (!list) return;
-  list.innerHTML = '';
-  if (todos.length === 0) {
-    var empty = document.createElement('div');
-    empty.style.cssText = 'font-size:12.5px;color:var(--fg-muted);padding:8px 0;';
-    empty.textContent = 'No tasks. Add one below.';
-    list.appendChild(empty);
-    return;
-  }
-  for (var i = 0; i < todos.length; i++) {
-    (function(todo, idx) {
-      var item = document.createElement('div');
-      item.className = 'todo-item';
-      var check = document.createElement('div');
-      check.className = 'todo-check' + (todo.done ? ' done' : '');
-      check.textContent = todo.done ? '✓' : '';
-      check.title = todo.done ? 'Mark incomplete' : 'Mark complete';
-      check.onclick = function() { todos[idx].done = !todos[idx].done; saveTodos(); renderTodos(); };
-      var text = document.createElement('span');
-      text.className = 'todo-text' + (todo.done ? ' done' : '');
-      text.textContent = todo.text;
-      var del = document.createElement('button');
-      del.className = 'btn btn-ghost btn-sm btn-icon';
-      del.textContent = '✕';
-      del.title = 'Delete task';
-      del.style.fontSize = '11px';
-      del.onclick = function() { todos.splice(idx, 1); saveTodos(); renderTodos(); };
-      item.appendChild(check);
-      item.appendChild(text);
-      item.appendChild(del);
-      list.appendChild(item);
-    })(todos[i], i);
-  }
-}
-
-function addTodo() {
-  var input = document.getElementById('todo-input');
-  if (!input || !input.value.trim()) return;
-  todos.push({text: input.value.trim(), done: false});
-  input.value = '';
-  saveTodos();
-  renderTodos();
-}
-
-function clearDoneTodos() {
-  todos = todos.filter(function(t) { return !t.done; });
-  saveTodos();
-  renderTodos();
-}
-
-document.addEventListener('keydown', function(e) {
-  if (document.activeElement === document.getElementById('todo-input') && e.key === 'Enter') addTodo();
-});
-
-// Memories
-function loadMemories() {
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', WORKER + '/api/memory', true);
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    var list = document.getElementById('memory-list');
-    if (!list) return;
-    try {
-      var result = JSON.parse(xhr.responseText);
-      var mems = result.memories || [];
-      list.innerHTML = '';
-      if (mems.length === 0) {
-        list.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">No memories yet.</div>';
-        return;
-      }
-      for (var i = 0; i < Math.min(mems.length, 5); i++) {
-        var item = document.createElement('div');
-        item.className = 'memory-item';
-        item.textContent = mems[i].content ? mems[i].content.substring(0, 100) + (mems[i].content.length > 100 ? '…' : '') : '';
-        list.appendChild(item);
-      }
-    } catch(e) {
-      list.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">Could not load memories.</div>';
-    }
-  };
-  xhr.onerror = function() {};
-  xhr.send();
-}
-
-// Queue preview
-function loadQueuePreview() {
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', WORKER + '/api/social/queue', true);
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    var list = document.getElementById('queue-preview-list');
-    if (!list) return;
-    try {
-      var result = JSON.parse(xhr.responseText);
-      var queue = result.queue || [];
-      list.innerHTML = '';
-      if (queue.length === 0) {
-        list.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">Queue is empty.</div>';
-        return;
-      }
-      for (var i = 0; i < Math.min(queue.length, 3); i++) {
-        var item = document.createElement('div');
-        item.className = 'queue-item';
-        var platform = document.createElement('div');
-        platform.className = 'queue-platform';
-        platform.textContent = queue[i].type || queue[i].platform || 'Post';
-        var text = document.createElement('div');
-        text.className = 'queue-text';
-        text.textContent = queue[i].content ? queue[i].content.substring(0, 80) + '…' : '';
-        var time = document.createElement('div');
-        time.className = 'queue-time';
-        time.textContent = queue[i].scheduledAt ? new Date(queue[i].scheduledAt).toLocaleDateString('en-GB') : 'Pending';
-        item.appendChild(platform);
-        item.appendChild(text);
-        item.appendChild(time);
-        list.appendChild(item);
-      }
-    } catch(e) {
-      list.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);">Could not load queue.</div>';
-    }
-  };
-  xhr.onerror = function() {};
-  xhr.send();
-}
-
-// News (RSS via allorigins proxy)
-var RSS_FEEDS = [
-  {name:'The Guardian', url:'https://feeds.theguardian.com/theguardian/uk/rss'},
-  {name:'BBC News', url:'https://feeds.bbci.co.uk/news/rss.xml'},
-  {name:'Sky News', url:'https://feeds.skynews.com/feeds/rss/uk.xml'},
-  {name:'The Independent', url:'https://www.independent.co.uk/news/uk/rss'},
-];
-var newsItems = [];
-
-function loadNews() {
-  var feedIdx = 0;
-  function tryFeed(idx) {
-    if (idx >= RSS_FEEDS.length) { renderNewsFallback(); return; }
-    var feed = RSS_FEEDS[idx];
-    var proxyUrl = 'https://prism-api.identitypartners.workers.dev/api/rss?url=' + encodeURIComponent(feed.url);
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', proxyUrl, true);
-    xhr.timeout = 10000;
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState !== 4) return;
-      if (xhr.status !== 200) { tryFeed(idx + 1); return; }
-      try {
-        var parser = new DOMParser();
-        var xml = parser.parseFromString(xhr.responseText, 'text/xml');
-        var items = xml.querySelectorAll('item');
-        if (!items || items.length === 0) { tryFeed(idx + 1); return; }
-        newsItems = [];
-        for (var i = 0; i < Math.min(items.length, 10); i++) {
-          var titleEl = items[i].querySelector('title');
-          var linkEl = items[i].querySelector('link');
-          var pubDateEl = items[i].querySelector('pubDate');
-          var mediaEl = items[i].querySelector('thumbnail') || items[i].querySelector('content');
-          var encEl = items[i].querySelector('enclosure');
-          var imgUrl = '';
-          if (mediaEl && mediaEl.getAttribute('url')) imgUrl = mediaEl.getAttribute('url');
-          else if (encEl && encEl.getAttribute('url') && encEl.getAttribute('type') && encEl.getAttribute('type').indexOf('image') >= 0) imgUrl = encEl.getAttribute('url');
-          newsItems.push({
-            title: titleEl ? titleEl.textContent.replace('<![CDATA[','').replace(']]>','').trim() : '',
-            link: linkEl ? (linkEl.textContent || linkEl.getAttribute('href') || '#') : '#',
-            date: pubDateEl ? pubDateEl.textContent : '',
-            source: feed.name,
-            img: imgUrl,
-          });
-        }
-        renderNews();
-      } catch(e) { tryFeed(idx + 1); }
-    };
-    xhr.ontimeout = function() { tryFeed(idx + 1); };
-    xhr.onerror = function() { tryFeed(idx + 1); };
-    xhr.send();
-  }
-  tryFeed(0);
-}
-
-function renderNews() {
-  var feed = document.getElementById('news-feed');
-  if (!feed) return;
-  feed.innerHTML = '';
-  for (var i = 0; i < newsItems.length; i++) {
-    (function(item) {
-      var el = document.createElement('div');
-      el.className = 'news-item';
-      el.onclick = function() { window.open(item.link, '_blank'); };
-      var thumb = document.createElement('div');
-      thumb.className = 'news-thumb';
-      if (item.image) {
-        thumb.style.cssText = 'width:64px;height:64px;border-radius:6px;overflow:hidden;flex-shrink:0;background:var(--bg-sunken);';
-        var img = document.createElement('img');
-        img.src = item.image;
-        img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
-        img.onerror = function() { this.style.display='none'; };
-        thumb.appendChild(img);
-      } else {
-        thumb.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:20px;width:48px;height:48px;flex-shrink:0;';
-        thumb.textContent = '\ud83d\udcf0';
-      }
-      var content = document.createElement('div');
-      content.className = 'news-content';
-      var headline = document.createElement('div');
-      headline.className = 'news-headline';
-      headline.textContent = item.title;
-      var meta = document.createElement('div');
-      meta.className = 'news-meta';
-      meta.textContent = item.source + (item.date ? ' · ' + new Date(item.date).toLocaleDateString('en-GB') : '');
-      content.appendChild(headline);
-      content.appendChild(meta);
-      el.appendChild(thumb);
-      el.appendChild(content);
-      feed.appendChild(el);
-    })(newsItems[i]);
-  }
-}
-
-function renderNewsFallback() {
-  var feed = document.getElementById('news-feed');
-  if (feed) feed.innerHTML = '<div style="font-size:12.5px;color:var(--fg-muted);padding:12px 0;">News feed unavailable. Check your connection.</div>';
-}
-
-function refreshNews() { loadNews(); Toast.info('Refreshing news…'); }
-
-// Quick actions
-function quickSendToChat() {
-  var text = document.getElementById('quick-input').value.trim();
-  if (!text) return;
-  try { sessionStorage.setItem('prism-chat-prefill', text); } catch(e) {}
-  window.location.href = '/chat/';
-}
-function quickSendToResearch() {
-  var text = document.getElementById('quick-input').value.trim();
-  if (!text) return;
-  try { sessionStorage.setItem('prism-research-prefill', text); } catch(e) {}
-  window.location.href = '/research/';
-}
-function quickSendToDrafting() {
-  var text = document.getElementById('quick-input').value.trim();
-  if (!text) return;
-  try { sessionStorage.setItem('prism-draft', text); } catch(e) {}
-  window.location.href = '/drafting/';
-}
-function quickAtomise() {
-  var text = document.getElementById('quick-input').value.trim();
-  if (!text) return;
-  try { sessionStorage.setItem('prism-atomise', text); } catch(e) {}
-  window.location.href = '/atomise/';
-}
-function quickGenerateImage() {
-  var text = document.getElementById('quick-input').value.trim();
-  if (!text) return;
-  try { sessionStorage.setItem('prism-chat-prefill', 'Generate an image of ' + text); } catch(e) {}
-  window.location.href = '/chat/';
-}
-
-// Quick image in right panel
-function quickImage() {
-  var prompt = document.getElementById('img-prompt').value.trim();
-  if (!prompt) return;
-  var result = document.getElementById('img-result');
-  if (result) result.innerHTML = '<div class="spinner"></div>';
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/image', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      var data = JSON.parse(xhr.responseText);
-      if (data.url && result) {
-        var img = document.createElement('img');
-        img.src = data.url;
-        img.style.cssText = 'width:100%;border-radius:8px;border:1px solid var(--border);';
-        img.alt = prompt;
-        result.innerHTML = '';
-        result.appendChild(img);
-      }
-    } catch(e) {
-      if (result) result.innerHTML = '<div style="color:var(--danger);font-size:12px;">Image generation failed.</div>';
-    }
-  };
-  xhr.onerror = function() {
-    if (result) result.innerHTML = '<div style="color:var(--danger);font-size:12px;">Network error.</div>';
-  };
-  xhr.send(JSON.stringify({prompt: prompt}));
-}
+var homeInputMode = 'chat';
+var tasks = [];
+var bitesize_idx = 0;
 
 document.addEventListener('DOMContentLoaded', function() {
-  loadHeroImages();
-  // Restore pinned day from localStorage
-  try {
-    var pinned = localStorage.getItem('thinker-pinned');
-    if (pinned !== null) pinnedDay = parseInt(pinned);
-  } catch(e) {}
-  loadThinker();
-  loadActiveAgents();
-
   var mount = document.getElementById('sidebar-mount');
-  if (mount) {
+  if (mount && typeof buildSidebar === 'function') {
     var sb = buildSidebar('/home/');
     mount.parentNode.insertBefore(sb, mount);
     mount.parentNode.removeChild(mount);
   }
-  init();
+
+  // Set greeting and date
+  var h = new Date().getHours();
+  var greeting = h < 6 ? 'Good evening' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  document.getElementById('hero-greeting').textContent = greeting + ', Simon.';
+  document.getElementById('hero-date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  // Load everything
+  loadCalendar();
+  loadNews();
+  loadPapers();
+  loadBitesize();
+  loadWIP();
+  loadSocialQueue();
+  loadTasks();
+  loadQuickNotes();
 });
 
-var CURRICULUM = [{"day": 1, "thinker": "The sociological imagination", "concept": "C. Wright Mills", "terms": "biography, history, social structure, personal troubles, public issues"}, {"day": 2, "thinker": "Auguste Comte and positivism", "concept": "", "terms": "social physics, hierarchy of sciences, order, progress, observation"}, {"day": 3, "thinker": "Harriet Martineau", "concept": "", "terms": "morals and manners, systematic observation, gender inequality, abolitionism, methodology"}, {"day": 4, "thinker": "Herbert Spencer", "concept": "", "terms": "social evolution, differentiation, organic analogy, social Darwinism"}, {"day": 5, "thinker": "Alexis de Tocqueville", "concept": "", "terms": "democracy, equality of conditions, civil associations, tyranny of the majority"}, {"day": 6, "thinker": "Ferdinand Tönnies", "concept": "", "terms": "Gemeinschaft, Gesellschaft, community, association, modernisation"}, {"day": 7, "thinker": "Georg Simmel and social forms", "concept": "", "terms": "interaction, formal sociology, dyads, triads, social geometry"}, {"day": 8, "thinker": "Simmel and metropolitan life", "concept": "", "terms": "blasé attitude, money economy, reserve, overstimulation, individuality"}, {"day": 9, "thinker": "Simmel and social distance", "concept": "", "terms": "the stranger, secrecy, sociability, conflict, group boundaries"}, {"day": 10, "thinker": "Karl Marx and historical materialism", "concept": "", "terms": "productive forces, relations of production, mode of production, social formation"}, {"day": 11, "thinker": "Marx and class conflict", "concept": "", "terms": "bourgeoisie, proletariat, class struggle, class consciousness, revolution"}, {"day": 12, "thinker": "Marx and alienation", "concept": "", "terms": "labour process, species-being, estrangement, private property"}, {"day": 13, "thinker": "Marx and exploitation", "concept": "", "terms": "labour power, surplus value, necessary labour, capitalist accumulation"}, {"day": 14, "thinker": "Marx and commodities", "concept": "", "terms": "use value, exchange value, commodity fetishism, money"}, {"day": 15, "thinker": "Marx and ideology", "concept": "", "terms": "ruling ideas, false consciousness, mystification, material interests"}, {"day": 16, "thinker": "Marx and social transformation", "concept": "", "terms": "contradiction, crisis, immiseration, revolutionary praxis"}, {"day": 17, "thinker": "Base and superstructure", "concept": "", "terms": "economy, law, politics, culture, relative autonomy, determination"}, {"day": 18, "thinker": "Primitive accumulation", "concept": "", "terms": "enclosure, dispossession, colonial extraction, proletarianisation"}, {"day": 19, "thinker": "The reserve army of labour", "concept": "", "terms": "unemployment, wage discipline, surplus population, precarity"}, {"day": 20, "thinker": "Émile Durkheim and social facts", "concept": "", "terms": "externality, constraint, collective life, sociological explanation"}, {"day": 21, "thinker": "Durkheim and solidarity", "concept": "", "terms": "mechanical solidarity, organic solidarity, division of labour, restitutive law"}, {"day": 22, "thinker": "Durkheim and anomie", "concept": "", "terms": "deregulation, aspiration, social integration, economic disruption"}, {"day": 23, "thinker": "Durkheim on suicide", "concept": "", "terms": "egoistic, altruistic, anomic, fatalistic suicide"}, {"day": 24, "thinker": "Durkheim on religion", "concept": "", "terms": "sacred, profane, ritual, collective effervescence, totemism"}, {"day": 25, "thinker": "Collective conscience and representations", "concept": "", "terms": "shared categories, moral regulation, social integration"}, {"day": 26, "thinker": "Marcel Mauss and the gift", "concept": "", "terms": "reciprocity, obligation, prestige, total social fact"}, {"day": 27, "thinker": "Max Weber and social action", "concept": "", "terms": "instrumental, value-rational, affectual, traditional action"}, {"day": 28, "thinker": "Verstehen and interpretive sociology", "concept": "", "terms": "subjective meaning, explanation, causal adequacy, interpretation"}, {"day": 29, "thinker": "Weber’s ideal types", "concept": "", "terms": "analytical construction, comparison, abstraction, historical explanation"}, {"day": 30, "thinker": "Weber on authority", "concept": "", "terms": "traditional, charismatic, legal-rational legitimacy"}, {"day": 31, "thinker": "Weber on bureaucracy", "concept": "", "terms": "hierarchy, rules, expertise, impersonality, iron cage"}, {"day": 32, "thinker": "Weber on rationalisation", "concept": "", "terms": "calculability, predictability, efficiency, control, disenchantment"}, {"day": 33, "thinker": "The Protestant ethic thesis", "concept": "", "terms": "calling, asceticism, predestination, spirit of capitalism"}, {"day": 34, "thinker": "Weber on class, status and party", "concept": "", "terms": "life chances, honour, power, market position"}, {"day": 35, "thinker": "Weber on domination", "concept": "", "terms": "Herrschaft, legitimacy, administration, obedience"}, {"day": 36, "thinker": "Vilfredo Pareto and elite circulation", "concept": "", "terms": "governing elites, residues, derivations, circulation"}, {"day": 37, "thinker": "Robert Michels and oligarchy", "concept": "", "terms": "iron law of oligarchy, leadership, organisation, bureaucracy"}, {"day": 38, "thinker": "Thorstein Veblen", "concept": "", "terms": "conspicuous consumption, leisure class, pecuniary emulation, status display"}, {"day": 39, "thinker": "W. E. B. Du Bois", "concept": "", "terms": "colour line, double consciousness, the veil, racial capitalism"}, {"day": 40, "thinker": "Du Bois and empirical sociology", "concept": "", "terms": "The Philadelphia Negro, urban study, racialised structure, activist scholarship"}, {"day": 41, "thinker": "Jane Addams and public sociology", "concept": "", "terms": "settlement sociology, Hull House, social ethics, participatory inquiry"}, {"day": 42, "thinker": "Anna Julia Cooper", "concept": "", "terms": "race, gender, education, Black feminist thought, standpoint"}, {"day": 43, "thinker": "Charlotte Perkins Gilman", "concept": "", "terms": "gendered dependency, domestic labour, economic inequality, patriarchy"}, {"day": 44, "thinker": "Ida B. Wells", "concept": "", "terms": "lynching, racial violence, investigative sociology, resistance"}, {"day": 45, "thinker": "Norbert Elias and the civilising process", "concept": "", "terms": "manners, self-restraint, state formation, interdependence"}, {"day": 46, "thinker": "Elias and figurational sociology", "concept": "", "terms": "configurations, power balances, established and outsiders"}, {"day": 47, "thinker": "Karl Mannheim and sociology of knowledge", "concept": "", "terms": "ideology, utopia, generations, relationism"}, {"day": 48, "thinker": "Alfred Schutz and the lifeworld", "concept": "", "terms": "intersubjectivity, typification, stock of knowledge, taken-for-granted reality"}, {"day": 49, "thinker": "Pitirim Sorokin", "concept": "", "terms": "social mobility, cultural dynamics, stratification, social change"}, {"day": 50, "thinker": "Antonio Gramsci and hegemony", "concept": "", "terms": "consent, coercion, civil society, political society, common sense"}, {"day": 51, "thinker": "Structural functionalism", "concept": "", "terms": "system, equilibrium, integration, function, social order"}, {"day": 52, "thinker": "Talcott Parsons", "concept": "", "terms": "AGIL, pattern variables, social system, value consensus"}, {"day": 53, "thinker": "Robert K. Merton", "concept": "", "terms": "manifest functions, latent functions, dysfunctions, middle-range theory"}, {"day": 54, "thinker": "Merton’s strain theory", "concept": "", "terms": "cultural goals, institutional means, conformity, innovation, ritualism, retreatism, rebellion"}, {"day": 55, "thinker": "Conflict theory", "concept": "", "terms": "unequal resources, competing interests, domination, institutional conflict"}, {"day": 56, "thinker": "Ralf Dahrendorf", "concept": "", "terms": "authority relations, conflict groups, imperatively coordinated associations"}, {"day": 57, "thinker": "Lewis Coser", "concept": "", "terms": "functions of social conflict, group boundaries, cohesion, realistic conflict"}, {"day": 58, "thinker": "Symbolic interactionism", "concept": "", "terms": "meaning, interaction, interpretation, symbols, self"}, {"day": 59, "thinker": "George Herbert Mead", "concept": "", "terms": "I, Me, generalised other, role-taking, significant symbols"}, {"day": 60, "thinker": "Charles Horton Cooley", "concept": "", "terms": "looking-glass self, primary groups, reflected appraisal"}, {"day": 61, "thinker": "Herbert Blumer", "concept": "", "terms": "symbolic interaction, joint action, sensitising concepts, interpretation"}, {"day": 62, "thinker": "Erving Goffman and dramaturgy", "concept": "", "terms": "performance, frontstage, backstage, teams, audience segregation"}, {"day": 63, "thinker": "Goffman and impression management", "concept": "", "terms": "face, demeanour, deference, expressive control"}, {"day": 64, "thinker": "Goffman and stigma", "concept": "", "terms": "spoiled identity, passing, covering, discreditable identity"}, {"day": 65, "thinker": "Goffman and total institutions", "concept": "", "terms": "mortification, institutional self, inmate culture, secondary adjustments"}, {"day": 66, "thinker": "Goffman and interaction order", "concept": "", "terms": "encounters, frames, footing, civil inattention"}, {"day": 67, "thinker": "Howard Becker and labelling", "concept": "", "terms": "deviance, moral entrepreneurs, outsiders, deviant careers"}, {"day": 68, "thinker": "Edwin Lemert", "concept": "", "terms": "primary deviance, secondary deviance, societal reaction"}, {"day": 69, "thinker": "Phenomenology", "concept": "", "terms": "consciousness, intentionality, lived experience, intersubjectivity"}, {"day": 70, "thinker": "Peter Berger and Thomas Luckmann", "concept": "", "terms": "externalisation, objectivation, internalisation, social construction of reality"}, {"day": 71, "thinker": "Ethnomethodology", "concept": "Harold Garfinkel", "terms": "accountability, indexicality, reflexivity, background expectancies"}, {"day": 72, "thinker": "Conversation analysis", "concept": "", "terms": "turn-taking, adjacency pairs, repair, sequence organisation"}, {"day": 73, "thinker": "Breaching experiments", "concept": "", "terms": "norm disruption, practical reasoning, repair work"}, {"day": 74, "thinker": "Social exchange theory", "concept": "", "terms": "rewards, costs, reciprocity, comparison levels, dependence"}, {"day": 75, "thinker": "George Homans", "concept": "", "terms": "behavioural propositions, reinforcement, exchange, elementary social behaviour"}, {"day": 76, "thinker": "Peter Blau", "concept": "", "terms": "exchange, power, differentiation, emergent structure"}, {"day": 77, "thinker": "Rational choice sociology", "concept": "", "terms": "preferences, incentives, constraints, strategic action"}, {"day": 78, "thinker": "James Coleman", "concept": "", "terms": "micro-macro relations, social capital, purposive action, Coleman’s boat"}, {"day": 79, "thinker": "Network theory", "concept": "", "terms": "nodes, ties, density, centrality, structural position"}, {"day": 80, "thinker": "Mark Granovetter", "concept": "", "terms": "weak ties, embeddedness, thresholds, economic action"}, {"day": 81, "thinker": "Ronald Burt", "concept": "", "terms": "structural holes, brokerage, network advantage"}, {"day": 82, "thinker": "Diffusion theory", "concept": "", "terms": "innovation, adoption, social networks, early adopters, tipping processes"}, {"day": 83, "thinker": "Structuration theory", "concept": "Anthony Giddens", "terms": "duality of structure, rules, resources, knowledgeable agents"}, {"day": 84, "thinker": "Giddens on modernity", "concept": "", "terms": "disembedding, time-space distanciation, reflexivity, ontological security"}, {"day": 85, "thinker": "Ulrich Beck and risk society", "concept": "", "terms": "manufactured risk, reflexive modernisation, individualisation"}, {"day": 86, "thinker": "Zygmunt Bauman and liquid modernity", "concept": "", "terms": "uncertainty, mobility, consumption, fragile relationships"}, {"day": 87, "thinker": "Margaret Archer and morphogenesis", "concept": "", "terms": "structure, culture, agency, analytical dualism"}, {"day": 88, "thinker": "Roy Bhaskar and critical realism", "concept": "", "terms": "stratified reality, mechanisms, emergence, open systems"}, {"day": 89, "thinker": "Bhaskar’s explanatory model", "concept": "", "terms": "real, actual, empirical, generative mechanisms, retroduction"}, {"day": 90, "thinker": "Pierre Bourdieu", "concept": "habitus and field", "terms": "dispositions, practice, position, structured social space"}, {"day": 91, "thinker": "Bourdieu’s forms of capital", "concept": "", "terms": "economic, cultural, social, symbolic capital"}, {"day": 92, "thinker": "Bourdieu on reproduction", "concept": "", "terms": "distinction, taste, symbolic violence, misrecognition"}, {"day": 93, "thinker": "Bourdieu on knowledge", "concept": "", "terms": "doxa, orthodoxy, heterodoxy, reflexive sociology"}, {"day": 94, "thinker": "Practice theory", "concept": "", "terms": "embodied action, routines, materials, competence, practical consciousness"}, {"day": 95, "thinker": "Actor-network theory", "concept": "", "terms": "Bruno Latour, actants, translation, networks, symmetry"}, {"day": 96, "thinker": "Assemblage theory", "concept": "", "terms": "Gilles Deleuze, Félix Guattari, heterogeneity, relations of exteriority, emergence"}, {"day": 97, "thinker": "Complexity theory", "concept": "", "terms": "non-linearity, adaptation, feedback, self-organisation, emergence"}, {"day": 98, "thinker": "Systems theory", "concept": "Niklas Luhmann", "terms": "communication, differentiation, autopoiesis, complexity reduction"}, {"day": 99, "thinker": "Critical theory", "concept": "", "terms": "emancipation, domination, ideology critique, instrumental reason"}, {"day": 100, "thinker": "Frankfurt School", "concept": "", "terms": "capitalism, authoritarianism, mass culture, damaged life"}, {"day": 101, "thinker": "Marxism after Marx", "concept": "", "terms": "revisionism, Western Marxism, structural Marxism, neo-Marxism"}, {"day": 102, "thinker": "Georg Lukács", "concept": "", "terms": "reification, totality, class consciousness, commodity form"}, {"day": 103, "thinker": "Louis Althusser", "concept": "", "terms": "ideological state apparatuses, interpellation, overdetermination, relative autonomy"}, {"day": 104, "thinker": "Nicos Poulantzas", "concept": "", "terms": "capitalist state, class power, structural selectivity, authoritarian statism"}, {"day": 105, "thinker": "Gramsci’s war of position", "concept": "", "terms": "organic intellectuals, historic bloc, passive revolution, counter-hegemony"}, {"day": 106, "thinker": "The culture industry", "concept": "", "terms": "Theodor Adorno, Max Horkheimer, standardisation, pseudo-individualisation"}, {"day": 107, "thinker": "Herbert Marcuse", "concept": "", "terms": "one-dimensional society, false needs, technological rationality, repressive tolerance"}, {"day": 108, "thinker": "Walter Benjamin", "concept": "", "terms": "aura, mechanical reproduction, flâneur, historical materialism"}, {"day": 109, "thinker": "Jürgen Habermas", "concept": "", "terms": "communicative action, lifeworld, system, ideal speech situation"}, {"day": 110, "thinker": "Habermas and the public sphere", "concept": "", "terms": "public reason, deliberation, communicative power, colonisation"}, {"day": 111, "thinker": "Axel Honneth and recognition", "concept": "", "terms": "love, rights, solidarity, disrespect, social struggle"}, {"day": 112, "thinker": "Nancy Fraser", "concept": "", "terms": "redistribution, recognition, representation, participatory parity"}, {"day": 113, "thinker": "Michel Foucault and discourse", "concept": "", "terms": "statements, discursive formations, regimes of truth, archaeology"}, {"day": 114, "thinker": "Foucault and genealogy", "concept": "", "terms": "descent, emergence, contingency, history of the present"}, {"day": 115, "thinker": "Foucault and disciplinary power", "concept": "", "terms": "surveillance, examination, normalisation, docile bodies"}, {"day": 116, "thinker": "The Panopticon", "concept": "", "terms": "Jeremy Bentham, panopticism, visibility, self-regulation, institutional surveillance"}, {"day": 117, "thinker": "Foucault and biopower", "concept": "", "terms": "population, regulation, administration of life, biopolitics"}, {"day": 118, "thinker": "Foucault and governmentality", "concept": "", "terms": "governing conduct, technologies of the self, security, liberal rule"}, {"day": 119, "thinker": "Foucault on knowledge and power", "concept": "", "terms": "power/knowledge, subjectification, resistance, truth production"}, {"day": 120, "thinker": "Gilles Deleuze and societies of control", "concept": "", "terms": "modulation, dividuals, codes, continuous surveillance"}, {"day": 121, "thinker": "Achille Mbembe and necropolitics", "concept": "", "terms": "sovereignty, death-worlds, disposability, colonial violence"}, {"day": 122, "thinker": "Giorgio Agamben", "concept": "", "terms": "state of exception, bare life, homo sacer, sovereign power"}, {"day": 123, "thinker": "Steven Lukes and three dimensions of power", "concept": "", "terms": "decisions, agenda control, preference formation"}, {"day": 124, "thinker": "Robert Dahl and pluralism", "concept": "", "terms": "observable conflict, competing groups, polyarchy"}, {"day": 125, "thinker": "C. Wright Mills and the power elite", "concept": "", "terms": "corporate, political and military elites"}, {"day": 126, "thinker": "Michael Mann’s sources of social power", "concept": "", "terms": "ideological, economic, military and political power"}, {"day": 127, "thinker": "Pierre Clastres and stateless power", "concept": "", "terms": "society against the state, authority, coercion"}, {"day": 128, "thinker": "James C. Scott and legibility", "concept": "", "terms": "state simplification, high modernism, local knowledge, resistance"}, {"day": 129, "thinker": "Scott’s hidden transcripts", "concept": "", "terms": "public transcripts, infrapolitics, everyday resistance"}, {"day": 130, "thinker": "Symbolic power", "concept": "", "terms": "classification, naming, legitimacy, authorised speech"}, {"day": 131, "thinker": "Socialisation", "concept": "", "terms": "primary, secondary, anticipatory and resocialisation"}, {"day": 132, "thinker": "Culture", "concept": "", "terms": "values, norms, beliefs, symbols, practices, material culture"}, {"day": 133, "thinker": "Norms and sanctions", "concept": "", "terms": "folkways, mores, taboos, formal and informal control"}, {"day": 134, "thinker": "Roles and status", "concept": "", "terms": "achieved status, ascribed status, role conflict, role strain"}, {"day": 135, "thinker": "Institutions", "concept": "", "terms": "institutionalisation, rules, legitimacy, persistence, path dependence"}, {"day": 136, "thinker": "Agency and structure", "concept": "", "terms": "voluntarism, determinism, constraint, enablement"}, {"day": 137, "thinker": "Identity formation", "concept": "", "terms": "identification, differentiation, narrative, recognition"}, {"day": 138, "thinker": "Narrative identity", "concept": "", "terms": "self-story, continuity, memory, biographical reconstruction"}, {"day": 139, "thinker": "The relational self", "concept": "", "terms": "interdependence, social recognition, situated identity"}, {"day": 140, "thinker": "Embodiment", "concept": "", "terms": "body techniques, bodily capital, lived body, somatic norms"}, {"day": 141, "thinker": "Marcel Mauss and techniques of the body", "concept": "", "terms": "learned movement, bodily discipline, culture"}, {"day": 142, "thinker": "Norbert Elias and habitus", "concept": "", "terms": "social restraint, embodied history, national habitus"}, {"day": 143, "thinker": "Emotion work", "concept": "Arlie Hochschild", "terms": "feeling rules, surface acting, deep acting, emotional labour"}, {"day": 144, "thinker": "Randall Collins and interaction ritual chains", "concept": "", "terms": "emotional energy, solidarity, symbols, co-presence"}, {"day": 145, "thinker": "Thomas Scheff and social bonds", "concept": "", "terms": "shame, pride, attunement, alienation"}, {"day": 146, "thinker": "Stigma management", "concept": "", "terms": "disclosure, concealment, passing, covering, resistance"}, {"day": 147, "thinker": "Moral identity", "concept": "", "terms": "self-evaluation, responsibility, moral commitments, social judgement"}, {"day": 148, "thinker": "Trust", "concept": "", "terms": "interpersonal trust, institutional trust, vulnerability, social order"}, {"day": 149, "thinker": "Social capital", "concept": "", "terms": "bonding, bridging, linking, reciprocity, civic participation"}, {"day": 150, "thinker": "Robert Putnam", "concept": "", "terms": "civic community, association, declining participation, bowling alone"}, {"day": 151, "thinker": "Belonging", "concept": "", "terms": "attachment, membership, boundary-making, recognition"}, {"day": 152, "thinker": "Loneliness and social isolation", "concept": "", "terms": "network scarcity, subjective disconnection, anomie"}, {"day": 153, "thinker": "Erving Goffman and face-work", "concept": "", "terms": "embarrassment, tact, corrective exchanges, interactional order"}, {"day": 154, "thinker": "Accounts and excuses", "concept": "", "terms": "justification, neutralisation, responsibility, identity repair"}, {"day": 155, "thinker": "The Thomas theorem", "concept": "", "terms": "definition of the situation, subjective reality, social consequences"}, {"day": 156, "thinker": "Social stratification", "concept": "", "terms": "hierarchy, unequal resources, life chances, social closure"}, {"day": 157, "thinker": "Marxian class analysis", "concept": "", "terms": "ownership, exploitation, productive relations, contradictory interests"}, {"day": 158, "thinker": "Weberian class analysis", "concept": "", "terms": "market situation, status groups, parties, social closure"}, {"day": 159, "thinker": "Erik Olin Wright", "concept": "", "terms": "contradictory class locations, exploitation, organisational assets"}, {"day": 160, "thinker": "John Goldthorpe and class schema", "concept": "", "terms": "employment relations, service relationship, labour contract"}, {"day": 161, "thinker": "E. P. Thompson", "concept": "", "terms": "class formation, experience, historical agency, making of class"}, {"day": 162, "thinker": "Bourdieu and class fractions", "concept": "", "terms": "capital composition, social space, lifestyles, distinction"}, {"day": 163, "thinker": "Economic inequality", "concept": "", "terms": "income, wealth, assets, debt, distribution"}, {"day": 164, "thinker": "Poverty", "concept": "", "terms": "absolute, relative, subjective and multidimensional poverty"}, {"day": 165, "thinker": "Peter Townsend and relative deprivation", "concept": "", "terms": "customary living standards, participation, exclusion"}, {"day": 166, "thinker": "Amartya Sen and capabilities", "concept": "", "terms": "functionings, freedom, conversion factors, deprivation"}, {"day": 167, "thinker": "Social exclusion", "concept": "", "terms": "participation, rights, services, networks, spatial marginality"}, {"day": 168, "thinker": "Precarity", "concept": "", "terms": "insecure work, unstable income, exposure, limited protection"}, {"day": 169, "thinker": "Guy Standing and the precariat", "concept": "", "terms": "labour insecurity, occupational identity, denizenship"}, {"day": 170, "thinker": "Pierre Bourdieu and symbolic deprivation", "concept": "", "terms": "legitimacy, cultural hierarchy, misrecognition"}, {"day": 171, "thinker": "Social mobility", "concept": "", "terms": "absolute, relative, intergenerational and intragenerational mobility"}, {"day": 172, "thinker": "Meritocracy", "concept": "", "terms": "Michael Young, equality of opportunity, credentialism, legitimated inequality"}, {"day": 173, "thinker": "Elite reproduction", "concept": "", "terms": "inheritance, education, networks, cultural matching"}, {"day": 174, "thinker": "Social closure", "concept": "Weber and Parkin", "terms": "exclusion, usurpation, credentials, monopoly"}, {"day": 175, "thinker": "Opportunity hoarding", "concept": "Charles Tilly", "terms": "categorical inequality, networks, resource control"}, {"day": 176, "thinker": "Cumulative disadvantage", "concept": "", "terms": "Matthew effect, path dependence, compounding inequality"}, {"day": 177, "thinker": "Intersectional inequality", "concept": "", "terms": "mutually constitutive class, race, gender, disability and citizenship"}, {"day": 178, "thinker": "Spatial inequality", "concept": "", "terms": "neighbourhood effects, segregation, uneven development, postcode disadvantage"}, {"day": 179, "thinker": "Housing inequality", "concept": "", "terms": "tenure, ownership, rent, displacement, intergenerational wealth"}, {"day": 180, "thinker": "Debt and financialisation", "concept": "", "terms": "credit, risk transfer, asset inflation, household discipline"}, {"day": 181, "thinker": "Race as a social construction", "concept": "", "terms": "racial classification, boundary-making, historical contingency"}, {"day": 182, "thinker": "Racialisation", "concept": "", "terms": "meaning attribution, institutional categorisation, unequal treatment"}, {"day": 183, "thinker": "Ethnicity", "concept": "", "terms": "ancestry, culture, identification, boundaries, situational ethnicity"}, {"day": 184, "thinker": "Frantz Fanon", "concept": "", "terms": "colonial psychology, epidermalisation, violence, national consciousness"}, {"day": 185, "thinker": "Edward Said and Orientalism", "concept": "", "terms": "representation, othering, empire, knowledge and power"}, {"day": 186, "thinker": "Stuart Hall on race", "concept": "", "terms": "articulation, representation, new ethnicities, conjuncture"}, {"day": 187, "thinker": "Paul Gilroy and the Black Atlantic", "concept": "", "terms": "diaspora, hybridity, transnational culture, anti-nationalism"}, {"day": 188, "thinker": "Cedric Robinson and racial capitalism", "concept": "", "terms": "racial differentiation, capitalist development, Black radical tradition"}, {"day": 189, "thinker": "Aníbal Quijano and coloniality of power", "concept": "", "terms": "racial classification, labour control, Eurocentrism"}, {"day": 190, "thinker": "Walter Mignolo and decoloniality", "concept": "", "terms": "colonial difference, border thinking, epistemic disobedience"}, {"day": 191, "thinker": "Gayatri Spivak and the subaltern", "concept": "", "terms": "representation, epistemic violence, strategic essentialism"}, {"day": 192, "thinker": "Homi Bhabha", "concept": "", "terms": "hybridity, mimicry, ambivalence, third space"}, {"day": 193, "thinker": "Boaventura de Sousa Santos", "concept": "", "terms": "epistemologies of the South, abyssal line, cognitive justice"}, {"day": 194, "thinker": "Linda Tuhiwai Smith", "concept": "", "terms": "decolonising methodologies, indigenous knowledge, research power"}, {"day": 195, "thinker": "Critical race theory", "concept": "", "terms": "structural racism, interest convergence, counternarrative, permanence of race"}, {"day": 196, "thinker": "Kimberlé Crenshaw and intersectionality", "concept": "", "terms": "structural, political and representational intersectionality"}, {"day": 197, "thinker": "Patricia Hill Collins", "concept": "", "terms": "matrix of domination, controlling images, Black feminist epistemology"}, {"day": 198, "thinker": "bell hooks", "concept": "", "terms": "imperialist white-supremacist capitalist patriarchy, margin, engaged pedagogy"}, {"day": 199, "thinker": "Eduardo Bonilla-Silva", "concept": "", "terms": "racialised social systems, colour-blind racism, frames"}, {"day": 200, "thinker": "Institutional racism", "concept": "", "terms": "organisational procedures, unequal outcomes, cumulative disadvantage"}, {"day": 201, "thinker": "Cultural racism", "concept": "", "terms": "essentialised difference, incompatibility claims, coded exclusion"}, {"day": 202, "thinker": "Whiteness studies", "concept": "", "terms": "unmarked identity, privilege, possessive investment, racial normativity"}, {"day": 203, "thinker": "Diaspora", "concept": "", "terms": "dispersion, homeland, memory, transnational belonging, cultural production"}, {"day": 204, "thinker": "Migration systems", "concept": "", "terms": "push-pull models, networks, cumulative causation, migration regimes"}, {"day": 205, "thinker": "Transnationalism", "concept": "", "terms": "cross-border fields, remittances, simultaneous belonging, diasporic networks"}, {"day": 206, "thinker": "Citizenship and belonging", "concept": "", "terms": "formal status, substantive rights, denizenship, exclusion"}, {"day": 207, "thinker": "Assimilation and integration", "concept": "", "terms": "acculturation, incorporation, segmented assimilation, pluralism"}, {"day": 208, "thinker": "Multiculturalism", "concept": "", "terms": "recognition, accommodation, group rights, cultural diversity"}, {"day": 209, "thinker": "Nationalism and imagined communities", "concept": "", "terms": "Benedict Anderson, print capitalism, shared time"}, {"day": 210, "thinker": "Borders and bordering", "concept": "", "terms": "surveillance, documentation, mobility control, everyday bordering"}, {"day": 211, "thinker": "Sex and gender", "concept": "", "terms": "biological classification, social construction, gender roles, gender order"}, {"day": 212, "thinker": "Liberal feminism", "concept": "", "terms": "equal rights, opportunity, legal reform, discrimination"}, {"day": 213, "thinker": "Radical feminism", "concept": "", "terms": "patriarchy, sexual politics, male domination, consciousness-raising"}, {"day": 214, "thinker": "Marxist feminism", "concept": "", "terms": "capitalism, women’s labour, property, class relations"}, {"day": 215, "thinker": "Socialist feminism", "concept": "", "terms": "patriarchy and capitalism, dual systems, social reproduction"}, {"day": 216, "thinker": "Black feminism", "concept": "", "terms": "intersecting domination, lived experience, standpoint, resistance"}, {"day": 217, "thinker": "Postcolonial feminism", "concept": "", "terms": "imperialism, representation, global inequality, situated agency"}, {"day": 218, "thinker": "Chandra Mohanty", "concept": "", "terms": "Western feminist gaze, discursive colonisation, feminist solidarity"}, {"day": 219, "thinker": "Standpoint theory", "concept": "", "terms": "Dorothy Smith, Nancy Hartsock, situated knowledge, ruling relations"}, {"day": 220, "thinker": "Simone de Beauvoir", "concept": "", "terms": "becoming woman, immanence, transcendence, woman as Other"}, {"day": 221, "thinker": "Betty Friedan", "concept": "", "terms": "feminine mystique, domestic confinement, liberal feminism"}, {"day": 222, "thinker": "Kate Millett", "concept": "", "terms": "sexual politics, patriarchy, cultural domination"}, {"day": 223, "thinker": "Shulamith Firestone", "concept": "", "terms": "sex class, reproduction, technology, radical feminism"}, {"day": 224, "thinker": "Sylvia Walby", "concept": "", "terms": "structures of patriarchy, private and public patriarchy"}, {"day": 225, "thinker": "Raewyn Connell", "concept": "", "terms": "gender order, hegemonic masculinity, emphasised femininity"}, {"day": 226, "thinker": "Judith Butler and performativity", "concept": "", "terms": "repeated acts, citationality, gender norms, intelligibility"}, {"day": 227, "thinker": "Butler on precarity", "concept": "", "terms": "grievability, vulnerability, recognition, frames of war"}, {"day": 228, "thinker": "West and Zimmerman", "concept": "doing gender", "terms": "accountability, interactional accomplishment, gender display"}, {"day": 229, "thinker": "Queer theory", "concept": "", "terms": "heteronormativity, anti-essentialism, normativity, fluidity"}, {"day": 230, "thinker": "Eve Kosofsky Sedgwick", "concept": "", "terms": "homosocial desire, closet, epistemology of sexuality"}, {"day": 231, "thinker": "Adrienne Rich and compulsory heterosexuality", "concept": "", "terms": "heterosexual institution, lesbian continuum"}, {"day": 232, "thinker": "Michel Foucault and sexuality", "concept": "", "terms": "scientia sexualis, confession, discourse, subject formation"}, {"day": 233, "thinker": "Intersectional feminism", "concept": "", "terms": "race, class, gender, disability, sexuality, citizenship"}, {"day": 234, "thinker": "Social reproduction theory", "concept": "", "terms": "care, generational renewal, domestic labour, capitalist reproduction"}, {"day": 235, "thinker": "Domestic labour debate", "concept": "", "terms": "unpaid work, value, dependency, housework"}, {"day": 236, "thinker": "Hochschild’s second shift", "concept": "", "terms": "paid work, domestic work, gender strategy, stalled revolution"}, {"day": 237, "thinker": "Care work", "concept": "", "terms": "emotional labour, dependency, commodification, global care chains"}, {"day": 238, "thinker": "Intimate citizenship", "concept": "", "terms": "personal life, rights, recognition, bodily autonomy"}, {"day": 239, "thinker": "The pure relationship", "concept": "Giddens", "terms": "negotiated intimacy, reflexivity, contingent commitment"}, {"day": 240, "thinker": "Individualisation and personal life", "concept": "", "terms": "Beck, Beck-Gernsheim, choice biography, institutional individualism"}, {"day": 241, "thinker": "Functionalist theories of family", "concept": "", "terms": "socialisation, stabilisation, reproduction, role allocation"}, {"day": 242, "thinker": "Parsons and the symmetrical family debate", "concept": "", "terms": "instrumental roles, expressive roles, nuclear family"}, {"day": 243, "thinker": "Marxist theories of family", "concept": "", "terms": "inheritance, consumption, labour reproduction, ideology"}, {"day": 244, "thinker": "Feminist theories of family", "concept": "", "terms": "domestic labour, power, violence, emotional work"}, {"day": 245, "thinker": "Family practices", "concept": "David Morgan", "terms": "doing family, routines, relational activity"}, {"day": 246, "thinker": "Personal life", "concept": "Carol Smart", "terms": "memory, biography, embeddedness, relationality"}, {"day": 247, "thinker": "Family diversity", "concept": "", "terms": "lone-parent, blended, chosen, transnational and multigenerational families"}, {"day": 248, "thinker": "Kinship", "concept": "", "terms": "descent, affinity, relatedness, fictive kin, chosen family"}, {"day": 249, "thinker": "Marriage and partnership", "concept": "", "terms": "homogamy, assortative mating, cohabitation, separation"}, {"day": 250, "thinker": "Power in households", "concept": "", "terms": "resource theory, decision-making, allocation, control"}, {"day": 251, "thinker": "Childhood as a social construction", "concept": "", "terms": "historical variation, dependency, rights, age norms"}, {"day": 252, "thinker": "New sociology of childhood", "concept": "", "terms": "children as agents, peer cultures, generational order"}, {"day": 253, "thinker": "Philippe Ariès", "concept": "", "terms": "historical childhood, family sentiment, contested interpretation"}, {"day": 254, "thinker": "Annette Lareau", "concept": "", "terms": "concerted cultivation, natural growth, classed parenting"}, {"day": 255, "thinker": "Generation theory", "concept": "Mannheim", "terms": "generational location, actuality, units, historical consciousness"}, {"day": 256, "thinker": "Life-course sociology", "concept": "", "terms": "trajectories, transitions, turning points, linked lives"}, {"day": 257, "thinker": "Ageing", "concept": "", "terms": "disengagement, activity, continuity and political-economy theories"}, {"day": 258, "thinker": "Ageism", "concept": "", "terms": "stereotyping, institutional exclusion, age norms, cumulative inequality"}, {"day": 259, "thinker": "Demography", "concept": "", "terms": "fertility, mortality, migration, dependency ratios, population structure"}, {"day": 260, "thinker": "Demographic transition", "concept": "", "terms": "birth rates, death rates, industrialisation, population change"}, {"day": 261, "thinker": "Durkheim on education", "concept": "", "terms": "moral socialisation, social solidarity, specialist skills"}, {"day": 262, "thinker": "Parsons on education", "concept": "", "terms": "universalistic standards, achievement, role allocation"}, {"day": 263, "thinker": "Marxist theories of education", "concept": "", "terms": "reproduction, legitimation, labour discipline, ideology"}, {"day": 264, "thinker": "Bowles and Gintis", "concept": "", "terms": "correspondence principle, hidden curriculum, personality production"}, {"day": 265, "thinker": "Louis Althusser on schooling", "concept": "", "terms": "ideological state apparatus, interpellation, reproduction"}, {"day": 266, "thinker": "Bourdieu and education", "concept": "", "terms": "cultural capital, habitus, field, symbolic violence"}, {"day": 267, "thinker": "Basil Bernstein", "concept": "", "terms": "restricted and elaborated codes, classification, framing, pedagogic device"}, {"day": 268, "thinker": "Paul Willis", "concept": "", "terms": "learning to labour, counter-school culture, penetration, limitation"}, {"day": 269, "thinker": "Labelling in education", "concept": "", "terms": "teacher expectations, self-fulfilling prophecy, pupil identity"}, {"day": 270, "thinker": "Rosenthal and Jacobson", "concept": "", "terms": "Pygmalion effect, expectancy effects, classroom interaction"}, {"day": 271, "thinker": "Ability grouping", "concept": "", "terms": "streaming, setting, tracking, educational stratification"}, {"day": 272, "thinker": "Credentialism", "concept": "Randall Collins", "terms": "qualification inflation, closure, status competition"}, {"day": 273, "thinker": "Ivan Illich and deschooling", "concept": "", "terms": "institutional dependency, hidden curriculum, learning webs"}, {"day": 274, "thinker": "Paulo Freire", "concept": "", "terms": "banking education, conscientisation, dialogue, praxis"}, {"day": 275, "thinker": "bell hooks and engaged pedagogy", "concept": "", "terms": "voice, participation, transgression, education as freedom"}, {"day": 276, "thinker": "Hidden curriculum", "concept": "", "terms": "obedience, punctuality, competition, informal learning"}, {"day": 277, "thinker": "Educational markets", "concept": "", "terms": "choice, competition, league tables, parental strategy"}, {"day": 278, "thinker": "Neoliberal education", "concept": "", "terms": "audit, performativity, managerialism, human capital"}, {"day": 279, "thinker": "Epistemic injustice", "concept": "Miranda Fricker", "terms": "testimonial and hermeneutical injustice"}, {"day": 280, "thinker": "Sociology of knowledge", "concept": "", "terms": "social location, classification, authority, knowledge production"}, {"day": 281, "thinker": "Adam Smith and division of labour", "concept": "", "terms": "specialisation, productivity, exchange, moral sentiments"}, {"day": 282, "thinker": "Frederick Taylor and scientific management", "concept": "", "terms": "task fragmentation, measurement, managerial control"}, {"day": 283, "thinker": "Fordism", "concept": "", "terms": "mass production, standardisation, assembly line, mass consumption"}, {"day": 284, "thinker": "Post-Fordism", "concept": "", "terms": "flexibility, niche production, decentralisation, fragmented labour"}, {"day": 285, "thinker": "Harry Braverman and labour-process theory", "concept": "", "terms": "deskilling, managerial control, separation of conception and execution"}, {"day": 286, "thinker": "Michael Burawoy", "concept": "", "terms": "manufacturing consent, internal labour markets, workplace games"}, {"day": 287, "thinker": "Alienation at work", "concept": "", "terms": "powerlessness, meaninglessness, isolation, self-estrangement"}, {"day": 288, "thinker": "Emotional labour", "concept": "", "terms": "feeling rules, commodified emotion, occupational performance"}, {"day": 289, "thinker": "Aesthetic labour", "concept": "", "terms": "embodied presentation, corporate image, recruitment and control"}, {"day": 290, "thinker": "Precarious labour", "concept": "", "terms": "temporary work, zero-hours arrangements, platform work, insecurity"}, {"day": 291, "thinker": "Gig economy", "concept": "", "terms": "algorithmic management, worker classification, ratings, risk transfer"}, {"day": 292, "thinker": "Digital Taylorism", "concept": "", "terms": "surveillance, metrics, productivity tracking, automated control"}, {"day": 293, "thinker": "Organisational culture", "concept": "", "terms": "values, rituals, stories, symbols, subcultures"}, {"day": 294, "thinker": "Formal organisations", "concept": "", "terms": "hierarchy, rules, roles, goals, organisational boundaries"}, {"day": 295, "thinker": "Institutional theory", "concept": "", "terms": "isomorphism, legitimacy, organisational fields, decoupling"}, {"day": 296, "thinker": "Street-level bureaucracy", "concept": "Michael Lipsky", "terms": "discretion, coping, rationing, policy enactment"}, {"day": 297, "thinker": "Professionalisation", "concept": "", "terms": "expertise, jurisdiction, credentials, autonomy, closure"}, {"day": 298, "thinker": "Gendered organisations", "concept": "Joan Acker", "terms": "abstract worker, organisational inequality, gender regimes"}, {"day": 299, "thinker": "Racialised organisations", "concept": "Victor Ray", "terms": "racial hierarchy, resource distribution, organisational processes"}, {"day": 300, "thinker": "Global commodity chains", "concept": "", "terms": "production networks, outsourcing, unequal exchange, value capture"}, {"day": 301, "thinker": "Liberalism", "concept": "", "terms": "individual liberty, rights, consent, limited government"}, {"day": 302, "thinker": "John Locke", "concept": "", "terms": "natural rights, property, social contract, right of resistance"}, {"day": 303, "thinker": "John Stuart Mill", "concept": "", "terms": "harm principle, liberty, individuality, representative government"}, {"day": 304, "thinker": "Conservatism", "concept": "", "terms": "tradition, authority, hierarchy, gradual change"}, {"day": 305, "thinker": "Edmund Burke", "concept": "", "terms": "inherited institutions, prejudice, organic society, prudence"}, {"day": 306, "thinker": "Socialism", "concept": "", "terms": "collective ownership, equality, solidarity, democratic control"}, {"day": 307, "thinker": "Communism", "concept": "", "terms": "class abolition, common ownership, revolutionary transformation"}, {"day": 308, "thinker": "Anarchism", "concept": "", "terms": "anti-authoritarianism, mutual aid, voluntary association, decentralisation"}, {"day": 309, "thinker": "Peter Kropotkin", "concept": "", "terms": "mutual aid, cooperation, decentralised federation"}, {"day": 310, "thinker": "Fascism", "concept": "", "terms": "ultranationalism, authoritarianism, hierarchy, political violence"}, {"day": 311, "thinker": "Totalitarianism", "concept": "Hannah Arendt", "terms": "ideology, terror, atomisation, mass society"}, {"day": 312, "thinker": "Arendt on public life", "concept": "", "terms": "labour, work, action, plurality, natality"}, {"day": 313, "thinker": "Social democracy", "concept": "", "terms": "welfare state, redistribution, regulated capitalism, collective bargaining"}, {"day": 314, "thinker": "The welfare state", "concept": "", "terms": "social citizenship, insurance, universalism, social protection"}, {"day": 315, "thinker": "T. H. Marshall", "concept": "", "terms": "civil, political and social citizenship"}, {"day": 316, "thinker": "Esping-Andersen’s welfare regimes", "concept": "", "terms": "liberal, conservative-corporatist, social democratic"}, {"day": 317, "thinker": "Keynesianism", "concept": "", "terms": "aggregate demand, full employment, fiscal intervention, managed capitalism"}, {"day": 318, "thinker": "Neoliberalism", "concept": "", "terms": "markets, competition, privatisation, deregulation, entrepreneurial self"}, {"day": 319, "thinker": "Friedrich Hayek", "concept": "", "terms": "spontaneous order, price signals, dispersed knowledge, critique of planning"}, {"day": 320, "thinker": "Milton Friedman", "concept": "", "terms": "monetarism, market choice, negative income tax, deregulation"}, {"day": 321, "thinker": "Thatcherism", "concept": "", "terms": "privatisation, anti-union reform, monetarism, home ownership, individual responsibility"}, {"day": 322, "thinker": "Reaganism", "concept": "", "terms": "tax reduction, deregulation, anti-unionism, conservative realignment"}, {"day": 323, "thinker": "The New Right", "concept": "", "terms": "neoliberal economics, social conservatism, law and order, welfare retrenchment"}, {"day": 324, "thinker": "The Third Way", "concept": "", "terms": "Anthony Giddens, social investment, responsibility, market-compatible welfare"}, {"day": 325, "thinker": "New Public Management", "concept": "", "terms": "targets, contracting, audit, competition, managerialism"}, {"day": 326, "thinker": "Austerity", "concept": "", "terms": "expenditure reduction, welfare retrenchment, local-state restructuring"}, {"day": 327, "thinker": "Antonio Gramsci and political strategy", "concept": "", "terms": "hegemony, war of manoeuvre, war of position, historic bloc"}, {"day": 328, "thinker": "John Rawls and justice as fairness", "concept": "", "terms": "original position, veil of ignorance, equal liberties, difference principle"}, {"day": 329, "thinker": "Robert Nozick and entitlement theory", "concept": "", "terms": "self-ownership, acquisition, transfer, minimal state"}, {"day": 330, "thinker": "Amartya Sen on justice", "concept": "", "terms": "capabilities, comparative justice, public reasoning, realised freedom"}, {"day": 331, "thinker": "Martha Nussbaum’s capabilities approach", "concept": "", "terms": "central capabilities, dignity, threshold, human flourishing"}, {"day": 332, "thinker": "Communitarianism", "concept": "", "terms": "Michael Sandel, Charles Taylor, Alasdair MacIntyre, embedded selves"}, {"day": 333, "thinker": "Republicanism", "concept": "", "terms": "civic virtue, common good, freedom as non-domination"}, {"day": 334, "thinker": "Philip Pettit and non-domination", "concept": "", "terms": "arbitrary power, contestability, republican freedom"}, {"day": 335, "thinker": "Populism", "concept": "", "terms": "people versus elite, anti-establishment politics, thin-centred ideology"}, {"day": 336, "thinker": "Authoritarianism", "concept": "", "terms": "concentrated power, constrained pluralism, repression, obedience"}, {"day": 337, "thinker": "Democracy", "concept": "", "terms": "representation, participation, accountability, political equality"}, {"day": 338, "thinker": "Deliberative democracy", "concept": "", "terms": "public reasoning, inclusion, justification, communicative legitimacy"}, {"day": 339, "thinker": "Participatory democracy", "concept": "", "terms": "direct involvement, workplace democracy, local decision-making"}, {"day": 340, "thinker": "Chantal Mouffe and agonism", "concept": "", "terms": "conflict, adversaries, radical democracy, political passions"}, {"day": 341, "thinker": "Positivist methodology", "concept": "", "terms": "measurement, causality, regularity, hypothesis testing"}, {"day": 342, "thinker": "Interpretivist methodology", "concept": "", "terms": "meaning, context, verstehen, situated understanding"}, {"day": 343, "thinker": "Feminist methodology", "concept": "", "terms": "reflexivity, power, voice, situated knowledge, care"}, {"day": 344, "thinker": "Quantitative research", "concept": "", "terms": "variables, operationalisation, correlation, statistical inference"}, {"day": 345, "thinker": "Qualitative research", "concept": "", "terms": "depth, meaning, context, interpretation, emergent design"}, {"day": 346, "thinker": "Ethnography", "concept": "", "terms": "immersion, participant observation, fieldnotes, thick description"}, {"day": 347, "thinker": "Interviews and focus groups", "concept": "", "terms": "structured, semi-structured, narrative and group interaction"}, {"day": 348, "thinker": "Surveys and sampling", "concept": "", "terms": "population, probability, representativeness, questionnaire design"}, {"day": 349, "thinker": "Experiments and quasi-experiments", "concept": "", "terms": "control, treatment, randomisation, causal inference"}, {"day": 350, "thinker": "Validity, reliability and generalisability", "concept": "", "terms": "measurement quality, consistency, transferability"}, {"day": 351, "thinker": "Research ethics", "concept": "", "terms": "consent, confidentiality, harm, deception, safeguarding"}, {"day": 352, "thinker": "Reflexivity and positionality", "concept": "", "terms": "researcher location, relationships, interpretation, accountability"}, {"day": 353, "thinker": "Sigmund Freud", "concept": "", "terms": "unconscious, id, ego, superego, repression"}, {"day": 354, "thinker": "Behaviourism", "concept": "", "terms": "Pavlov, Watson, Skinner, conditioning, reinforcement"}, {"day": 355, "thinker": "Social learning theory", "concept": "Albert Bandura", "terms": "modelling, imitation, self-efficacy, reciprocal determinism"}, {"day": 356, "thinker": "Cognitive dissonance", "concept": "Leon Festinger", "terms": "inconsistency, discomfort, attitude change, rationalisation"}, {"day": 357, "thinker": "Social identity theory", "concept": "", "terms": "Tajfel, Turner, categorisation, identification, comparison, positive distinctiveness"}, {"day": 358, "thinker": "Obedience and conformity", "concept": "", "terms": "Milgram, Asch, authority, group pressure, situational influence"}, {"day": 359, "thinker": "Attribution theory", "concept": "", "terms": "dispositional attribution, situational attribution, fundamental attribution error"}, {"day": 360, "thinker": "Moral development", "concept": "", "terms": "Piaget, Kohlberg, Gilligan, reasoning, care and justice"}, {"day": 361, "thinker": "Moral panic", "concept": "", "terms": "Stanley Cohen, folk devils, amplification, moral entrepreneurs"}, {"day": 362, "thinker": "Strain, subculture and deviance", "concept": "", "terms": "Merton, Cohen, Cloward and Ohlin, blocked opportunity"}, {"day": 363, "thinker": "Critical criminology", "concept": "", "terms": "Taylor, Walton and Young, power, capitalism, criminalisation"}, {"day": 364, "thinker": "Surveillance capitalism", "concept": "Shoshana Zuboff", "terms": "behavioural data, prediction, extraction, behavioural modification"}, {"day": 365, "thinker": "The Anthropocene and climate justice", "concept": "", "terms": "human-environment relations, unequal responsibility, environmental harm, just transition"}];
+// ── Calendar ──────────────────────────────────────────────────────────────────
+function loadCalendar() {
+  // Static demo events — replace with Zoho CalDAV integration
+  var now = new Date();
+  var today = now.toLocaleDateString('en-GB',{weekday:'short'});
+  var todayEvents = [
+    {time:'09:00', title:'Morning briefing', sub:'Daily'},
+    {time:'14:00', title:'Client session', sub:'Identity Partners'},
+  ];
+  var weekEvents = [
+    {time:'Fri', title:'Lectures', sub:'Sociology MSc'},
+    {time:'Sat', title:'Dr's appointment', sub:''},
+  ];
+  var nextEvents = [
+    {time:'Mon', title:'Lectures', sub:'Sociology MSc'},
+  ];
 
-// ── Thinker / Concept of the Day ─────────────────────────────────────────────
-var currentDayIdx = -1;
-var pinnedDay = null;
-
-function getTodayIdx() {
-  var today = new Date();
-  var start = new Date(today.getFullYear(), 0, 0);
-  var diff = today - start;
-  var oneDay = 1000 * 60 * 60 * 24;
-  var dayOfYear = Math.floor(diff / oneDay);
-  return (dayOfYear - 1) % 365; // 0-indexed
-}
-
-function loadThinker(idx) {
-  if (idx === undefined) {
-    // Check for pinned day first
-    if (pinnedDay !== null) {
-      idx = pinnedDay;
-    } else {
-      idx = currentDayIdx >= 0 ? currentDayIdx : getTodayIdx();
-    }
-  }
-  currentDayIdx = idx;
-  var entry = CURRICULUM[idx] || CURRICULUM[0];
-
-  var nameEl = document.getElementById('thinker-name');
-  var dayEl = document.getElementById('thinker-day');
-  var conceptEl = document.getElementById('thinker-concept');
-  var termsEl = document.getElementById('thinker-terms');
-  var pinEl = document.getElementById('thinker-pin');
-
-  if (nameEl) nameEl.textContent = entry.thinker;
-  if (dayEl) dayEl.textContent = 'Day ' + entry.day + ' of 365';
-  if (conceptEl) conceptEl.textContent = entry.concept || '';
-  if (termsEl) termsEl.textContent = entry.terms || '';
-  if (pinEl) pinEl.textContent = pinnedDay === idx ? '📌 Pinned' : '📌 Pin';
-
-  // Update progress bar
-  var bar = document.getElementById('thinker-progress');
-  if (bar) bar.style.width = Math.round((entry.day / 365) * 100) + '%';
-}
-
-function thinkerNext() {
-  pinnedDay = null;
-  loadThinker((currentDayIdx + 1) % 365);
-}
-
-function thinkerPrev() {
-  pinnedDay = null;
-  loadThinker((currentDayIdx + 364) % 365);
-}
-
-function thinkerToday() {
-  pinnedDay = null;
-  loadThinker(getTodayIdx());
-}
-
-function thinkerPin() {
-  if (pinnedDay === currentDayIdx) {
-    pinnedDay = null;
-    document.getElementById('thinker-pin').textContent = '📌 Pin';
-    try { localStorage.removeItem('thinker-pinned'); } catch(e) {}
-  } else {
-    pinnedDay = currentDayIdx;
-    document.getElementById('thinker-pin').textContent = '📌 Pinned';
-    try { localStorage.setItem('thinker-pinned', currentDayIdx); } catch(e) {}
-  }
-}
-
-function learnMoreThinker() {
-  var entry = CURRICULUM[currentDayIdx] || CURRICULUM[0];
-  sessionStorage.setItem('research-query', entry.thinker + ' ' + (entry.concept || 'sociology'));
-  window.location.href = '/research/';
-}
-
-function addToResearch() {
-  var entry = CURRICULUM[currentDayIdx] || CURRICULUM[0];
-  fetch(WORKER + '/api/memory', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({content: 'Day ' + entry.day + ': ' + entry.thinker + (entry.concept ? ' — ' + entry.concept : '') + '. Key terms: ' + entry.terms, tags: ['sociology','curriculum','theory']})
-  }).then(function() { Toast.success('Added to Research memory.'); });
-}
-
-function debateThinker() {
-  var entry = CURRICULUM[currentDayIdx] || CURRICULUM[0];
-  var topic = entry.thinker + (entry.concept ? ': ' + entry.concept : '') + '. Key concepts: ' + entry.terms;
-  sessionStorage.setItem('debate-topic', topic);
-  window.location.href = '/agenti/round-table/';
-}
-
-// ── Active Agents panel ───────────────────────────────────────────────────────
-function loadActiveAgents() {
-  var list = document.getElementById('active-agents-list');
-  if (!list) return;
-
-  // Check Media Manager queue
-  fetch(WORKER + '/api/mm/queue')
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      var counts = d.counts || {};
-      var agents = [
-        {name:'Media Manager', icon:'\uD83D\uDCCB', status: counts.pending > 0 ? counts.pending + ' pending approval' : 'Queue clear', href:'/social-queue/', active: counts.pending > 0},
-        {name:'Orchestrator', icon:'\uD83E\uDDE0', status:'Ready', href:'/chat/', active:true},
-        {name:'Research Agent', icon:'\uD83D\uDD0D', status:'On standby', href:'/research/', active:false},
-        {name:'Creative Director', icon:'\uD83C\uDFAC', status:'On standby', href:'/creator/canvas/', active:false},
-      ];
-      list.innerHTML = agents.map(function(a) {
-        return '<a href="' + a.href + '" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-elevated);text-decoration:none;color:var(--fg);">' +
-          '<span style="font-size:16px;">' + a.icon + '</span>' +
-          '<div style="flex:1;min-width:0;">' +
-            '<div style="font-size:12px;font-weight:600;">' + a.name + '</div>' +
-            '<div style="font-size:10px;color:' + (a.active ? '#16a34a' : 'var(--fg-muted)') + ';">' + a.status + '</div>' +
-          '</div>' +
-          '<span style="width:8px;height:8px;border-radius:50%;background:' + (a.active ? '#16a34a' : '#9ca3af') + ';flex-shrink:0;"></span>' +
-          '</a>';
-      }).join('');
-    })
-    .catch(function() {
-      list.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);">Agents unavailable.</div>';
+  function renderEvents(containerId, events) {
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    if (!events.length) { el.innerHTML = '<div class="cal-empty">Nothing scheduled</div>'; return; }
+    el.innerHTML = '';
+    events.forEach(function(ev) {
+      var div = document.createElement('div');
+      div.className = 'cal-event';
+      var time = document.createElement('div');
+      time.className = 'cal-event-time';
+      time.textContent = ev.time;
+      var info = document.createElement('div');
+      var title = document.createElement('div');
+      title.className = 'cal-event-title';
+      title.textContent = ev.title;
+      info.appendChild(title);
+      if (ev.sub) {
+        var sub = document.createElement('div');
+        sub.className = 'cal-event-sub';
+        sub.textContent = ev.sub;
+        info.appendChild(sub);
+      }
+      div.appendChild(time); div.appendChild(info);
+      el.appendChild(div);
     });
+  }
+  renderEvents('cal-today-events', todayEvents);
+  renderEvents('cal-week-events', weekEvents);
+  renderEvents('cal-next-events', nextEvents);
+}
+
+// ── Tasks ─────────────────────────────────────────────────────────────────────
+function loadTasks() {
+  try { tasks = JSON.parse(localStorage.getItem('home-tasks') || '[]'); } catch(e) { tasks = []; }
+  renderTasks();
+}
+function renderTasks() {
+  var el = document.getElementById('tasks-list');
+  if (!el) return;
+  if (!tasks.length) { el.textContent = 'No tasks today.'; return; }
+  el.innerHTML = '';
+  tasks.forEach(function(t, i) {
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px;';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = t.done;
+    cb.onchange = function() { tasks[i].done = cb.checked; saveTasks(); renderTasks(); };
+    var label = document.createElement('span');
+    label.textContent = t.text;
+    if (t.done) label.style.cssText = 'text-decoration:line-through;color:var(--fg-muted);flex:1;';
+    else label.style.flex = '1';
+    var del = document.createElement('button');
+    del.textContent = '×'; del.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:14px;';
+    del.onclick = function() { tasks.splice(i,1); saveTasks(); renderTasks(); };
+    row.appendChild(cb); row.appendChild(label); row.appendChild(del);
+    el.appendChild(row);
+  });
+}
+function addTask() {
+  var inp = document.getElementById('task-input');
+  if (!inp || !inp.value.trim()) return;
+  tasks.push({text:inp.value.trim(), done:false, created:new Date().toISOString()});
+  inp.value = '';
+  saveTasks(); renderTasks();
+}
+function saveTasks() { localStorage.setItem('home-tasks', JSON.stringify(tasks)); }
+
+// ── News ──────────────────────────────────────────────────────────────────────
+function loadNews() {
+  var feeds = [
+    'https://feeds.theguardian.com/theguardian/uk/rss',
+    'https://feeds.bbci.co.uk/news/rss.xml',
+    'https://feeds.skynews.com/feeds/rss/uk.xml',
+  ];
+  var el = document.getElementById('news-list');
+  fetch(WORKER + '/api/rss?url=' + encodeURIComponent(feeds[Math.floor(Math.random()*feeds.length)]))
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var items = d.items || [];
+      if (!items.length) { el.textContent = 'No news loaded.'; return; }
+      el.innerHTML = '';
+      items.slice(0,5).forEach(function(item) {
+        var div = document.createElement('div');
+        div.className = 'news-item';
+        div.onclick = function() { window.open(item.url,'_blank'); };
+        if (item.image) {
+          var img = document.createElement('img');
+          img.className = 'news-thumb'; img.src = item.image; img.alt = '';
+          img.onerror = function(){this.style.display='none';};
+          div.appendChild(img);
+        }
+        var info = document.createElement('div');
+        info.style.flex = '1';
+        var headline = document.createElement('div');
+        headline.className = 'news-headline';
+        headline.textContent = item.title || '';
+        var meta = document.createElement('div');
+        meta.className = 'news-meta';
+        meta.textContent = item.date ? new Date(item.date).toLocaleDateString('en-GB') : '';
+        info.appendChild(headline); info.appendChild(meta);
+        div.appendChild(info);
+        el.appendChild(div);
+      });
+    })
+    .catch(function(){ el.textContent = 'News unavailable.'; });
+}
+
+// ── Research papers ───────────────────────────────────────────────────────────
+function loadPapers() {
+  var el = document.getElementById('papers-list');
+  var queries = ['disability mental health UK policy', 'ADHD neurodivergence social', 'addiction recovery sociology'];
+  var q = queries[Math.floor(Math.random()*queries.length)];
+  fetch(WORKER + '/api/search', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({query:q, sources:['scholarly']})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    var papers = (d.results||[]).filter(function(r){return r.type==='academic';});
+    if (!papers.length) { el.textContent = 'No papers loaded.'; return; }
+    el.innerHTML = '';
+    papers.slice(0,4).forEach(function(p) {
+      var div = document.createElement('div');
+      div.className = 'paper-item';
+      var title = document.createElement('div');
+      title.className = 'paper-title';
+      title.textContent = p.title || '';
+      title.onclick = function() { if(p.url) window.open(p.url,'_blank'); };
+      var meta = document.createElement('div');
+      meta.className = 'paper-meta';
+      meta.textContent = (p.authors||'') + (p.year?' · '+p.year:'') + ' · Semantic Scholar';
+      div.appendChild(title); div.appendChild(meta);
+      el.appendChild(div);
+    });
+  })
+  .catch(function(){ el.textContent = 'Papers unavailable.'; });
+}
+
+// ── Bitesize ──────────────────────────────────────────────────────────────────
+var BITESIZE = [
+  {concept:'Emotional Labour', thinker:'Arlie Hochschild', def:'The management of feeling to create a publicly observable facial and bodily display; the commodification of emotion in service work.', tags:['sociology','work','emotion']},
+  {concept:'Habitus', thinker:'Pierre Bourdieu', def:'Durable, transposable dispositions — the embodied history of social conditions that shapes perception, thought, and action.', tags:['sociology','Bourdieu','capital']},
+  {concept:'Stigma', thinker:'Erving Goffman', def:'A deeply discrediting attribute that reduces the bearer from a whole person to a tainted, discounted one in social interaction.', tags:['sociology','identity','disability']},
+  {concept:'Intersectionality', thinker:'Kimberlé Crenshaw', def:'The complex, cumulative way in which the effects of multiple forms of discrimination combine, overlap, and intersect.', tags:['sociology','race','gender']},
+  {concept:'Social Capital', thinker:'Robert Putnam', def:'Features of social organisation — networks, norms, trust — that facilitate coordination and cooperation for mutual benefit.', tags:['sociology','community','networks']},
+  {concept:'Medicalisation', thinker:'Peter Conrad', def:'The process by which non-medical problems become defined and treated as medical problems, usually in terms of illness or disorder.', tags:['sociology','health','disability']},
+  {concept:'Zemiological Harm', thinker:'Paddy Hillyard', def:'Social harm analysis that moves beyond crime to examine the full range of harms — physical, financial, emotional, cultural — caused by social arrangements.', tags:['criminology','harm','disability']},
+];
+
+function loadBitesize() {
+  var el = document.getElementById('bitesize-content');
+  var nav = document.getElementById('bitesize-nav');
+  var item = BITESIZE[bitesize_idx % BITESIZE.length];
+
+  el.innerHTML = '';
+  var card = document.createElement('div');
+  card.className = 'bitesize-card';
+  var concept = document.createElement('div');
+  concept.className = 'bitesize-concept';
+  concept.textContent = item.concept;
+  var thinker = document.createElement('div');
+  thinker.style.cssText = 'font-size:11px;color:var(--accent);margin-bottom:6px;font-weight:600;';
+  thinker.textContent = item.thinker;
+  var def = document.createElement('div');
+  def.className = 'bitesize-def';
+  def.textContent = item.def;
+  var actions = document.createElement('div');
+  actions.className = 'bitesize-actions';
+  [['🔍 Research', '/research/?q='+encodeURIComponent(item.concept)],
+   ['💬 Debate', '/agenti/round-table/?topic='+encodeURIComponent(item.concept)],
+   ['📖 Wiki', 'https://en.wikipedia.org/wiki/'+encodeURIComponent(item.concept)]
+  ].forEach(function(btn) {
+    var a = document.createElement('a');
+    a.className = 'bitesize-btn'; a.href = btn[1]; a.target = btn[1].startsWith('http')?'_blank':'_self';
+    a.textContent = btn[0]; actions.appendChild(a);
+  });
+  card.appendChild(concept); card.appendChild(thinker); card.appendChild(def); card.appendChild(actions);
+  el.appendChild(card);
+
+  // Nav buttons
+  nav.innerHTML = '';
+  var prev = document.createElement('button');
+  prev.textContent = '‹'; prev.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:14px;';
+  prev.onclick = function(){bitesize_idx--;loadBitesize();};
+  var next = document.createElement('button');
+  next.textContent = '›'; next.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:14px;';
+  next.onclick = function(){bitesize_idx++;loadBitesize();};
+  var counter = document.createElement('span');
+  counter.style.cssText = 'font-size:10px;color:var(--fg-muted);';
+  counter.textContent = (bitesize_idx%BITESIZE.length+1)+'/'+BITESIZE.length;
+  nav.appendChild(prev); nav.appendChild(counter); nav.appendChild(next);
+}
+
+// ── WIP ───────────────────────────────────────────────────────────────────────
+function loadWIP() {
+  var el = document.getElementById('home-wip-list');
+  fetch(WORKER + '/api/jobs')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var jobs = (d.jobs||[]).filter(function(j){return j.status==='running';});
+      if (!jobs.length) { el.textContent = 'No jobs in progress.'; return; }
+      el.innerHTML = '';
+      jobs.slice(0,5).forEach(function(job) {
+        var div = document.createElement('div');
+        div.className = 'wip-item';
+        var name = document.createElement('div');
+        name.className = 'wip-name';
+        name.textContent = '📄 ' + (job.document_name||'Job');
+        var prog = document.createElement('div');
+        prog.className = 'wip-progress';
+        prog.textContent = job.progress || '';
+        var bar = document.createElement('div');
+        bar.className = 'wip-bar';
+        var fill = document.createElement('div');
+        fill.className = 'wip-fill';
+        var pct = job.chunks_total ? Math.round(100*(job.chunks_done||0)/job.chunks_total) : 0;
+        fill.style.width = pct + '%';
+        bar.appendChild(fill);
+        div.appendChild(name); div.appendChild(prog); div.appendChild(bar);
+        el.appendChild(div);
+      });
+    })
+    .catch(function(){ el.textContent = 'WIP unavailable.'; });
+}
+
+// ── Social queue ──────────────────────────────────────────────────────────────
+function loadSocialQueue() {
+  var el = document.getElementById('social-queue-preview');
+  fetch(WORKER + '/api/mm/queue')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var pending = (d.queue||[]).filter(function(i){return i.status==='pending';}).length;
+      el.textContent = pending > 0 ? pending + ' post(s) pending approval' : 'Queue clear';
+    })
+    .catch(function(){ el.textContent = ''; });
+}
+
+// ── Quick notes ───────────────────────────────────────────────────────────────
+function loadQuickNotes() {
+  var el = document.getElementById('quick-notes');
+  if (el) el.value = localStorage.getItem('home-quick-notes') || '';
+}
+function saveQuickNotes() {
+  var el = document.getElementById('quick-notes');
+  if (el) localStorage.setItem('home-quick-notes', el.value);
+}
+
+// ── Input strip ───────────────────────────────────────────────────────────────
+function setInputMode(mode, btn) {
+  homeInputMode = mode;
+  document.querySelectorAll('.home-input-tab').forEach(function(t){t.classList.remove('active');});
+  if (btn) btn.classList.add('active');
+  var inp = document.getElementById('home-input');
+  var placeholders = {chat:"What's on your mind?",research:"Search for...",draft:"Draft something...",atomise:"Paste content to atomise...",image:"Describe an image..."};
+  if (inp) inp.placeholder = placeholders[mode] || "Type here...";
+}
+
+function homeInputSend() {
+  var inp = document.getElementById('home-input');
+  if (!inp || !inp.value.trim()) return;
+  var text = inp.value.trim();
+  inp.value = '';
+  var routes = {chat:'/chat/?q=',research:'/research/?q=',draft:'/drafting/?q=',atomise:'/atomise/?q=',image:'/creator/assets/?q='};
+  window.location.href = (routes[homeInputMode]||'/chat/?q=') + encodeURIComponent(text);
 }
 </script>
 </body>
