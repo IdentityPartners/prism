@@ -378,33 +378,56 @@ function runAgent() {
 function runAgentTask(task) {
   if (!activeAgent) return;
   setAgentStatus(activeAgent.id, 'running');
-  addChatMsg('system', activeAgent.name + ' is working...');
-  var messages = [{ role: 'system', content: (activeAgent.systemPrompt || ('You are ' + activeAgent.name + ' for Identity Partners. ' + (activeAgent.description || '') + ' British English. Execute tasks immediately. Never describe actions.')) + ' To use a tool, write TOOL_CALL: tool_name on its own line.' }];
-  chatHistory.forEach(function(m) { messages.push(m); });
-  messages.push({ role: 'user', content: task });
-  fetch(WORKER + '/api/devteam', {
+
+  var sysPrompt = activeAgent.systemPrompt ||
+    ('You are ' + activeAgent.name + ' for Identity Partners. ' + (activeAgent.description || '') +
+     ' British English. Execute tasks completely. Never truncate. Work through the entire document.');
+
+  var attachedFiles = window._agentAttachments || [];
+  var fileContext = '';
+  if (attachedFiles.length > 0) {
+    fileContext = '\n\n[ATTACHED FILES]\n';
+    attachedFiles.forEach(function(f) {
+      fileContext += 'File: ' + f.name + ' (' + Math.round(f.size/1024) + 'KB)\n\n';
+      fileContext += f.content.substring(0, 80000);
+      fileContext += '\n\n---\n\n';
+    });
+  }
+
+  var fullTask = task + fileContext;
+  var messages = [{ role: 'system', content: sysPrompt }];
+  chatHistory.slice(-10).forEach(function(m) { messages.push(m); });
+  messages.push({ role: 'user', content: fullTask });
+
+  addChatMsg('system', activeAgent.name + ' is working...' + (attachedFiles.length > 0 ? ' (' + attachedFiles.length + ' file(s) attached)' : ''));
+
+  fetch(WORKER + '/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ agent: activeAgent.id, message: task, messages: messages })
+    body: JSON.stringify({ messages: messages, profile: 'balanced', threadId: 'agent-' + activeAgent.id })
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
     setAgentStatus(activeAgent.id, 'done');
-    var response = d.content || 'Task completed.';
+    var response = d.content;
+    if (!response || response.trim() === '' || response === 'Task completed.') {
+      response = 'The agent returned no content. Try: (1) attaching the document directly, (2) breaking the task into smaller steps, or (3) selecting a model with larger context (DeepSeek 1M, Gemini 1M).';
+    }
     addChatMsg('agent', response);
     chatHistory.push({ role: 'user', content: task });
     chatHistory.push({ role: 'assistant', content: response });
-    addOutput(activeAgent.name, task, response, d.toolResults || []);
-    addSupervisorLog(activeAgent.name + ' completed: ' + task.substring(0, 50));
+    addOutput(activeAgent.name, task, response, []);
+    addSupervisorLog(activeAgent.name + ' (' + (d.provider||'?') + '): ' + task.substring(0, 50));
     taskHistory.unshift({ agent: activeAgent.name, task: task, response: response, ts: Date.now() });
     renderHistory();
+    window._agentAttachments = [];
+    updateAttachmentIndicator();
   })
   .catch(function(e) {
     setAgentStatus(activeAgent.id, 'error');
     addChatMsg('system', 'Error: ' + e.message);
   });
 }
-
 function addChatMsg(role, text) {
   var chat = document.getElementById('agent-chat');
   if (!chat) return;
@@ -643,6 +666,35 @@ function deleteAgent(agentId) {
   agents = agents.filter(function(a){ return a.id !== agentId; });
   renderAgentList();
   if (activeAgent && activeAgent.id === agentId) { activeAgent = null; document.getElementById('active-agent-name').textContent = 'Select an agent'; document.getElementById('run-btn').disabled = true; }
+}
+
+window._agentAttachments = [];
+function handleAgentAttachment(input) {
+  if (!input.files || !input.files.length) return;
+  Array.from(input.files).forEach(function(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      window._agentAttachments.push({ name: file.name, size: file.size, content: e.target.result });
+      updateAttachmentIndicator();
+    };
+    reader.readAsText(file);
+  });
+  input.value = '';
+}
+function updateAttachmentIndicator() {
+  var strip = document.getElementById('agent-attach-strip');
+  if (!strip) return;
+  var files = window._agentAttachments || [];
+  if (!files.length) { strip.style.display = 'none'; strip.innerHTML = ''; return; }
+  strip.style.display = 'flex';
+  strip.innerHTML = '<span style="color:var(--fg-muted);">📎</span>' +
+    files.map(function(f, i) {
+      return '<span style="background:var(--accent-light,#e8f0f8);border:1px solid var(--accent);border-radius:4px;padding:2px 8px;display:inline-flex;align-items:center;gap:4px;">📄 ' + f.name + ' (' + Math.round(f.size/1024) + 'KB)<button onclick="removeAgentAttachment(' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:12px;">&times;</button></span>';
+    }).join('');
+}
+function removeAgentAttachment(idx) {
+  window._agentAttachments.splice(idx, 1);
+  updateAttachmentIndicator();
 }
 </script>
 
