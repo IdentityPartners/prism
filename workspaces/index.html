@@ -216,44 +216,55 @@ var DEFAULT_WORKSPACES = [
 
 // ── Load / save ───────────────────────────────────────────────────────────────
 function loadWorkspaces() {
-  // Load from KV via Worker API (persistent, cross-device)
+  // Try KV first, fall back to localStorage, then defaults
   fetch(WORKER + '/api/workspaces')
     .then(function(r) { return r.json(); })
     .then(function(d) {
       var kvWorkspaces = d.workspaces || [];
       if (kvWorkspaces.length > 0) {
         workspaces = kvWorkspaces;
+        renderWorkspaceList();
       } else {
-        // First time: migrate from localStorage or use defaults
-        var saved = localStorage.getItem('prism-workspaces-v2') || localStorage.getItem('prism-workspaces');
-        if (saved) {
-          try {
-            var parsed = JSON.parse(saved);
-            workspaces = parsed.length > 0 ? parsed : DEFAULT_WORKSPACES;
-            // Migrate to KV
-            workspaces.forEach(function(w) { saveWS(w); });
-          } catch(e) { workspaces = DEFAULT_WORKSPACES; }
-        } else {
-          workspaces = DEFAULT_WORKSPACES;
-          workspaces.forEach(function(w) { saveWS(w); });
-        }
+        // No KV workspaces — load from localStorage or defaults
+        loadFromLocalStorage();
       }
-      renderWorkspaceList();
     })
-    .catch(function() {
-      // Fallback to localStorage
-      try {
-        var saved = localStorage.getItem('prism-workspaces-v2');
-        workspaces = saved ? JSON.parse(saved) : DEFAULT_WORKSPACES;
-      } catch(e) { workspaces = DEFAULT_WORKSPACES; }
-      renderWorkspaceList();
+    .catch(function(err) {
+      console.warn('KV load failed:', err);
+      loadFromLocalStorage();
     });
+}
+
+function loadFromLocalStorage() {
+  try {
+    var saved = localStorage.getItem('prism-workspaces-v2') || localStorage.getItem('prism-workspaces');
+    if (saved) {
+      var parsed = JSON.parse(saved);
+      workspaces = (parsed && parsed.length > 0) ? parsed : DEFAULT_WORKSPACES.slice();
+    } else {
+      workspaces = DEFAULT_WORKSPACES.slice();
+    }
+  } catch(e) {
+    workspaces = DEFAULT_WORKSPACES.slice();
+  }
+  renderWorkspaceList();
+  // Migrate to KV in background (don't block render)
+  setTimeout(function() {
+    workspaces.forEach(function(w) {
+      fetch(WORKER + '/api/workspaces', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(w)
+      }).catch(function(){});
+    });
+  }, 1000);
 }
 function saveWorkspaces() {
   try { saveAllWorkspaces(); } catch(e) {}
 }
 
 function saveWS(ws) {
+  if (!ws || !ws.id) return;
   // Save to KV via Worker API
   fetch(WORKER + '/api/workspaces', {
     method: 'POST',
@@ -980,6 +991,16 @@ function renderDocumentsSection(body, sec, countEl) {
     var chatBtn = document.createElement('button');
     chatBtn.className = 'btn btn-sm btn-primary';
     chatBtn.textContent = '💬 Chat';
+    var agentBtn = document.createElement('button');
+    agentBtn.className = 'btn btn-sm btn-secondary';
+    agentBtn.textContent = '🤖 Analyse';
+    agentBtn.title = 'Send to Agent Hub for analysis';
+    agentBtn.onclick = function() {
+      // Store doc for agent pickup
+      sessionStorage.setItem('agent-doc-content', doc.content || '');
+      sessionStorage.setItem('agent-doc-name', doc.name);
+      window.location.href = '/agenti/agent-builder/';
+    };
     var extractBtn = document.createElement('button');
     extractBtn.className = 'btn btn-sm btn-secondary';
     extractBtn.textContent = '🔍 Extract';
@@ -996,7 +1017,7 @@ function renderDocumentsSection(body, sec, countEl) {
       saveWS(currentWS);
       renderDocumentsSection(body, sec, countEl);
     };
-    row.appendChild(icon); row.appendChild(info); row.appendChild(chatBtn); row.appendChild(extractBtn); row.appendChild(delBtn);
+    row.appendChild(icon); row.appendChild(info); row.appendChild(chatBtn); row.appendChild(agentBtn); row.appendChild(extractBtn); row.appendChild(delBtn);
     body.appendChild(row);
   });
 }
