@@ -562,17 +562,219 @@ function renderTodosSection(body, sec, count) {
 
 function renderNotesSection(body, sec) {
   body.innerHTML = '';
-  var ta = document.createElement('textarea');
-  ta.className = 'ws-notes-ta';
-  ta.value = currentWS.notes || '';
-  ta.placeholder = 'Notes, ideas, context for this workspace…';
-  ta.oninput = function() {
-    currentWS.notes = ta.value;
-    saveWorkspaces();
+  var toolbar = document.createElement('div');
+  toolbar.style.cssText = 'display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap;';
+  var newBtn = document.createElement('button');
+  newBtn.className = 'btn btn-sm btn-primary';
+  newBtn.textContent = '+ New Note';
+  newBtn.onclick = function() { openNoteEditor(null); };
+  var importBtn = document.createElement('button');
+  importBtn.className = 'btn btn-sm btn-secondary';
+  importBtn.textContent = 'Import .md';
+  importBtn.onclick = function() {
+    var inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = '.md,.txt'; inp.multiple = true;
+    inp.onchange = function() {
+      Array.from(inp.files).forEach(function(file) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          saveNote(currentWS.id, {title: file.name.replace(/\.(md|txt)$/, ''), content: e.target.result});
+        };
+        reader.readAsText(file);
+      });
+    };
+    inp.click();
   };
-  body.appendChild(ta);
+  toolbar.appendChild(newBtn);
+  toolbar.appendChild(importBtn);
+  body.appendChild(toolbar);
+  var tableWrap = document.createElement('div');
+  tableWrap.id = 'notes-table-' + (currentWS ? currentWS.id : 'ws');
+  tableWrap.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);">Loading notes...</div>';
+  body.appendChild(tableWrap);
+  if (currentWS) loadNotesTable(currentWS.id, tableWrap);
+  if (!document.getElementById('note-editor-modal')) {
+    var modal = document.createElement('div');
+    modal.id = 'note-editor-modal';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:var(--bg-elevated);border-radius:12px;padding:20px;width:700px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.2);';
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:12px;';
+    var titleInp = document.createElement('input');
+    titleInp.id = 'note-title-input'; titleInp.type = 'text'; titleInp.placeholder = 'Note title...';
+    titleInp.style.cssText = 'flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-weight:600;background:var(--bg);color:var(--fg);';
+    var saveBtn2 = document.createElement('button');
+    saveBtn2.textContent = 'Save'; saveBtn2.onclick = saveCurrentNote;
+    saveBtn2.style.cssText = 'padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;';
+    var closeBtn = document.createElement('button');
+    closeBtn.textContent = 'Close'; closeBtn.onclick = closeNoteEditor;
+    closeBtn.style.cssText = 'padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);color:var(--fg);';
+    hdr.appendChild(titleInp); hdr.appendChild(saveBtn2); hdr.appendChild(closeBtn);
+    var hint = document.createElement('div');
+    hint.style.cssText = 'font-size:10px;color:var(--fg-muted);margin-bottom:6px;';
+    hint.textContent = 'Markdown supported. Saved to KV — persistent across devices.';
+    var contentTa = document.createElement('textarea');
+    contentTa.id = 'note-content-input';
+    contentTa.style.cssText = 'flex:1;min-height:400px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:monospace;resize:vertical;background:var(--bg);color:var(--fg);line-height:1.6;';
+    contentTa.placeholder = '# Note title\n\nWrite in Markdown...';
+    var footer2 = document.createElement('div');
+    footer2.style.cssText = 'display:flex;gap:8px;margin-top:10px;align-items:center;';
+    var dlBtn2 = document.createElement('button');
+    dlBtn2.textContent = 'Download .md'; dlBtn2.onclick = downloadCurrentNote;
+    dlBtn2.style.cssText = 'padding:6px 12px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);';
+    var statusSpan = document.createElement('span');
+    statusSpan.id = 'note-save-status';
+    statusSpan.style.cssText = 'font-size:11px;color:var(--fg-muted);';
+    footer2.appendChild(dlBtn2); footer2.appendChild(statusSpan);
+    box.appendChild(hdr); box.appendChild(hint); box.appendChild(contentTa); box.appendChild(footer2);
+    modal.appendChild(box);
+    document.body.appendChild(modal);
+  }
 }
 
+var _currentNoteId = null;
+var _currentNoteWsId = null;
+
+function loadNotesTable(wsId, container) {
+  fetch(WORKER + '/api/workspaces/' + wsId + '/notes')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var notes = d.notes || [];
+      if (!notes.length) {
+        container.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No notes yet. Click + New Note to create one, or import a .md file.</div>';
+        return;
+      }
+      container.innerHTML = '';
+      var table = document.createElement('table');
+      table.style.cssText = 'width:100%;border-collapse:collapse;font-size:12px;';
+      var thead = document.createElement('thead');
+      thead.innerHTML = '<tr style="border-bottom:2px solid var(--border);"><th style="text-align:left;padding:6px 8px;color:var(--fg-muted);">Title</th><th style="text-align:left;padding:6px 8px;color:var(--fg-muted);">Size</th><th style="text-align:left;padding:6px 8px;color:var(--fg-muted);">Updated</th><th style="padding:6px 8px;"></th></tr>';
+      table.appendChild(thead);
+      var tbody = document.createElement('tbody');
+      notes.forEach(function(note) {
+        var sizeStr = note.size > 1024 ? Math.round(note.size/1024) + 'KB' : note.size + 'B';
+        var dateStr = note.updated ? new Date(note.updated).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : '—';
+        var row = document.createElement('tr');
+        row.style.cssText = 'border-bottom:1px solid var(--border);cursor:pointer;';
+        row.onmouseover = function() { this.style.background = 'var(--bg-sunken)'; };
+        row.onmouseout = function() { this.style.background = ''; };
+        var td1 = document.createElement('td');
+        td1.style.cssText = 'padding:8px;';
+        td1.innerHTML = '<strong>📝 ' + note.title + '</strong>';
+        td1.onclick = function() { openNoteEditor(note.id, wsId); };
+        var td2 = document.createElement('td');
+        td2.style.cssText = 'padding:8px;color:var(--fg-muted);';
+        td2.textContent = sizeStr;
+        var td3 = document.createElement('td');
+        td3.style.cssText = 'padding:8px;color:var(--fg-muted);';
+        td3.textContent = dateStr;
+        var td4 = document.createElement('td');
+        td4.style.cssText = 'padding:8px;text-align:right;white-space:nowrap;';
+        var dlBtn = document.createElement('button');
+        dlBtn.textContent = '⬇';
+        dlBtn.title = 'Download .md';
+        dlBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:13px;color:var(--fg-muted);padding:2px 6px;';
+        dlBtn.onclick = function(e) { e.stopPropagation(); downloadNote(note.id, wsId); };
+        var delBtn = document.createElement('button');
+        delBtn.textContent = '✕';
+        delBtn.title = 'Delete';
+        delBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:13px;color:#dc2626;padding:2px 6px;';
+        delBtn.onclick = function(e) { e.stopPropagation(); deleteNote(note.id, wsId, row); };
+        td4.appendChild(dlBtn); td4.appendChild(delBtn);
+        row.appendChild(td1); row.appendChild(td2); row.appendChild(td3); row.appendChild(td4);
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      container.appendChild(table);
+    })
+    .catch(function() {
+      container.innerHTML = '<div style="font-size:12px;color:#dc2626;">Failed to load notes from server.</div>';
+    });
+}
+
+function openNoteEditor(noteId, wsId) {
+  var modal = document.getElementById('note-editor-modal');
+  if (!modal) return;
+  _currentNoteId = noteId;
+  _currentNoteWsId = wsId || (currentWS ? currentWS.id : null);
+  var statusEl = document.getElementById('note-save-status');
+  if (statusEl) statusEl.textContent = '';
+  if (noteId && _currentNoteWsId) {
+    fetch(WORKER + '/api/workspaces/' + _currentNoteWsId + '/notes/' + noteId)
+      .then(function(r) { return r.json(); })
+      .then(function(note) {
+        document.getElementById('note-title-input').value = note.title || '';
+        document.getElementById('note-content-input').value = note.content || '';
+      });
+  } else {
+    document.getElementById('note-title-input').value = '';
+    document.getElementById('note-content-input').value = '';
+  }
+  modal.style.display = 'flex';
+  setTimeout(function() { document.getElementById('note-title-input').focus(); }, 100);
+}
+
+function closeNoteEditor() {
+  var modal = document.getElementById('note-editor-modal');
+  if (modal) modal.style.display = 'none';
+  if (currentWS) {
+    var container = document.getElementById('notes-table-' + currentWS.id);
+    if (container) loadNotesTable(currentWS.id, container);
+  }
+}
+
+function saveCurrentNote() {
+  var title = document.getElementById('note-title-input').value.trim() || 'Untitled Note';
+  var content = document.getElementById('note-content-input').value;
+  var wsId = _currentNoteWsId || (currentWS ? currentWS.id : null);
+  if (!wsId) return;
+  var statusEl = document.getElementById('note-save-status');
+  if (statusEl) statusEl.textContent = 'Saving...';
+  saveNote(wsId, {id: _currentNoteId, title: title, content: content});
+}
+
+function saveNote(wsId, note) {
+  fetch(WORKER + '/api/workspaces/' + wsId + '/notes', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(note)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      _currentNoteId = d.note.id;
+      var statusEl = document.getElementById('note-save-status');
+      if (statusEl) statusEl.textContent = 'Saved ' + new Date().toLocaleTimeString('en-GB');
+      Toast.success('Note saved: ' + (note.title || 'Untitled'));
+    }
+  })
+  .catch(function(e) { Toast.warning('Save failed: ' + e.message); });
+}
+
+function deleteNote(noteId, wsId, row) {
+  if (!confirm('Delete this note? Cannot be undone.')) return;
+  fetch(WORKER + '/api/workspaces/' + wsId + '/notes/' + noteId, {method: 'DELETE'})
+    .then(function() { if (row) row.remove(); Toast.success('Note deleted'); });
+}
+
+function downloadNote(noteId, wsId) {
+  window.open(WORKER + '/api/workspaces/' + wsId + '/notes/' + noteId + '/download', '_blank');
+}
+
+function downloadCurrentNote() {
+  if (_currentNoteId && _currentNoteWsId) {
+    downloadNote(_currentNoteId, _currentNoteWsId);
+  } else {
+    var title = (document.getElementById('note-title-input').value.trim() || 'note').replace(/[^a-z0-9\-_]/gi, '_').toLowerCase();
+    var content = document.getElementById('note-content-input').value;
+    var blob = new Blob([content], {type: 'text/markdown'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = title + '.md';
+    a.click();
+  }
+}
 function renderEventsSection(body, sec, count) {
   body.innerHTML = '';
   var events = currentWS.events || [];
