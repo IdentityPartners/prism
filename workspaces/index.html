@@ -223,7 +223,7 @@ function loadWorkspaces() {
       var kvWorkspaces = d.workspaces || [];
       if (kvWorkspaces.length > 0) {
         workspaces = kvWorkspaces;
-        renderWorkspaceList();
+        renderList();
       } else {
         // No KV workspaces — load from localStorage or defaults
         loadFromLocalStorage();
@@ -249,7 +249,7 @@ function loadFromLocalStorage() {
   }
   // Always save to localStorage as backup
   try { localStorage.setItem('prism-workspaces-v2', JSON.stringify(workspaces)); } catch(e) {}
-  renderWorkspaceList();
+  renderList();
   // Save to KV in background
   setTimeout(function() {
     workspaces.forEach(function(w) {
