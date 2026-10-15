@@ -1155,4 +1155,1220 @@ function triggerDocUpload() {
 }
 </script>
 </body>
+</htmlfunction showWIPPanel() {
+  var existing = document.getElementById('wip-modal');
+  if (existing) { existing.remove(); return; }
+  var modal = document.createElement('div');
+  modal.id = 'wip-modal';
+  modal.style.cssText = 'position:fixed;top:60px;right:20px;width:360px;max-height:70vh;background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.2);z-index:9999;overflow:hidden;display:flex;flex-direction:column;';
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;';
+  var hdrTitle = document.createElement('strong');
+  hdrTitle.style.fontSize = '13px';
+  hdrTitle.textContent = 'Work In Progress';
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = 'x';
+  closeBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:16px;color:var(--fg-muted);';
+  closeBtn.onclick = function() { modal.remove(); };
+  hdr.appendChild(hdrTitle); hdr.appendChild(closeBtn);
+  var body = document.createElement('div');
+  body.style.cssText = 'padding:12px;overflow-y:auto;flex:1;font-size:12px;color:var(--fg-muted);';
+  body.textContent = 'Loading...';
+  modal.appendChild(hdr); modal.appendChild(body);
+  document.body.appendChild(modal);
+  fetch(WORKER + '/api/jobs')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var jobs = d.jobs || [];
+      body.innerHTML = '';
+      if (!jobs.length) { body.textContent = 'No jobs in progress.'; return; }
+      jobs.forEach(function(job) {
+        var div = document.createElement('div');
+        div.style.cssText = 'padding:8px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;';
+        var statusColor = job.status==='complete'?'#16a34a':job.status==='error'?'#dc2626':'#f59e0b';
+        var pct = job.chunks_total ? Math.round(100*(job.chunks_done||0)/job.chunks_total) : 0;
+        var nameRow = document.createElement('div');
+        nameRow.style.cssText = 'display:flex;justify-content:space-between;margin-bottom:4px;';
+        var nameEl = document.createElement('strong');
+        nameEl.style.fontSize = '12px';
+        nameEl.textContent = (job.document_name||'Job');
+        var statusEl = document.createElement('span');
+        statusEl.style.cssText = 'font-size:10px;color:'+statusColor+';font-weight:600;';
+        statusEl.textContent = (job.status||'').toUpperCase();
+        nameRow.appendChild(nameEl); nameRow.appendChild(statusEl);
+        var progEl = document.createElement('div');
+        progEl.style.cssText = 'font-size:11px;color:var(--fg-muted);margin-bottom:4px;';
+        progEl.textContent = job.progress || '';
+        var bar = document.createElement('div');
+        bar.style.cssText = 'height:4px;background:var(--border);border-radius:2px;overflow:hidden;';
+        var fill = document.createElement('div');
+        fill.style.cssText = 'height:100%;width:'+pct+'%;background:var(--accent);border-radius:2px;';
+        bar.appendChild(fill);
+        var link = document.createElement('a');
+        link.href = '/agenti/agent-builder/';
+        link.style.cssText = 'font-size:10px;color:var(--accent);display:block;margin-top:4px;';
+        link.textContent = 'View in Agent Hub';
+        div.appendChild(nameRow); div.appendChild(progEl); div.appendChild(bar); div.appendChild(link);
+        body.appendChild(div);
+      });
+    })
+    .catch(function(e){ body.textContent = 'Error: ' + e.message; });
+}
+DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workspaces — Argentica</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<style>
+/* Workspace list view */
+.ws-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:20px; padding:20px; }
+.ws-card {
+  background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius);
+  cursor:pointer; transition:all 0.18s; overflow:hidden; position:relative;
+}
+.ws-card:hover { border-color:var(--accent); box-shadow:var(--shadow-lg); transform:translateY(-2px); }
+.ws-card-header { padding:16px 18px 12px; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--border); }
+.ws-icon { width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
+.ws-name { font-family:var(--font-heading); font-size:16px; font-weight:600; color:var(--fg-primary); }
+.ws-desc { font-size:12px; color:var(--fg-muted); margin-top:2px; }
+.ws-card-body { padding:12px 18px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.ws-stat { font-size:11.5px; color:var(--fg-secondary); display:flex; align-items:center; gap:5px; }
+.ws-stat-num { font-weight:600; color:var(--accent); }
+.ws-card-footer { padding:10px 18px; border-top:1px solid var(--border); display:flex; gap:6px; background:var(--bg-surface); }
+.ws-new-btn { border:2px dashed var(--border); border-radius:var(--radius); padding:32px; text-align:center; cursor:pointer; transition:all 0.18s; color:var(--fg-muted); font-size:14px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.ws-new-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
+
+/* Workspace detail view */
+.ws-detail { display:none; }
+.ws-detail.active { display:block; }
+.ws-detail-header { background:var(--bg-elevated); border-bottom:1px solid var(--border); padding:16px 24px; display:flex; align-items:center; gap:14px; }
+.ws-detail-icon { width:52px; height:52px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:26px; flex-shrink:0; }
+.ws-detail-title { font-family:var(--font-heading); font-size:22px; font-weight:600; }
+.ws-detail-desc { font-size:13px; color:var(--fg-muted); margin-top:2px; }
+.ws-detail-body { padding:20px 24px; }
+.ws-sections { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@media(max-width:900px){ .ws-sections{ grid-template-columns:1fr; } }
+.ws-section { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.ws-section-header { padding:10px 14px; background:var(--bg-surface); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.ws-section-title { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.07em; color:var(--fg-muted); display:flex; align-items:center; gap:6px; }
+.ws-section-body { padding:10px 14px; min-height:80px; max-height:280px; overflow-y:auto; }
+.ws-item { display:flex; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); font-size:13px; color:var(--fg-secondary); }
+.ws-item:last-child { border-bottom:none; }
+.ws-item-icon { font-size:14px; flex-shrink:0; margin-top:1px; }
+.ws-item-text { flex:1; line-height:1.4; }
+.ws-item-del { color:var(--fg-muted); cursor:pointer; font-size:12px; flex-shrink:0; opacity:0; transition:opacity 0.15s; }
+.ws-item:hover .ws-item-del { opacity:1; }
+.ws-add-row { display:flex; gap:6px; padding:8px 14px; border-top:1px solid var(--border); background:var(--bg-surface); }
+.ws-add-input { flex:1; padding:5px 8px; border:1px solid var(--border); border-radius:5px; font-size:12.5px; outline:none; background:var(--bg-primary); color:var(--fg-primary); font-family:var(--font-ui); }
+.ws-add-input:focus { border-color:var(--accent); }
+.ws-add-btn { padding:5px 10px; background:var(--accent); color:#fff; border:none; border-radius:5px; font-size:12px; cursor:pointer; font-family:var(--font-ui); }
+.ws-add-btn:hover { background:var(--accent-hover); }
+
+/* Todo items */
+.todo-item { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.todo-item:last-child { border-bottom:none; }
+.todo-check { width:16px; height:16px; border:1.5px solid var(--border); border-radius:3px; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; transition:all 0.15s; }
+.todo-check.done { background:var(--accent); border-color:var(--accent); color:#fff; }
+.todo-text { flex:1; color:var(--fg-secondary); }
+.todo-text.done { text-decoration:line-through; color:var(--fg-muted); }
+
+/* Notes */
+.ws-notes-ta { width:100%; min-height:120px; padding:8px 10px; border:none; outline:none; font-size:13px; font-family:var(--font-ui); resize:none; background:transparent; color:var(--fg-primary); line-height:1.7; }
+
+/* Events */
+.event-item { padding:7px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.event-item:last-child { border-bottom:none; }
+.event-date { font-size:11px; font-weight:600; color:var(--accent); margin-bottom:2px; }
+.event-title { color:var(--fg-primary); }
+
+/* Images grid */
+.img-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.img-thumb { aspect-ratio:1; border-radius:6px; object-fit:cover; border:1px solid var(--border); cursor:pointer; background:var(--bg-surface); display:flex; align-items:center; justify-content:center; font-size:20px; }
+
+/* Colour picker for workspace */
+.colour-options { display:flex; gap:6px; flex-wrap:wrap; }
+.colour-opt { width:28px; height:28px; border-radius:6px; cursor:pointer; border:2px solid transparent; transition:border-color 0.15s; }
+.colour-opt.selected { border-color:var(--fg-primary); }
+
+/* Modal */
+.ws-modal { position:fixed; inset:0; background:rgba(92,45,63,0.3); backdrop-filter:blur(2px); z-index:500; display:flex; align-items:center; justify-content:center; padding:20px; }
+.ws-modal-card { background:var(--bg-elevated); border-radius:var(--radius); box-shadow:var(--shadow-lg); width:100%; max-width:480px; padding:24px; }
+.ws-modal-title { font-family:var(--font-heading); font-size:18px; font-weight:600; margin-bottom:16px; }
+</style>
+</head>
+<body>
+<div class="prism-shell">
+  <div id="sidebar-mount"></div>
+  <div class="main-content" id="main-content">
+    <div class="topbar" id="main-topbar">
+      <div class="topbar-title">Workspaces</div>
+      <div class="topbar-actions">
+        <button class="btn btn-sm btn-secondary" onclick="showNewModal()" title="Create new workspace">＋ New Workspace</button>
+      </div>
+    </div>
+
+    <!-- Workspace list -->
+    <div id="ws-list-view">
+      <div class="ws-grid" id="ws-grid"></div>
+    </div>
+
+    <!-- Workspace detail -->
+    <div id="ws-detail-view" style="display:none;">
+      <div class="ws-detail-header">
+        <div class="ws-detail-icon" id="detail-icon"></div>
+        <div>
+          <div class="ws-detail-title" id="detail-title"></div>
+          <div class="ws-detail-desc" id="detail-desc"></div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button class="btn btn-sm btn-secondary" onclick="editWorkspace()" title="Edit workspace">✏ Edit</button>
+          <button class="btn btn-sm btn-secondary" onclick="triggerDocUpload()" title="Upload files to this workspace">📎 Upload Files</button>
+          <button class="btn btn-sm btn-ghost" onclick="backToList()" title="Back to all workspaces">← All Workspaces</button>
+        </div>
+      </div>
+      <div class="ws-detail-body">
+        <div class="ws-sections" id="ws-sections-grid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- New workspace modal -->
+<div class="ws-modal hidden" id="new-ws-modal">
+  <div class="ws-modal-card">
+    <div class="ws-modal-title">New Workspace</div>
+    <div class="form-group"><label class="form-label">Name *</label><input class="input" id="new-ws-name" type="text" placeholder="e.g. IAMSUPER Programme"></div>
+    <div class="form-group"><label class="form-label">Description</label><input class="input" id="new-ws-desc" type="text" placeholder="What is this workspace for?"></div>
+    <div class="form-group"><label class="form-label">Icon (emoji)</label><input class="input" id="new-ws-icon" type="text" placeholder="📁" maxlength="4" value="📁"></div>
+    <div class="form-group">
+      <label class="form-label">Colour</label>
+      <div class="colour-options" id="colour-options">
+        <div class="colour-opt selected" style="background:#0f3b3a;" data-c="#0f3b3a" onclick="selectColour(this)"></div>
+        <div class="colour-opt" style="background:#5c2d3f;" data-c="#5c2d3f" onclick="selectColour(this)"></div>
+        <div class="colour-opt" style="background:#c4925a;" data-c="#c4925a" onclick="selectColour(this)"></div>
+        <div class="colour-opt" style="background:#5a7a4f;" data-c="#5a7a4f" onclick="selectColour(this)"></div>
+        <div class="colour-opt" style="background:#2d4a6e;" data-c="#2d4a6e" onclick="selectColour(this)"></div>
+        <div class="colour-opt" style="background:#6a2a9a;" data-c="#6a2a9a" onclick="selectColour(this)"></div>
+        <div class="colour-opt" style="background:#8b3a3a;" data-c="#8b3a3a" onclick="selectColour(this)"></div>
+        <div class="colour-opt" style="background:#1a5550;" data-c="#1a5550" onclick="selectColour(this)"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="createWorkspace()" title="Create workspace">Create Workspace</button>
+      <button class="btn btn-secondary" onclick="hideNewModal()" title="Cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/prism.js"></script>
+<script>
+var workspaces = [];
+var currentWS = null;
+var selectedColour = '#0f3b3a';
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+
+// ── Default workspaces ────────────────────────────────────────────────────────
+var DEFAULT_WORKSPACES = [
+  {
+    id:'ws-ip-main', name:'Identity Partners', icon:'🏢', colour:'#0f3b3a',
+    desc:'Main workspace — all IP work',
+    folders:['LinkedIn / Substack articles','New programmes','Former client re-engagement'],
+    notebooks:['IP Strategy','Client Notes','Content Ideas'],
+    agents:['Media Manager','Creator Agent'],
+    workflows:['Daily Pipeline','Content Approval'],
+    personas:['Gerald','Creative Writer'],
+    threads:['Social media scheduling','Glimmers launch strategy'],
+    images:[],
+    events:[
+      {date:'11 Sep 2026', title:'IAMSUPER Cohort C — Week 9'},
+      {date:'Sep 2026', title:'Identity in Young Adulthood (webinar w/ Dr. Lil Jedinak)'},
+    ],
+    whiteboards:['Content','Programmes','Collabs?'],
+    notes:'Identity Partners. Understand your past. Appreciate the present. Define your future. Key focus areas: addiction recovery, trauma, mental health, community wellbeing.',
+    todos:[
+      {text:'Complete Zoho OAuth setup', done:false},
+      {text:'Push 250 social posts to queue', done:false},
+      {text:'Set up Ko-fi and Patreon', done:false},
+      {text:'Record first podcast episode', done:false},
+      {text:'Launch booking page on public site', done:false},
+    ],
+    created:'2026-09-01T00:00:00Z'
+  },
+  {
+    id:'ws-research', name:'Research', icon:'🔬', colour:'#5c2d3f',
+    desc:'Research runs, academic sources, synthesis',
+    folders:['Addiction & recovery literature','Trauma-informed practice','Mental health policy UK'],
+    threads:['Music & dopamine research','Trauma responses in addiction'],
+    images:[],
+    events:[],
+    whiteboards:['Research methodology','Source map'],
+    notes:'Focus: addiction, trauma, mental health, social policy, VCSE sector.',
+    todos:[
+      {text:'Run PubMed search on trauma-informed care', done:false},
+      {text:'Synthesise OpenAlex results on addiction recovery', done:false},
+    ],
+    created:'2026-09-01T00:00:00Z'
+  },
+  {
+    id:'ws-content', name:'Content', icon:'✍', colour:'#c4925a',
+    desc:'Social media, newsletters, podcasts, worksheets',
+    folders:['Bluesky posts','LinkedIn articles','Newsletter drafts','Podcast scripts'],
+    threads:['Glimmers campaign','Recovery awareness month'],
+    images:[],
+    events:[],
+    whiteboards:['Content calendar','Campaign ideas'],
+    notes:'Content pillars: recovery stories, evidence-based tips, awareness, community.',
+    todos:[
+      {text:'Generate 250 social posts via Atomise', done:false},
+      {text:'Write first Substack newsletter', done:false},
+      {text:'Create 5 worksheets for website', done:false},
+    ],
+    created:'2026-09-01T00:00:00Z'
+  },
+];
+
+// ── Load / save ───────────────────────────────────────────────────────────────
+function loadWorkspaces() {
+  // Try KV first, fall back to localStorage, then defaults
+  fetch(WORKER + '/api/workspaces')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var kvWorkspaces = d.workspaces || [];
+      if (kvWorkspaces.length > 0) {
+        workspaces = kvWorkspaces;
+        renderList();
+      } else {
+        // No KV workspaces — load from localStorage or defaults
+        loadFromLocalStorage();
+      }
+    })
+    .catch(function(err) {
+      console.warn('KV load failed:', err);
+      loadFromLocalStorage();
+    });
+}
+
+function loadFromLocalStorage() {
+  try {
+    var saved = localStorage.getItem('prism-workspaces-v2') || localStorage.getItem('prism-workspaces');
+    if (saved) {
+      var parsed = JSON.parse(saved);
+      workspaces = (parsed && parsed.length > 0) ? parsed : DEFAULT_WORKSPACES.slice();
+    } else {
+      workspaces = DEFAULT_WORKSPACES.slice();
+    }
+  } catch(e) {
+    workspaces = DEFAULT_WORKSPACES.slice();
+  }
+  // Always save to localStorage as backup
+  try { localStorage.setItem('prism-workspaces-v2', JSON.stringify(workspaces)); } catch(e) {}
+  renderList();
+  // Save to KV in background
+  setTimeout(function() {
+    workspaces.forEach(function(w) {
+      fetch(WORKER + '/api/workspaces', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(w)
+      }).catch(function(){});
+    });
+  }, 500);
+}
+function saveWorkspaces() {
+  try { saveAllWorkspaces(); } catch(e) {}
+}
+
+function saveWS(ws) {
+  if (!ws || !ws.id) return;
+  // Save to KV via Worker API
+  fetch(WORKER + '/api/workspaces', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(ws)
+  }).catch(function() {
+    // Fallback to localStorage
+    saveAllWorkspaces();
+  });
+  // Also update local array
+  var idx = workspaces.findIndex(function(w){return w.id===ws.id;});
+  if (idx >= 0) workspaces[idx] = ws;
+  else workspaces.push(ws);
+}
+
+function saveAllWorkspaces() {
+  workspaces.forEach(function(w) { saveWS(w); });
+}
+function getWS(id) { return workspaces.find(function(w){return w.id===id;}); }
+
+// ── List view ─────────────────────────────────────────────────────────────────
+function renderList() {
+  var grid = document.getElementById('ws-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  workspaces.forEach(function(ws) {
+    var card = document.createElement('div');
+    card.className = 'ws-card';
+    card.onclick = function() { openWorkspace(ws.id); };
+
+    var header = document.createElement('div');
+    header.className = 'ws-card-header';
+    var icon = document.createElement('div');
+    icon.className = 'ws-icon';
+    icon.style.background = ws.colour + '22';
+    icon.textContent = ws.icon;
+    var info = document.createElement('div');
+    var name = document.createElement('div');
+    name.className = 'ws-name';
+    name.textContent = ws.name;
+    var desc = document.createElement('div');
+    desc.className = 'ws-desc';
+    desc.textContent = ws.desc || '';
+    info.appendChild(name); info.appendChild(desc);
+    header.appendChild(icon); header.appendChild(info);
+
+    var body = document.createElement('div');
+    body.className = 'ws-card-body';
+    var stats = [
+      {icon:'📁', label:'Folders', val:(ws.folders||[]).length},
+      {icon:'💬', label:'Threads', val:(ws.threads||[]).length},
+      {icon:'✅', label:'Tasks', val:(ws.todos||[]).filter(function(t){return !t.done;}).length + ' open'},
+      {icon:'📅', label:'Events', val:(ws.events||[]).length},
+    ];
+    stats.forEach(function(s) {
+      var stat = document.createElement('div');
+      stat.className = 'ws-stat';
+      stat.innerHTML = s.icon + ' <span class="ws-stat-num">' + s.val + '</span> ' + s.label;
+      body.appendChild(stat);
+    });
+
+    var footer = document.createElement('div');
+    footer.className = 'ws-card-footer';
+    var openBtn = document.createElement('button');
+    openBtn.className = 'btn btn-sm btn-primary';
+    openBtn.textContent = 'Open';
+    openBtn.title = 'Open workspace';
+    openBtn.onclick = function(e) { e.stopPropagation(); openWorkspace(ws.id); };
+    var delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-sm btn-ghost';
+    delBtn.textContent = '🗑';
+    delBtn.title = 'Delete workspace';
+    delBtn.onclick = function(e) {
+      e.stopPropagation();
+      if (confirm('Delete "' + ws.name + '"? This cannot be undone.')) {
+        workspaces = workspaces.filter(function(w){return w.id!==ws.id;});
+        saveWorkspaces(); renderList();
+      }
+    };
+    footer.appendChild(openBtn); footer.appendChild(delBtn);
+
+    // Colour bar at top
+    var bar = document.createElement('div');
+    bar.style.cssText = 'height:4px;background:'+ws.colour+';';
+    card.appendChild(bar);
+    card.appendChild(header); card.appendChild(body); card.appendChild(footer);
+    grid.appendChild(card);
+  });
+
+  // New workspace button
+  var newBtn = document.createElement('div');
+  newBtn.className = 'ws-new-btn';
+  newBtn.onclick = showNewModal;
+  newBtn.innerHTML = '<span style="font-size:32px;">＋</span><span>New Workspace</span>';
+  grid.appendChild(newBtn);
+}
+
+// ── Detail view ───────────────────────────────────────────────────────────────
+function openWorkspace(id) {
+  currentWS = getWS(id);
+  if (!currentWS) return;
+  document.getElementById('ws-list-view').style.display = 'none';
+  document.getElementById('ws-detail-view').style.display = 'block';
+  var iconEl = document.getElementById('detail-icon');
+  iconEl.textContent = currentWS.icon;
+  iconEl.style.background = currentWS.colour + '22';
+  document.getElementById('detail-title').textContent = currentWS.name;
+  document.getElementById('detail-desc').textContent = currentWS.desc || '';
+  // Update topbar
+  var topbar = document.getElementById('main-topbar');
+  if (topbar) {
+    topbar.querySelector('.topbar-title').textContent = currentWS.name;
+  }
+  renderSections();
+}
+
+function backToList() {
+  currentWS = null;
+  document.getElementById('ws-list-view').style.display = 'block';
+  document.getElementById('ws-detail-view').style.display = 'none';
+  var topbar = document.getElementById('main-topbar');
+  if (topbar) topbar.querySelector('.topbar-title').textContent = 'Workspaces';
+  renderList();
+}
+
+function renderSections() {
+  var grid = document.getElementById('ws-sections-grid');
+  if (!grid || !currentWS) return;
+  grid.innerHTML = '';
+
+  var sections = [
+    {key:'folders',   title:'📁 Folders',            type:'list',   addPlaceholder:'Add folder…',   linkFn:function(item){return '/drafting/?folder='+encodeURIComponent(item);}},
+    {key:'notebooks', title:'✒ WriteHandy Notebooks', type:'list',   addPlaceholder:'Add notebook…', linkFn:function(item){return '/writehandy/?notebook='+encodeURIComponent(item);}},
+    {key:'threads',   title:'💬 Conversations',       type:'list',   addPlaceholder:'Add conversation…', linkFn:function(item){return '/chat/?thread='+encodeURIComponent(item);}},
+    {key:'agents',    title:'🤖 Agents',              type:'list',   addPlaceholder:'Add agent…',    linkFn:function(item){return '/agenti/agent-builder/?agent='+encodeURIComponent(item);}},
+    {key:'workflows', title:'⚡ Workflows',            type:'list',   addPlaceholder:'Add workflow…', linkFn:function(item){return '/agenti/workflow-wizard/?workflow='+encodeURIComponent(item);}},
+    {key:'personas',  title:'🎭 Personas',            type:'list',   addPlaceholder:'Add persona…',  linkFn:function(item){return '/chat/?persona='+encodeURIComponent(item);}},
+    {key:'images',    title:'🖼 Images',              type:'images', addPlaceholder:'Image URL or description…'},
+    {key:'events',    title:'📅 Events & Appointments',type:'events', addPlaceholder:'Event title…'},
+    {key:'whiteboards',title:'🖊 Whiteboards',        type:'list',   addPlaceholder:'Whiteboard name…', linkFn:function(item){return '/whiteboard/?name='+encodeURIComponent(item);}},
+    {key:'todos',     title:'✅ To-Do',               type:'todos',  addPlaceholder:'Add task…'},
+    {key:'notes',     title:'📝 Notes',               type:'notes'},
+    {key:'documents', title:'📄 Documents',           type:'documents'},
+  ];
+
+  sections.forEach(function(sec) {
+    var section = document.createElement('div');
+    section.className = 'ws-section';
+    // Notes spans full width
+    if (sec.key === 'notes') section.style.gridColumn = '1 / -1';
+
+    var header = document.createElement('div');
+    header.className = 'ws-section-header';
+    var title = document.createElement('div');
+    title.className = 'ws-section-title';
+    title.textContent = sec.title;
+    var count = document.createElement('span');
+    count.className = 'badge badge-muted';
+    count.style.fontSize = '10px';
+    var data = currentWS[sec.key];
+    if (Array.isArray(data)) count.textContent = data.length;
+    header.appendChild(title); header.appendChild(count);
+
+    var body = document.createElement('div');
+    body.className = 'ws-section-body';
+    body.id = 'sec-body-' + sec.key;
+
+    if (sec.type === 'list') {
+      renderListSection(body, sec, count);
+    } else if (sec.type === 'todos') {
+      renderTodosSection(body, sec, count);
+    } else if (sec.type === 'notes') {
+      renderNotesSection(body, sec);
+    } else if (sec.type === 'events') {
+      renderEventsSection(body, sec, count);
+    } else if (sec.type === 'images') {
+      renderImagesSection(body, sec, count);
+    } else if (sec.type === 'documents') {
+      renderDocumentsSection(body, sec, count);
+    }
+
+    section.appendChild(header);
+    section.appendChild(body);
+
+    // Add row (not for notes)
+    if (sec.type !== 'notes' && sec.type !== 'documents') {
+      var addRow = document.createElement('div');
+      addRow.className = 'ws-add-row';
+      var input = document.createElement('input');
+      input.className = 'ws-add-input';
+      input.type = 'text';
+      input.placeholder = sec.addPlaceholder || 'Add…';
+      input.id = 'add-input-' + sec.key;
+      var addBtn = document.createElement('button');
+      addBtn.className = 'ws-add-btn';
+      addBtn.textContent = '＋';
+      addBtn.title = 'Add item';
+      (function(s, inp, b, cnt) {
+        addBtn.onclick = function() { addItem(s, inp, b, cnt); };
+        inp.onkeydown = function(e) { if (e.key === 'Enter') addItem(s, inp, b, cnt); };
+      })(sec, input, body, count);
+      addRow.appendChild(input); addRow.appendChild(addBtn);
+      section.appendChild(addRow);
+    }
+
+    grid.appendChild(section);
+  });
+}
+
+function renderListSection(body, sec, count) {
+  body.innerHTML = '';
+  var items = currentWS[sec.key] || [];
+  if (items.length === 0) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No items yet.</div>';
+    return;
+  }
+  items.forEach(function(item, i) {
+    var row = document.createElement('div');
+    row.className = 'ws-item';
+    var icon = document.createElement('span');
+    icon.className = 'ws-item-icon';
+    icon.textContent = sec.key === 'folders' ? '📁' : sec.key === 'threads' ? '💬' : '🖊';
+    var text = document.createElement('span');
+    text.className = 'ws-item-text';
+    if (sec.linkFn) {
+      var a = document.createElement('a');
+      a.href = sec.linkFn(item);
+      a.textContent = item;
+      a.style.color = 'var(--accent)';
+      text.appendChild(a);
+    } else {
+      text.textContent = item;
+    }
+    var del = document.createElement('span');
+    del.className = 'ws-item-del';
+    del.textContent = '✕';
+    del.title = 'Remove';
+    del.onclick = function() {
+      currentWS[sec.key].splice(i, 1);
+      saveWorkspaces();
+      renderListSection(body, sec, count);
+      if (count) count.textContent = currentWS[sec.key].length;
+    };
+    row.appendChild(icon); row.appendChild(text); row.appendChild(del);
+    body.appendChild(row);
+  });
+  if (count) count.textContent = items.length;
+}
+
+function addItem(sec, input, body, count) {
+  var val = input.value.trim();
+  if (!val) return;
+  if (!currentWS[sec.key]) currentWS[sec.key] = [];
+  if (sec.type === 'todos') {
+    currentWS[sec.key].push({text: val, done: false});
+    renderTodosSection(body, sec, count);
+  } else if (sec.type === 'events') {
+    currentWS[sec.key].push({date: new Date().toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}), title: val});
+    renderEventsSection(body, sec, count);
+  } else {
+    currentWS[sec.key].push(val);
+    renderListSection(body, sec, count);
+  }
+  saveWorkspaces();
+  input.value = '';
+  if (count) count.textContent = currentWS[sec.key].length;
+}
+
+function renderTodosSection(body, sec, count) {
+  body.innerHTML = '';
+  var todos = currentWS.todos || [];
+  if (todos.length === 0) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No tasks yet.</div>';
+    return;
+  }
+  todos.forEach(function(todo, i) {
+    var row = document.createElement('div');
+    row.className = 'todo-item';
+    var check = document.createElement('div');
+    check.className = 'todo-check' + (todo.done ? ' done' : '');
+    check.textContent = todo.done ? '✓' : '';
+    check.title = todo.done ? 'Mark incomplete' : 'Mark complete';
+    check.onclick = function() {
+      currentWS.todos[i].done = !currentWS.todos[i].done;
+      saveWorkspaces();
+      renderTodosSection(body, sec, count);
+    };
+    var text = document.createElement('span');
+    text.className = 'todo-text' + (todo.done ? ' done' : '');
+    text.textContent = todo.text;
+    var del = document.createElement('span');
+    del.className = 'ws-item-del';
+    del.textContent = '✕';
+    del.onclick = function() {
+      currentWS.todos.splice(i, 1);
+      saveWorkspaces();
+      renderTodosSection(body, sec, count);
+    };
+    row.appendChild(check); row.appendChild(text); row.appendChild(del);
+    body.appendChild(row);
+  });
+  var open = todos.filter(function(t){return !t.done;}).length;
+  if (count) count.textContent = open + ' open';
+}
+
+function renderNotesSection(body, sec) {
+  body.innerHTML = '';
+  var toolbar = document.createElement('div');
+  toolbar.style.cssText = 'display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap;';
+  var newBtn = document.createElement('button');
+  newBtn.className = 'btn btn-sm btn-primary';
+  newBtn.textContent = '+ New Note';
+  newBtn.onclick = function() { openNoteEditor(null); };
+  var importBtn = document.createElement('button');
+  importBtn.className = 'btn btn-sm btn-secondary';
+  importBtn.textContent = 'Import .md';
+  importBtn.onclick = function() {
+    var inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = '.md,.txt'; inp.multiple = true;
+    inp.onchange = function() {
+      Array.from(inp.files).forEach(function(file) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          saveNote(currentWS.id, {title: file.name.replace(/\.(md|txt)$/, ''), content: e.target.result});
+        };
+        reader.readAsText(file);
+      });
+    };
+    inp.click();
+  };
+  toolbar.appendChild(newBtn);
+  toolbar.appendChild(importBtn);
+  body.appendChild(toolbar);
+  var tableWrap = document.createElement('div');
+  tableWrap.id = 'notes-table-' + (currentWS ? currentWS.id : 'ws');
+  tableWrap.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);">Loading notes...</div>';
+  body.appendChild(tableWrap);
+  if (currentWS) loadNotesTable(currentWS.id, tableWrap);
+  if (!document.getElementById('note-editor-modal')) {
+    var modal = document.createElement('div');
+    modal.id = 'note-editor-modal';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:var(--bg-elevated);border-radius:12px;padding:20px;width:700px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.2);';
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:12px;';
+    var titleInp = document.createElement('input');
+    titleInp.id = 'note-title-input'; titleInp.type = 'text'; titleInp.placeholder = 'Note title...';
+    titleInp.style.cssText = 'flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-weight:600;background:var(--bg);color:var(--fg);';
+    var saveBtn2 = document.createElement('button');
+    saveBtn2.textContent = 'Save'; saveBtn2.onclick = saveCurrentNote;
+    saveBtn2.style.cssText = 'padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;';
+    var closeBtn = document.createElement('button');
+    closeBtn.textContent = 'Close'; closeBtn.onclick = closeNoteEditor;
+    closeBtn.style.cssText = 'padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);color:var(--fg);';
+    hdr.appendChild(titleInp); hdr.appendChild(saveBtn2); hdr.appendChild(closeBtn);
+    var hint = document.createElement('div');
+    hint.style.cssText = 'font-size:10px;color:var(--fg-muted);margin-bottom:6px;';
+    hint.textContent = 'Markdown supported. Saved to KV — persistent across devices.';
+    var contentTa = document.createElement('textarea');
+    contentTa.id = 'note-content-input';
+    contentTa.style.cssText = 'flex:1;min-height:400px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:monospace;resize:vertical;background:var(--bg);color:var(--fg);line-height:1.6;';
+    contentTa.placeholder = '# Note title\n\nWrite in Markdown...';
+    var footer2 = document.createElement('div');
+    footer2.style.cssText = 'display:flex;gap:8px;margin-top:10px;align-items:center;';
+    var dlBtn2 = document.createElement('button');
+    dlBtn2.textContent = 'Download .md'; dlBtn2.onclick = downloadCurrentNote;
+    dlBtn2.style.cssText = 'padding:6px 12px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);';
+    var statusSpan = document.createElement('span');
+    statusSpan.id = 'note-save-status';
+    statusSpan.style.cssText = 'font-size:11px;color:var(--fg-muted);';
+    footer2.appendChild(dlBtn2); footer2.appendChild(statusSpan);
+    box.appendChild(hdr); box.appendChild(hint); box.appendChild(contentTa); box.appendChild(footer2);
+    modal.appendChild(box);
+    document.body.appendChild(modal);
+  }
+}
+
+var _currentNoteId = null;
+var _currentNoteWsId = null;
+
+function loadNotesTable(wsId, container) {
+  fetch(WORKER + '/api/workspaces/' + wsId + '/notes')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var notes = d.notes || [];
+      if (!notes.length) {
+        container.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No notes yet. Click + New Note to create one, or import a .md file.</div>';
+        return;
+      }
+      container.innerHTML = '';
+      var table = document.createElement('table');
+      table.style.cssText = 'width:100%;border-collapse:collapse;font-size:12px;';
+      var thead = document.createElement('thead');
+      thead.innerHTML = '<tr style="border-bottom:2px solid var(--border);"><th style="text-align:left;padding:6px 8px;color:var(--fg-muted);">Title</th><th style="text-align:left;padding:6px 8px;color:var(--fg-muted);">Size</th><th style="text-align:left;padding:6px 8px;color:var(--fg-muted);">Updated</th><th style="padding:6px 8px;"></th></tr>';
+      table.appendChild(thead);
+      var tbody = document.createElement('tbody');
+      notes.forEach(function(note) {
+        var sizeStr = note.size > 1024 ? Math.round(note.size/1024) + 'KB' : note.size + 'B';
+        var dateStr = note.updated ? new Date(note.updated).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : '—';
+        var row = document.createElement('tr');
+        row.style.cssText = 'border-bottom:1px solid var(--border);cursor:pointer;';
+        row.onmouseover = function() { this.style.background = 'var(--bg-sunken)'; };
+        row.onmouseout = function() { this.style.background = ''; };
+        var td1 = document.createElement('td');
+        td1.style.cssText = 'padding:8px;';
+        td1.innerHTML = '<strong>📝 ' + note.title + '</strong>';
+        td1.onclick = function() { openNoteEditor(note.id, wsId); };
+        var td2 = document.createElement('td');
+        td2.style.cssText = 'padding:8px;color:var(--fg-muted);';
+        td2.textContent = sizeStr;
+        var td3 = document.createElement('td');
+        td3.style.cssText = 'padding:8px;color:var(--fg-muted);';
+        td3.textContent = dateStr;
+        var td4 = document.createElement('td');
+        td4.style.cssText = 'padding:8px;text-align:right;white-space:nowrap;';
+        var dlBtn = document.createElement('button');
+        dlBtn.textContent = '⬇';
+        dlBtn.title = 'Download .md';
+        dlBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:13px;color:var(--fg-muted);padding:2px 6px;';
+        dlBtn.onclick = function(e) { e.stopPropagation(); downloadNote(note.id, wsId); };
+        var delBtn = document.createElement('button');
+        delBtn.textContent = '✕';
+        delBtn.title = 'Delete';
+        delBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:13px;color:#dc2626;padding:2px 6px;';
+        delBtn.onclick = function(e) { e.stopPropagation(); deleteNote(note.id, wsId, row); };
+        td4.appendChild(dlBtn); td4.appendChild(delBtn);
+        row.appendChild(td1); row.appendChild(td2); row.appendChild(td3); row.appendChild(td4);
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      container.appendChild(table);
+    })
+    .catch(function() {
+      container.innerHTML = '<div style="font-size:12px;color:#dc2626;">Failed to load notes from server.</div>';
+    });
+}
+
+function openNoteEditor(noteId, wsId) {
+  var modal = document.getElementById('note-editor-modal');
+  if (!modal) return;
+  _currentNoteId = noteId;
+  _currentNoteWsId = wsId || (currentWS ? currentWS.id : null);
+  var statusEl = document.getElementById('note-save-status');
+  if (statusEl) statusEl.textContent = '';
+  if (noteId && _currentNoteWsId) {
+    fetch(WORKER + '/api/workspaces/' + _currentNoteWsId + '/notes/' + noteId)
+      .then(function(r) { return r.json(); })
+      .then(function(note) {
+        document.getElementById('note-title-input').value = note.title || '';
+        document.getElementById('note-content-input').value = note.content || '';
+      });
+  } else {
+    document.getElementById('note-title-input').value = '';
+    document.getElementById('note-content-input').value = '';
+  }
+  modal.style.display = 'flex';
+  setTimeout(function() { document.getElementById('note-title-input').focus(); }, 100);
+}
+
+function closeNoteEditor() {
+  var modal = document.getElementById('note-editor-modal');
+  if (modal) modal.style.display = 'none';
+  if (currentWS) {
+    var container = document.getElementById('notes-table-' + currentWS.id);
+    if (container) loadNotesTable(currentWS.id, container);
+  }
+}
+
+function saveCurrentNote() {
+  var title = document.getElementById('note-title-input').value.trim() || 'Untitled Note';
+  var content = document.getElementById('note-content-input').value;
+  var wsId = _currentNoteWsId || (currentWS ? currentWS.id : null);
+  if (!wsId) return;
+  var statusEl = document.getElementById('note-save-status');
+  if (statusEl) statusEl.textContent = 'Saving...';
+  saveNote(wsId, {id: _currentNoteId, title: title, content: content});
+}
+
+function saveNote(wsId, note) {
+  fetch(WORKER + '/api/workspaces/' + wsId + '/notes', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(note)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      _currentNoteId = d.note.id;
+      var statusEl = document.getElementById('note-save-status');
+      if (statusEl) statusEl.textContent = 'Saved ' + new Date().toLocaleTimeString('en-GB');
+      Toast.success('Note saved: ' + (note.title || 'Untitled'));
+    }
+  })
+  .catch(function(e) { Toast.warning('Save failed: ' + e.message); });
+}
+
+function deleteNote(noteId, wsId, row) {
+  if (!confirm('Delete this note? Cannot be undone.')) return;
+  fetch(WORKER + '/api/workspaces/' + wsId + '/notes/' + noteId, {method: 'DELETE'})
+    .then(function() { if (row) row.remove(); Toast.success('Note deleted'); });
+}
+
+function downloadNote(noteId, wsId) {
+  window.open(WORKER + '/api/workspaces/' + wsId + '/notes/' + noteId + '/download', '_blank');
+}
+
+function downloadCurrentNote() {
+  if (_currentNoteId && _currentNoteWsId) {
+    downloadNote(_currentNoteId, _currentNoteWsId);
+  } else {
+    var title = (document.getElementById('note-title-input').value.trim() || 'note').replace(/[^a-z0-9\-_]/gi, '_').toLowerCase();
+    var content = document.getElementById('note-content-input').value;
+    var blob = new Blob([content], {type: 'text/markdown'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = title + '.md';
+    a.click();
+  }
+}
+function renderEventsSection(body, sec, count) {
+  body.innerHTML = '';
+  var events = currentWS.events || [];
+  if (events.length === 0) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No events yet.</div>';
+    return;
+  }
+  events.forEach(function(ev, i) {
+    var item = document.createElement('div');
+    item.className = 'event-item';
+    var date = document.createElement('div');
+    date.className = 'event-date';
+    date.textContent = ev.date || '';
+    var title = document.createElement('div');
+    title.className = 'event-title';
+    title.textContent = ev.title || '';
+    var del = document.createElement('span');
+    del.className = 'ws-item-del';
+    del.textContent = '✕';
+    del.style.cssText = 'float:right;cursor:pointer;color:var(--fg-muted);font-size:12px;';
+    del.onclick = function() {
+      currentWS.events.splice(i, 1);
+      saveWorkspaces();
+      renderEventsSection(body, sec, count);
+    };
+    item.appendChild(del); item.appendChild(date); item.appendChild(title);
+    body.appendChild(item);
+  });
+  if (count) count.textContent = events.length;
+}
+
+function renderImagesSection(body, sec, count) {
+  body.innerHTML = '';
+  var images = currentWS.images || [];
+  if (images.length === 0) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No images yet. Add an image URL or generate one.</div>';
+    return;
+  }
+  var grid = document.createElement('div');
+  grid.className = 'img-grid';
+  images.forEach(function(img, i) {
+    var thumb = document.createElement('div');
+    thumb.className = 'img-thumb';
+    if (img.url) {
+      var imgEl = document.createElement('img');
+      imgEl.src = img.url; imgEl.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:6px;';
+      imgEl.alt = img.name || 'Image';
+      thumb.appendChild(imgEl);
+    } else {
+      thumb.textContent = '🖼';
+    }
+    thumb.title = img.name || img.url || 'Image';
+    grid.appendChild(thumb);
+  });
+  body.appendChild(grid);
+  if (count) count.textContent = images.length;
+}
+
+// ── Create workspace ──────────────────────────────────────────────────────────
+function showNewModal() { document.getElementById('new-ws-modal').classList.remove('hidden'); }
+function hideNewModal() { document.getElementById('new-ws-modal').classList.add('hidden'); }
+
+function selectColour(el) {
+  selectedColour = el.getAttribute('data-c');
+  var opts = document.querySelectorAll('.colour-opt');
+  for (var i=0;i<opts.length;i++) opts[i].classList.remove('selected');
+  el.classList.add('selected');
+}
+
+function createWorkspace() {
+  var name = document.getElementById('new-ws-name').value.trim();
+  if (!name) { Toast.warning('Enter a workspace name'); return; }
+  var ws = {
+    id: 'ws-' + Date.now(),
+    name: name,
+    icon: document.getElementById('new-ws-icon').value || '📁',
+    colour: selectedColour,
+    desc: document.getElementById('new-ws-desc').value.trim(),
+    folders: [], threads: [], images: [], events: [], whiteboards: [],
+    notes: '', todos: [],
+    created: new Date().toISOString()
+  };
+  workspaces.unshift(ws);
+  saveWorkspaces();
+  hideNewModal();
+  document.getElementById('new-ws-name').value = '';
+  document.getElementById('new-ws-desc').value = '';
+  renderList();
+  Toast.success('Workspace created: ' + name);
+  openWorkspace(ws.id);
+}
+
+function editWorkspace() {
+  if (!currentWS) return;
+  var name = prompt('Workspace name:', currentWS.name);
+  if (name) { currentWS.name = name; saveWorkspaces(); openWorkspace(currentWS.id); }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) { var sb = buildSidebar('/workspaces/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
+  loadWorkspaces();
+  // Check if URL has a workspace ID to open directly
+  var params = new URLSearchParams(window.location.search);
+  var wsId = params.get('ws');
+  if (wsId) openWorkspace(wsId);
+});
+
+// ── Save items to workspace ───────────────────────────────────────────────────
+function saveToWorkspace(wsId, section, item) {
+  var workspace = workspaces.find(function(w){ return w.id === wsId; });
+  if (!workspace) return;
+  if (!workspace[section]) workspace[section] = [];
+  if (!workspace[section].includes(item)) {
+    workspace[section].push(item);
+    saveWorkspaces();
+    Toast.success('Saved to ' + workspace.name + ' / ' + section);
+  }
+}
+
+// Global function for other pages to call
+window.saveItemToWorkspace = function(section, item) {
+  var picker = document.createElement('div');
+  picker.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:16px;z-index:9999;min-width:280px;box-shadow:0 8px 32px rgba(0,0,0,0.2);';
+  var title = document.createElement('div');
+  title.style.cssText = 'font-weight:600;margin-bottom:10px;';
+  title.textContent = 'Save to workspace';
+  picker.appendChild(title);
+  workspaces.forEach(function(w) {
+    var opt = document.createElement('div');
+    opt.style.cssText = 'padding:8px 10px;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;';
+    opt.onmouseover = function() { this.style.background = 'var(--accent-light)'; };
+    opt.onmouseout = function() { this.style.background = ''; };
+    opt.onclick = function() { saveToWorkspace(w.id, section, item); picker.remove(); };
+    var icon = document.createElement('span');
+    icon.textContent = w.icon || '📁';
+    var name = document.createElement('span');
+    name.textContent = w.name;
+    opt.appendChild(icon);
+    opt.appendChild(name);
+    picker.appendChild(opt);
+  });
+  var cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.style.cssText = 'margin-top:8px;width:100%;padding:5px;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;background:var(--bg);';
+  cancelBtn.onclick = function() { picker.remove(); };
+  picker.appendChild(cancelBtn);
+  document.body.appendChild(picker);
+};
+
+function renderDocumentsSection(body, sec, countEl) {
+  body.innerHTML = '';
+  var docs = currentWS[sec.key] || [];
+  if (countEl) countEl.textContent = docs.length;
+
+  // Upload button
+  var uploadRow = document.createElement('div');
+  uploadRow.style.cssText = 'display:flex;gap:8px;margin-bottom:10px;align-items:center;';
+  var fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = '.txt,.md,.pdf,.docx,.csv,.json,.html,.js,.py,.rtf';
+  fileInput.multiple = true;
+  fileInput.style.display = 'none';
+  fileInput.id = 'ws-doc-upload-' + (currentWS ? currentWS.id : 'ws');
+  fileInput.onchange = function() { handleDocUpload(this.files, sec, body, countEl); };
+  var uploadBtn = document.createElement('button');
+  uploadBtn.className = 'btn btn-sm btn-secondary';
+  uploadBtn.textContent = '📎 Upload Files';
+  uploadBtn.onclick = function() { fileInput.click(); };
+  uploadRow.appendChild(fileInput);
+  uploadRow.appendChild(uploadBtn);
+  var hint = document.createElement('span');
+  hint.style.cssText = 'font-size:10px;color:var(--fg-muted);';
+  hint.textContent = 'txt, md, pdf, docx, csv, json — up to 10MB each';
+  uploadRow.appendChild(hint);
+  body.appendChild(uploadRow);
+
+  // Document list
+  if (docs.length === 0) {
+    var empty = document.createElement('div');
+    empty.style.cssText = 'font-size:12px;color:var(--fg-muted);padding:8px 0;';
+    empty.textContent = 'No documents yet. Upload files to chat with them.';
+    body.appendChild(empty);
+    return;
+  }
+
+  docs.forEach(function(doc, idx) {
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);';
+    var icon = document.createElement('span');
+    icon.style.cssText = 'font-size:18px;flex-shrink:0;';
+    icon.textContent = doc.name.endsWith('.pdf') ? '📕' : doc.name.endsWith('.md') ? '📝' : doc.name.endsWith('.csv') ? '📊' : '📄';
+    var info = document.createElement('div');
+    info.style.cssText = 'flex:1;min-width:0;';
+    var name = document.createElement('div');
+    name.style.cssText = 'font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    name.textContent = doc.name;
+    var meta = document.createElement('div');
+    meta.style.cssText = 'font-size:10px;color:var(--fg-muted);';
+    meta.textContent = (doc.size ? Math.round(doc.size/1024) + 'KB' : '') + (doc.uploaded ? ' · ' + new Date(doc.uploaded).toLocaleDateString('en-GB') : '');
+    info.appendChild(name); info.appendChild(meta);
+    var chatBtn = document.createElement('button');
+    chatBtn.className = 'btn btn-sm btn-primary';
+    chatBtn.textContent = '💬 Chat';
+    var agentBtn = document.createElement('button');
+    agentBtn.className = 'btn btn-sm btn-secondary';
+    agentBtn.textContent = '🤖 Analyse';
+    agentBtn.title = 'Send to Agent Hub for analysis';
+    agentBtn.onclick = function() {
+      // Store doc for agent pickup
+      sessionStorage.setItem('agent-doc-content', doc.content || '');
+      sessionStorage.setItem('agent-doc-name', doc.name);
+      window.location.href = '/agenti/agent-builder/';
+    };
+    var extractBtn = document.createElement('button');
+    extractBtn.className = 'btn btn-sm btn-secondary';
+    extractBtn.textContent = '🔍 Extract';
+    extractBtn.title = 'Extract data from this document using AI';
+    extractBtn.onclick = function() { extractFromDocument(doc); };
+    chatBtn.title = 'Chat with this document';
+    chatBtn.onclick = function() { chatWithDocument(doc); };
+    var delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-sm btn-ghost';
+    delBtn.textContent = '✕';
+    delBtn.onclick = function() {
+      if (!confirm('Remove ' + doc.name + '?')) return;
+      currentWS.documents = (currentWS.documents || []).filter(function(d,i){return i!==idx;});
+      saveWS(currentWS);
+      renderDocumentsSection(body, sec, countEl);
+    };
+    row.appendChild(icon); row.appendChild(info); row.appendChild(chatBtn); row.appendChild(agentBtn); row.appendChild(extractBtn); row.appendChild(delBtn);
+    body.appendChild(row);
+  });
+}
+
+function handleDocUpload(files, sec, body, countEl) {
+  if (!files || !files.length) return;
+  var processed = 0;
+  var total = files.length;
+  Toast.info('Uploading ' + total + ' file(s) to workspace...');
+
+  Array.from(files).forEach(function(file) {
+    if (file.size > 25 * 1024 * 1024) { Toast.warning(file.name + ' is too large (max 25MB)'); processed++; return; }
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var content = e.target.result;
+      // Upload to Worker (stored in KV, persistent)
+      fetch(WORKER + '/api/workspaces/' + currentWS.id + '/documents', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          content: content
+        })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.success && d.document) {
+          if (!currentWS.documents) currentWS.documents = [];
+          // Store doc metadata locally (content stays in KV)
+          currentWS.documents.push(Object.assign(d.document, {content: content}));
+          processed++;
+          if (processed === total) {
+            renderDocumentsSection(body, sec, countEl);
+            Toast.success(total + ' file(s) uploaded and saved to workspace');
+          }
+        }
+      })
+      .catch(function() {
+        // Fallback: store locally
+        if (!currentWS.documents) currentWS.documents = [];
+        currentWS.documents.push({id:'doc-'+Date.now(), name:file.name, size:file.size, type:file.type, content:content, uploaded:new Date().toISOString()});
+        processed++;
+        if (processed === total) {
+          saveWS(currentWS);
+          renderDocumentsSection(body, sec, countEl);
+          Toast.success(total + ' file(s) uploaded (local only — KV unavailable)');
+        }
+      });
+    };
+    reader.readAsText(file);
+  });
+}
+
+function chatWithDocument(doc) {
+  // Store document content in sessionStorage and open chat
+  var docContext = 'Document: ' + doc.name + '\n\n' + (doc.content || '').substring(0, 50000);
+  sessionStorage.setItem('ws-doc-context', docContext);
+  sessionStorage.setItem('ws-doc-name', doc.name);
+  // Open chat with document context pre-loaded
+  window.location.href = '/chat/?doc=' + encodeURIComponent(doc.name);
+}
+
+function extractFromDocument(doc) {
+  var extractPrompt = prompt('What do you want to extract from "' + doc.name + '"?',
+    'Extract all key facts, data points, names, dates, statistics, and findings. Organise by theme.');
+  if (!extractPrompt) return;
+
+  var content = doc.content || '';
+  if (!content) { Toast.warning('No text content in this document.'); return; }
+
+  Toast.info('Extracting data... this may take 1-3 minutes for large documents.');
+
+  fetch(WORKER + '/api/document/extract', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      text: content,
+      prompt: extractPrompt,
+      chunk_size: 15000
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.error) { Toast.warning('Error: ' + d.error); return; }
+    // Save results to workspace notes
+    if (!currentWS.notes) currentWS.notes = '';
+    currentWS.notes += '\n\n=== Extraction from ' + doc.name + ' ===\n' +
+      'Prompt: ' + extractPrompt + '\n' +
+      'Chunks processed: ' + d.chunks_processed + ' (' + d.chunks_successful + ' successful)\n\n' +
+      (d.merged_summary || 'No summary generated');
+    saveWS(currentWS);
+    renderSections();
+    Toast.success('Extraction complete — saved to Notes');
+  })
+  .catch(function(e) { Toast.warning('Extraction failed: ' + e.message); });
+}
+
+function triggerDocUpload() {
+  // Find the file input in the documents section and trigger it
+  var fileInput = document.getElementById('ws-doc-upload-' + (currentWS ? currentWS.id : 'ws'));
+  if (fileInput) {
+    fileInput.click();
+  } else {
+    // Create a temporary file input
+    var tmp = document.createElement('input');
+    tmp.type = 'file';
+    tmp.accept = '.txt,.md,.pdf,.docx,.csv,.json,.html,.js,.py,.rtf';
+    tmp.multiple = true;
+    tmp.onchange = function() {
+      if (!currentWS) return;
+      if (!currentWS.documents) currentWS.documents = [];
+      var docs = currentWS.documents;
+      var processed = 0;
+      Array.from(tmp.files).forEach(function(file) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          docs.push({name:file.name, size:file.size, type:file.type, content:e.target.result, uploaded:new Date().toISOString()});
+          processed++;
+          if (processed === tmp.files.length) {
+            currentWS.documents = docs;
+            saveWS(currentWS);
+            renderSections();
+            Toast.success(tmp.files.length + ' file(s) uploaded to ' + currentWS.name);
+          }
+        };
+        reader.readAsText(file);
+      });
+    };
+    tmp.click();
+  }
+}
+</script>
+</body>
 </html>
