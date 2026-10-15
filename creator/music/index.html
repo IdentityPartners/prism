@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Music Creator — Argentica</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<style>
+.music-layout { display:grid; grid-template-columns:320px 1fr; gap:16px; padding:16px; height:calc(100vh - var(--topbar-h,48px)); box-sizing:border-box; overflow:hidden; }
+.music-controls { display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
+.music-panel { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); padding:14px; }
+.music-title { font-family:var(--font-heading,Georgia,serif); font-size:14px; font-weight:600; margin-bottom:10px; }
+.music-label { font-size:11px; font-weight:600; color:var(--fg-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:5px; display:block; }
+.music-textarea { width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; resize:vertical; background:var(--bg); color:var(--fg); box-sizing:border-box; }
+.music-select { width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; background:var(--bg); color:var(--fg); cursor:pointer; margin-bottom:8px; }
+.music-input { width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; background:var(--bg); color:var(--fg); box-sizing:border-box; margin-bottom:8px; }
+.music-btn { padding:8px 16px; border:none; border-radius:6px; cursor:pointer; font-size:12.5px; font-family:inherit; font-weight:600; transition:all 0.15s; }
+.music-btn-primary { background:var(--accent); color:#fff; width:100%; margin-bottom:6px; }
+.music-btn-primary:hover { opacity:0.85; }
+.music-btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
+.music-btn-secondary { background:var(--bg-sunken); color:var(--fg); border:1px solid var(--border); }
+.music-output { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
+.track-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius); padding:14px; }
+.track-title { font-size:13px; font-weight:600; margin-bottom:4px; }
+.track-meta { font-size:11px; color:var(--fg-muted); margin-bottom:10px; }
+.track-audio { width:100%; border-radius:6px; margin-bottom:8px; }
+.track-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.tag-btn { padding:3px 10px; border:1px solid var(--border); border-radius:10px; font-size:11px; cursor:pointer; background:var(--bg); color:var(--fg-muted); }
+.tag-btn:hover { border-color:var(--accent); color:var(--accent); }
+.status-bar { font-size:12px; color:var(--fg-muted); padding:6px 0; }
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="music-layout">
+
+<!-- Left: Controls -->
+<div class="music-controls">
+
+  <div class="music-panel">
+    <div class="music-title">🎵 Music Creator</div>
+    <div class="status-bar" id="music-status">Ready. Describe your track below.</div>
+  </div>
+
+  <div class="music-panel">
+    <div class="music-title">Track Description</div>
+    <label class="music-label">Prompt</label>
+    <textarea class="music-textarea" id="music-prompt" rows="4" placeholder="e.g. Upbeat indie pop song with female vocals, catchy chorus about finding your way, acoustic guitar and light drums, 120bpm"></textarea>
+    
+    <label class="music-label" style="margin-top:8px;">Quick templates</label>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;">
+      <button class="tag-btn" onclick="setTemplate('pop')">Pop song</button>
+      <button class="tag-btn" onclick="setTemplate('jazz')">Jazz</button>
+      <button class="tag-btn" onclick="setTemplate('electronic')">Electronic</button>
+      <button class="tag-btn" onclick="setTemplate('folk')">Folk</button>
+      <button class="tag-btn" onclick="setTemplate('podcast')">Podcast intro</button>
+      <button class="tag-btn" onclick="setTemplate('ambient')">Ambient</button>
+      <button class="tag-btn" onclick="setTemplate('hiphop')">Hip-hop</button>
+      <button class="tag-btn" onclick="setTemplate('classical')">Classical</button>
+    </div>
+  </div>
+
+  <div class="music-panel">
+    <div class="music-title">Vocal Settings</div>
+    <label class="music-label">Vocals</label>
+    <select class="music-select" id="vocal-type">
+      <option value="">Auto (from prompt)</option>
+      <option value="female soprano">Female Soprano (airy, high)</option>
+      <option value="female alto">Female Alto (warm, rich)</option>
+      <option value="male tenor">Male Tenor (bright, clear)</option>
+      <option value="male baritone">Male Baritone (deep, resonant)</option>
+      <option value="raspy rocker">Raspy Rocker (gritty)</option>
+      <option value="instrumental">Instrumental only (no vocals)</option>
+    </select>
+    
+    <label class="music-label">Custom lyrics (optional)</label>
+    <textarea class="music-textarea" id="custom-lyrics" rows="4" placeholder="[Verse 1]&#10;Your lyrics here...&#10;&#10;[Chorus]&#10;Chorus lyrics...&#10;&#10;Leave blank to auto-generate"></textarea>
+  </div>
+
+  <div class="music-panel">
+    <div class="music-title">Model & Settings</div>
+    <label class="music-label">Lyria model</label>
+    <select class="music-select" id="lyria-model">
+      <option value="lyria-3.5">Lyria 3.5 (best — vocals, lyrics, up to 3min)</option>
+      <option value="lyria-3-pro-preview">Lyria 3 Pro (full compositions)</option>
+      <option value="lyria-3-clip-preview">Lyria 3 Clip (fastest, 30s)</option>
+    </select>
+    
+    <label class="music-label">Genre hints</label>
+    <input class="music-input" id="genre-hint" type="text" placeholder="e.g. indie pop, 80s synth, jazz fusion">
+    
+    <label class="music-label">Tempo</label>
+    <select class="music-select" id="tempo-hint">
+      <option value="">Auto</option>
+      <option value="slow ballad, 60bpm">Slow ballad (60bpm)</option>
+      <option value="moderate, 90bpm">Moderate (90bpm)</option>
+      <option value="upbeat, 120bpm">Upbeat (120bpm)</option>
+      <option value="fast, 140bpm">Fast (140bpm)</option>
+      <option value="driving beat, 160bpm">Driving (160bpm)</option>
+    </select>
+  </div>
+
+  <button class="music-btn music-btn-primary" onclick="generateTrack()" id="gen-btn">🎵 Generate Track</button>
+  <button class="music-btn music-btn-secondary" onclick="generateMultipleTracks()" style="width:100%;">⚡ Generate 3 Variations</button>
+
+</div>
+
+<!-- Right: Output -->
+<div class="music-output" id="music-output">
+  <div style="text-align:center;padding:60px 20px;color:var(--fg-muted);">
+    <div style="font-size:48px;margin-bottom:16px;">🎵</div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:8px;">Your tracks will appear here</div>
+    <div style="font-size:12px;">Describe your track on the left and click Generate.<br>Lyria 3.5 supports full vocals, lyrics, and complete songs up to 3 minutes.</div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var tracks = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/creator/music/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+});
+
+var TEMPLATES = {
+  pop: 'Upbeat pop song with female vocals, catchy chorus, acoustic guitar and synth, 120bpm, about chasing dreams',
+  jazz: 'Smooth jazz with male baritone vocals, piano trio, brushed drums, slow swing tempo, romantic mood',
+  electronic: 'Electronic dance track with synthesised vocals, pulsing bass, arpeggiated synths, 128bpm, euphoric energy',
+  folk: 'Indie folk with soft female vocals, fingerpicked acoustic guitar, gentle percussion, introspective lyrics about nature',
+  podcast: 'Upbeat professional podcast intro, instrumental only, light jazz piano, positive energy, 15 seconds',
+  ambient: 'Atmospheric ambient instrumental, no vocals, ethereal pads, slow evolving textures, meditative',
+  hiphop: 'Hip-hop track with male rapper, boom bap beat, sample-style piano loop, confident lyrics about success',
+  classical: 'Classical orchestral piece, strings and piano, no vocals, dramatic and cinematic, building to a climax'
+};
+
+function setTemplate(key) {
+  var prompt = document.getElementById('music-prompt');
+  if (prompt) prompt.value = TEMPLATES[key] || '';
+}
+
+function buildFullPrompt() {
+  var prompt = document.getElementById('music-prompt').value.trim();
+  var vocalType = document.getElementById('vocal-type').value;
+  var customLyrics = document.getElementById('custom-lyrics').value.trim();
+  var genreHint = document.getElementById('genre-hint').value.trim();
+  var tempoHint = document.getElementById('tempo-hint').value;
+
+  var fullPrompt = prompt;
+  if (vocalType && !prompt.toLowerCase().includes('vocal') && !prompt.toLowerCase().includes('instrumental')) {
+    fullPrompt += '. Vocals: ' + vocalType;
+  }
+  if (genreHint) fullPrompt += '. Genre: ' + genreHint;
+  if (tempoHint) fullPrompt += '. Tempo: ' + tempoHint;
+  if (customLyrics) fullPrompt += '\n\nLyrics:\n' + customLyrics;
+
+  return fullPrompt;
+}
+
+function setStatus(msg) {
+  var el = document.getElementById('music-status');
+  if (el) el.textContent = msg;
+}
+
+function generateTrack() {
+  var prompt = document.getElementById('music-prompt').value.trim();
+  if (!prompt) { Toast.warning('Enter a track description first.'); return; }
+  var model = document.getElementById('lyria-model').value;
+  var fullPrompt = buildFullPrompt();
+  var btn = document.getElementById('gen-btn');
+  if (btn) btn.disabled = true;
+  setStatus('Generating track with ' + model + '...');
+
+  fetch(WORKER + '/api/music/generate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({prompt: fullPrompt, model: model})
+  })
+  .then(function(r) {
+    if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || 'HTTP ' + r.status); });
+    return r.blob();
+  })
+  .then(function(blob) {
+    if (btn) btn.disabled = false;
+    setStatus('Track generated (' + Math.round(blob.size/1024) + ' KB). Ready.');
+    addTrackToOutput(blob, fullPrompt, model);
+  })
+  .catch(function(e) {
+    if (btn) btn.disabled = false;
+    setStatus('Error: ' + e.message);
+    Toast.warning('Generation failed: ' + e.message);
+  });
+}
+
+function generateMultipleTracks() {
+  var prompt = document.getElementById('music-prompt').value.trim();
+  if (!prompt) { Toast.warning('Enter a track description first.'); return; }
+  var model = document.getElementById('lyria-model').value;
+  var fullPrompt = buildFullPrompt();
+  setStatus('Generating 3 variations...');
+
+  var promises = [1,2,3].map(function(i) {
+    return fetch(WORKER + '/api/music/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({prompt: fullPrompt + ' (variation ' + i + ')', model: model})
+    })
+    .then(function(r) { return r.ok ? r.blob() : r.json().then(function(d){throw new Error(d.error);}); })
+    .then(function(blob) { addTrackToOutput(blob, fullPrompt + ' (v' + i + ')', model); return blob; })
+    .catch(function(e) { return null; });
+  });
+
+  Promise.all(promises).then(function() {
+    setStatus('3 variations generated. Ready.');
+  });
+}
+
+function addTrackToOutput(blob, prompt, model) {
+  var output = document.getElementById('music-output');
+  if (!output) return;
+
+  // Remove empty state
+  var empty = output.querySelector('[style*="text-align:center"]');
+  if (empty) empty.remove();
+
+  var url = URL.createObjectURL(blob);
+  var trackId = 'track-' + Date.now();
+  var shortPrompt = prompt.substring(0, 80) + (prompt.length > 80 ? '...' : '');
+
+  var card = document.createElement('div');
+  card.className = 'track-card';
+  card.id = trackId;
+  card.innerHTML =
+    '<div class="track-title">🎵 ' + shortPrompt + '</div>' +
+    '<div class="track-meta">' + model + ' · ' + new Date().toLocaleTimeString('en-GB') + ' · ' + Math.round(blob.size/1024) + ' KB</div>' +
+    '<audio class="track-audio" controls src="' + url + '"></audio>' +
+    '<div class="track-actions">' +
+      '<a href="' + url + '" download="lyria-track-' + Date.now() + '.mp3" class="music-btn music-btn-secondary" style="font-size:11px;padding:4px 12px;text-decoration:none;">⬇ Download</a>' +
+      '<button class="music-btn music-btn-secondary" style="font-size:11px;padding:4px 12px;" onclick="saveToAssets('' + trackId + '','' + url + '','' + shortPrompt.replace(/'/g,"\'") + '')">💾 Save to Assets</button>' +
+      '<button class="music-btn music-btn-secondary" style="font-size:11px;padding:4px 12px;color:#dc2626;" onclick="document.getElementById('' + trackId + '').remove()">✕ Remove</button>' +
+    '</div>';
+
+  output.insertBefore(card, output.firstChild);
+  tracks.push({id: trackId, url, prompt, model, blob});
+}
+
+function saveToAssets(trackId, url, prompt) {
+  var assets = JSON.parse(localStorage.getItem('prism-assets') || '[]');
+  assets.unshift({id: 'music-' + Date.now(), url: url, prompt: prompt, type: 'music', created: new Date().toISOString()});
+  localStorage.setItem('prism-assets', JSON.stringify(assets.slice(0, 200)));
+  Toast.success('Saved to Assets');
+}
+</script>
+</body>
+</html>
