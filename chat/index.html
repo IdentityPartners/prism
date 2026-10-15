@@ -863,6 +863,16 @@ function doSend() {
     payload.profile = 'multimodal'; // Route to vision-capable model
   }
   localStorage.setItem('argentica-last-thread', currentThreadId);
+  // Inject workspace document context if present
+  if (window._wsDocContext && payload.messages && payload.messages.length > 0) {
+    var sysIdx = payload.messages.findIndex(function(m){return m.role==='system';});
+    var docInject = '\n\n[DOCUMENT: ' + (window._wsDocName||'document') + ']\n' + window._wsDocContext.substring(0, 40000) + '\n[END DOCUMENT]\n\nAnswer questions based on the above document. Quote relevant sections when helpful.';
+    if (sysIdx >= 0) {
+      payload.messages[sysIdx] = {role:'system', content: payload.messages[sysIdx].content + docInject};
+    } else {
+      payload.messages.unshift({role:'system', content: 'You are Gerald. British English.' + docInject});
+    }
+  }
   xhr2.send(JSON.stringify(payload));
   // Clear attachments after send
   chatAttachments = [];
@@ -1512,6 +1522,29 @@ window.prismSendMessage = doSend;
 
 document.addEventListener('DOMContentLoaded', function() {
   if (typeof buildOSK === 'function') buildOSK();
+
+  // Load document context from workspace if present
+  var docContext = sessionStorage.getItem('ws-doc-context');
+  var docName = sessionStorage.getItem('ws-doc-name');
+  if (docContext && docName) {
+    sessionStorage.removeItem('ws-doc-context');
+    sessionStorage.removeItem('ws-doc-name');
+    // Pre-load document into chat context
+    var docMsg = document.getElementById('chat-input') || document.querySelector('.chat-textarea');
+    var greeting = document.getElementById('greeting-bubble');
+    if (greeting) greeting.textContent = 'Document loaded: ' + docName + '. What would you like to know?';
+    // Store doc context for next message
+    window._wsDocContext = docContext;
+    window._wsDocName = docName;
+    // Show indicator
+    var strip = document.getElementById('attach-strip');
+    if (strip) {
+      strip.style.display = 'flex';
+      strip.innerHTML = '<span style="color:var(--fg-muted);margin-right:4px;">📄</span>' +
+        '<span style="background:var(--accent-light,#e8f0f8);border:1px solid var(--accent);border-radius:4px;padding:2px 8px;font-size:12px;">' +
+        docName + ' — ready to chat</span>';
+    }
+  }
   loadMemoryPanel();
   loadPersonaPanel();
 
