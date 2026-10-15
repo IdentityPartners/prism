@@ -91,6 +91,23 @@
 <button class="btn btn-ghost btn-sm" onclick="selectAllSources()" title="Select all sources">Select All</button>
 <button class="btn btn-ghost btn-sm" onclick="clearSources()" title="Clear all sources">Clear</button>
 </div>
+
+<div id="panel-api" style="display:none;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-surface);">
+  <div style="font-size:12px;font-weight:600;margin-bottom:8px;">API Sources</div>
+  <div style="font-size:12px;color:var(--fg-muted);">Select sources above and run a search to query APIs directly.</div>
+</div>
+<div id="panel-scholarly" style="display:none;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-surface);">
+  <div style="font-size:12px;font-weight:600;margin-bottom:8px;">Scholarly Search</div>
+  <div style="font-size:12px;color:var(--fg-muted);">Academic papers via Semantic Scholar, arXiv, CrossRef. Run a search above.</div>
+</div>
+<div id="panel-news" style="display:none;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-surface);">
+  <div style="font-size:12px;font-weight:600;margin-bottom:8px;">News Search</div>
+  <div style="font-size:12px;color:var(--fg-muted);">News via Tavily, Brave, Perplexity. Run a search above.</div>
+</div>
+<div id="panel-social" style="display:none;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-surface);">
+  <div style="font-size:12px;font-weight:600;margin-bottom:8px;">Social Search</div>
+  <div style="font-size:12px;color:var(--fg-muted);">Social media search via Perplexity Sonar. Run a search above.</div>
+</div>
 <div class="results-list" id="results-list">
 <div style="font-size:13px;color:var(--fg-muted);padding:20px 0;text-align:center;">Enter a search query above to begin.</div>
 </div>
@@ -217,11 +234,22 @@ function clearSources() {
 }
 
 function switchSourceTab(tab) {
+  // Update tab active state
   var tabs = document.querySelectorAll('.source-tab');
   for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
   var el = document.getElementById('tab-' + tab);
   if (el) el.classList.add('active');
+  // Show/hide panels
+  var panels = ['api','scholarly','news','journals','social'];
+  panels.forEach(function(p) {
+    var panel = document.getElementById('panel-' + p);
+    if (panel) panel.style.display = (p === tab) ? 'block' : 'none';
+  });
+  // Update source chips for this tab
   renderSourceChips(tab);
+  // Auto-search if there's a query
+  var inp = document.getElementById('search-input');
+  if (inp && inp.value.trim()) doSearch();
 }
 
 function renderSourceChips(tab) {
