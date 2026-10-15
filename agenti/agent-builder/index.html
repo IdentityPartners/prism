@@ -304,8 +304,17 @@ var chatHistory = [];
 
 function persistAgentState() {
   try {
+    // Save to sessionStorage for quick restore within session
     sessionStorage.setItem('agent-chat-history', JSON.stringify(chatHistory.slice(-20)));
     if (activeAgent) sessionStorage.setItem('agent-active-id', activeAgent.id);
+    // Also save to KV for persistence across browser restarts
+    if (chatHistory.length > 0) {
+      fetch(WORKER + '/api/chat/history', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({user: 'simon', history: chatHistory.slice(-50)})
+      }).catch(function(){});
+    }
   } catch(e) {}
 }
 var taskHistory = [];
