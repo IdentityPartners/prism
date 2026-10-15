@@ -463,49 +463,79 @@ function runAgentTask(task) {
 }
 
 function runDocumentAnalysis(task, files) {
-  addChatMsg('system', '📄 Large document detected. Running chunked analysis pipeline...');
-  addChatMsg('system', 'This will take 2-5 minutes. The agent will work through the entire document systematically.');
-
-  var file = files[0]; // Process first file
-  var statusDiv = document.createElement('div');
-  statusDiv.className = 'agent-msg system';
-  statusDiv.innerHTML = '<div class="agent-bubble" id="analysis-progress">⏳ Processing ' + file.name + ' (' + Math.round(file.size/1024) + 'KB)...</div>';
-  var chat = document.getElementById('agent-chat');
-  if (chat) chat.appendChild(statusDiv);
+  var file = files[0];
+  addChatMsg('system', '\u{1F4C4} Starting background analysis of ' + file.name + ' (' + Math.round(file.size/1024) + 'KB)...');
+  addChatMsg('system', '\u23F3 This runs in the background with no timeout. Results appear here when ready.');
 
   fetch(WORKER + '/api/agent/analyse', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      task: task,
-      document: file.content,
-      document_name: file.name,
-      agent: activeAgent ? activeAgent.name : 'Research Agent'
-    })
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({task: task, document: file.content, document_name: file.name, agent: activeAgent ? activeAgent.name : 'Research Agent'})
   })
-  .then(function(r){return r.json();})
-  .then(function(d){
-    setAgentStatus(activeAgent ? activeAgent.id : 'researcher', 'done');
-    var progress = document.getElementById('analysis-progress');
-    if (progress) progress.textContent = '✓ Analysis complete: ' + d.chunks_successful + '/' + d.chunks_total + ' sections processed';
-
-    var response = d.synthesis || d.error || 'Analysis returned no content.';
-    if (d.chunks_failed > 0) {
-      response += '\n\n⚠️ ' + d.chunks_failed + ' sections failed: ' + (d.failed_chunks||[]).join(', ');
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (!d.job_id) {
+      addChatMsg('system', 'Error starting analysis: ' + (d.error || 'Unknown'));
+      setAgentStatus(activeAgent ? activeAgent.id : 'researcher', 'error');
+      return;
     }
+    var jobId = d.job_id;
+    var progressEl = null;
+    var progressMsg = document.createElement('div');
+    progressMsg.className = 'agent-msg system';
+    var bubble = document.createElement('div');
+    bubble.className = 'agent-bubble';
+    bubble.textContent = '\u23F3 Analysis running... (job ' + jobId.slice(-8) + ')';
+    progressMsg.appendChild(bubble);
+    var chat = document.getElementById('agent-chat');
+    if (chat) { chat.appendChild(progressMsg); chat.scrollTop = chat.scrollHeight; }
+    progressEl = bubble;
 
-    addChatMsg('agent', response);
-    chatHistory.push({role:'user', content:task + ' [Document: ' + file.name + ']'});
-    chatHistory.push({role:'assistant', content:response});
-    addOutput(activeAgent ? activeAgent.name : 'Research Agent', task, response, []);
-    addSupervisorLog('Document analysis complete: ' + file.name + ' (' + d.chunks_successful + '/' + d.chunks_total + ' chunks)');
-    taskHistory.unshift({agent:activeAgent ? activeAgent.name : 'Research Agent', task:task, response:response, ts:Date.now()});
-    renderHistory();
-    window._agentAttachments = [];
-    updateAttachmentIndicator();
+    setAgentStatus(activeAgent ? activeAgent.id : 'researcher', 'running');
+    var pollCount = 0;
+    var maxPolls = 72; // 12 minutes
+    var pollInterval = setInterval(function() {
+      pollCount++;
+      if (pollCount > maxPolls) {
+        clearInterval(pollInterval);
+        if (progressEl) progressEl.textContent = '\u26A0\uFE0F Analysis taking longer than expected. The job continues in the background — refresh and check again.';
+        setAgentStatus(activeAgent ? activeAgent.id : 'researcher', 'done');
+        return;
+      }
+      fetch(WORKER + '/api/agent/job/' + jobId)
+        .then(function(r) { return r.json(); })
+        .then(function(job) {
+          if (job.status === 'running') {
+            if (progressEl) progressEl.textContent = '\u23F3 ' + (job.progress || 'Processing...') + ' (check ' + pollCount + ')';
+          } else if (job.status === 'complete') {
+            clearInterval(pollInterval);
+            if (progressEl) progressEl.textContent = '\u2713 Analysis complete.';
+            setAgentStatus(activeAgent ? activeAgent.id : 'researcher', 'done');
+            var header = '## Analysis: ' + job.document_name + '\n\n**Sections:** ' + job.chunks_successful + '/' + job.chunks_total + '\n\n---\n\n';
+            var footer = job.chunks_failed > 0 ? ('\n\n---\n\u26A0\uFE0F ' + job.chunks_failed + ' sections failed.') : '';
+            var response = header + (job.synthesis || 'No synthesis generated.') + footer;
+            addChatMsg('agent', response);
+            chatHistory.push({role:'user', content:task + ' [' + file.name + ']'});
+            chatHistory.push({role:'assistant', content:response});
+            addOutput(activeAgent ? activeAgent.name : 'Research Agent', task, response, []);
+            addSupervisorLog('Analysis complete: ' + file.name);
+            taskHistory.unshift({agent:activeAgent ? activeAgent.name : 'Research Agent', task:task, response:response, ts:Date.now()});
+            renderHistory();
+            window._agentAttachments = [];
+            updateAttachmentIndicator();
+            Toast.success('Analysis complete: ' + file.name);
+          } else if (job.status === 'error') {
+            clearInterval(pollInterval);
+            if (progressEl) progressEl.textContent = '\u274C Analysis failed: ' + (job.error || 'Unknown');
+            setAgentStatus(activeAgent ? activeAgent.id : 'researcher', 'error');
+          }
+        })
+        .catch(function() {});
+    }, 10000);
   })
-  .catch(function(e){
+  .catch(function(e) {
     setAgentStatus(activeAgent ? activeAgent.id : 'researcher', 'error');
-    addChatMsg('system', 'Analysis error: ' + e.message);
+    addChatMsg('system', 'Failed to start: ' + e.message);
   });
 }
 function addChatMsg(role, text) {
