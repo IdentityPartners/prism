@@ -109,6 +109,7 @@
         </div>
         <div style="margin-left:auto;display:flex;gap:8px;">
           <button class="btn btn-sm btn-secondary" onclick="editWorkspace()" title="Edit workspace">✏ Edit</button>
+          <button class="btn btn-sm btn-secondary" onclick="triggerDocUpload()" title="Upload files to this workspace">📎 Upload Files</button>
           <button class="btn btn-sm btn-ghost" onclick="backToList()" title="Back to all workspaces">← All Workspaces</button>
         </div>
       </div>
@@ -401,7 +402,7 @@ function renderSections() {
     section.appendChild(body);
 
     // Add row (not for notes)
-    if (sec.type !== 'notes') {
+    if (sec.type !== 'notes' && sec.type !== 'documents') {
       var addRow = document.createElement('div');
       addRow.className = 'ws-add-row';
       var input = document.createElement('input');
@@ -829,6 +830,41 @@ function extractFromDocument(doc) {
     Toast.success('Extraction complete — saved to Notes');
   })
   .catch(function(e) { Toast.warning('Extraction failed: ' + e.message); });
+}
+
+function triggerDocUpload() {
+  // Find the file input in the documents section and trigger it
+  var fileInput = document.getElementById('ws-doc-upload-' + (currentWS ? currentWS.id : 'ws'));
+  if (fileInput) {
+    fileInput.click();
+  } else {
+    // Create a temporary file input
+    var tmp = document.createElement('input');
+    tmp.type = 'file';
+    tmp.accept = '.txt,.md,.pdf,.docx,.csv,.json,.html,.js,.py,.rtf';
+    tmp.multiple = true;
+    tmp.onchange = function() {
+      if (!currentWS) return;
+      if (!currentWS.documents) currentWS.documents = [];
+      var docs = currentWS.documents;
+      var processed = 0;
+      Array.from(tmp.files).forEach(function(file) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          docs.push({name:file.name, size:file.size, type:file.type, content:e.target.result, uploaded:new Date().toISOString()});
+          processed++;
+          if (processed === tmp.files.length) {
+            currentWS.documents = docs;
+            saveWS(currentWS);
+            renderSections();
+            Toast.success(tmp.files.length + ' file(s) uploaded to ' + currentWS.name);
+          }
+        };
+        reader.readAsText(file);
+      });
+    };
+    tmp.click();
+  }
 }
 </script>
 </body>
