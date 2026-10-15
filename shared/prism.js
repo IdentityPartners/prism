@@ -654,6 +654,7 @@ function buildSidebar(activePage) {
     {type:'section', label:'Create'},
     {type:'group', label:'Creator Studio', icon:'🎨', children:[
       {label:'Canvas', href:'/creator/canvas/'},
+      {label:'Music', href:'/creator/music/'},
       {label:'Assets', href:'/creator/assets/'},
       {label:'Podcasts', href:'/creator/podcasts/'},
       {label:'Worksheets', href:'/creator/worksheets/'},
