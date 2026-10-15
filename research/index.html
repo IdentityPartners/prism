@@ -127,81 +127,111 @@ var WORKER = 'https://prism-api.identitypartners.workers.dev';
 var activeSources = ['tavily','brave','exa','semantic_scholar','pubmed','crossref','openalex','core'];
 
 var ALL_SOURCES = {
-  web: [
-    {id:'tavily',name:'Tavily',desc:'Web search'},
-    {id:'brave',name:'Brave',desc:'Web search'},
-    {id:'exa',name:'Exa',desc:'Neural search'},
-    {id:'perplexity',name:'Perplexity',desc:'AI web search'},
-    {id:'firecrawl',name:'Firecrawl',desc:'Web scraper'},
+  // API Sources tab — sources accessible via API keys we have
+  api: [
+    {id:'tavily',name:'Tavily',desc:'Web search with AI answers'},
+    {id:'brave',name:'Brave Search',desc:'Privacy-focused web search'},
+    {id:'exa',name:'Exa',desc:'Neural semantic search'},
+    {id:'perplexity',name:'Perplexity Sonar',desc:'AI web search with citations'},
+    {id:'semantic_scholar',name:'Semantic Scholar',desc:'Academic papers + citations'},
+    {id:'pubmed',name:'PubMed',desc:'Biomedical literature (NCBI)'},
+    {id:'crossref',name:'Crossref',desc:'Academic metadata + DOIs'},
+    {id:'openalex',name:'OpenAlex',desc:'Open scholarly graph (200M+ works)'},
+    {id:'core',name:'CORE',desc:'Open access research papers'},
+    {id:'arxiv',name:'arXiv',desc:'Preprints: physics, maths, CS, econ'},
+    {id:'firecrawl',name:'Firecrawl',desc:'Web scraper + content extractor'},
+    {id:'github',name:'GitHub',desc:'Code, datasets, research repos'},
+    {id:'huggingface',name:'Hugging Face',desc:'ML models + datasets'},
+    {id:'zenodo',name:'Zenodo',desc:'Open research data repository'},
+    {id:'eurostat',name:'Eurostat',desc:'EU statistics API'},
+    {id:'worldbank',name:'World Bank',desc:'Global development data'},
+    {id:'ons',name:'ONS',desc:'UK Office for National Statistics'},
+    {id:'openfda',name:'OpenFDA',desc:'FDA drug/device/food data'},
+    {id:'ncbi',name:'NCBI',desc:'Biomedical databases (NIH)'},
   ],
+  // Scholarly tab — academic search
   scholarly: [
-    {id:'semantic_scholar',name:'Semantic Scholar',desc:'Academic papers'},
-    {id:'pubmed',name:'PubMed',desc:'Biomedical'},
-    {id:'crossref',name:'Crossref',desc:'Academic metadata'},
-    {id:'openalex',name:'OpenAlex',desc:'Open academic graph'},
-    {id:'core',name:'CORE',desc:'Open access'},
-    {id:'google_scholar',name:'Google Scholar',desc:'Via scrape'},
-    {id:'base',name:'BASE',desc:'Bielefeld Academic'},
-    {id:'opendoar',name:'OpenDOAR',desc:'Open repositories'},
-    {id:'openaire',name:'OpenAIRE',desc:'EU research'},
-    {id:'jstor',name:'JSTOR Open',desc:'Open content'},
-    {id:'internet_archive_scholar',name:'Internet Archive Scholar',desc:'Scholarly archive'},
-  ],
-  preprints: [
-    {id:'arxiv',name:'arXiv',desc:'Physics/CS/Math'},
-    {id:'biorxiv',name:'bioRxiv',desc:'Biology'},
-    {id:'medrxiv',name:'medRxiv',desc:'Medicine'},
-    {id:'ssrn',name:'SSRN',desc:'Social science'},
-    {id:'psyarxiv',name:'PsyArXiv',desc:'Psychology'},
-    {id:'socarxiv',name:'SocArXiv',desc:'Social science'},
-    {id:'osf',name:'OSF',desc:'Open Science Framework'},
-    {id:'research_square',name:'Research Square',desc:'Preprints'},
-  ],
-  health: [
-    {id:'pubmed',name:'PubMed',desc:'NCBI biomedical'},
-    {id:'europe_pmc',name:'Europe PMC',desc:'European biomedical'},
-    {id:'clinicaltrials',name:'ClinicalTrials.gov',desc:'Clinical trials'},
-    {id:'openfda',name:'OpenFDA',desc:'FDA data'},
-    {id:'who',name:'WHO GHO',desc:'Global Health Observatory'},
-    {id:'ghdx',name:'GHDx',desc:'Global Health Data Exchange'},
-    {id:'our_world_in_data',name:'Our World in Data',desc:'Health data'},
-    {id:'cdc',name:'CDC Data',desc:'US health data'},
-  ],
-  data: [
-    {id:'zenodo',name:'Zenodo',desc:'Research data'},
-    {id:'figshare',name:'Figshare',desc:'Research data'},
-    {id:'world_bank',name:'World Bank',desc:'Development data'},
-    {id:'oecd',name:'OECD',desc:'Economic data'},
-    {id:'eurostat',name:'Eurostat',desc:'EU statistics'},
-    {id:'who_data',name:'WHO Data',desc:'Health statistics'},
-    {id:'un_data',name:'UN Data',desc:'UN statistics'},
-    {id:'kaggle',name:'Kaggle',desc:'Datasets'},
-    {id:'harvard_dataverse',name:'Harvard Dataverse',desc:'Research data'},
-    {id:'dryad',name:'Dryad',desc:'Scientific data'},
-  ],
-  uk: [
-    {id:'data_gov_uk',name:'data.gov.uk',desc:'UK open data'},
-    {id:'ons',name:'ONS',desc:'Office for National Statistics'},
-    {id:'uk_data_service',name:'UK Data Service',desc:'Social research data'},
-    {id:'nomis',name:'Nomis',desc:'Labour market data'},
-    {id:'parliament',name:'Parliament Data',desc:'UK Parliament'},
-    {id:'ethos',name:'EThOS',desc:'UK theses'},
-    {id:'national_archives',name:'National Archives',desc:'UK archives'},
-  ],
-  social: [
+    {id:'semantic_scholar',name:'Semantic Scholar',desc:'200M+ academic papers'},
+    {id:'openalex',name:'OpenAlex',desc:'Open scholarly graph'},
+    {id:'core',name:'CORE',desc:'Open access papers'},
+    {id:'crossref',name:'Crossref',desc:'Academic metadata + DOIs'},
+    {id:'pubmed',name:'PubMed',desc:'Biomedical literature'},
+    {id:'arxiv',name:'arXiv',desc:'Preprints: physics, maths, CS, econ'},
     {id:'ssrn',name:'SSRN',desc:'Social science preprints'},
-    {id:'icpsr',name:'ICPSR',desc:'Social research data'},
-    {id:'uk_data_service',name:'UK Data Service',desc:'Social data'},
-    {id:'european_social_survey',name:'European Social Survey',desc:'ESS data'},
-    {id:'world_values_survey',name:'World Values Survey',desc:'WVS data'},
-    {id:'pew_research',name:'Pew Research',desc:'Survey data'},
-    {id:'ideas_repec',name:'IDEAS/RePEc',desc:'Economics papers'},
+    {id:'biorxiv',name:'bioRxiv',desc:'Biology preprints'},
+    {id:'medrxiv',name:'medRxiv',desc:'Medical preprints'},
+    {id:'psyarxiv',name:'PsyArXiv',desc:'Psychology preprints'},
+    {id:'socarxiv',name:'SocArXiv',desc:'Social science preprints'},
+    {id:'osf',name:'OSF',desc:'Open Science Framework'},
+    {id:'zenodo',name:'Zenodo',desc:'Research data + papers'},
+    {id:'base',name:'BASE',desc:'Bielefeld Academic Search Engine'},
+    {id:'doaj',name:'DOAJ',desc:'Directory of Open Access Journals'},
+    {id:'pmc',name:'PMC',desc:'PubMed Central — free full text'},
+    {id:'europe_pmc',name:'Europe PMC',desc:'European biomedical literature'},
+    {id:'jstor',name:'JSTOR Open',desc:'Open access JSTOR content'},
+    {id:'scielo',name:'SciELO',desc:'Latin American open access'},
+    {id:'redalyc',name:'Redalyc',desc:'Ibero-American open access'},
+    {id:'lens',name:'Lens.org',desc:'Patents + scholarly (free API)'},
+    {id:'ncbi',name:'NCBI',desc:'NIH biomedical databases'},
+    {id:'clinicaltrials',name:'ClinicalTrials.gov',desc:'Clinical trial registry'},
+    {id:'ethos',name:'EThOS',desc:'UK theses (British Library)'},
+    {id:'oatd',name:'OATD',desc:'Open access theses + dissertations'},
+    {id:'dart_europe',name:'DART-Europe',desc:'European theses'},
+    {id:'ideas_repec',name:'IDEAS/RePEc',desc:'Economics working papers'},
+    {id:'nber',name:'NBER',desc:'National Bureau of Economic Research'},
+    {id:'ssrn_econ',name:'EconStor',desc:'Economics open access'},
+  ],
+  // News tab — news sources
+  news: [
+    {id:'tavily',name:'Tavily News',desc:'Web news search'},
+    {id:'brave',name:'Brave News',desc:'News search'},
+    {id:'perplexity',name:'Perplexity',desc:'AI news synthesis'},
+    {id:'guardian_rss',name:'The Guardian',desc:'RSS feed'},
+    {id:'bbc_rss',name:'BBC News',desc:'RSS feed'},
+    {id:'ft_rss',name:'Financial Times',desc:'RSS feed'},
+    {id:'independent_rss',name:'The Independent',desc:'RSS feed'},
+    {id:'telegraph_rss',name:'The Telegraph',desc:'RSS feed'},
+    {id:'times_rss',name:'The Times',desc:'RSS feed'},
+    {id:'statesman_rss',name:'New Statesman',desc:'RSS feed'},
+    {id:'byline_rss',name:'Byline Times',desc:'RSS feed'},
+    {id:'newscientist_rss',name:'New Scientist',desc:'RSS feed'},
+    {id:'economist_rss',name:'The Economist',desc:'RSS feed'},
+    {id:'reuters_rss',name:'Reuters',desc:'RSS feed'},
+    {id:'sky_rss',name:'Sky News',desc:'RSS feed'},
+  ],
+  // Journals & Press tab
+  journals: [
+    {id:'doaj',name:'DOAJ',desc:'Directory of Open Access Journals'},
+    {id:'pmc',name:'PubMed Central',desc:'Free full-text biomedical'},
+    {id:'jstor',name:'JSTOR Open',desc:'Open access journals'},
+    {id:'scielo',name:'SciELO',desc:'Latin American journals'},
+    {id:'redalyc',name:'Redalyc',desc:'Ibero-American journals'},
+    {id:'ajol',name:'AJOL',desc:'African Journals Online'},
+    {id:'europe_pmc',name:'Europe PMC',desc:'European biomedical journals'},
+    {id:'statesman_rss',name:'New Statesman',desc:'Political weekly'},
+    {id:'byline_rss',name:'Byline Times',desc:'Investigative journalism'},
+    {id:'newscientist_rss',name:'New Scientist',desc:'Science journalism'},
+    {id:'lancet_rss',name:'The Lancet',desc:'Medical journal'},
+    {id:'bmj_rss',name:'BMJ',desc:'British Medical Journal'},
+    {id:'nature_rss',name:'Nature News',desc:'Science journal news'},
+    {id:'science_rss',name:'Science Magazine',desc:'AAAS journal news'},
+    {id:'guardian_rss',name:'Guardian Science',desc:'Science journalism'},
+  ],
+  // Social tab
+  social: [
+    {id:'perplexity',name:'Perplexity Sonar',desc:'AI synthesis with web search'},
+    {id:'tavily',name:'Tavily',desc:'Web search including social'},
+    {id:'brave',name:'Brave',desc:'Web search including social'},
+    {id:'github',name:'GitHub',desc:'Developer discussions + repos'},
+    {id:'huggingface',name:'Hugging Face',desc:'ML community discussions'},
+    {id:'reddit_academic',name:'Reddit (Academic)',desc:'r/science, r/sociology etc.'},
+    {id:'osf',name:'OSF',desc:'Open Science Framework discussions'},
   ],
 };
 
 function selectDefaultSources() {
-  activeSources = ['tavily','brave','exa','semantic_scholar','pubmed','crossref','openalex','core'];
-  renderSourceChips('all');
+  activeSources = ['tavily','brave','semantic_scholar','openalex','core','pubmed','crossref','arxiv','perplexity'];
+  renderSourceChips(currentTab || 'api');
 }
 var allResults = [];
 var savedRuns = [];
@@ -235,7 +265,9 @@ function clearSources() {
   for (var i = 0; i < chips.length; i++) chips[i].classList.remove('active');
 }
 
+var currentTab = "api";
 function switchSourceTab(tab) {
+  currentTab = tab;
   // Update tab active state
   var tabs = document.querySelectorAll('.source-tab');
   for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
