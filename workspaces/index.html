@@ -216,24 +216,62 @@ var DEFAULT_WORKSPACES = [
 
 // ── Load / save ───────────────────────────────────────────────────────────────
 function loadWorkspaces() {
-  try {
-    // Try both keys for backwards compatibility
-    var saved = localStorage.getItem('prism-workspaces-v2') || localStorage.getItem('prism-workspaces');
-    if (saved) {
-      var parsed = JSON.parse(saved);
-      workspaces = (parsed && parsed.length > 0) ? parsed : DEFAULT_WORKSPACES;
-    } else {
-      workspaces = DEFAULT_WORKSPACES;
-    }
-  } catch(e) { workspaces = DEFAULT_WORKSPACES; }
-  saveWorkspaces();
-  renderList();
+  // Load from KV via Worker API (persistent, cross-device)
+  fetch(WORKER + '/api/workspaces')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var kvWorkspaces = d.workspaces || [];
+      if (kvWorkspaces.length > 0) {
+        workspaces = kvWorkspaces;
+      } else {
+        // First time: migrate from localStorage or use defaults
+        var saved = localStorage.getItem('prism-workspaces-v2') || localStorage.getItem('prism-workspaces');
+        if (saved) {
+          try {
+            var parsed = JSON.parse(saved);
+            workspaces = parsed.length > 0 ? parsed : DEFAULT_WORKSPACES;
+            // Migrate to KV
+            workspaces.forEach(function(w) { saveWS(w); });
+          } catch(e) { workspaces = DEFAULT_WORKSPACES; }
+        } else {
+          workspaces = DEFAULT_WORKSPACES;
+          workspaces.forEach(function(w) { saveWS(w); });
+        }
+      }
+      renderWorkspaceList();
+    })
+    .catch(function() {
+      // Fallback to localStorage
+      try {
+        var saved = localStorage.getItem('prism-workspaces-v2');
+        workspaces = saved ? JSON.parse(saved) : DEFAULT_WORKSPACES;
+      } catch(e) { workspaces = DEFAULT_WORKSPACES; }
+      renderWorkspaceList();
+    });
 }
-
 function saveWorkspaces() {
-  try { localStorage.setItem('prism-workspaces-v2', JSON.stringify(workspaces)); } catch(e) {}
+  try { saveAllWorkspaces(); } catch(e) {}
 }
 
+function saveWS(ws) {
+  // Save to KV via Worker API
+  fetch(WORKER + '/api/workspaces', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(ws)
+  }).catch(function() {
+    // Fallback to localStorage
+    saveAllWorkspaces();
+  });
+  // Also update local array
+  var idx = workspaces.findIndex(function(w){return w.id===ws.id;});
+  if (idx >= 0) workspaces[idx] = ws;
+  else workspaces.push(ws);
+}
+
+function saveAllWorkspaces() {
+  workspaces.forEach(function(w) { saveWS(w); });
+}
 function getWS(id) { return workspaces.find(function(w){return w.id===id;}); }
 
 // ── List view ─────────────────────────────────────────────────────────────────
@@ -763,26 +801,50 @@ function renderDocumentsSection(body, sec, countEl) {
 
 function handleDocUpload(files, sec, body, countEl) {
   if (!files || !files.length) return;
-  var docs = currentWS.documents || [];
   var processed = 0;
+  var total = files.length;
+  Toast.info('Uploading ' + total + ' file(s) to workspace...');
+
   Array.from(files).forEach(function(file) {
-    if (file.size > 10 * 1024 * 1024) { Toast.warning(file.name + ' is too large (max 10MB)'); processed++; return; }
+    if (file.size > 25 * 1024 * 1024) { Toast.warning(file.name + ' is too large (max 25MB)'); processed++; return; }
     var reader = new FileReader();
     reader.onload = function(e) {
-      docs.push({
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        content: e.target.result,
-        uploaded: new Date().toISOString()
+      var content = e.target.result;
+      // Upload to Worker (stored in KV, persistent)
+      fetch(WORKER + '/api/workspaces/' + currentWS.id + '/documents', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          content: content
+        })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.success && d.document) {
+          if (!currentWS.documents) currentWS.documents = [];
+          // Store doc metadata locally (content stays in KV)
+          currentWS.documents.push(Object.assign(d.document, {content: content}));
+          processed++;
+          if (processed === total) {
+            renderDocumentsSection(body, sec, countEl);
+            Toast.success(total + ' file(s) uploaded and saved to workspace');
+          }
+        }
+      })
+      .catch(function() {
+        // Fallback: store locally
+        if (!currentWS.documents) currentWS.documents = [];
+        currentWS.documents.push({id:'doc-'+Date.now(), name:file.name, size:file.size, type:file.type, content:content, uploaded:new Date().toISOString()});
+        processed++;
+        if (processed === total) {
+          saveWS(currentWS);
+          renderDocumentsSection(body, sec, countEl);
+          Toast.success(total + ' file(s) uploaded (local only — KV unavailable)');
+        }
       });
-      processed++;
-      if (processed === files.length) {
-        currentWS.documents = docs;
-        saveWS(currentWS);
-        renderDocumentsSection(body, sec, countEl);
-        Toast.success(files.length + ' file' + (files.length > 1 ? 's' : '') + ' uploaded');
-      }
     };
     reader.readAsText(file);
   });
