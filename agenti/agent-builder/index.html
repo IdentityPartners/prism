@@ -735,14 +735,31 @@ function handleAgentAttachment(input) {
 }
 function updateAttachmentIndicator() {
   var strip = document.getElementById('agent-attach-strip');
+  var clearBtn = document.getElementById('clear-attach-btn');
   if (!strip) return;
   var files = window._agentAttachments || [];
-  if (!files.length) { strip.style.display = 'none'; strip.innerHTML = ''; return; }
+  if (!files.length) {
+    strip.style.display = 'none';
+    strip.innerHTML = '';
+    if (clearBtn) clearBtn.style.display = 'none';
+    return;
+  }
   strip.style.display = 'flex';
-  strip.innerHTML = '<span style="color:var(--fg-muted);">📎</span>' +
+  if (clearBtn) clearBtn.style.display = 'inline-block';
+  strip.innerHTML = '<span style="color:var(--fg-muted);font-weight:600;">📎 Attached:</span>' +
     files.map(function(f, i) {
-      return '<span style="background:var(--accent-light,#e8f0f8);border:1px solid var(--accent);border-radius:4px;padding:2px 8px;display:inline-flex;align-items:center;gap:4px;">📄 ' + f.name + ' (' + Math.round(f.size/1024) + 'KB)<button onclick="removeAgentAttachment(' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:12px;">&times;</button></span>';
+      var sizeStr = f.size > 1048576 ? (f.size/1048576).toFixed(1)+'MB' : Math.round(f.size/1024)+'KB';
+      var isLarge = f.size > 10000;
+      return '<span style="background:var(--accent-light,#e8f0f8);border:1px solid var(--accent);border-radius:4px;padding:3px 10px;display:inline-flex;align-items:center;gap:5px;">' +
+        (isLarge ? '📄' : '📝') + ' <strong>' + f.name + '</strong> <span style="color:var(--fg-muted);font-size:10px;">(' + sizeStr + (isLarge ? ' — chunked analysis' : '') + ')</span>' +
+        '<button onclick="removeAgentAttachment(' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:14px;padding:0 2px;line-height:1;">&times;</button>' +
+        '</span>';
     }).join('');
+}
+
+function clearAgentAttachments() {
+  window._agentAttachments = [];
+  updateAttachmentIndicator();
 }
 function removeAgentAttachment(idx) {
   window._agentAttachments.splice(idx, 1);
