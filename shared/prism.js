@@ -3,6 +3,10 @@
 (function() {
   var style = document.createElement('style');
   style.textContent = [
+    // Global font size increase — base 15px (was 13-14px)
+    'html,body{font-size:15px;}',
+    '.btn{font-size:13px;}',
+    'input,select,textarea{font-size:14px;}',
     ':root,[data-theme="parchment"],[data-theme="argentica"]{',
     '--bg:#f0f4f8;--bg-elevated:#ffffff;--bg-sunken:#e4eaf0;--bg-surface:#f8fafc;',
     '--fg:#1a2332;--fg-muted:#5a6a7e;--border:#c8d4e0;',
