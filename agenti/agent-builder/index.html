@@ -462,10 +462,13 @@ function runAgentTask(task) {
   setAgentStatus(activeAgent.id, 'running');
 
   var attachedFiles = window._agentAttachments || [];
-  var hasLargeDoc = attachedFiles.some(function(f) { return f.size > 10000; });
+  // Only route to chunked analysis for large TEXT documents (>50KB)
+  // Images and small files go through direct chat with file context
+  var hasLargeTextDoc = attachedFiles.some(function(f) {
+    return f.type === 'text' && f.size > 50000;
+  });
 
-  // Route: large document → chunked analysis pipeline; otherwise → direct chat
-  if (attachedFiles.length > 0 && hasLargeDoc) {
+  if (attachedFiles.length > 0 && hasLargeTextDoc) {
     runDocumentAnalysis(task, attachedFiles);
     return;
   }
@@ -479,7 +482,12 @@ function runAgentTask(task) {
   if (attachedFiles.length > 0) {
     fileContext = '\n\n[ATTACHED FILES]\n';
     attachedFiles.forEach(function(f) {
-      fileContext += 'File: ' + f.name + '\n\n' + f.content.substring(0, 30000) + '\n\n---\n\n';
+      if (f.type === 'image') {
+        fileContext += 'Image attached: ' + f.name + ' (' + Math.round(f.size/1024) + 'KB)\n';
+        fileContext += 'Note: This is an image file. Describe what you can infer from the filename and context.\n\n---\n\n';
+      } else {
+        fileContext += 'File: ' + f.name + ' (' + Math.round(f.size/1024) + 'KB)\n\n' + (f.content || '').substring(0, 30000) + '\n\n---\n\n';
+      }
     });
   }
 
@@ -489,9 +497,18 @@ function runAgentTask(task) {
 
   addChatMsg('system', activeAgent.name + ' is working...');
 
-  fetch(WORKER + '/api/chat', {
+  // Use /api/devteam so the agent's own system prompt is respected
+  // /api/chat always uses the Gerald/Orchestrator persona
+  fetch(WORKER + '/api/devteam', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({messages:messages, profile:'balanced'})
+    body:JSON.stringify({
+      agent: activeAgent.id,
+      agentName: activeAgent.name,
+      systemPrompt: sysPrompt,
+      messages: messages,
+      message: task + fileContext,
+      profile: 'balanced'
+    })
   })
   .then(function(r){return r.json();})
   .then(function(d){
@@ -747,24 +764,49 @@ function switchCreateTab(tab) {
 var agentAttachments = [];
 
 function handleAgentFiles(input) {
-  agentAttachments = [];
+  window._agentAttachments = [];
   var label = document.getElementById('agent-files-label');
   var preview = document.getElementById('agent-files-preview');
-  if (!input.files.length) { if (label) label.textContent = 'No files attached'; if (preview) preview.innerHTML = ''; return; }
-  if (label) label.textContent = input.files.length + ' file(s) attached';
+  if (!input || !input.files || !input.files.length) {
+    if (label) label.textContent = 'No files attached';
+    if (preview) preview.innerHTML = '';
+    updateAttachmentIndicator();
+    return;
+  }
+  var files = Array.from(input.files);
+  if (label) label.textContent = files.length + ' file(s) attached';
   if (preview) preview.innerHTML = '';
-  Array.from(input.files).forEach(function(file) {
+  var loaded = 0;
+  files.forEach(function(file) {
+    var isText = /\.(md|txt|csv|json|html|js|py|xml|yaml|yml)$/i.test(file.name);
+    var isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(file.name);
     var reader = new FileReader();
-    reader.onload = function(e) {
-      agentAttachments.push({ name: file.name, content: e.target.result.substring(0, 5000) });
-      if (preview) {
-        var chip = document.createElement('div');
-        chip.style.cssText = 'padding:2px 8px;background:var(--accent-light,#e8f0f8);border:1px solid var(--accent);border-radius:4px;font-size:10px;color:var(--accent);';
-        chip.textContent = file.name;
-        preview.appendChild(chip);
-      }
-    };
-    reader.readAsText(file);
+    if (isImage) {
+      reader.onload = function(e) {
+        window._agentAttachments.push({
+          name: file.name,
+          size: file.size,
+          type: 'image',
+          dataUrl: e.target.result,
+          content: '[Image: ' + file.name + ' (' + Math.round(file.size/1024) + 'KB) — attached for visual analysis]'
+        });
+        loaded++;
+        if (loaded === files.length) updateAttachmentIndicator();
+      };
+      reader.readAsDataURL(file);
+    } else {
+      reader.onload = function(e) {
+        window._agentAttachments.push({
+          name: file.name,
+          size: file.size,
+          type: 'text',
+          content: e.target.result
+        });
+        loaded++;
+        if (loaded === files.length) updateAttachmentIndicator();
+      };
+      reader.readAsText(file);
+    }
   });
 }
 
