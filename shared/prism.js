@@ -1231,3 +1231,151 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 })();
+
+// ── On-Screen Keyboard ────────────────────────────────────────────────────────
+function buildOSK(targetId) {
+  var target = document.getElementById(targetId);
+  if (!target) return;
+
+  var APOS = "\u0027"; // apostrophe — avoids quote nesting issues
+  var QUOT = "\u0022"; // double-quote
+
+  var ROWS_NORMAL = [
+    ['`','1','2','3','4','5','6','7','8','9','0','-','=','DEL'],
+    ['Tab','q','w','e','r','t','y','u','i','o','p','[',']','\\'],
+    ['Caps','a','s','d','f','g','h','j','k','l',';',APOS,'RET'],
+    ['SHF','z','x','c','v','b','n','m',',','.','/',  'SHF'],
+    ['123','MIC',',',' ','.','.com','RET']
+  ];
+  var ROWS_SHIFT = [
+    ['~','!','@','#','$','%','^','&','*','(',')','_','+','DEL'],
+    ['Tab','Q','W','E','R','T','Y','U','I','O','P','{','}','|'],
+    ['Caps','A','S','D','F','G','H','J','K','L',':',QUOT,'RET'],
+    ['SHF','Z','X','C','V','B','N','M','<','>','?','SHF'],
+    ['123','MIC',',',' ','.','.com','RET']
+  ];
+  var ROWS_NUM = [
+    ['1','2','3','4','5','6','7','8','9','0','-','/','DEL'],
+    ['@','#','\u00a3','\u20ac','_','&','-','+','(',')','/','*','RET'],
+    ['.',',','?','!',APOS,QUOT,'DEL'],
+    ['ABC','MIC',',',' ','.','.com','RET']
+  ];
+
+  var shifted = false;
+  var numMode = false;
+  var collapsed = false;
+
+  var wrapper = document.createElement('div');
+  wrapper.id = 'osk-wrapper';
+  wrapper.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:8000;background:var(--bg-elevated);border-top:2px solid var(--border);padding:4px 4px 10px;user-select:none;';
+
+  var collapseBar = document.createElement('div');
+  collapseBar.style.cssText = 'text-align:center;cursor:pointer;padding:3px 0 5px;font-size:12px;color:var(--fg-muted);letter-spacing:0.3px;';
+  collapseBar.textContent = '\u25bc Hide keyboard';
+  collapseBar.onclick = function() {
+    collapsed = !collapsed;
+    keyArea.style.display = collapsed ? 'none' : 'block';
+    collapseBar.textContent = collapsed ? '\u25b2 Show keyboard' : '\u25bc Hide keyboard';
+  };
+  wrapper.appendChild(collapseBar);
+
+  var keyArea = document.createElement('div');
+  keyArea.id = 'osk-key-area';
+  wrapper.appendChild(keyArea);
+
+  function getRows() {
+    return numMode ? ROWS_NUM : (shifted ? ROWS_SHIFT : ROWS_NORMAL);
+  }
+
+  var KEY_LABELS = { DEL:'\u232b', RET:'\u21b5', SHF:'\u21e7', MIC:'\ud83c\udfa4' };
+  var KEY_WIDE = { ' ':1, Tab:1, Caps:1, SHF:1, RET:1, DEL:1, ABC:1, '123':1, '.com':1 };
+
+  function renderKeys() {
+    keyArea.innerHTML = '';
+    getRows().forEach(function(row) {
+      var rowDiv = document.createElement('div');
+      rowDiv.style.cssText = 'display:flex;justify-content:center;gap:3px;margin-bottom:3px;';
+      row.forEach(function(key) {
+        var btn = document.createElement('button');
+        var label = KEY_LABELS[key] || key;
+        btn.textContent = label;
+        var wide = KEY_WIDE[key];
+        var isSpace = key === ' ';
+        btn.style.cssText = [
+          'padding:11px ' + (isSpace ? '50px' : wide ? '12px' : '9px') + ';',
+          'border:1px solid var(--border);border-radius:6px;',
+          'background:' + (wide && !isSpace ? 'var(--bg-sunken)' : 'var(--bg-elevated)') + ';',
+          'color:var(--fg);font-size:14px;font-family:inherit;',
+          'cursor:pointer;min-width:' + (isSpace ? '100px' : wide ? '48px' : '34px') + ';',
+          'flex-shrink:0;transition:background 0.1s;',
+        ].join('');
+        btn.onmousedown = function(e) { e.preventDefault(); handleKey(key); };
+        btn.ontouchstart = function(e) { e.preventDefault(); handleKey(key); };
+        rowDiv.appendChild(btn);
+      });
+      keyArea.appendChild(rowDiv);
+    });
+  }
+
+  function insert(text) {
+    var s = target.selectionStart, e2 = target.selectionEnd;
+    target.setRangeText(text, s, e2, 'end');
+    target.dispatchEvent(new Event('input', {bubbles:true}));
+    target.focus();
+    // Auto-grow
+    target.style.height = 'auto';
+    target.style.height = Math.min(target.scrollHeight, 300) + 'px';
+  }
+
+  function handleKey(key) {
+    if (key === 'DEL') {
+      var s = target.selectionStart, e2 = target.selectionEnd;
+      if (s !== e2) { target.setRangeText('', s, e2, 'end'); }
+      else if (s > 0) { target.setRangeText('', s-1, s, 'end'); }
+      target.dispatchEvent(new Event('input', {bubbles:true}));
+      target.focus();
+    } else if (key === 'RET') {
+      insert('\n');
+    } else if (key === 'SHF' || key === 'Caps') {
+      shifted = !shifted; renderKeys();
+    } else if (key === 'Tab') {
+      insert('  ');
+    } else if (key === '123') {
+      numMode = true; shifted = false; renderKeys();
+    } else if (key === 'ABC') {
+      numMode = false; shifted = false; renderKeys();
+    } else if (key === 'MIC') {
+      startDictation(target);
+    } else {
+      insert(key);
+      if (shifted && !numMode) { shifted = false; renderKeys(); }
+    }
+  }
+
+  renderKeys();
+
+  var anchor = target.closest('.chat-input-area') || target.closest('form') || document.body;
+  anchor.appendChild(wrapper);
+
+  target.addEventListener('input', function() {
+    target.style.height = 'auto';
+    target.style.height = Math.min(target.scrollHeight, 300) + 'px';
+  });
+
+  return wrapper;
+}
+
+function startDictation(target) {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('Speech recognition not supported in this browser.'); return; }
+  var rec = new SR();
+  rec.lang = 'en-GB';
+  rec.interimResults = false;
+  rec.onresult = function(e) {
+    var text = e.results[0][0].transcript;
+    var pos = target.selectionStart;
+    target.setRangeText(text + ' ', pos, pos, 'end');
+    target.dispatchEvent(new Event('input', {bubbles:true}));
+  };
+  rec.start();
+}
