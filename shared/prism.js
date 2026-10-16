@@ -1106,3 +1106,128 @@ document.addEventListener('DOMContentLoaded', function() {
     createPanel();
   }
 })();
+
+
+// ── Theme switcher ────────────────────────────────────────────────────────────
+(function() {
+  var THEMES = [
+    {id:'argentica',      label:'Argentica',       group:'Light'},
+    {id:'parchment',      label:'Parchment',       group:'Light'},
+    {id:'teal-rose',      label:'Teal & Rose',     group:'Light'},
+    {id:'olive',          label:'Olive',           group:'Light'},
+    {id:'faded-blue',     label:'Faded Blue',      group:'Light'},
+    {id:'scholarly',      label:'Scholarly',       group:'Light'},
+    {id:'therapy',        label:'Therapy',         group:'Light'},
+    {id:'retreat',        label:'Retreat',         group:'Light'},
+    {id:'dawn',           label:'Dawn',            group:'Light'},
+    {id:'midnight-teal',  label:'Midnight Teal',   group:'Dark'},
+    {id:'argentica-dark', label:'Argentica Dark',  group:'Dark'},
+    {id:'midnight-rose',  label:'Midnight Rose',   group:'Dark'},
+    {id:'dusk',           label:'Dusk',            group:'Dark'},
+    {id:'cloudflare',     label:'Cloudflare',      group:'Brand'},
+    {id:'linear',         label:'Linear',          group:'Brand'},
+    {id:'notion',         label:'Notion',          group:'Brand'},
+    {id:'stripe',         label:'Stripe',          group:'Brand'},
+    {id:'vercel',         label:'Vercel',          group:'Brand'},
+    {id:'wordpress',      label:'WordPress',       group:'Brand'},
+  ];
+
+  function applyTheme(id) {
+    document.documentElement.setAttribute('data-theme', id);
+    try { localStorage.setItem('argentica-theme', id); } catch(e) {}
+  }
+
+  // Apply saved theme immediately (no time-based forcing)
+  (function() {
+    var saved = 'argentica';
+    try { saved = localStorage.getItem('argentica-theme') || 'argentica'; } catch(e) {}
+    document.documentElement.setAttribute('data-theme', saved);
+  })();
+
+  function buildThemePicker() {
+    var panel = document.createElement('div');
+    panel.id = 'theme-picker-panel';
+    panel.style.cssText = [
+      'position:fixed;bottom:56px;left:14px;',
+      'background:var(--bg-elevated);border:1px solid var(--border);',
+      'border-radius:10px;padding:14px;z-index:9999;width:270px;',
+      'box-shadow:0 4px 24px rgba(0,0,0,0.18);display:none;',
+    ].join('');
+
+    var title = document.createElement('div');
+    title.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:10px;';
+    title.textContent = 'Choose Theme';
+    panel.appendChild(title);
+
+    var groups = {};
+    THEMES.forEach(function(t) {
+      if (!groups[t.group]) groups[t.group] = [];
+      groups[t.group].push(t);
+    });
+
+    Object.keys(groups).forEach(function(group) {
+      var gl = document.createElement('div');
+      gl.style.cssText = 'font-size:10px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.4px;margin:8px 0 4px;';
+      gl.textContent = group;
+      panel.appendChild(gl);
+
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;';
+      groups[group].forEach(function(t) {
+        var btn = document.createElement('button');
+        btn.textContent = t.label;
+        btn.dataset.themeId = t.id;
+        btn.style.cssText = 'padding:4px 10px;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;background:var(--bg);color:var(--fg);font-family:inherit;transition:all 0.15s;';
+        btn.onclick = function() {
+          applyTheme(t.id);
+          panel.querySelectorAll('button').forEach(function(b) {
+            b.style.background = 'var(--bg)';
+            b.style.color = 'var(--fg)';
+            b.style.borderColor = 'var(--border)';
+          });
+          btn.style.background = 'var(--accent)';
+          btn.style.color = '#fff';
+          btn.style.borderColor = 'var(--accent)';
+        };
+        try {
+          if ((localStorage.getItem('argentica-theme') || 'argentica') === t.id) {
+            btn.style.background = 'var(--accent)';
+            btn.style.color = '#fff';
+            btn.style.borderColor = 'var(--accent)';
+          }
+        } catch(e) {}
+        row.appendChild(btn);
+      });
+      panel.appendChild(row);
+    });
+
+    document.body.appendChild(panel);
+    return panel;
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var panel = null;
+    var btn = document.createElement('button');
+    btn.id = 'theme-toggle-btn';
+    btn.innerHTML = '&#x1F3A8; Theme';
+    btn.style.cssText = [
+      'position:fixed;bottom:14px;left:14px;',
+      'padding:6px 14px;background:var(--bg-elevated);',
+      'border:1px solid var(--border);border-radius:8px;',
+      'font-size:12px;cursor:pointer;color:var(--fg);',
+      'font-family:inherit;z-index:1000;transition:all 0.15s;',
+      'box-shadow:0 1px 4px rgba(0,0,0,0.08);',
+    ].join('');
+    btn.onmouseenter = function() { btn.style.borderColor = 'var(--accent)'; btn.style.color = 'var(--accent)'; };
+    btn.onmouseleave = function() { btn.style.borderColor = 'var(--border)'; btn.style.color = 'var(--fg)'; };
+    btn.onclick = function(e) {
+      e.stopPropagation();
+      if (!panel) panel = buildThemePicker();
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    };
+    document.body.appendChild(btn);
+    document.addEventListener('click', function() {
+      if (panel) panel.style.display = 'none';
+    });
+  });
+})();
