@@ -561,6 +561,49 @@ document.addEventListener('DOMContentLoaded', function() {
   // Try to sync
   syncCalendar();
 });
+
+// Handle Zoho OAuth callback (?code=... in URL)
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var code = params.get('code');
+  var error = params.get('error');
+  
+  if (error) {
+    document.body.innerHTML = '<div style="padding:40px;text-align:center;"><h2>Connection Failed</h2><p>' + error + '</p><a href="/comms/zoho-calendar/">Try Again</a></div>';
+    return;
+  }
+  
+  if (code) {
+    // Exchange code for token via Worker
+    var log = document.createElement('div');
+    log.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#1a1a1a;color:#0f0;padding:12px;border-radius:8px;font-size:11px;font-family:monospace;max-width:400px;z-index:9999;';
+    log.textContent = new Date().toLocaleTimeString() + ' Received code, calling Worker...';
+    document.body.appendChild(log);
+    
+    fetch('https://prism-api.identitypartners.workers.dev/api/zoho/exchange', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({code: code, redirect_uri: window.location.origin + '/comms/zoho-calendar/'})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) {
+        log.textContent = new Date().toLocaleTimeString() + ' Connected! Reloading...';
+        log.style.color = '#0f0';
+        // Remove code from URL and reload
+        window.history.replaceState({}, '', '/comms/zoho-calendar/');
+        setTimeout(function() { window.location.reload(); }, 1000);
+      } else {
+        log.style.color = '#f00';
+        log.textContent = new Date().toLocaleTimeString() + ' Error: ' + (d.error || 'Unknown');
+      }
+    })
+    .catch(function(e) {
+      log.style.color = '#f00';
+      log.textContent = 'Error: ' + e.message;
+    });
+  }
+})();
 </script>
 </body>
 </html>
