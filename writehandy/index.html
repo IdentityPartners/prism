@@ -1831,7 +1831,7 @@ function scheduleOCR() {
   if (typeof currentView === 'undefined') return;
   if (currentView !== 'ink' && currentView !== 'dual') return;
   if (ocrTimer) clearTimeout(ocrTimer);
-  ocrTimer = setTimeout(function() { runOCR(true); }, 2000);
+  ocrTimer = setTimeout(function() { runOCR(true); }, 1000);
 }
 
 function runOCR(auto) {
@@ -1839,12 +1839,15 @@ function runOCR(auto) {
   if (!canvas) return;
   var ctx2d = canvas.getContext('2d');
   if (!ctx2d) return;
-  var imgData = ctx2d.getImageData(0, 0, Math.min(canvas.width,100), Math.min(canvas.height,100));
+  // Check a larger area for ink (DPR means strokes may be at 2x coords)
+  var sampleW = Math.min(canvas.width, 400);
+  var sampleH = Math.min(canvas.height, 400);
+  var imgData = ctx2d.getImageData(0, 0, sampleW, sampleH);
   var hasInk = false;
   for (var pi = 3; pi < imgData.data.length; pi += 4) {
     if (imgData.data[pi] > 10) { hasInk = true; break; }
   }
-  if (!hasInk) return;
+  if (!hasInk) { return; }
   var dataUrl = canvas.toDataURL('image/png');
   var b64 = dataUrl.split(',')[1];
   var ocrBtn = document.getElementById('wh-ocr-btn');
