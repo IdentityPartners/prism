@@ -459,8 +459,8 @@
 .wh-key.send:hover { background: var(--accent-hover); }
 
 /* ── Dual pane ──────────────────────────────────────────────────────────────── */
-.wh-dual { display: flex; flex-direction: row; height: 100%; width: 100%; }
-.wh-pane { overflow: hidden; display: flex; flex-direction: column; border-right: 1px solid var(--border); }
+.wh-dual { display: flex; flex-direction: row; height: 100%; width: 100%; overflow: hidden; }
+.wh-pane { flex: 1; min-width: 0; overflow: hidden; display: flex; flex-direction: column; border-right: 1px solid var(--border); }
 .wh-pane:last-child { border-right: none; }
 .wh-pane-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); margin-bottom: 8px; }
 
@@ -992,16 +992,15 @@ function addPage() {
 
 // ── Ink canvas ────────────────────────────────────────────────────────────────
 function initCanvas() {
-  // Defer one frame so the DOM has fully laid out before measuring
-  requestAnimationFrame(function() {
+  // Defer TWO frames: first for DOM insertion, second for layout
+  requestAnimationFrame(function() { requestAnimationFrame(function() {
     var canvas = document.getElementById('wh-ink');
     if (!canvas) return;
 
-    // Use getBoundingClientRect so we get the actual rendered size
-    // This works correctly in both single-pane and dual-pane layouts
-    var rect = canvas.getBoundingClientRect();
-    var w = rect.width > 50 ? Math.floor(rect.width) : Math.floor((window.innerWidth - 280) / 2);
-    var h = Math.max(rect.height > 100 ? Math.floor(rect.height) : window.innerHeight - 120, 1400);
+    // Use parent's clientWidth — reliable after two rAF cycles
+    var parent = canvas.parentElement;
+    var w = (parent && parent.clientWidth > 50) ? parent.clientWidth : Math.floor((window.innerWidth - 280) / 2);
+    var h = Math.max((parent && parent.clientHeight > 100) ? parent.clientHeight : window.innerHeight - 120, 1400);
 
     // Pixel buffer must exactly match rendered CSS size for getPos() coordinates to be correct
     canvas.width = w;
@@ -1021,7 +1020,7 @@ function initCanvas() {
     canvas.addEventListener('touchmove', function(e){e.preventDefault();},{passive:false});
 
     redrawInk();
-  });
+  }); });
 }
 
 function getPos(e) {
@@ -1311,7 +1310,7 @@ function setView(view) {
 
   if (view === 'ink') {
     // Default: ink canvas + text layer
-    var cvs = document.createElement('canvas'); cvs.id = 'wh-ink'; cvs.style.cssText = 'display:block;width:100%;touch-action:none;'; surface.appendChild(cvs);
+    var cvs = document.createElement('canvas'); cvs.id = 'wh-ink'; cvs.style.cssText = 'display:block;touch-action:none;'; surface.appendChild(cvs);
     var tl = document.createElement('div');
     tl.id = 'wh-text'; tl.contentEditable = 'false'; tl.spellcheck = true;
     tl.setAttribute('data-placeholder', '');
@@ -1324,10 +1323,10 @@ function setView(view) {
   } else if (view === 'dual') {
     var dual = document.createElement('div'); dual.className = 'wh-dual';
     // Left pane: handwriting canvas
-    var left = document.createElement('div'); left.className = 'wh-pane'; left.style.cssText = 'flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;';
+    var left = document.createElement('div'); left.className = 'wh-pane';
     var lbl1 = document.createElement('div'); lbl1.className = 'wh-pane-label'; lbl1.textContent = 'Handwriting';
     var cvs2 = document.createElement('canvas'); cvs2.id = 'wh-ink';
-    cvs2.style.cssText = 'display:block;width:100%;height:100%;min-height:1400px;touch-action:none;';
+    cvs2.style.cssText = 'display:block;touch-action:none;';
     left.appendChild(lbl1); left.appendChild(cvs2);
     // Right pane: editable text (not read-only preview)
     var right = document.createElement('div'); right.className = 'wh-pane';
