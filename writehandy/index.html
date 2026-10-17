@@ -601,6 +601,16 @@
       <button class="wh-view-btn" onclick="setView('read')" id="vbtn-read" title="Reading view">Read</button>
       <button class="wh-view-btn" onclick="setView('outline')" id="vbtn-outline" title="Outline">Outline</button>
       <button class="wh-view-btn" onclick="setView('timeline')" id="vbtn-timeline" title="Timeline">Timeline</button>
+      <div style="display:flex;align-items:center;gap:6px;margin-left:12px;border-left:1px solid var(--border);padding-left:12px;">
+        <span style="font-size:11px;color:var(--fg-muted);">Size</span>
+        <button onclick="whAdjust('font',-1)" style="padding:2px 7px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--bg);font-size:12px;" title="Decrease font size">A-</button>
+        <span id="wh-font-size-label" style="font-size:11px;min-width:28px;text-align:center;">15</span>
+        <button onclick="whAdjust('font',1)" style="padding:2px 7px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--bg);font-size:12px;" title="Increase font size">A+</button>
+        <span style="font-size:11px;color:var(--fg-muted);margin-left:6px;">Spacing</span>
+        <button onclick="whAdjust('line',-0.1)" style="padding:2px 7px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--bg);font-size:12px;" title="Decrease line spacing">&darr;</button>
+        <span id="wh-line-height-label" style="font-size:11px;min-width:28px;text-align:center;">1.8</span>
+        <button onclick="whAdjust('line',0.1)" style="padding:2px 7px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--bg);font-size:12px;" title="Increase line spacing">&uarr;</button>
+      </div>
 
       <!-- Template -->
       <div class="wh-tb-sep"></div>
@@ -1291,7 +1301,8 @@ function setView(view) {
     var cvs = document.createElement('canvas'); cvs.id = 'wh-ink'; surface.appendChild(cvs);
     var tl = document.createElement('div');
     tl.id = 'wh-text'; tl.contentEditable = 'false'; tl.spellcheck = true;
-    tl.setAttribute('data-placeholder', 'Pick up your stylus and write…');
+    tl.setAttribute('data-placeholder', '');
+    tl.style.cssText = 'flex:1;padding:16px;outline:none;overflow-y:auto;font-size:' + (window._whFontSize || 15) + 'px;line-height:' + (window._whLineHeight || 1.8) + ';';
     tl.oninput = onTextInput; tl.onkeydown = onTextKeydown;
     tl.innerHTML = currentPage ? currentPage.content || '' : '';
     surface.appendChild(tl);
@@ -1299,18 +1310,29 @@ function setView(view) {
     initCanvas(); redrawInk();
   } else if (view === 'dual') {
     var dual = document.createElement('div'); dual.className = 'wh-dual';
+    // Left pane: handwriting canvas
     var left = document.createElement('div'); left.className = 'wh-pane';
     var lbl1 = document.createElement('div'); lbl1.className = 'wh-pane-label'; lbl1.textContent = 'Handwriting';
     var cvs2 = document.createElement('canvas'); cvs2.id = 'wh-ink';
     left.appendChild(lbl1); left.appendChild(cvs2);
+    // Right pane: editable text (not read-only preview)
     var right = document.createElement('div'); right.className = 'wh-pane';
-    var lbl2 = document.createElement('div'); lbl2.className = 'wh-pane-label'; lbl2.textContent = 'Markdown Preview';
-    var preview = document.createElement('div'); preview.className = 'md-content';
-    preview.innerHTML = Markdown.render(currentPage ? currentPage.content || '' : '');
-    right.appendChild(lbl2); right.appendChild(preview);
+    var lbl2 = document.createElement('div'); lbl2.className = 'wh-pane-label'; lbl2.textContent = 'Text Editor';
+    var tl2 = document.createElement('div');
+    tl2.id = 'wh-text';
+    tl2.contentEditable = 'true';
+    tl2.spellcheck = true;
+    tl2.setAttribute('data-placeholder', '');
+    tl2.style.cssText = 'flex:1;padding:16px;outline:none;overflow-y:auto;font-size:' + (window._whFontSize || 15) + 'px;line-height:' + (window._whLineHeight || 1.8) + ';';
+    tl2.oninput = onTextInput;
+    tl2.onkeydown = onTextKeydown;
+    tl2.innerHTML = currentPage ? currentPage.content || '' : '';
+    right.appendChild(lbl2); right.appendChild(tl2);
     dual.appendChild(left); dual.appendChild(right);
     surface.appendChild(dual);
     initCanvas(); redrawInk();
+    // Focus the text editor so keystrokes register immediately
+    setTimeout(function() { if (tl2) tl2.focus(); }, 100);
   } else if (view === 'read') {
     var readDiv = document.createElement('div');
     readDiv.style.cssText = 'padding:40px 80px;max-width:800px;margin:0 auto;font-size:16px;line-height:1.9;';
@@ -1736,6 +1758,43 @@ document.addEventListener('DOMContentLoaded', function() {
   updateCounts();
 });
 </script>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"ef102d28b0a74a4f99b6d54426bc58f4","r":1,"spa":2}' crossorigin="anonymous"></script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"ef102d28b0a74a4f99b6d54426bc58f4","r":1,"spa":2}' crossorigin="anonymous">
+// WriteHandy font size and line height controls
+window._whFontSize = 15;
+window._whLineHeight = 1.8;
+
+function whAdjust(type, delta) {
+  if (type === 'font') {
+    window._whFontSize = Math.max(10, Math.min(32, (window._whFontSize || 15) + delta));
+    var lbl = document.getElementById('wh-font-size-label');
+    if (lbl) lbl.textContent = window._whFontSize;
+  } else {
+    window._whLineHeight = Math.max(1.2, Math.min(3.0, Math.round(((window._whLineHeight || 1.8) + delta) * 10) / 10));
+    var lbl2 = document.getElementById('wh-line-height-label');
+    if (lbl2) lbl2.textContent = window._whLineHeight.toFixed(1);
+  }
+  // Apply to all text elements
+  var textEl = document.getElementById('wh-text');
+  if (textEl) {
+    textEl.style.fontSize = window._whFontSize + 'px';
+    textEl.style.lineHeight = window._whLineHeight;
+  }
+  // Save preference
+  try {
+    localStorage.setItem('wh-font-size', window._whFontSize);
+    localStorage.setItem('wh-line-height', window._whLineHeight);
+  } catch(e) {}
+}
+
+// Load saved preferences
+(function() {
+  try {
+    var fs = localStorage.getItem('wh-font-size');
+    var lh = localStorage.getItem('wh-line-height');
+    if (fs) window._whFontSize = parseFloat(fs);
+    if (lh) window._whLineHeight = parseFloat(lh);
+  } catch(e) {}
+})();
+</script>
 </body>
 </html>
