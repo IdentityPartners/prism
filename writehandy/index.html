@@ -459,8 +459,8 @@
 .wh-key.send:hover { background: var(--accent-hover); }
 
 /* ── Dual pane ──────────────────────────────────────────────────────────────── */
-.wh-dual { display: grid; grid-template-columns: 1fr 1fr; height: 100%; }
-.wh-pane { overflow: auto; padding: 20px; border-right: 1px solid var(--border); }
+.wh-dual { display: flex; flex-direction: row; height: 100%; width: 100%; }
+.wh-pane { overflow: hidden; display: flex; flex-direction: column; border-right: 1px solid var(--border); }
 .wh-pane:last-child { border-right: none; }
 .wh-pane-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); margin-bottom: 8px; }
 
@@ -992,23 +992,36 @@ function addPage() {
 
 // ── Ink canvas ────────────────────────────────────────────────────────────────
 function initCanvas() {
-  var canvas = document.getElementById('wh-ink');
-  var surface = document.getElementById('wh-surface');
-  if (!canvas) return;
-  // Use surface dimensions if available, otherwise use window dimensions
-  var w = (surface && surface.offsetWidth > 50) ? surface.offsetWidth : (window.innerWidth - 280 - 200);
-  var h = Math.max((surface && surface.offsetHeight > 100) ? surface.offsetHeight : window.innerHeight - 100, 1400);
-  canvas.width = Math.max(w, 400);
-  canvas.height = h;
-  canvas.style.width = canvas.width + 'px';
-  canvas.style.height = canvas.height + 'px';
+  // Defer one frame so the DOM has fully laid out before measuring
+  requestAnimationFrame(function() {
+    var canvas = document.getElementById('wh-ink');
+    if (!canvas) return;
 
-  canvas.addEventListener('pointerdown', startStroke);
-  canvas.addEventListener('pointermove', continueStroke);
-  canvas.addEventListener('pointerup', endStroke);
-  canvas.addEventListener('pointercancel', endStroke);
-  canvas.addEventListener('touchstart', function(e){e.preventDefault();},{passive:false});
-  canvas.addEventListener('touchmove', function(e){e.preventDefault();},{passive:false});
+    // Use getBoundingClientRect so we get the actual rendered size
+    // This works correctly in both single-pane and dual-pane layouts
+    var rect = canvas.getBoundingClientRect();
+    var w = rect.width > 50 ? Math.floor(rect.width) : Math.floor((window.innerWidth - 280) / 2);
+    var h = Math.max(rect.height > 100 ? Math.floor(rect.height) : window.innerHeight - 120, 1400);
+
+    // Pixel buffer must exactly match rendered CSS size for getPos() coordinates to be correct
+    canvas.width = w;
+    canvas.height = h;
+    canvas.style.touchAction = 'none';
+
+    // Remove then re-add listeners to prevent duplicates across view switches
+    canvas.removeEventListener('pointerdown', startStroke);
+    canvas.removeEventListener('pointermove', continueStroke);
+    canvas.removeEventListener('pointerup', endStroke);
+    canvas.removeEventListener('pointercancel', endStroke);
+    canvas.addEventListener('pointerdown', startStroke);
+    canvas.addEventListener('pointermove', continueStroke);
+    canvas.addEventListener('pointerup', endStroke);
+    canvas.addEventListener('pointercancel', endStroke);
+    canvas.addEventListener('touchstart', function(e){e.preventDefault();},{passive:false});
+    canvas.addEventListener('touchmove', function(e){e.preventDefault();},{passive:false});
+
+    redrawInk();
+  });
 }
 
 function getPos(e) {
