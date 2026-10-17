@@ -1298,7 +1298,7 @@ function setView(view) {
 
   if (view === 'ink') {
     // Default: ink canvas + text layer
-    var cvs = document.createElement('canvas'); cvs.id = 'wh-ink'; surface.appendChild(cvs);
+    var cvs = document.createElement('canvas'); cvs.id = 'wh-ink'; cvs.style.cssText = 'display:block;width:100%;touch-action:none;'; surface.appendChild(cvs);
     var tl = document.createElement('div');
     tl.id = 'wh-text'; tl.contentEditable = 'false'; tl.spellcheck = true;
     tl.setAttribute('data-placeholder', '');
@@ -1311,9 +1311,10 @@ function setView(view) {
   } else if (view === 'dual') {
     var dual = document.createElement('div'); dual.className = 'wh-dual';
     // Left pane: handwriting canvas
-    var left = document.createElement('div'); left.className = 'wh-pane';
+    var left = document.createElement('div'); left.className = 'wh-pane'; left.style.cssText = 'flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;';
     var lbl1 = document.createElement('div'); lbl1.className = 'wh-pane-label'; lbl1.textContent = 'Handwriting';
     var cvs2 = document.createElement('canvas'); cvs2.id = 'wh-ink';
+    cvs2.style.cssText = 'display:block;width:100%;height:100%;min-height:1400px;touch-action:none;';
     left.appendChild(lbl1); left.appendChild(cvs2);
     // Right pane: editable text (not read-only preview)
     var right = document.createElement('div'); right.className = 'wh-pane';
