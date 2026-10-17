@@ -148,7 +148,19 @@
   </div>
 
   <div class="home-card">
-    <div class="home-card-title">📰 Daily News <a href="/research/">Research →</a></div>
+    <div class="home-card-title">📰 Daily News
+  <div style="display:flex;gap:6px;align-items:center;">
+    <button onclick="toggleKeywordPanel()" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--bg);color:var(--fg);">⚙ Watch</button>
+    <a href="/research/" style="font-size:10px;color:var(--accent);text-decoration:none;">Research →</a>
+  </div>
+</div>
+<div id="keyword-panel" style="display:none;padding:8px;border-bottom:1px solid var(--border);background:var(--bg-sunken);">
+  <div style="font-size:11px;color:var(--fg-muted);margin-bottom:4px;">Watch for keywords (comma-separated):</div>
+  <div style="display:flex;gap:6px;">
+    <input id="keyword-input" type="text" placeholder="ADHD, disability, Identity Partners..." style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--bg);color:var(--fg);">
+    <button onclick="saveKeywords()" style="padding:5px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;">Save</button>
+  </div>
+</div>
     <div id="news-list"><div style="font-size:12px;color:var(--fg-muted);">Loading news...</div></div>
   </div>
 
@@ -324,45 +336,98 @@ function saveTasks() { localStorage.setItem('home-tasks', JSON.stringify(tasks))
 
 // ── News ──────────────────────────────────────────────────────────────────────
 function loadNews() {
+  var el = document.getElementById('news-list');
+  if (!el) return;
+  el.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);">Loading news...</div>';
+
+  // Load saved keyword watches
+  var watchedKeywords = [];
+  try { watchedKeywords = JSON.parse(localStorage.getItem('news-keywords') || '[]'); } catch(e) {}
+
   var feeds = [
     'https://feeds.theguardian.com/theguardian/uk/rss',
     'https://feeds.bbci.co.uk/news/rss.xml',
     'https://feeds.skynews.com/feeds/rss/uk.xml',
+    'https://www.newstatesman.com/feed',
+    'https://bylinetimes.com/feed/',
   ];
-  var el = document.getElementById('news-list');
-  fetch(WORKER + '/api/rss?url=' + encodeURIComponent(feeds[Math.floor(Math.random()*feeds.length)]))
-    .then(function(r){return r.json();})
-    .then(function(d){
-      var items = d.items || [];
-      if (!items.length) { el.textContent = 'No news loaded.'; return; }
-      el.innerHTML = '';
-      items.slice(0,5).forEach(function(item) {
-        var div = document.createElement('div');
-        div.className = 'news-item';
-        div.onclick = function() { window.open(item.url,'_blank'); };
-        if (item.image) {
-          var img = document.createElement('img');
-          img.className = 'news-thumb'; img.src = item.image; img.alt = '';
-          img.onerror = function(){this.style.display='none';};
-          div.appendChild(img);
-        }
-        var info = document.createElement('div');
-        info.style.flex = '1';
-        var headline = document.createElement('div');
-        headline.className = 'news-headline';
-        headline.textContent = item.title || '';
-        var meta = document.createElement('div');
-        meta.className = 'news-meta';
-        meta.textContent = item.date ? new Date(item.date).toLocaleDateString('en-GB') : '';
-        info.appendChild(headline); info.appendChild(meta);
-        div.appendChild(info);
-        el.appendChild(div);
+
+  // Load from multiple feeds
+  var allItems = [];
+  var loaded = 0;
+  var toLoad = Math.min(feeds.length, 3);
+
+  feeds.slice(0, toLoad).forEach(function(feedUrl) {
+    fetch(WORKER + '/api/rss?url=' + encodeURIComponent(feedUrl))
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function(xml) {
+        // Parse RSS XML client-side
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(xml, 'text/xml');
+        var items = Array.from(doc.querySelectorAll('item, entry'));
+        items.slice(0, 5).forEach(function(item) {
+          var title = (item.querySelector('title') || {}).textContent || '';
+          var link = (item.querySelector('link') || {}).textContent ||
+                     (item.querySelector('link') || {}).getAttribute('href') || '';
+          var pubDate = (item.querySelector('pubDate, published, updated') || {}).textContent || '';
+          var img = '';
+          var mediaContent = item.querySelector('media\\:content, media\\:thumbnail, enclosure');
+          if (mediaContent) img = mediaContent.getAttribute('url') || '';
+          if (!img) {
+            var desc = (item.querySelector('description, summary, content') || {}).textContent || '';
+            var imgMatch = desc.match(/src=["']([^"']+\.(?:jpg|jpeg|png|webp))/i);
+            if (imgMatch) img = imgMatch[1];
+          }
+          // Check keyword match
+          var titleLower = title.toLowerCase();
+          var isWatched = watchedKeywords.length > 0 && watchedKeywords.some(function(kw) {
+            return titleLower.includes(kw.toLowerCase());
+          });
+          allItems.push({title: title, url: link, date: pubDate, image: img, watched: isWatched});
+        });
+        loaded++;
+        if (loaded >= toLoad) renderNews(allItems);
+      })
+      .catch(function() {
+        loaded++;
+        if (loaded >= toLoad) renderNews(allItems);
       });
-    })
-    .catch(function(){ el.textContent = 'News unavailable.'; });
+  });
+
+  function renderNews(items) {
+    if (!items.length) { el.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);">No news loaded.</div>'; return; }
+    // Sort: watched keywords first
+    items.sort(function(a,b) { return (b.watched?1:0)-(a.watched?1:0); });
+    el.innerHTML = '';
+    items.slice(0, 8).forEach(function(item) {
+      var div = document.createElement('div');
+      div.className = 'news-item';
+      if (item.watched) div.style.borderLeft = '3px solid var(--accent)';
+      div.onclick = function() { if(item.url) window.open(item.url,'_blank'); };
+      if (item.image) {
+        var img = document.createElement('img');
+        img.className = 'news-thumb'; img.src = item.image; img.alt = '';
+        img.onerror = function(){this.style.display='none';};
+        div.appendChild(img);
+      }
+      var info = document.createElement('div'); info.style.flex = '1';
+      var headline = document.createElement('div');
+      headline.className = 'news-headline';
+      headline.textContent = (item.watched ? '★ ' : '') + item.title;
+      var meta = document.createElement('div');
+      meta.className = 'news-meta';
+      meta.textContent = item.date ? new Date(item.date).toLocaleDateString('en-GB') : '';
+      info.appendChild(headline); info.appendChild(meta);
+      div.appendChild(info);
+      el.appendChild(div);
+    });
+  }
 }
 
-// ── Research papers ───────────────────────────────────────────────────────────
+
 function loadPapers() {
   var el = document.getElementById('papers-list');
   var queries = ['disability mental health UK policy', 'ADHD neurodivergence social', 'addiction recovery sociology'];
@@ -519,6 +584,31 @@ function homeInputSend() {
   inp.value = '';
   var routes = {chat:'/chat/?q=',research:'/research/?q=',draft:'/drafting/?q=',atomise:'/atomise/?q=',image:'/creator/assets/?q='};
   window.location.href = (routes[homeInputMode]||'/chat/?q=') + encodeURIComponent(text);
+}
+
+function toggleKeywordPanel() {
+  var panel = document.getElementById('keyword-panel');
+  if (!panel) return;
+  var visible = panel.style.display !== 'none';
+  panel.style.display = visible ? 'none' : 'block';
+  if (!visible) {
+    var inp = document.getElementById('keyword-input');
+    try { if (inp) inp.value = JSON.parse(localStorage.getItem('news-keywords') || '[]').join(', '); } catch(e) {}
+  }
+}
+
+function saveKeywords() {
+  var inp = document.getElementById('keyword-input');
+  if (!inp) return;
+  var keywords = inp.value.split(',').map(function(k){return k.trim();}).filter(Boolean);
+  localStorage.setItem('news-keywords', JSON.stringify(keywords));
+  // Also save to Worker KV
+  fetch(WORKER + '/api/news/keywords', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({keywords: keywords})
+  }).catch(function(){});
+  toggleKeywordPanel();
+  loadNews(); // Reload with new keywords
 }
 </script>
 </body>
