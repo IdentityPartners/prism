@@ -628,6 +628,7 @@
       <div class="wh-tb-sep"></div>
       <button class="wh-tb-btn" onclick="toggleOSK()" title="Toggle keyboard (undockable)">⌨</button>
       <button class="wh-tb-btn" onclick="toggleDictation()" id="wh-dict-btn" title="Voice dictation">🎤</button>
+      <button class="wh-tb-btn" onclick="runOCR()" id="wh-ocr-btn" title="Convert handwriting to text">OCR</button>
       <button class="wh-tb-btn" onclick="toggleRecord()" id="wh-rec-btn" title="Record audio">🎙</button>
       <div class="wh-rec-badge" id="wh-rec-badge"><div class="wh-rec-dot"></div> REC</div>
       <div class="wh-tb-sep"></div>
@@ -1051,6 +1052,7 @@ function endStroke(e) {
     // Detect handwriting gestures for semantic triggers
     detectGesture(currentStroke);
     scheduleSave();
+    scheduleOCR();
   }
   currentStroke = null;
 }
@@ -1821,6 +1823,97 @@ function whAdjust(type, delta) {
     if (lh) window._whLineHeight = parseFloat(lh);
   } catch(e) {}
 })();
+
+var ocrTimer = null;
+var lastOcrText = '';
+
+function scheduleOCR() {
+  if (typeof currentView === 'undefined') return;
+  if (currentView !== 'ink' && currentView !== 'dual') return;
+  if (ocrTimer) clearTimeout(ocrTimer);
+  ocrTimer = setTimeout(function() { runOCR(true); }, 2000);
+}
+
+function runOCR(auto) {
+  var canvas = document.getElementById('wh-ink');
+  if (!canvas) return;
+  var ctx2d = canvas.getContext('2d');
+  if (!ctx2d) return;
+  var imgData = ctx2d.getImageData(0, 0, Math.min(canvas.width,100), Math.min(canvas.height,100));
+  var hasInk = false;
+  for (var pi = 3; pi < imgData.data.length; pi += 4) {
+    if (imgData.data[pi] > 10) { hasInk = true; break; }
+  }
+  if (!hasInk) return;
+  var dataUrl = canvas.toDataURL('image/png');
+  var b64 = dataUrl.split(',')[1];
+  var ocrBtn = document.getElementById('wh-ocr-btn');
+  if (ocrBtn && !auto) ocrBtn.textContent = 'OCR...';
+  var WORKER_URL = typeof WORKER !== 'undefined' ? WORKER : 'https://prism-api.identitypartners.workers.dev';
+  fetch(WORKER_URL + '/api/ocr', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({image: b64, mime_type: 'image/png'})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (ocrBtn) ocrBtn.textContent = 'OCR';
+    var text = d.text || d.content || '';
+    if (!text || text === lastOcrText) return;
+    lastOcrText = text;
+    var textEl = document.getElementById('wh-text');
+    if (textEl && typeof currentView !== 'undefined' && currentView === 'dual') {
+      var existing = textEl.innerText || '';
+      textEl.innerHTML += (existing.trim() ? '<br>' : '') + text.replace(/\n/g, '<br>');
+      textEl.dispatchEvent(new Event('input', {bubbles: true}));
+    } else {
+      showOCRResult(text);
+    }
+    if (typeof currentPage !== 'undefined' && currentPage) {
+      currentPage.ocrText = (currentPage.ocrText || '') + '\n' + text;
+      if (typeof saveNotebooks === 'function') saveNotebooks();
+    }
+  })
+  .catch(function(e) {
+    if (ocrBtn) ocrBtn.textContent = 'OCR';
+  });
+}
+
+function showOCRResult(text) {
+  var existing = document.getElementById('wh-ocr-result');
+  if (existing) existing.remove();
+  var div = document.createElement('div');
+  div.id = 'wh-ocr-result';
+  div.style.cssText = 'position:fixed;bottom:80px;right:20px;max-width:320px;background:var(--bg-elevated);border:1px solid var(--accent);border-radius:8px;padding:12px;font-size:13px;z-index:9000;box-shadow:0 4px 16px rgba(0,0,0,0.15);';
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'font-size:10px;font-weight:600;color:var(--accent);margin-bottom:6px;text-transform:uppercase;';
+  hdr.textContent = 'OCR Result';
+  var body = document.createElement('div');
+  body.style.lineHeight = '1.5';
+  body.textContent = text;
+  var acts = document.createElement('div');
+  acts.style.cssText = 'margin-top:8px;display:flex;gap:6px;';
+  var copyBtn = document.createElement('button');
+  copyBtn.textContent = 'Copy';
+  copyBtn.style.cssText = 'padding:3px 10px;font-size:11px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--bg);font-family:inherit;';
+  copyBtn.onclick = function() { navigator.clipboard.writeText(lastOcrText); copyBtn.textContent = 'Copied!'; setTimeout(function(){copyBtn.textContent='Copy';},2000); };
+  var addBtn = document.createElement('button');
+  addBtn.textContent = 'Add to notes';
+  addBtn.style.cssText = 'padding:3px 10px;font-size:11px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:inherit;';
+  addBtn.onclick = function() {
+    var textEl = document.getElementById('wh-text');
+    if (textEl) { textEl.innerHTML += (textEl.innerHTML ? '<br>' : '') + lastOcrText.replace(/\n/g,'<br>'); textEl.dispatchEvent(new Event('input',{bubbles:true})); }
+    div.remove();
+  };
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = 'x';
+  closeBtn.style.cssText = 'padding:3px 10px;font-size:11px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--bg);font-family:inherit;';
+  closeBtn.onclick = function() { div.remove(); };
+  acts.appendChild(copyBtn); acts.appendChild(addBtn); acts.appendChild(closeBtn);
+  div.appendChild(hdr); div.appendChild(body); div.appendChild(acts);
+  document.body.appendChild(div);
+  setTimeout(function() { if (div.parentNode) div.remove(); }, 15000);
+}
 </script>
 </body>
 </html>
