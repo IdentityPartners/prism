@@ -708,6 +708,8 @@ function buildSidebar(activePage) {
   var logoText = document.createElement('span');
   logoText.className = 'sidebar-logo-text';
   logoText.textContent = 'Argentica';
+  logo.href = '/home/';
+  logo.style.textDecoration = 'none';
   logo.appendChild(logoMark);
   logo.appendChild(logoText);
   sidebar.appendChild(logo);
@@ -1215,7 +1217,7 @@ document.addEventListener('DOMContentLoaded', function() {
       'padding:6px 14px;background:var(--bg-elevated);',
       'border:1px solid var(--border);border-radius:8px;',
       'font-size:12px;cursor:pointer;color:var(--fg);',
-      'font-family:inherit;z-index:1000;transition:all 0.15s;',
+      'font-family:inherit;z-index:500;transition:all 0.15s;',
       'box-shadow:0 1px 4px rgba(0,0,0,0.08);',
     ].join('');
     btn.onmouseenter = function() { btn.style.borderColor = 'var(--accent)'; btn.style.color = 'var(--accent)'; };
