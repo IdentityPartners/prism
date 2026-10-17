@@ -19,7 +19,7 @@
   --success:      #5a7a4f;
   --warning:      #c4925a;
   --danger:       #8b3a3a;
-  --sidebar-w:    240px;
+  --sidebar-w:    220px;
   --sidebar-w-collapsed: 56px;
   --topbar-h:     56px;
   --radius:       12px;
@@ -181,6 +181,8 @@ input, textarea, select { font-family: var(--font-ui); }
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-width: 0;
+  overflow-x: hidden;
   transition: margin-left var(--transition);
 }
 .main-content.sidebar-collapsed { margin-left: var(--sidebar-w-collapsed); }
@@ -211,10 +213,10 @@ input, textarea, select { font-family: var(--font-ui); }
 /* ── Page Content ───────────────────────────────────────────────────────────── */
 .page-content {
   flex: 1;
-  padding: 24px;
-  max-width: 1200px;
+  padding: 16px 20px;
   width: 100%;
-  margin: 0 auto;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 .page-content.full-width { max-width: none; padding: 0; }
 
