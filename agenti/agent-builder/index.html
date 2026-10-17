@@ -1,4 +1,15 @@
-<!DOCTYPE html>
+setTimeout(function() {
+        // Store pending resume info globally — avoids quote-nesting in onclick
+        window._pendingResumeJob = jobInfo;
+        var progress = jobInfo.chunksTotal
+          ? 'chunk ' + (jobInfo.chunksDone || 0) + '/' + jobInfo.chunksTotal
+          : 'job ' + jobInfo.jobId.slice(-8);
+        addChatMsg('system',
+          'Previous analysis of <strong>' + jobInfo.docName + '</strong> was in progress (' + progress + '). ' +
+          '<button onclick="doResumeJob()" style="padding:3px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-left:6px;">Resume</button>' +
+          ' <button onclick="doDiscardJob()" style="padding:3px 10px;background:var(--bg-sunken);color:var(--fg);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;margin-left:4px;">Discard</button>'
+        );
+      }, 500);<!DOCTYPE html>
 <html lang="en-GB">
 <head>
 <meta charset="UTF-8">
@@ -1929,6 +1940,30 @@ function resumeJobPolling(jobId, docName, task) {
         }
       }).catch(function(){});
   }, 10000);
+}
+
+function doResumeJob() {
+  var jobInfo = window._pendingResumeJob;
+  if (!jobInfo) return;
+  window._pendingResumeJob = null;
+  addChatMsg('system', '⏳ Resuming analysis of ' + jobInfo.docName + '...');
+  resumeJobPolling(jobInfo.jobId, jobInfo.docName, jobInfo.task || '');
+}
+
+function doDiscardJob() {
+  var jobInfo = window._pendingResumeJob;
+  window._pendingResumeJob = null;
+  if (jobInfo) {
+    try { localStorage.removeItem('agent-running-job'); } catch(e) {}
+    fetch(WORKER + '/api/jobs/' + jobInfo.jobId, { method: 'DELETE' }).catch(function(){});
+  }
+  addChatMsg('system', 'Previous job discarded. Ready for a new task.');
+}
+
+function clearStuckJob(jobId) {
+  try { localStorage.removeItem('agent-running-job'); } catch(e) {}
+  fetch(WORKER + '/api/jobs/' + jobId, { method: 'DELETE' }).catch(function(){});
+  addChatMsg('system', 'Job cleared. Ready for a new task.');
 }
 </script>
 
