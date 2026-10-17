@@ -213,6 +213,7 @@
   overflow: auto;
   background: var(--wh-bg);
   cursor: default;
+  height: 100%;
 }
 .wh-surface.ruled {
   background-image: repeating-linear-gradient(
@@ -460,7 +461,7 @@
 
 /* ── Dual pane ──────────────────────────────────────────────────────────────── */
 .wh-dual { display: flex; flex-direction: row; height: 100%; width: 100%; overflow: hidden; }
-.wh-pane { flex: 1; min-width: 0; overflow: hidden; display: flex; flex-direction: column; border-right: 1px solid var(--border); }
+.wh-pane { flex: 1; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; border-right: 1px solid var(--border); }
 .wh-pane:last-child { border-right: none; }
 .wh-pane-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); margin-bottom: 8px; }
 
@@ -992,22 +993,33 @@ function addPage() {
 
 // ── Ink canvas ────────────────────────────────────────────────────────────────
 function initCanvas() {
-  // Defer TWO frames: first for DOM insertion, second for layout
   requestAnimationFrame(function() { requestAnimationFrame(function() {
     var canvas = document.getElementById('wh-ink');
     if (!canvas) return;
 
-    // Use parent's clientWidth — reliable after two rAF cycles
+    // Size the pixel buffer to match the physical display pixels
+    // This is critical for Surface Pro (high DPI) and for coordinate accuracy
+    var dpr = window.devicePixelRatio || 1;
     var parent = canvas.parentElement;
-    var w = (parent && parent.clientWidth > 50) ? parent.clientWidth : Math.floor((window.innerWidth - 280) / 2);
-    var h = Math.max((parent && parent.clientHeight > 100) ? parent.clientHeight : window.innerHeight - 120, 1400);
+    var cssW = parent ? parent.clientWidth : Math.floor((window.innerWidth - 280) / 2);
+    var cssH = Math.max(parent ? parent.clientHeight : window.innerHeight - 120, 1400);
 
-    // Pixel buffer must exactly match rendered CSS size for getPos() coordinates to be correct
-    canvas.width = w;
-    canvas.height = h;
+    // Set CSS size explicitly so getBoundingClientRect is accurate
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+
+    // Set pixel buffer to physical pixels (DPR-aware)
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+
+    // Scale context so drawing coordinates match CSS pixels
+    var ctx2d = canvas.getContext('2d');
+    if (ctx2d) ctx2d.scale(dpr, dpr);
+
     canvas.style.touchAction = 'none';
+    canvas.style.display = 'block';
 
-    // Remove then re-add listeners to prevent duplicates across view switches
+    // Remove old listeners before adding new ones
     canvas.removeEventListener('pointerdown', startStroke);
     canvas.removeEventListener('pointermove', continueStroke);
     canvas.removeEventListener('pointerup', endStroke);
@@ -1019,14 +1031,23 @@ function initCanvas() {
     canvas.addEventListener('touchstart', function(e){e.preventDefault();},{passive:false});
     canvas.addEventListener('touchmove', function(e){e.preventDefault();},{passive:false});
 
+    // Store DPR for use in getPos
+    canvas._dpr = dpr;
+
     redrawInk();
   }); });
 }
 
 function getPos(e) {
   var canvas = document.getElementById('wh-ink');
+  if (!canvas) return {x:0, y:0, pressure:0.5};
   var rect = canvas.getBoundingClientRect();
-  return {x: e.clientX - rect.left, y: e.clientY - rect.top, pressure: e.pressure || 0.5};
+  // Use CSS pixel coordinates (not physical pixels) — context is scaled by DPR
+  return {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top,
+    pressure: e.pressure || 0.5
+  };
 }
 
 function startStroke(e) {
