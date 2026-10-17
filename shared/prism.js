@@ -688,7 +688,7 @@ function buildSidebar(activePage) {
     {type:'item', label:'Memory', icon:'🧠', href:'/memory/'},
     {type:'item', label:'Whiteboard', icon:'🖊', href:'/whiteboard/'},
     {type:'item', label:'WriteHandy', icon:'✒', href:'/writehandy/'},
-    {type:'item', label:'Handwriting', icon:'✏', href:'/handwriting/'},
+
     {type:'item', label:'Settings', icon:'⚙', href:'/settings/'},
     {type:'item', label:'Dev Team', icon:'🛠', href:'/dev-team/'},
     {type:'item', label:'Sitemap', icon:'🗺', href:'/sitemap/'},
