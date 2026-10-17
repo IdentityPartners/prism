@@ -993,51 +993,27 @@ function addPage() {
 
 // ── Ink canvas ────────────────────────────────────────────────────────────────
 function initCanvas() {
-  requestAnimationFrame(function() { requestAnimationFrame(function() {
+  // Size the canvas buffer — listeners already attached at canvas creation time
+  function doSize() {
     var canvas = document.getElementById('wh-ink');
     if (!canvas) return;
-
-    // Size the pixel buffer to match the physical display pixels
-    // This is critical for Surface Pro (high DPI) and for coordinate accuracy
     var dpr = window.devicePixelRatio || 1;
     var parent = canvas.parentElement;
     var cssW = parent ? parent.clientWidth : Math.floor((window.innerWidth - 280) / 2);
     var cssH = Math.max(parent ? parent.clientHeight : window.innerHeight - 120, 1400);
-
-    // Set CSS size explicitly so getBoundingClientRect is accurate
     canvas.style.width = cssW + 'px';
     canvas.style.height = cssH + 'px';
-
-    // Set pixel buffer to physical pixels (DPR-aware)
     canvas.width = Math.floor(cssW * dpr);
     canvas.height = Math.floor(cssH * dpr);
-
-    // Scale context so drawing coordinates match CSS pixels
     var ctx2d = canvas.getContext('2d');
-    if (ctx2d) ctx2d.scale(dpr, dpr);
-
-    canvas.style.touchAction = 'none';
-    canvas.style.display = 'block';
-
-    // Remove old listeners before adding new ones
-    canvas.removeEventListener('pointerdown', startStroke);
-    canvas.removeEventListener('pointermove', continueStroke);
-    canvas.removeEventListener('pointerup', endStroke);
-    canvas.removeEventListener('pointercancel', endStroke);
-    canvas.addEventListener('pointerdown', startStroke);
-    canvas.addEventListener('pointermove', continueStroke);
-    canvas.addEventListener('pointerup', endStroke);
-    canvas.addEventListener('pointercancel', endStroke);
-    canvas.addEventListener('touchstart', function(e){e.preventDefault();},{passive:false});
-    canvas.addEventListener('touchmove', function(e){e.preventDefault();},{passive:false});
-
-    // Store DPR for use in getPos
+    if (ctx2d && dpr !== 1) ctx2d.scale(dpr, dpr);
     canvas._dpr = dpr;
-
+    canvas.style.touchAction = 'none';
+    // Do NOT re-add listeners here — already attached at creation
     redrawInk();
-  }); });
+  }
+  requestAnimationFrame(function() { requestAnimationFrame(doSize); });
 }
-
 function getPos(e) {
   var canvas = document.getElementById('wh-ink');
   if (!canvas) return {x:0, y:0, pressure:0.5};
@@ -1053,9 +1029,10 @@ function getPos(e) {
 function startStroke(e) {
   if (inkTool === 'text') return;
   e.preventDefault();
+  e.stopPropagation();
   isDrawing = true;
   var pos = getPos(e);
-  currentStroke = {tool: inkTool, color: inkColor, size: parseInt(document.getElementById('wh-pen-size').value)||2, points: [pos]};
+  currentStroke = {tool: inkTool, color: inkColor, size: parseInt((document.getElementById('wh-pen-size')||{value:'2'}).value)||2, points: [pos]};
 }
 
 function continueStroke(e) {
@@ -1331,7 +1308,15 @@ function setView(view) {
 
   if (view === 'ink') {
     // Default: ink canvas + text layer
-    var cvs = document.createElement('canvas'); cvs.id = 'wh-ink'; cvs.style.cssText = 'display:block;touch-action:none;'; surface.appendChild(cvs);
+    var cvs = document.createElement('canvas'); cvs.id = 'wh-ink';
+    cvs.style.cssText = 'display:block;touch-action:none;cursor:crosshair;';
+    cvs.addEventListener('pointerdown', startStroke);
+    cvs.addEventListener('pointermove', continueStroke);
+    cvs.addEventListener('pointerup', endStroke);
+    cvs.addEventListener('pointercancel', endStroke);
+    cvs.addEventListener('touchstart', function(e){e.preventDefault();},{passive:false});
+    cvs.addEventListener('touchmove', function(e){e.preventDefault();},{passive:false});
+    surface.appendChild(cvs);
     var tl = document.createElement('div');
     tl.id = 'wh-text'; tl.contentEditable = 'false'; tl.spellcheck = true;
     tl.setAttribute('data-placeholder', '');
@@ -1347,7 +1332,14 @@ function setView(view) {
     var left = document.createElement('div'); left.className = 'wh-pane';
     var lbl1 = document.createElement('div'); lbl1.className = 'wh-pane-label'; lbl1.textContent = 'Handwriting';
     var cvs2 = document.createElement('canvas'); cvs2.id = 'wh-ink';
-    cvs2.style.cssText = 'display:block;touch-action:none;';
+    cvs2.style.cssText = 'display:block;touch-action:none;cursor:crosshair;';
+    // Attach listeners immediately — don't wait for initCanvas rAF delay
+    cvs2.addEventListener('pointerdown', startStroke);
+    cvs2.addEventListener('pointermove', continueStroke);
+    cvs2.addEventListener('pointerup', endStroke);
+    cvs2.addEventListener('pointercancel', endStroke);
+    cvs2.addEventListener('touchstart', function(e){e.preventDefault();},{passive:false});
+    cvs2.addEventListener('touchmove', function(e){e.preventDefault();},{passive:false});
     left.appendChild(lbl1); left.appendChild(cvs2);
     // Right pane: editable text (not read-only preview)
     var right = document.createElement('div'); right.className = 'wh-pane';
