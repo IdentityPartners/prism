@@ -53,7 +53,7 @@
       <div class="topbar-actions">
         <button class="btn btn-sm btn-secondary" onclick="syncCalendar()" title="Sync with Zoho Calendar">↺ Sync</button>
         <button class="btn btn-sm btn-secondary" onclick="openEventForm()" title="Add new event">＋ Event</button>
-        <a href="/oauth/zoho/calendar" class="btn btn-sm btn-secondary" title="Connect Zoho Calendar" id="connect-btn">🔑 Connect Zoho</a>
+        <button onclick="connectZoho()" class="btn btn-sm btn-secondary" title="Connect Zoho Calendar" id="connect-btn">🔑 Connect Zoho</button>
         <button class="btn btn-sm btn-primary" onclick="openBookingSettings()" title="Configure booking page">📅 Booking Settings</button>
       </div>
     </div>
@@ -604,6 +604,21 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 })();
+
+function connectZoho() {
+  // Build OAuth URL directly — no Worker redirect needed
+  var clientId = '1000.HMH9CMYHZ9TPTN1FAXK6VTC6R8ISMZ';
+  var redirectUri = 'https://prism.identitypartners.uk/comms/zoho-calendar/';
+  var scope = 'ZohoCalendar.calendar.READ,ZohoCalendar.event.READ,ZohoMail.messages.READ,ZohoMail.accounts.READ';
+  var authUrl = 'https://accounts.zoho.eu/oauth/v2/auth' +
+    '?response_type=code' +
+    '&client_id=' + encodeURIComponent(clientId) +
+    '&redirect_uri=' + encodeURIComponent(redirectUri) +
+    '&scope=' + encodeURIComponent(scope) +
+    '&access_type=offline' +
+    '&prompt=consent';
+  window.location.href = authUrl;
+}
 </script>
 </body>
 </html>
