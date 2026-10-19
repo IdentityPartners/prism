@@ -62,7 +62,7 @@ code{background:#f0e9e0;padding:2px 6px;border-radius:3px;font-size:11px;word-br
       '&bull; Scope not registered in Zoho console<br>' +
       '&bull; Redirect URI mismatch<br><br>' +
       'Redirect URI needed in <a href="https://api-console.zoho.eu" target="_blank" style="color:#8b3a3a;">api-console.zoho.eu</a>:<br>' +
-      '<code>https://prism.identitypartners.uk/oauth/zoho/calendar</code></div>' +
+      '<code>https://prism.identitypartners.uk/comms/zoho-calendar/</code></div>' +
       '<a href="/oauth/zoho/calendar/" class="btn">Try Again</a>' +
       '<a href="/settings/" class="btn btn2" style="margin-top:8px;">Back to Settings</a>');
     return;
@@ -113,7 +113,7 @@ code{background:#f0e9e0;padding:2px 6px;border-radius:3px;font-size:11px;word-br
     xhr.send(JSON.stringify({
       service: 'calendar',
       code: code,
-      redirectUri: 'https://prism.identitypartners.uk/oauth/zoho/calendar'
+      redirectUri: 'https://prism.identitypartners.uk/comms/zoho-calendar/'
     }));
     return;
   }
@@ -121,7 +121,7 @@ code{background:#f0e9e0;padding:2px 6px;border-radius:3px;font-size:11px;word-br
   // NO CODE — show connect button (goes DIRECTLY to Zoho, not via Worker)
   set('🔑', 'Connect Zoho Calendar',
     'Click below to authorise Prism to access your Zoho Calendar account.',
-    '<div class="info">Scope: <code>ZohoCalendar.event.ALL,ZohoCalendar.calendar.ALL</code><br>Redirect URI: <code>https://prism.identitypartners.uk/oauth/zoho/calendar</code></div>' +
+    '<div class="info">Scope: <code>ZohoCalendar.event.ALL,ZohoCalendar.calendar.ALL</code><br>Redirect URI: <code>https://prism.identitypartners.uk/comms/zoho-calendar/</code></div>' +
     '<a href="https://accounts.zoho.eu/oauth/v2/auth?response_type=code&client_id=1000.3OLT0KYOJIGADEUPVTRPX4CCPWZHXY&scope=ZohoCalendar.event.ALL%2CZohoCalendar.calendar.ALL&redirect_uri=https%3A//prism.identitypartners.uk/oauth/zoho/calendar&access_type=offline&prompt=consent" class="btn">Connect Zoho Calendar →</a>' +
     '<a href="/settings/" class="btn btn2" style="margin-top:8px;">Back to Settings</a>');
 })();
