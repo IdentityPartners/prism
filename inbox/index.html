@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inbox — Argentica</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<style>
+.inbox-shell { display:flex; height:100vh; overflow:hidden; }
+.inbox-main { flex:1; display:flex; flex-direction:column; overflow:hidden; max-width:800px; margin:0 auto; width:100%; }
+.inbox-hdr { padding:14px 20px; border-bottom:1px solid var(--border); background:var(--bg-elevated); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.inbox-hdr h2 { font-size:18px; font-weight:700; margin:0; }
+.inbox-tabs { display:flex; border-bottom:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; }
+.inbox-tab { padding:8px 16px; font-size:12px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; color:var(--fg-muted); display:flex; align-items:center; gap:6px; }
+.inbox-tab.active { border-bottom-color:var(--accent); color:var(--accent); }
+.inbox-tab .badge { background:var(--accent); color:#fff; border-radius:8px; padding:1px 6px; font-size:10px; }
+.inbox-body { flex:1; overflow-y:auto; padding:12px 16px; }
+.inbox-item { display:flex; gap:12px; padding:12px 14px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; cursor:pointer; transition:all 0.15s; background:var(--bg-elevated); }
+.inbox-item:hover { border-color:var(--accent); }
+.inbox-item.unread { border-left:3px solid var(--accent); }
+.inbox-item.read { opacity:0.75; }
+.inbox-icon { width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+.inbox-icon.message { background:linear-gradient(135deg,#5c2d3f,#0f3b3a); }
+.inbox-icon.system { background:linear-gradient(135deg,#2d6a9f,#0f3b3a); }
+.inbox-icon.research { background:linear-gradient(135deg,#16a34a,#0f3b3a); }
+.inbox-icon.social { background:linear-gradient(135deg,#f59e0b,#dc2626); }
+.inbox-icon.champion { background:linear-gradient(135deg,#7c3aed,#2d6a9f); }
+.inbox-icon.mail { background:linear-gradient(135deg,#0f3b3a,#5c2d3f); }
+.inbox-content { flex:1; min-width:0; }
+.inbox-title { font-size:13.5px; font-weight:600; color:var(--fg); margin-bottom:3px; }
+.inbox-preview { font-size:12px; color:var(--fg-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.inbox-meta { font-size:10px; color:var(--fg-muted); margin-top:4px; display:flex; gap:10px; }
+.inbox-link { font-size:11px; color:var(--accent); text-decoration:none; }
+.inbox-link:hover { text-decoration:underline; }
+.empty-state { text-align:center; padding:60px 20px; color:var(--fg-muted); }
+.empty-state .icon { font-size:48px; margin-bottom:12px; }
+.unread-summary { display:flex; gap:12px; padding:10px 16px; background:var(--bg-sunken); border-bottom:1px solid var(--border); flex-shrink:0; flex-wrap:wrap; }
+.unread-pill { display:flex; align-items:center; gap:5px; padding:4px 10px; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; font-size:12px; cursor:pointer; text-decoration:none; color:var(--fg); }
+.unread-pill .count { background:var(--accent); color:#fff; border-radius:8px; padding:0 6px; font-size:10px; font-weight:700; }
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="inbox-shell">
+<div class="inbox-main">
+
+  <div class="inbox-hdr">
+    <h2>📥 Unified Inbox</h2>
+    <div style="display:flex;gap:8px;">
+      <button onclick="markAllRead()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);font-size:12px;">✓ Mark all read</button>
+      <button onclick="loadAll()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);font-size:12px;">↻ Refresh</button>
+    </div>
+  </div>
+
+  <div class="unread-summary" id="unread-summary"></div>
+
+  <div class="inbox-tabs">
+    <div class="inbox-tab active" onclick="switchTab('all',this)" id="tab-all">All <span class="badge" id="badge-all" style="display:none;"></span></div>
+    <div class="inbox-tab" onclick="switchTab('messages',this)">💬 Messages <span class="badge" id="badge-messages" style="display:none;"></span></div>
+    <div class="inbox-tab" onclick="switchTab('system',this)">⚙ System <span class="badge" id="badge-system" style="display:none;"></span></div>
+    <div class="inbox-tab" onclick="switchTab('research',this)">🔍 Research</div>
+    <div class="inbox-tab" onclick="switchTab('social',this)">📱 Social</div>
+  </div>
+
+  <div class="inbox-body" id="inbox-body">
+    <div style="text-align:center;padding:30px;color:var(--fg-muted);font-size:13px;">Loading...</div>
+  </div>
+
+</div>
+</div>
+</div>
+
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var allItems = [];
+var currentTab = 'all';
+var pollTimer = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/inbox/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  loadAll();
+  pollTimer = setInterval(loadAll, 30000);
+});
+
+function loadAll() {
+  fetch(WORKER + '/api/inbox')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      // Build unified item list
+      allItems = [];
+
+      // System notifications
+      (d.notifications || []).forEach(function(n) {
+        allItems.push({
+          id: n.id, type: n.type || 'system', title: n.title, preview: n.message,
+          link: n.link, read: n.read, ts: n.ts, source: 'notification'
+        });
+      });
+
+      // Messages from Olivia
+      (d.messages || []).forEach(function(m) {
+        if (m.from !== 'simon') {
+          allItems.push({
+            id: m.id, type: 'message', title: 'Message from Olivia',
+            preview: m.text, link: '/messages/', read: m.read, ts: m.ts, source: 'message'
+          });
+        }
+      });
+
+      // Sort by timestamp
+      allItems.sort(function(a,b){ return new Date(b.ts) - new Date(a.ts); });
+
+      // Update badges
+      var unread = d.unread || {};
+      updateBadge('badge-all', unread.total || 0);
+      updateBadge('badge-messages', unread.messages || 0);
+      updateBadge('badge-system', unread.notifications || 0);
+
+      // Unread summary pills
+      var summary = document.getElementById('unread-summary');
+      summary.innerHTML = '';
+      if (unread.mail > 0) {
+        summary.innerHTML += '<a href="/comms/email/" class="unread-pill">📬 Mail <span class="count">' + unread.mail + '</span></a>';
+      }
+      if (unread.messages > 0) {
+        summary.innerHTML += '<a href="/messages/" class="unread-pill">💬 Messages <span class="count">' + unread.messages + '</span></a>';
+      }
+      if (unread.notifications > 0) {
+        summary.innerHTML += '<span class="unread-pill">⚙ System <span class="count">' + unread.notifications + '</span></span>';
+      }
+      if (!summary.innerHTML) {
+        summary.innerHTML = '<span style="font-size:12px;color:var(--fg-muted);padding:4px 0;">All caught up ✓</span>';
+      }
+
+      renderItems();
+    })
+    .catch(function(e){
+      document.getElementById('inbox-body').innerHTML = '<div style="padding:20px;font-size:12px;color:#dc2626;">Error: ' + e.message + '</div>';
+    });
+}
+
+function updateBadge(id, count) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (count > 0) { el.textContent = count; el.style.display = 'inline'; }
+  else { el.style.display = 'none'; }
+}
+
+function renderItems() {
+  var body = document.getElementById('inbox-body');
+  var filtered = allItems.filter(function(item) {
+    if (currentTab === 'all') return true;
+    if (currentTab === 'messages') return item.type === 'message';
+    if (currentTab === 'system') return item.type === 'system' || item.type === 'champion';
+    if (currentTab === 'research') return item.type === 'research';
+    if (currentTab === 'social') return item.type === 'social';
+    return true;
+  });
+
+  if (!filtered.length) {
+    body.innerHTML = '<div class="empty-state"><div class="icon">📭</div><div style="font-size:14px;font-weight:600;margin-bottom:6px;">All clear</div><div style="font-size:12px;">Nothing in this category.</div></div>';
+    return;
+  }
+
+  body.innerHTML = '';
+  filtered.forEach(function(item) {
+    var div = document.createElement('div');
+    div.className = 'inbox-item' + (item.read ? ' read' : ' unread');
+    div.onclick = function() { openItem(item); };
+
+    var icons = { message:'💬', system:'⚙', research:'🔍', social:'📱', champion:'⚡', info:'ℹ', mail:'📬' };
+    var icon = icons[item.type] || 'ℹ';
+    var iconClass = item.type;
+
+    var date = item.ts ? new Date(item.ts).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+
+    div.innerHTML = '<div class="inbox-icon ' + iconClass + '">' + icon + '</div>' +
+      '<div class="inbox-content">' +
+        '<div class="inbox-title">' + (item.title||'').replace(/</g,'&lt;') + '</div>' +
+        '<div class="inbox-preview">' + (item.preview||'').replace(/</g,'&lt;') + '</div>' +
+        '<div class="inbox-meta"><span>' + date + '</span>' +
+          (item.link ? '<a href="' + item.link + '" class="inbox-link" onclick="event.stopPropagation()">Open →</a>' : '') +
+        '</div>' +
+      '</div>';
+
+    body.appendChild(div);
+  });
+}
+
+function openItem(item) {
+  // Mark as read
+  if (!item.read && item.source === 'notification') {
+    fetch(WORKER + '/api/notifications/read', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:item.id})
+    }).catch(function(){});
+    item.read = true;
+    renderItems();
+  }
+  // Navigate if has link
+  if (item.link) window.location.href = item.link;
+}
+
+function switchTab(tab, btn) {
+  currentTab = tab;
+  document.querySelectorAll('.inbox-tab').forEach(function(t){t.classList.remove('active');});
+  if (btn) btn.classList.add('active');
+  renderItems();
+}
+
+function markAllRead() {
+  fetch(WORKER + '/api/notifications/read', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({all:true})
+  }).then(function(){ loadAll(); });
+}
+</script>
+</body>
+</html>
