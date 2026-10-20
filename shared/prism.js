@@ -1,4 +1,19 @@
 
+// ── Immediate sidebar offset CSS (prevents flash of unstyled content) ─────────
+(function() {
+  var style = document.createElement('style');
+  style.id = 'sidebar-offset-css';
+  style.textContent = '#main-content { margin-left: 220px !important; width: calc(100vw - 220px) !important; max-width: calc(100vw - 220px) !important; box-sizing: border-box !important; }';
+  // Insert as first child of head
+  var head = document.head || document.getElementsByTagName('head')[0];
+  if (head && head.firstChild) {
+    head.insertBefore(style, head.firstChild);
+  } else if (head) {
+    head.appendChild(style);
+  }
+})();
+
+
 // ── Argentica theme injection ─────────────────────────────────────────────────
 (function() {
   var style = document.createElement('style');
