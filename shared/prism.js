@@ -701,8 +701,11 @@ function buildSidebar(activePage) {
   sidebar.id = 'sidebar';
 
   // Logo
-  var logo = document.createElement('div');
+  var logo = document.createElement('a');
   logo.className = 'sidebar-logo';
+  logo.href = '/home/';
+  logo.style.textDecoration = 'none';
+  logo.style.cursor = 'pointer';
   var logoMark = document.createElement('div');
   logoMark.className = 'sidebar-logo-mark';
   logoMark.innerHTML = '<svg viewBox="0 0 28 28" fill="none"><path d="M14 4 L24 14 L14 24 L4 14 Z" fill="#0f3b3a" opacity="0.8"/><path d="M14 8 L20 14 L14 20 L8 14 Z" fill="#5c2d3f" opacity="0.8"/></svg>';
