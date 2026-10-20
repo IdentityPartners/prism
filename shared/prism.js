@@ -1213,12 +1213,12 @@ document.addEventListener('DOMContentLoaded', function() {
     btn.id = 'theme-toggle-btn';
     btn.innerHTML = '&#x1F3A8; Theme';
     btn.style.cssText = [
-      'position:fixed;bottom:14px;left:14px;',
-      'padding:6px 14px;background:var(--bg-elevated);',
+      'display:block;width:calc(100% - 16px);margin:4px 8px;',
+      'padding:7px 12px;background:var(--bg-sunken);',
       'border:1px solid var(--border);border-radius:8px;',
-      'font-size:12px;cursor:pointer;color:var(--fg);',
-      'font-family:inherit;z-index:500;transition:all 0.15s;',
-      'box-shadow:0 1px 4px rgba(0,0,0,0.08);',
+      'font-size:12px;cursor:pointer;color:var(--fg-muted);',
+      'font-family:inherit;transition:all 0.15s;text-align:left;',
+      'box-shadow:none;',
     ].join('');
     btn.onmouseenter = function() { btn.style.borderColor = 'var(--accent)'; btn.style.color = 'var(--accent)'; };
     btn.onmouseleave = function() { btn.style.borderColor = 'var(--border)'; btn.style.color = 'var(--fg)'; };
