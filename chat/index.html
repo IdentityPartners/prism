@@ -310,7 +310,7 @@
       <div class="chat-persona-status" id="persona-status">Argentica · ready</div>
     </div>
     <div class="chat-header-actions">
-      <button class="toolbar-btn" onclick="toggleOSK()" title="On-screen keyboard">⌨</button>
+      <button class="toolbar-btn" onclick="toggleOSK()" title="On-screen keyboard" id="osk-toggle-btn">⌨</button>
       <button class="toolbar-btn" onclick="clearChat()" title="Clear conversation">✕ Clear</button>
       <button class="toolbar-btn" onclick="exportChat()" title="Export conversation">⬇ Export</button>
     </div>
@@ -352,7 +352,7 @@
     </div>
   </div>
 
-  <div id="osk-container"></div>
+  <div id="osk-container" style="display:none;"></div>
 </div>
 
 <!-- ── Right: Settings ── -->
@@ -808,9 +808,14 @@ function toggleMultiModel() {
 // ── OSK ───────────────────────────────────────────────────────────────────────
 function toggleOSK() {
   var container = document.getElementById('osk-container');
-  container.classList.toggle('show');
-  if (container.classList.contains('show') && !container.children.length) {
-    if (typeof buildOSK === 'function') buildOSK('chat-input');
+  var isHidden = container.style.display === 'none' || container.style.display === '';
+  if (isHidden) {
+    container.style.display = 'block';
+    if (!container.children.length && typeof buildOSK === 'function') {
+      buildOSK('chat-input');
+    }
+  } else {
+    container.style.display = 'none';
   }
 }
 
