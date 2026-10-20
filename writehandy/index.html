@@ -150,13 +150,14 @@
     <!-- Pen size -->
     <input type="range" id="wh-pen-size" min="1" max="20" value="2" style="width:60px;" oninput="penSize=parseInt(this.value)">
 
-    <!-- Colour swatches -->
-    <div style="display:flex;gap:3px;">
+    <!-- Colour swatches + HEX picker -->
+    <div style="display:flex;gap:3px;align-items:center;">
       <div onclick="setColor('#1a2332')" style="width:18px;height:18px;border-radius:3px;background:#1a2332;cursor:pointer;border:2px solid var(--border);"></div>
       <div onclick="setColor('#2d6a9f')" style="width:18px;height:18px;border-radius:3px;background:#2d6a9f;cursor:pointer;border:2px solid var(--border);"></div>
       <div onclick="setColor('#dc2626')" style="width:18px;height:18px;border-radius:3px;background:#dc2626;cursor:pointer;border:2px solid var(--border);"></div>
       <div onclick="setColor('#16a34a')" style="width:18px;height:18px;border-radius:3px;background:#16a34a;cursor:pointer;border:2px solid var(--border);"></div>
       <div onclick="setColor('#f59e0b')" style="width:18px;height:18px;border-radius:3px;background:#f59e0b;cursor:pointer;border:2px solid var(--border);"></div>
+      <input type="color" id="hex-color-picker" value="#1a2332" title="Custom colour" style="width:22px;height:22px;border:2px solid var(--border);border-radius:3px;cursor:pointer;padding:0;" onchange="setColor(this.value)">
     </div>
 
     <div class="wh-tb-sep"></div>
@@ -179,11 +180,12 @@
 
     <!-- OCR + actions -->
     <select id="ocr-provider" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);cursor:pointer;" title="OCR provider">
-      <option value="gemini">Gemini (recommended)</option>
-      <option value="mistral">Mistral</option>
+      <option value="mistral">Mistral (recommended)</option>
+      <option value="gemini">Gemini</option>
     </select>
     <button class="wh-tb-btn" onclick="runOCR(false)" id="ocr-btn" title="Convert handwriting to text">OCR</button>
-    <button class="wh-tb-btn" onclick="clearInk()" title="Clear ink">🗑 Ink</button>
+    <button class="wh-tb-btn" onclick="clearInk()" title="Clear ink canvas only">🗑 Ink</button>
+    <button class="wh-tb-btn" onclick="clearAll()" title="Clear everything — ink and text" style="color:#dc2626;">🗑 All</button>
     <button class="wh-tb-btn" onclick="exportPage()" title="Export">⬇ Export</button>
     <button class="wh-tb-btn" onclick="dictate()" id="dictate-btn" title="Voice dictation">🎤</button>
   </div>
@@ -565,8 +567,11 @@ function drawRuledLines(canvas, ctx) {
   var dpr = canvas._dpr || 1;
   var w = canvas.width / dpr;
   var h = canvas.height / dpr;
-  var lineSpacing = Math.round((window._whLineHeight || 1.8) * (window._whFontSize || 15) * 1.4);
-  lineSpacing = Math.max(30, Math.min(80, lineSpacing));
+  // Use the module-level lineHeight and fontSize variables directly
+  var currentLineHeight = lineHeight || 1.8;
+  var currentFontSize = fontSize || 15;
+  var lineSpacing = Math.round(currentLineHeight * currentFontSize * 1.4);
+  lineSpacing = Math.max(24, Math.min(100, lineSpacing));
   ctx.save();
   ctx.strokeStyle = 'rgba(180,200,220,0.4)';
   ctx.lineWidth = 0.8;
@@ -597,10 +602,17 @@ function redrawInk() {
 }
 
 function clearInk() {
-  if (!confirm('Clear all ink and text on this page?')) return;
+  if (!confirm('Clear ink canvas only?')) return;
   inkStrokes = [];
   redrawInk();
-  // Also clear the text editor in dual view
+  if (currentPage) currentPage.inkData = [];
+  scheduleSave();
+}
+
+function clearAll() {
+  if (!confirm('Clear ALL ink and text on this page? This cannot be undone.')) return;
+  inkStrokes = [];
+  redrawInk();
   var textEl = document.getElementById('wh-text');
   if (textEl) {
     textEl.innerHTML = '';
