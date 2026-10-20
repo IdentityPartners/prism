@@ -685,6 +685,7 @@ function buildSidebar(activePage) {
     {type:'item', label:'Orchestrator', icon:'⚙', href:'/orchestrator/'},
     {type:'section', label:'System'},
     {type:'item', label:'My Profile', icon:'👤', href:'/profile/'},
+    {type:'item', label:'Messages', icon:'💬', href:'/messages/'},
     {type:'item', label:'Memory', icon:'🧠', href:'/memory/'},
     {type:'item', label:'Whiteboard', icon:'🖊', href:'/whiteboard/'},
     {type:'item', label:'WriteHandy', icon:'✒', href:'/writehandy/'},
