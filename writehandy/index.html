@@ -557,11 +557,38 @@ function renderStroke(stroke, incremental) {
   ctx.restore();
 }
 
+function drawRuledLines(canvas, ctx) {
+  var dpr = canvas._dpr || 1;
+  var w = canvas.width / dpr;
+  var h = canvas.height / dpr;
+  var lineSpacing = Math.round((window._whLineHeight || 1.8) * (window._whFontSize || 15) * 1.4);
+  lineSpacing = Math.max(30, Math.min(80, lineSpacing));
+  ctx.save();
+  ctx.strokeStyle = 'rgba(180,200,220,0.4)';
+  ctx.lineWidth = 0.8;
+  // Horizontal ruled lines
+  for (var y = lineSpacing; y < h; y += lineSpacing) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+  // Left margin line
+  ctx.strokeStyle = 'rgba(220,160,160,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(40, 0);
+  ctx.lineTo(40, h);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function redrawInk() {
   var canvas = document.getElementById('wh-ink');
   if (!canvas) return;
   var ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawRuledLines(canvas, ctx);
   inkStrokes.forEach(function(s) { renderStroke(s, false); });
 }
 
