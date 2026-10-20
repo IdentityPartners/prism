@@ -178,6 +178,10 @@
     <div class="wh-tb-sep"></div>
 
     <!-- OCR + actions -->
+    <select id="ocr-provider" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);cursor:pointer;" title="OCR provider">
+      <option value="gemini">Gemini (recommended)</option>
+      <option value="mistral">Mistral</option>
+    </select>
     <button class="wh-tb-btn" onclick="runOCR(false)" id="ocr-btn" title="Convert handwriting to text">OCR</button>
     <button class="wh-tb-btn" onclick="clearInk()" title="Clear ink">🗑 Ink</button>
     <button class="wh-tb-btn" onclick="exportPage()" title="Export">⬇ Export</button>
@@ -593,9 +597,19 @@ function redrawInk() {
 }
 
 function clearInk() {
-  if (!confirm('Clear all ink on this page?')) return;
+  if (!confirm('Clear all ink and text on this page?')) return;
   inkStrokes = [];
   redrawInk();
+  // Also clear the text editor in dual view
+  var textEl = document.getElementById('wh-text');
+  if (textEl) {
+    textEl.innerHTML = '';
+    textEl.dispatchEvent(new Event('input', {bubbles: true}));
+  }
+  if (currentPage) {
+    currentPage.content = '';
+    currentPage.inkData = [];
+  }
   scheduleSave();
 }
 
@@ -622,11 +636,16 @@ function adjustFont(delta) {
 
 function adjustLine(delta) {
   lineHeight = Math.max(1.2, Math.min(3.0, Math.round((lineHeight + delta) * 10) / 10));
-  document.getElementById('line-height-lbl').textContent = lineHeight.toFixed(1);
+  var lbl = document.getElementById('line-height-lbl');
+  if (lbl) lbl.textContent = lineHeight.toFixed(1);
   try { localStorage.setItem('wh-line-height', lineHeight); } catch(e) {}
+  // Apply to text editor
   document.querySelectorAll('#wh-text, .wh-text-editor').forEach(function(el) {
     el.style.lineHeight = lineHeight;
+    el.style.fontSize = fontSize + 'px';
   });
+  // Redraw canvas with new line spacing (ruled lines use lineHeight)
+  redrawInk();
 }
 
 // ── Text input ────────────────────────────────────────────────────────────────
@@ -717,10 +736,11 @@ function runOCR(auto) {
   var btn = document.getElementById('ocr-btn');
   if (btn && !auto) btn.textContent = 'OCR...';
 
+  var ocrProvider = (document.getElementById('ocr-provider') || {value:'gemini'}).value;
   fetch(WORKER + '/api/ocr', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({image: b64, mime_type: 'image/png'})
+    body: JSON.stringify({image: b64, mime_type: 'image/png', provider: ocrProvider})
   })
   .then(function(r){return r.json();})
   .then(function(d){
