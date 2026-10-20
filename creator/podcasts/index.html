@@ -381,26 +381,29 @@ function generateAudio() {
   var audioPanel = document.getElementById('audio-panel');
   var audioSegs = document.getElementById('audio-segments');
   if (audioPanel) audioPanel.style.display = 'block';
-  if (audioSegs) audioSegs.innerHTML = '';
-  audioBlobs = [];
+  if (audioSegs) audioSegs.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);">Generating full episode...</div>';
 
   var btn = document.getElementById('gen-audio-btn');
-  btn.disabled = true;
-  setStatus('audio-status', 'Generating audio for ' + scriptSections.length + ' lines...');
+  if (btn) btn.disabled = true;
+  setStatus('audio-status', 'Generating ' + scriptSections.length + ' segments with Deepgram Aura...');
   setProgress('audio-progress', 0);
 
-  var total = scriptSections.length;
+  var audioBuffers = [];
   var done = 0;
+  var total = scriptSections.length;
+  var WORKER = 'https://prism-api.identitypartners.workers.dev';
 
-  function processNext(idx) {
+  // Generate all segments sequentially (to avoid rate limits)
+  function generateNext(idx) {
     if (idx >= total) {
-      btn.disabled = false;
-      setProgress('audio-progress', -1);
-      setStatus('audio-status', 'Audio complete. ' + total + ' segments generated.');
-      var dlBtn = document.getElementById('download-btn');
-      if (dlBtn) dlBtn.style.display = 'inline-block';
+      // All done — concatenate and create single audio element
+      setProgress('audio-progress', 100);
+      setStatus('audio-status', 'Combining ' + total + ' segments...');
+      combineAudio(audioBuffers);
+      if (btn) btn.disabled = false;
       return;
     }
+
     var section = scriptSections[idx];
     var isHost = ['HOST','NARRATOR','SPEAKER_A'].includes(section.speaker);
     var voice = isHost ? hostVoice : guestVoice;
@@ -408,49 +411,144 @@ function generateAudio() {
     setStatus('audio-status', 'Generating: ' + section.speaker + ' (' + (idx+1) + '/' + total + ')');
     setProgress('audio-progress', Math.round((idx/total)*100));
 
-    fetch(WORKER + '/api/voice/generate', {
+    // Use Deepgram Aura (best quality, British voices)
+    fetch(WORKER + '/api/voice/deepgram', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({text: section.text, voice: voice, provider: provider, model: 'auto'})
+      body: JSON.stringify({text: section.text, voice: voice || 'aura-asteria-en'})
     })
     .then(function(r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.blob();
+      return r.arrayBuffer();
     })
-    .then(function(blob) {
-      audioBlobs.push({speaker: section.speaker, blob: blob, text: section.text});
-      var url = URL.createObjectURL(blob);
-      var div = document.createElement('div');
-      div.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--border);';
+    .then(function(buf) {
+      audioBuffers.push({speaker: section.speaker, buffer: buf, text: section.text});
+      done++;
+      // Show individual segment
+      var url = URL.createObjectURL(new Blob([buf], {type:'audio/mpeg'}));
+      var segDiv = document.createElement('div');
+      segDiv.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--border);';
       var tag = document.createElement('span');
       tag.className = 'speaker-tag ' + (isHost ? 'speaker-host' : 'speaker-guest');
       tag.textContent = section.speaker;
       var preview = document.createElement('span');
       preview.style.cssText = 'font-size:11px;color:var(--fg-muted);margin:0 8px;';
-      preview.textContent = section.text.substring(0, 60) + '...';
+      preview.textContent = section.text.substring(0, 50) + '...';
       var audio = document.createElement('audio');
-      audio.controls = true;
-      audio.src = url;
-      audio.className = 'audio-player';
-      div.appendChild(tag);
-      div.appendChild(preview);
-      div.appendChild(audio);
-      if (audioSegs) audioSegs.appendChild(div);
-      done++;
-      processNext(idx + 1);
+      audio.controls = true; audio.src = url;
+      audio.style.cssText = 'width:100%;height:32px;margin-top:4px;';
+      segDiv.appendChild(tag); segDiv.appendChild(preview); segDiv.appendChild(audio);
+      if (audioSegs) audioSegs.appendChild(segDiv);
+      generateNext(idx + 1);
     })
     .catch(function(e) {
-      var div = document.createElement('div');
-      div.style.cssText = 'padding:6px 0;color:#dc2626;font-size:12px;';
-      div.textContent = section.speaker + ': Error — ' + e.message;
-      if (audioSegs) audioSegs.appendChild(div);
+      // On error, skip segment and continue
+      audioBuffers.push({speaker: section.speaker, buffer: null, text: section.text, error: e.message});
       done++;
-      processNext(idx + 1);
+      generateNext(idx + 1);
     });
   }
 
-  processNext(0);
+  generateNext(0);
 }
+
+function combineAudio(buffers) {
+  // Use Web Audio API to concatenate all segments into one playable episode
+  var validBuffers = buffers.filter(function(b){return b.buffer && b.buffer.byteLength > 0;});
+  if (!validBuffers.length) {
+    setStatus('audio-status', 'No audio generated.');
+    return;
+  }
+
+  var AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) {
+    // Fallback: just show individual segments (already shown above)
+    setStatus('audio-status', 'Episode complete — ' + validBuffers.length + ' segments. Web Audio not available for merge.');
+    var dlBtn = document.getElementById('download-btn');
+    if (dlBtn) dlBtn.style.display = 'inline-block';
+    return;
+  }
+
+  var ctx = new AudioContext();
+  var decodePromises = validBuffers.map(function(b) {
+    return ctx.decodeAudioData(b.buffer.slice(0)).catch(function(){return null;});
+  });
+
+  Promise.all(decodePromises).then(function(decoded) {
+    var valid = decoded.filter(Boolean);
+    if (!valid.length) {
+      setStatus('audio-status', 'Could not decode audio. Individual segments available above.');
+      return;
+    }
+
+    // Calculate total length
+    var totalLength = valid.reduce(function(sum, buf){return sum + buf.length;}, 0);
+    var sampleRate = valid[0].sampleRate;
+    var channels = valid[0].numberOfChannels;
+
+    // Create combined buffer
+    var combined = ctx.createBuffer(channels, totalLength, sampleRate);
+    var offset = 0;
+    valid.forEach(function(buf) {
+      for (var ch = 0; ch < channels; ch++) {
+        combined.getChannelData(ch).set(buf.getChannelData(ch), offset);
+      }
+      offset += buf.length;
+    });
+
+    // Convert to WAV blob
+    var wav = audioBufferToWav(combined);
+    var blob = new Blob([wav], {type:'audio/wav'});
+    var url = URL.createObjectURL(blob);
+
+    // Show full episode player
+    var audioSegs = document.getElementById('audio-segments');
+    var episodeDiv = document.createElement('div');
+    episodeDiv.style.cssText = 'padding:12px;background:var(--bg-sunken);border-radius:8px;margin-bottom:12px;';
+    episodeDiv.innerHTML = '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">🎙 Full Episode (' + Math.round(combined.duration) + 's)</div>';
+    var fullAudio = document.createElement('audio');
+    fullAudio.controls = true; fullAudio.src = url;
+    fullAudio.style.cssText = 'width:100%;';
+    var dlLink = document.createElement('a');
+    dlLink.href = url; dlLink.download = 'podcast-episode.wav';
+    dlLink.style.cssText = 'display:inline-block;margin-top:8px;padding:5px 14px;background:var(--accent);color:#fff;border-radius:5px;font-size:12px;text-decoration:none;';
+    dlLink.textContent = '⬇ Download Episode';
+    episodeDiv.appendChild(fullAudio);
+    episodeDiv.appendChild(dlLink);
+    if (audioSegs) audioSegs.insertBefore(episodeDiv, audioSegs.firstChild);
+
+    setStatus('audio-status', 'Full episode ready — ' + Math.round(combined.duration) + ' seconds');
+  });
+}
+
+function audioBufferToWav(buffer) {
+  var numChannels = buffer.numberOfChannels;
+  var sampleRate = buffer.sampleRate;
+  var format = 1; // PCM
+  var bitDepth = 16;
+  var bytesPerSample = bitDepth / 8;
+  var blockAlign = numChannels * bytesPerSample;
+  var byteRate = sampleRate * blockAlign;
+  var dataSize = buffer.length * blockAlign;
+  var arrayBuffer = new ArrayBuffer(44 + dataSize);
+  var view = new DataView(arrayBuffer);
+  function writeString(offset, str) { for (var i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i)); }
+  writeString(0,'RIFF'); view.setUint32(4,36+dataSize,true); writeString(8,'WAVE');
+  writeString(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,format,true);
+  view.setUint16(22,numChannels,true); view.setUint32(24,sampleRate,true);
+  view.setUint32(28,byteRate,true); view.setUint16(32,blockAlign,true);
+  view.setUint16(34,bitDepth,true); writeString(36,'data'); view.setUint32(40,dataSize,true);
+  var offset = 44;
+  for (var i=0;i<buffer.length;i++) {
+    for (var ch=0;ch<numChannels;ch++) {
+      var sample = Math.max(-1,Math.min(1,buffer.getChannelData(ch)[i]));
+      view.setInt16(offset, sample<0?sample*0x8000:sample*0x7FFF, true);
+      offset += 2;
+    }
+  }
+  return arrayBuffer;
+}
+
 
 function downloadAll() {
   audioBlobs.forEach(function(seg, i) {
