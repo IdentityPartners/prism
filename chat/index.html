@@ -278,7 +278,6 @@
   display: none;
   flex-shrink: 0;
 }
-#osk-container.show { display: block; }
 </style>
 </head>
 <body>
@@ -433,11 +432,6 @@ document.addEventListener('DOMContentLoaded', function() {
     mount.parentNode.removeChild(mount);
   }
 
-  // Build OSK
-  var oskContainer = document.getElementById('osk-container');
-  if (oskContainer && typeof buildOSK === 'function') {
-    buildOSK('chat-input');
-  }
 
   // Load conversations
   loadConversations();
