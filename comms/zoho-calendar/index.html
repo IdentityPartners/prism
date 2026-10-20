@@ -3,26 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Connect Zoho — Argentica</title>
+<title>Zoho Calendar — Argentica</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
 <style>
-.zoho-wrap { max-width:560px; margin:60px auto; padding:0 20px; }
-.zoho-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:28px; }
+.zoho-wrap { max-width:560px; margin:40px auto; padding:0 20px; }
+.zoho-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px; padding:28px; margin-bottom:16px; }
 .zoho-card h2 { margin:0 0 6px; font-size:18px; }
-.zoho-card p { font-size:13px; color:var(--fg-muted); margin:0 0 20px; }
-.zoho-info { background:var(--bg-sunken); border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:20px; font-size:12px; }
-.zoho-info strong { display:block; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--fg-muted); margin-bottom:4px; }
-.zoho-info code { font-family:monospace; font-size:13px; color:var(--accent); word-break:break-all; }
-.zoho-btn { display:block; width:100%; padding:12px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; margin-bottom:10px; }
-.zoho-btn:hover { opacity:0.85; }
-.zoho-btn.secondary { background:var(--bg); color:var(--fg); border:1px solid var(--border); }
-.zoho-log { background:#1a1a1a; color:#0f0; border-radius:8px; padding:12px; font-family:monospace; font-size:11px; margin-top:16px; min-height:60px; white-space:pre-wrap; display:none; }
-.zoho-log.show { display:block; }
-.zoho-success { background:rgba(22,163,74,0.1); border:1px solid #16a34a; border-radius:8px; padding:14px; color:#16a34a; font-size:13px; display:none; }
-.zoho-success.show { display:block; }
-.zoho-error { background:rgba(220,38,38,0.1); border:1px solid #dc2626; border-radius:8px; padding:14px; color:#dc2626; font-size:13px; display:none; }
-.zoho-error.show { display:block; }
+.zoho-card p { font-size:13px; color:var(--fg-muted); margin:0 0 16px; }
+.info-box { background:var(--bg-sunken); border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:14px; font-size:12px; }
+.info-box strong { display:block; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--fg-muted); margin-bottom:4px; }
+.info-box code { font-family:monospace; font-size:12px; color:var(--accent); word-break:break-all; }
+.btn-primary { display:block; width:100%; padding:11px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; margin-bottom:8px; }
+.btn-secondary { display:block; width:100%; padding:11px; background:var(--bg); color:var(--fg); border:1px solid var(--border); border-radius:8px; font-size:14px; cursor:pointer; font-family:inherit; margin-bottom:8px; }
+.status-ok { background:rgba(22,163,74,0.1); border:1px solid #16a34a; border-radius:8px; padding:14px; color:#16a34a; font-size:13px; margin-bottom:14px; }
+.status-err { background:rgba(220,38,38,0.1); border:1px solid #dc2626; border-radius:8px; padding:14px; color:#dc2626; font-size:13px; margin-bottom:14px; }
+.log { background:#111; color:#0f0; border-radius:8px; padding:12px; font-family:monospace; font-size:11px; white-space:pre-wrap; max-height:200px; overflow-y:auto; }
+.event-item { padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.event-item:last-child { border-bottom:none; }
+.event-time { font-size:11px; color:var(--accent); font-weight:600; }
 </style>
 </head>
 <body>
@@ -30,38 +29,35 @@
 <div id="sidebar-mount"></div>
 <div id="main-content">
 <div class="zoho-wrap">
-<div class="zoho-card">
-  <h2>🔑 Connect Zoho</h2>
-  <p>Connects Calendar and Mail. One app covers both.</p>
 
-  <div class="zoho-info">
-    <strong>Client ID (in Zoho console)</strong>
-    <code id="show-client-id">1000.HMH9CMYHZ9TPTN1FAXK6VTC6R8ISMZ</code>
-  </div>
-
-  <div class="zoho-info">
-    <strong>Redirect URI — register this EXACTLY in Zoho console → api-console.zoho.eu → Argentica app → Client Details</strong>
-    <code id="show-redirect-uri"></code>
-  </div>
-
-  <div class="zoho-success" id="success-msg">
-    ✓ Connected! Calendar and Mail access granted. <a href="/home/" style="color:#16a34a;">Go to Home →</a>
-  </div>
-  <div class="zoho-error" id="error-msg"></div>
-
-  <button class="zoho-btn" onclick="connectZoho()">Connect Zoho →</button>
-  <button class="zoho-btn secondary" onclick="window.location.href='/settings/'">Back to Settings</button>
-
-  <div class="zoho-log" id="zoho-log"></div>
+<div class="zoho-card" id="status-card">
+  <h2>📅 Zoho Calendar</h2>
+  <p id="status-text">Checking connection...</p>
+  <div id="status-indicator"></div>
+  <div id="events-list"></div>
+  <div id="action-area"></div>
 </div>
+
+<div class="zoho-card" id="setup-card" style="display:none;">
+  <h2>Setup</h2>
+  <div class="info-box">
+    <strong>Register this EXACT redirect URI in Zoho console (api-console.zoho.eu → Argentica → Client Details)</strong>
+    <code id="show-uri"></code>
+  </div>
+  <div class="info-box">
+    <strong>Client ID</strong>
+    <code>1000.HMH9CMYHZ9TPTN1FAXK6VTC6R8ISMZ</code>
+  </div>
+  <div class="log" id="debug-log"></div>
+</div>
+
 </div>
 </div>
 
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
-var CLIENT_ID = '1000.HMH9CMYHZ9TPTN1FAXK6VTC6R8ISMZ';
-// Redirect URI = this page's URL exactly
 var REDIRECT_URI = window.location.origin + '/comms/zoho-calendar/';
+var CLIENT_ID = '1000.HMH9CMYHZ9TPTN1FAXK6VTC6R8ISMZ';
 
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
@@ -71,29 +67,81 @@ document.addEventListener('DOMContentLoaded', function() {
     mount.parentNode.removeChild(mount);
   }
 
-  // Show the exact redirect URI being used
-  document.getElementById('show-redirect-uri').textContent = REDIRECT_URI;
+  document.getElementById('show-uri').textContent = REDIRECT_URI;
 
-  // Handle callback (?code=...)
+  // Handle OAuth callback
   var params = new URLSearchParams(window.location.search);
   var code = params.get('code');
   var error = params.get('error');
 
   if (error) {
-    showError('Zoho error: ' + error + (params.get('error_description') ? ' — ' + params.get('error_description') : ''));
+    showSetup();
+    log('Zoho error: ' + error);
+    showStatus('err', 'Zoho returned error: ' + error);
     return;
   }
 
   if (code) {
-    log('Received authorisation code. Exchanging for token...');
+    // Remove code from URL immediately to prevent re-processing on refresh
     window.history.replaceState({}, '', '/comms/zoho-calendar/');
+    log('Received code. Exchanging...');
     exchangeCode(code);
+    return;
   }
+
+  // No code — check if already connected
+  checkConnection();
 });
+
+function checkConnection() {
+  fetch(WORKER + '/api/calendar/events')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.status === 'not_connected') {
+        showConnectUI();
+      } else if (d.status === 'ok' || d.status === 'connected_no_events' || d.status === 'api_error') {
+        showConnectedUI(d);
+      } else {
+        showConnectUI();
+      }
+    })
+    .catch(function(e) {
+      showConnectUI();
+      log('Connection check error: ' + e.message);
+    });
+}
+
+function showConnectedUI(data) {
+  document.getElementById('status-text').textContent = 'Zoho Calendar';
+  showStatus('ok', '✓ Connected to Zoho Calendar and Mail');
+
+  var events = [...(data.today||[]), ...(data.week||[])].slice(0, 10);
+  var evList = document.getElementById('events-list');
+  if (events.length) {
+    evList.innerHTML = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin:12px 0 6px;">Upcoming Events</div>' +
+      events.map(function(ev) {
+        var time = ev.start ? new Date(ev.start).toLocaleString('en-GB',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+        return '<div class="event-item"><div class="event-time">' + time + '</div><div>' + (ev.title||'').replace(/</g,'&lt;') + '</div></div>';
+      }).join('');
+  } else {
+    evList.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);margin-top:10px;">No upcoming events found.</div>';
+  }
+
+  document.getElementById('action-area').innerHTML =
+    '<button class="btn-secondary" onclick="disconnectZoho()" style="margin-top:14px;">Disconnect</button>';
+}
+
+function showConnectUI() {
+  document.getElementById('status-text').textContent = 'Zoho Calendar';
+  document.getElementById('status-indicator').innerHTML = '<p style="color:var(--fg-muted);font-size:13px;">Not connected. Click below to authorise Argentica to access your Zoho Calendar and Mail.</p>';
+  document.getElementById('action-area').innerHTML =
+    '<button class="btn-primary" onclick="connectZoho()">Connect Zoho →</button>' +
+    '<button class="btn-secondary" onclick="toggleSetup()">⚙ Setup / Debug</button>';
+}
 
 function connectZoho() {
   var scope = 'ZohoCalendar.calendar.READ,ZohoCalendar.event.READ,ZohoCalendar.event.CREATE,ZohoMail.messages.READ,ZohoMail.accounts.READ';
-  var authUrl = 'https://accounts.zoho.eu/oauth/v2/auth' +
+  var url = 'https://accounts.zoho.eu/oauth/v2/auth' +
     '?response_type=code' +
     '&client_id=' + encodeURIComponent(CLIENT_ID) +
     '&redirect_uri=' + encodeURIComponent(REDIRECT_URI) +
@@ -102,11 +150,11 @@ function connectZoho() {
     '&prompt=consent';
   log('Redirecting to Zoho...');
   log('Redirect URI: ' + REDIRECT_URI);
-  setTimeout(function() { window.location.href = authUrl; }, 500);
+  window.location.href = url;
 }
 
 function exchangeCode(code) {
-  log('Calling /api/zoho/exchange...');
+  showStatus('ok', 'Exchanging authorisation code...');
   fetch(WORKER + '/api/zoho/exchange', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -116,25 +164,46 @@ function exchangeCode(code) {
   .then(function(d) {
     if (d.success) {
       log('Token stored. API domain: ' + d.api_domain);
-      document.getElementById('success-msg').classList.add('show');
+      checkConnection();
     } else {
-      showError('Token exchange failed: ' + (d.error || JSON.stringify(d)));
+      showSetup();
+      showStatus('err', 'Token exchange failed: ' + (d.error || JSON.stringify(d)));
+      log('Exchange error: ' + JSON.stringify(d));
     }
   })
-  .catch(function(e) { showError('Network error: ' + e.message); });
+  .catch(function(e) {
+    showSetup();
+    showStatus('err', 'Network error: ' + e.message);
+    log('Network error: ' + e.message);
+  });
+}
+
+function disconnectZoho() {
+  if (!confirm('Disconnect Zoho?')) return;
+  fetch(WORKER + '/api/kv/set', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({key:'zoho:calendar:token', value:''})
+  }).then(function() { checkConnection(); });
+}
+
+function showStatus(type, msg) {
+  var el = document.getElementById('status-indicator');
+  el.innerHTML = '<div class="status-' + type + '">' + msg + '</div>';
+}
+
+function toggleSetup() {
+  var card = document.getElementById('setup-card');
+  card.style.display = card.style.display === 'none' ? 'block' : 'none';
+}
+
+function showSetup() {
+  document.getElementById('setup-card').style.display = 'block';
 }
 
 function log(msg) {
-  var el = document.getElementById('zoho-log');
-  el.classList.add('show');
+  var el = document.getElementById('debug-log');
   el.textContent += new Date().toLocaleTimeString('en-GB') + ' ' + msg + '\n';
-}
-
-function showError(msg) {
-  var el = document.getElementById('error-msg');
-  el.textContent = msg;
-  el.classList.add('show');
-  log('ERROR: ' + msg);
+  el.scrollTop = el.scrollHeight;
 }
 </script>
 </body>
