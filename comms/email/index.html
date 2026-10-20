@@ -1,139 +1,187 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Email — Prism</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mail — Argentica</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<style>
+.mail-shell { display:flex; height:100vh; overflow:hidden; }
+.mail-list-panel { width:320px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-surface); overflow:hidden; }
+.mail-detail-panel { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+.mail-list-hdr { padding:10px 14px 8px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.mail-list-hdr h3 { font-size:13px; font-weight:600; margin:0; }
+.mail-list-body { flex:1; overflow-y:auto; }
+.mail-item { padding:10px 14px; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.1s; }
+.mail-item:hover { background:var(--bg-sunken); }
+.mail-item.active { background:var(--accent-light,#e8f0f8); border-left:3px solid var(--accent); }
+.mail-item.unread .mail-subject { font-weight:700; }
+.mail-from { font-size:12.5px; font-weight:600; color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mail-subject { font-size:12px; color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+.mail-preview { font-size:11px; color:var(--fg-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+.mail-meta { font-size:10px; color:var(--fg-muted); margin-top:3px; display:flex; justify-content:space-between; }
+.mail-detail-hdr { padding:16px 20px; border-bottom:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; }
+.mail-detail-subject { font-size:18px; font-weight:700; margin-bottom:8px; }
+.mail-detail-meta { font-size:12px; color:var(--fg-muted); display:flex; gap:16px; flex-wrap:wrap; }
+.mail-detail-body { flex:1; overflow-y:auto; padding:20px; font-size:14px; line-height:1.7; }
+.mail-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--fg-muted); }
+.mail-empty .icon { font-size:48px; margin-bottom:12px; }
+.compose-btn { padding:6px 14px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-family:inherit; }
+.not-connected { padding:30px; text-align:center; color:var(--fg-muted); }
+.not-connected a { color:var(--accent); }
+</style>
 </head>
 <body>
-<div class="prism-shell">
-  <div id="sidebar-mount"></div>
-  <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Email</div><div class="topbar-actions"><a href="/oauth/zoho/mail" class="btn btn-sm btn-secondary" title="Connect Zoho Mail">🔑 Connect Zoho</a><button class="btn btn-sm btn-primary" onclick="openCompose()" title="Compose new email">✏ Compose</button></div></div>
-    <div class="page-content">
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="mail-shell">
 
-      <div class="grid-2" style="gap:20px;align-items:start;">
-        <div class="card">
-          <div class="card-header"><span class="card-title">Inbox</span><span class="badge badge-muted">Connect Zoho to load emails</span></div>
-          <div id="inbox-list" style="font-size:13px;color:var(--fg-muted);padding:20px 0;text-align:center;">Connect your Zoho Mail account to view your inbox.<br><br><a href="/oauth/zoho/mail" class="btn btn-primary btn-sm" title="Connect Zoho Mail">Connect Zoho Mail</a></div>
-        </div>
-        <div class="card" id="compose-card">
-          <div class="card-header"><span class="card-title">Compose</span></div>
-          <div class="form-group"><label class="form-label">To</label><input class="input" id="email-to" type="email" placeholder="recipient@example.com"></div>
-          <div class="form-group"><label class="form-label">Subject</label><input class="input" id="email-subject" type="text" placeholder="Subject…"></div>
-          <div class="form-group"><label class="form-label">Message</label><textarea class="textarea textarea-lg" id="email-body" placeholder="Write your message…"></textarea></div>
-          <div style="display:flex;gap:8px;">
-            <button class="btn btn-primary" onclick="sendEmail()" title="Send email">📧 Send</button>
-            <button class="btn btn-secondary" onclick="aiDraftEmail()" title="AI draft this email">✨ AI Draft</button>
-          </div>
-        </div>
-      </div>
+<div class="mail-list-panel">
+  <div class="mail-list-hdr">
+    <h3>📬 Inbox</h3>
+    <div style="display:flex;gap:6px;">
+      <button onclick="loadMail()" style="padding:3px 8px;border:1px solid var(--border);border-radius:5px;cursor:pointer;background:var(--bg);font-size:11px;">↻</button>
+      <button class="compose-btn" onclick="openCompose()">+ Compose</button>
     </div>
   </div>
+  <div class="mail-list-body" id="mail-list">
+    <div style="padding:20px;text-align:center;font-size:12px;color:var(--fg-muted);">Loading...</div>
+  </div>
 </div>
-<script src="/shared/prism.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Check if Zoho Mail is connected
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', 'https://prism-api.identitypartners.workers.dev/api/zoho/status', true);
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      var r = JSON.parse(xhr.responseText);
-      if (r.status && r.status.mail && r.status.mail.connected) {
-        var banner = document.getElementById('inbox-list');
-        if (banner) banner.innerHTML = '<div style="padding:20px;text-align:center;color:var(--success);font-size:13px;">Zoho Mail connected. Loading inbox...</div>';
-        loadInbox();
-      }
-    } catch(e) {}
-  };
-  xhr.send();
 
+<div class="mail-detail-panel" id="mail-detail">
+  <div class="mail-empty">
+    <div class="icon">📬</div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:6px;">hello@identitypartners.uk</div>
+    <div style="font-size:12px;">Select a message to read it.</div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<!-- Compose modal -->
+<div id="compose-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;align-items:center;justify-content:center;">
+<div style="background:var(--bg-elevated);border-radius:12px;width:560px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+  <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+    <strong style="font-size:14px;">New Message</strong>
+    <button onclick="closeCompose()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--fg-muted);">✕</button>
+  </div>
+  <div style="padding:12px 16px;border-bottom:1px solid var(--border);">
+    <input id="compose-to" type="email" placeholder="To:" style="width:100%;padding:6px 0;border:none;border-bottom:1px solid var(--border);font-size:13px;background:transparent;color:var(--fg);outline:none;box-sizing:border-box;">
+  </div>
+  <div style="padding:12px 16px;border-bottom:1px solid var(--border);">
+    <input id="compose-subject" type="text" placeholder="Subject:" style="width:100%;padding:6px 0;border:none;font-size:13px;background:transparent;color:var(--fg);outline:none;box-sizing:border-box;">
+  </div>
+  <textarea id="compose-body" style="flex:1;padding:14px 16px;border:none;font-size:14px;font-family:inherit;resize:none;min-height:200px;background:transparent;color:var(--fg);outline:none;" placeholder="Write your message..."></textarea>
+  <div style="padding:10px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;">
+    <button onclick="closeCompose()" style="padding:7px 16px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);">Cancel</button>
+    <button onclick="sendMail()" style="padding:7px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Send</button>
+  </div>
+</div>
+</div>
+
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var messages = [];
+var currentMsg = null;
+
+document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
-  if (mount) { var sb = buildSidebar('/comms/email/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  checkEmailPrefill();
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/comms/email/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  loadMail();
 });
 
-var WORKER = 'https://prism-api.identitypartners.workers.dev';
-function openCompose() { document.getElementById('email-to').focus(); }
-function checkEmailPrefill() {
-  var params = new URLSearchParams(window.location.search);
-  var to = params.get('to');
-  if (to) { var el = document.getElementById('email-to'); if (el) el.value = to; }
-}
-function loadInbox() {
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', 'https://prism-api.identitypartners.workers.dev/api/zoho/mail/inbox', true);
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      var r = JSON.parse(xhr.responseText);
-      var list = document.getElementById('inbox-list');
-      if (!list) return;
-      if (r.messages && r.messages.length > 0) {
-        list.innerHTML = '';
-        r.messages.forEach(function(msg) {
-          var item = document.createElement('div');
-          item.style.cssText = 'padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;';
-          item.innerHTML = '<div style="font-weight:500;font-size:13px;">' + (msg.fromAddress||msg.sender||'Unknown') + '</div>' +
-            '<div style="font-size:12.5px;color:var(--fg-secondary);">' + (msg.subject||'No subject') + '</div>' +
-            '<div style="font-size:11px;color:var(--fg-muted);">' + (msg.receivedTime||'') + '</div>';
-          list.appendChild(item);
-        });
-      } else if (r.error) {
-        if (list) list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);font-size:13px;">Could not load inbox: ' + r.error + '</div>';
-      } else {
-        if (list) list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);font-size:13px;">Inbox is empty.</div>';
+function loadMail() {
+  var list = document.getElementById('mail-list');
+  list.innerHTML = '<div style="padding:20px;text-align:center;font-size:12px;color:var(--fg-muted);">Loading...</div>';
+  fetch(WORKER + '/api/zoho/mail/inbox')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.status === 'not_connected') {
+        list.innerHTML = '<div class="not-connected"><div style="font-size:32px;margin-bottom:12px;">📭</div><p>Mail not connected.</p><a href="/comms/zoho-calendar/">Connect Zoho →</a></div>';
+        return;
       }
-    } catch(e) {}
-  };
-  xhr.send();
+      messages = d.messages || [];
+      if (!messages.length) {
+        list.innerHTML = '<div style="padding:20px;text-align:center;font-size:12px;color:var(--fg-muted);">No messages.</div>';
+        return;
+      }
+      list.innerHTML = messages.map(function(m, i) {
+        var date = m.date ? new Date(parseInt(m.date)).toLocaleDateString('en-GB', {day:'numeric',month:'short'}) : '';
+        var unread = !m.read ? ' unread' : '';
+        return '<div class="mail-item' + unread + '" onclick="openMessage(' + i + ')">' +
+          '<div class="mail-from">' + (m.from||'').replace(/</g,'&lt;').split('<')[0].trim() + '</div>' +
+          '<div class="mail-subject">' + (m.subject||'(no subject)').replace(/</g,'&lt;') + '</div>' +
+          '<div class="mail-preview">' + (m.preview||'').replace(/</g,'&lt;') + '</div>' +
+          '<div class="mail-meta"><span>' + date + '</span>' + (!m.read ? '<span style="color:var(--accent);font-weight:700;">●</span>' : '') + '</div>' +
+          '</div>';
+      }).join('');
+    })
+    .catch(function(e) {
+      list.innerHTML = '<div style="padding:20px;font-size:12px;color:#dc2626;">Error: ' + e.message + '</div>';
+    });
 }
 
-function sendEmail() {
-  var to = document.getElementById('email-to').value.trim();
-  var subject = document.getElementById('email-subject').value.trim();
-  var body = document.getElementById('email-body').value.trim();
-  if (!to || !subject || !body) { Toast.warning('Please fill in all fields'); return; }
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', 'https://prism-api.identitypartners.workers.dev/api/zoho/mail/send', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      var r = JSON.parse(xhr.responseText);
-      if (r.success) {
-        Toast.success('Email sent to ' + to);
-        document.getElementById('email-to').value = '';
-        document.getElementById('email-subject').value = '';
-        document.getElementById('email-body').value = '';
-      } else if (r.error && r.error.indexOf('not connected') >= 0) {
-        Toast.warning('Connect Zoho Mail first — click Connect Zoho above');
-      } else {
-        Toast.error('Send failed: ' + (r.error || 'Unknown error'));
-      }
-    } catch(e) { Toast.error('Send failed'); }
-  };
-  xhr.onerror = function() { Toast.error('Network error'); };
-  xhr.send(JSON.stringify({to:to, subject:subject, body:body, from:'simon@identitypartners.uk'}));
-}
-function aiDraftEmail() {
-  var subject = document.getElementById('email-subject').value.trim();
-  var to = document.getElementById('email-to').value.trim();
-  if (!subject) { Toast.warning('Enter a subject first'); return; }
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/chat', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try { var r = JSON.parse(xhr.responseText); var el = document.getElementById('email-body'); if (el && r.content) el.value = r.content; }
-    catch(e) { Toast.error('AI draft failed'); }
-  };
-  xhr.send(JSON.stringify({messages:[{role:'system',content:'You are an email writing assistant for Identity Partners. Write professional, warm emails in British English. Sign off as Simon Johnson, Identity Partners.'},{role:'user',content:'Write an email with subject: "' + subject + '"' + (to ? ' to ' + to : '')}],profile:'balanced'}));
+function openMessage(idx) {
+  currentMsg = messages[idx];
+  document.querySelectorAll('.mail-item').forEach(function(el, i) { el.classList.toggle('active', i === idx); });
+  var detail = document.getElementById('mail-detail');
+  var date = currentMsg.date ? new Date(parseInt(currentMsg.date)).toLocaleString('en-GB') : '';
+  detail.innerHTML = '<div class="mail-detail-hdr">' +
+    '<div class="mail-detail-subject">' + (currentMsg.subject||'(no subject)').replace(/</g,'&lt;') + '</div>' +
+    '<div class="mail-detail-meta">' +
+      '<span>From: ' + (currentMsg.from||'').replace(/</g,'&lt;') + '</span>' +
+      '<span>' + date + '</span>' +
+    '</div>' +
+    '<div style="margin-top:10px;display:flex;gap:6px;">' +
+      '<button onclick="replyTo()" style="padding:4px 12px;border:1px solid var(--border);border-radius:5px;cursor:pointer;background:var(--bg);font-size:12px;">↩ Reply</button>' +
+    '</div>' +
+    '</div>' +
+    '<div class="mail-detail-body">' + (currentMsg.preview || 'Open in Zoho Mail to read full message.').replace(/</g,'&lt;').replace(/\n/g,'<br>') + '</div>';
 }
 
+function replyTo() {
+  if (!currentMsg) return;
+  document.getElementById('compose-to').value = currentMsg.from || '';
+  document.getElementById('compose-subject').value = 'Re: ' + (currentMsg.subject || '');
+  document.getElementById('compose-body').value = '';
+  openCompose();
+}
+
+function openCompose() {
+  var modal = document.getElementById('compose-modal');
+  modal.style.display = 'flex';
+  document.getElementById('compose-to').focus();
+}
+
+function closeCompose() {
+  document.getElementById('compose-modal').style.display = 'none';
+}
+
+function sendMail() {
+  var to = document.getElementById('compose-to').value.trim();
+  var subject = document.getElementById('compose-subject').value.trim();
+  var content = document.getElementById('compose-body').value.trim();
+  if (!to || !content) { alert('Enter recipient and message.'); return; }
+  fetch(WORKER + '/api/zoho/mail/send', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({to: to, subject: subject, content: content.replace(/\n/g,'<br>')})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) { closeCompose(); alert('Sent.'); }
+    else alert('Send failed: ' + (d.error || JSON.stringify(d)));
+  })
+  .catch(function(e) { alert('Error: ' + e.message); });
+}
 </script>
 </body>
 </html>
