@@ -7,203 +7,272 @@
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
 <style>
-.home-grid {
+.home-wrap {
   display: grid;
-  grid-template-columns: minmax(220px,260px) 1fr minmax(220px,260px);
+  grid-template-columns: 240px 1fr 240px;
   gap: 12px;
   padding: 12px;
-  height: calc(100vh - 0px);
+  height: calc(100vh - var(--topbar-h, 0px));
   box-sizing: border-box;
   overflow: hidden;
 }
-@media(max-width:1200px){.home-grid{grid-template-columns:220px 1fr;}.home-right{display:none;}}
-@media(max-width:900px){.home-grid{grid-template-columns:1fr;}.home-left{display:none;}}
-@media(max-width:800px){.home-grid{grid-template-columns:1fr;}.home-left{display:none;}}
+@media(max-width:1200px){.home-wrap{grid-template-columns:220px 1fr;}.home-right{display:none;}}
+@media(max-width:900px){.home-wrap{grid-template-columns:1fr;}.home-left{display:none;}}
 
-.home-col { display:flex; flex-direction:column; gap:10px; overflow-y:auto; }
-.home-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius,8px); padding:12px; flex-shrink:0; }
-.home-card-title { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--fg-muted); margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; }
-.home-card-title a { font-size:10px; color:var(--accent); text-decoration:none; font-weight:400; text-transform:none; letter-spacing:0; }
+.home-col { display:flex; flex-direction:column; gap:10px; overflow-y:auto; min-width:0; }
+
+/* Cards */
+.hcard {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.hcard-hdr {
+  padding: 10px 14px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.hcard-hdr h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fg-muted); margin: 0; }
+.hcard-hdr a, .hcard-hdr button { font-size: 11px; color: var(--accent); text-decoration: none; background: none; border: none; cursor: pointer; padding: 0; }
+.hcard-body { padding: 10px 14px; }
 
 /* Hero */
-.home-hero { background:linear-gradient(135deg,#0f3b3a 0%,#1a5c5a 45%,#5c2d3f 100%); border-radius:var(--radius,8px); padding:16px 20px; color:#fff; flex-shrink:0; }
-.home-hero-greeting { font-family:var(--font-heading,Georgia,serif); font-size:20px; font-weight:600; margin-bottom:2px; }
-.home-hero-date { font-size:12px; opacity:0.75; margin-bottom:8px; }
-.home-hero-tagline { font-size:10px; opacity:0.6; font-style:italic; }
+.home-hero {
+  background: linear-gradient(135deg, #0f3b3a 0%, #1a5c5a 50%, #5c2d3f 100%);
+  border-radius: 10px;
+  padding: 18px;
+  color: #fff;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+.home-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+.hero-greeting { font-size: 20px; font-weight: 700; margin-bottom: 2px; position: relative; }
+.hero-date { font-size: 12px; opacity: 0.7; margin-bottom: 10px; position: relative; }
+.hero-tagline { font-size: 10px; opacity: 0.5; font-style: italic; position: relative; }
+.hero-ip { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; position: relative; }
+.hero-ip-name { font-size: 16px; font-weight: 700; }
+.hero-ip-name span:first-child { color: #7ecfcd; }
+.hero-ip-name span:last-child { color: #d4899a; }
 
-/* Calendar events */
-.cal-period { margin-bottom:10px; }
-.cal-period-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--accent); margin-bottom:5px; padding-bottom:3px; border-bottom:1px solid var(--border); }
-.cal-event { display:flex; gap:8px; padding:5px 0; border-bottom:1px solid var(--border); align-items:flex-start; }
-.cal-event:last-child { border-bottom:none; }
-.cal-event-time { font-size:11px; font-weight:600; color:var(--accent); min-width:40px; flex-shrink:0; }
-.cal-event-title { font-size:13.5px; color:var(--fg); line-height:1.3; }
-.cal-event-sub { font-size:10px; color:var(--fg-muted); }
-.cal-empty { font-size:11px; color:var(--fg-muted); font-style:italic; padding:4px 0; }
+/* Quick input */
+.quick-input-wrap { padding: 10px 14px; }
+.quick-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+.quick-tab { padding: 3px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 11px; cursor: pointer; background: var(--bg); color: var(--fg-muted); font-family: inherit; }
+.quick-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.quick-input-row { display: flex; gap: 6px; }
+.quick-textarea { flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit; resize: none; min-height: 44px; max-height: 120px; background: var(--bg); color: var(--fg); }
+.quick-send { padding: 8px 14px; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; }
+
+/* Calendar */
+.cal-period-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--accent); margin: 8px 0 4px; }
+.cal-event { display: flex; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+.cal-event:last-child { border-bottom: none; }
+.cal-time { font-size: 11px; font-weight: 600; color: var(--accent); min-width: 38px; flex-shrink: 0; }
+.cal-title { font-size: 12.5px; color: var(--fg); line-height: 1.3; }
+.cal-sub { font-size: 10px; color: var(--fg-muted); }
+.cal-empty { font-size: 11px; color: var(--fg-muted); font-style: italic; padding: 4px 0; }
+.cal-connect { font-size: 11px; color: var(--accent); cursor: pointer; padding: 4px 0; }
 
 /* News */
-.news-item { display:flex; gap:8px; padding:7px 0; border-bottom:1px solid var(--border); cursor:pointer; }
-.news-item:last-child { border-bottom:none; }
-.news-item:hover .news-headline { color:var(--accent); }
-.news-thumb { width:48px; height:48px; border-radius:5px; object-fit:cover; flex-shrink:0; background:var(--bg-sunken); }
-.news-headline { font-size:13px; font-weight:500; line-height:1.4; color:var(--fg); margin-bottom:2px; }
-.news-meta { font-size:10px; color:var(--fg-muted); }
+.news-item { display: flex; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+.news-item:last-child { border-bottom: none; }
+.news-item:hover .news-headline { color: var(--accent); }
+.news-thumb { width: 52px; height: 52px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: var(--bg-sunken); }
+.news-headline { font-size: 12.5px; font-weight: 500; line-height: 1.4; color: var(--fg); margin-bottom: 3px; }
+.news-meta { font-size: 10px; color: var(--fg-muted); }
+.news-watched { color: var(--accent); font-weight: 700; }
 
-/* Research papers */
-.paper-item { padding:6px 0; border-bottom:1px solid var(--border); }
-.paper-item:last-child { border-bottom:none; }
-.paper-title { font-size:13px; font-weight:500; color:var(--fg); margin-bottom:2px; cursor:pointer; }
-.paper-title:hover { color:var(--accent); }
-.paper-meta { font-size:10px; color:var(--fg-muted); }
+/* Keyword watching */
+.kw-panel { display: none; padding: 8px 14px; border-top: 1px solid var(--border); background: var(--bg-sunken); }
+.kw-panel.open { display: block; }
+.kw-input-row { display: flex; gap: 6px; margin-top: 6px; }
+.kw-input { flex: 1; padding: 5px 8px; border: 1px solid var(--border); border-radius: 5px; font-size: 12px; background: var(--bg); color: var(--fg); }
 
-/* Bitesize */
-.bitesize-card { background:linear-gradient(135deg,rgba(15,59,58,0.08),rgba(92,45,63,0.08)); border:1px solid var(--border); border-radius:8px; padding:12px; }
-.bitesize-concept { font-size:15px; font-weight:700; color:var(--fg); margin-bottom:4px; }
-.bitesize-def { font-size:13px; color:var(--fg-muted); line-height:1.5; margin-bottom:8px; }
-.bitesize-actions { display:flex; gap:6px; flex-wrap:wrap; }
-.bitesize-btn { padding:4px 10px; border:1px solid var(--border); border-radius:12px; font-size:11px; cursor:pointer; background:var(--bg); color:var(--fg); text-decoration:none; }
-.bitesize-btn:hover { border-color:var(--accent); color:var(--accent); }
+/* Thinker */
+.thinker-card { background: linear-gradient(135deg, rgba(15,59,58,0.06), rgba(92,45,63,0.06)); border-radius: 8px; padding: 12px; }
+.thinker-concept { font-size: 16px; font-weight: 700; color: var(--fg); margin-bottom: 2px; }
+.thinker-name { font-size: 11px; color: var(--accent); font-weight: 600; margin-bottom: 8px; }
+.thinker-def { font-size: 12.5px; color: var(--fg-muted); line-height: 1.6; margin-bottom: 10px; }
+.thinker-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+.thinker-btn { padding: 4px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 11px; cursor: pointer; background: var(--bg); color: var(--fg-muted); text-decoration: none; font-family: inherit; }
+.thinker-btn:hover { border-color: var(--accent); color: var(--accent); }
+.thinker-nav { display: flex; align-items: center; gap: 6px; }
+.thinker-nav button { background: none; border: none; cursor: pointer; color: var(--fg-muted); font-size: 16px; padding: 0 2px; }
+.thinker-progress { font-size: 10px; color: var(--fg-muted); }
 
-/* WIP */
-.wip-item { padding:6px 0; border-bottom:1px solid var(--border); }
-.wip-item:last-child { border-bottom:none; }
-.wip-name { font-size:12px; font-weight:500; color:var(--fg); }
-.wip-progress { font-size:10px; color:var(--fg-muted); margin-top:2px; }
-.wip-bar { height:3px; background:var(--border); border-radius:2px; margin-top:4px; overflow:hidden; }
-.wip-fill { height:100%; background:var(--accent); border-radius:2px; }
+/* Tasks */
+.task-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.task-item:last-child { border-bottom: none; }
+.task-check { width: 16px; height: 16px; border: 1.5px solid var(--border); border-radius: 3px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+.task-check.done { background: var(--accent); border-color: var(--accent); color: #fff; }
+.task-text { flex: 1; }
+.task-text.done { text-decoration: line-through; color: var(--fg-muted); }
+.task-del { background: none; border: none; cursor: pointer; color: var(--fg-muted); font-size: 14px; padding: 0; }
+.task-add { display: flex; gap: 6px; margin-top: 8px; }
+.task-add input { flex: 1; padding: 5px 8px; border: 1px solid var(--border); border-radius: 5px; font-size: 12px; background: var(--bg); color: var(--fg); }
+.task-add button { padding: 5px 10px; background: var(--accent); color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; }
 
 /* Social status */
-.social-row { display:flex; align-items:center; gap:8px; padding:4px 0; font-size:12px; }
-.social-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
-.social-dot.ok { background:#16a34a; }
-.social-dot.warn { background:#f59e0b; }
-.social-dot.err { background:#dc2626; }
+.social-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; }
+.social-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.dot-ok { background: #16a34a; }
+.dot-warn { background: #f59e0b; }
+.dot-err { background: #dc2626; }
 
 /* Quick notes */
-.quick-notes-ta { width:100%; min-height:80px; padding:7px 9px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; resize:vertical; background:var(--bg); color:var(--fg); box-sizing:border-box; }
-
-/* Input strip */
-.home-input-strip { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius,8px); padding:10px 12px; flex-shrink:0; }
-.home-input-tabs { display:flex; gap:4px; margin-bottom:8px; }
-.home-input-tab { padding:3px 10px; border-radius:10px; font-size:11px; cursor:pointer; border:1px solid var(--border); background:var(--bg); color:var(--fg-muted); }
-.home-input-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-.home-input-ta { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px; font-family:inherit; background:var(--bg); color:var(--fg); box-sizing:border-box; resize:none; min-height:50px; }
+.quick-notes { width: 100%; min-height: 80px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; font-family: inherit; resize: vertical; background: var(--bg); color: var(--fg); box-sizing: border-box; }
 </style>
 </head>
 <body>
 <script src="/shared/prism.js"></script>
 <div id="sidebar-mount"></div>
 <div id="main-content">
-<div class="home-grid">
+<div class="home-wrap">
 
-<!-- ── LEFT: Calendar ──────────────────────────────────────────────────────── -->
+<!-- ── LEFT ── -->
 <div class="home-col home-left">
 
   <div class="home-hero">
-    <div class="home-hero-greeting" id="hero-greeting">Good morning, Simon.</div>
-    <div class="home-hero-date" id="hero-date"></div>
-    <div class="home-hero-tagline">Understand your past · Appreciate the present · Define your future</div>
+    <div class="hero-ip">
+      <div class="hero-ip-name"><span>Identity</span><span>Partners</span></div>
+    </div>
+    <div class="hero-greeting" id="hero-greeting">Good morning, Simon.</div>
+    <div class="hero-date" id="hero-date"></div>
+    <div class="hero-tagline">Understand your past · Appreciate the present · Define your future</div>
   </div>
 
-  <div class="home-card">
-    <div class="home-card-title">📅 Calendar <a href="/comms/zoho-calendar/">Open →</a></div>
-    <div id="cal-today">
-      <div class="cal-period">
-        <div class="cal-period-label">Today</div>
-        <div id="cal-today-events"><div class="cal-empty">Loading...</div></div>
-      </div>
-      <div class="cal-period">
-        <div class="cal-period-label">This Week</div>
-        <div id="cal-week-events"><div class="cal-empty">Loading...</div></div>
-      </div>
-      <div class="cal-period">
-        <div class="cal-period-label">Next Week</div>
-        <div id="cal-next-events"><div class="cal-empty">Loading...</div></div>
-      </div>
+  <!-- Calendar -->
+  <div class="hcard">
+    <div class="hcard-hdr">
+      <h3>📅 Calendar</h3>
+      <a href="/comms/zoho-calendar/">Connect →</a>
+    </div>
+    <div class="hcard-body" id="cal-body">
+      <div class="cal-connect" onclick="window.location.href='/comms/zoho-calendar/'">Connect Zoho Calendar →</div>
     </div>
   </div>
 
-  <div class="home-card">
-    <div class="home-card-title">✅ Tasks</div>
-    <div id="tasks-list" style="font-size:12px;color:var(--fg-muted);">No tasks today.</div>
-    <div style="display:flex;gap:6px;margin-top:8px;">
-      <input id="task-input" type="text" placeholder="Add a task..." style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg);color:var(--fg);" onkeydown="if(event.key==='Enter')addTask()">
-      <button onclick="addTask()" style="padding:5px 10px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12px;">+</button>
+  <!-- Tasks -->
+  <div class="hcard">
+    <div class="hcard-hdr">
+      <h3>✅ Tasks</h3>
+      <button onclick="clearDoneTasks()">Clear done</button>
+    </div>
+    <div class="hcard-body">
+      <div id="task-list"></div>
+      <div class="task-add">
+        <input id="task-input" type="text" placeholder="Add a task..." onkeydown="if(event.key==='Enter')addTask()">
+        <button onclick="addTask()">+</button>
+      </div>
     </div>
   </div>
 
 </div>
 
-<!-- ── CENTRE: News + Research + Input ────────────────────────────────────── -->
+<!-- ── CENTRE ── -->
 <div class="home-col home-centre">
 
-  <div class="home-input-strip">
-    <div class="home-input-tabs">
-      <div class="home-input-tab active" onclick="setInputMode('chat',this)">💬 Chat</div>
-      <div class="home-input-tab" onclick="setInputMode('research',this)">🔍 Research</div>
-      <div class="home-input-tab" onclick="setInputMode('draft',this)">✍ Draft</div>
-      <div class="home-input-tab" onclick="setInputMode('atomise',this)">⚡ Atomise</div>
-      <div class="home-input-tab" onclick="setInputMode('image',this)">🎨 Image</div>
+  <!-- Quick input -->
+  <div class="hcard">
+    <div class="quick-input-wrap">
+      <div class="quick-tabs">
+        <button class="quick-tab active" onclick="setQuickMode('chat',this)">💬 Chat</button>
+        <button class="quick-tab" onclick="setQuickMode('research',this)">🔍 Research</button>
+        <button class="quick-tab" onclick="setQuickMode('draft',this)">✍ Draft</button>
+        <button class="quick-tab" onclick="setQuickMode('atomise',this)">⚡ Atomise</button>
+        <button class="quick-tab" onclick="setQuickMode('image',this)">🎨 Image</button>
+      </div>
+      <div class="quick-input-row">
+        <textarea class="quick-textarea" id="quick-input" placeholder="What are we working on?" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();quickSend();}"></textarea>
+        <button class="quick-send" onclick="quickSend()">↑</button>
+      </div>
     </div>
-    <textarea class="home-input-ta" id="home-input" placeholder="What's on your mind? Type, write, or dictate..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();homeInputSend();}"></textarea>
   </div>
 
-  <div class="home-card">
-    <div class="home-card-title">📰 Daily News
-  <div style="display:flex;gap:6px;align-items:center;">
-    <button onclick="toggleKeywordPanel()" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--bg);color:var(--fg);">⚙ Watch</button>
-    <a href="/research/" style="font-size:10px;color:var(--accent);text-decoration:none;">Research →</a>
+  <!-- News -->
+  <div class="hcard">
+    <div class="hcard-hdr">
+      <h3>📰 Daily News</h3>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="toggleKwPanel()">⚙ Watch</button>
+        <a href="/research/">Research →</a>
+      </div>
+    </div>
+    <div class="kw-panel" id="kw-panel">
+      <div style="font-size:11px;color:var(--fg-muted);">Watch for keywords (comma-separated):</div>
+      <div class="kw-input-row">
+        <input class="kw-input" id="kw-input" type="text" placeholder="ADHD, disability, Identity Partners...">
+        <button onclick="saveKeywords()" style="padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">Save</button>
+      </div>
+    </div>
+    <div class="hcard-body" id="news-list" style="padding:0 14px;">
+      <div style="padding:12px 0;font-size:12px;color:var(--fg-muted);">Loading news...</div>
+    </div>
   </div>
+
+  <!-- Thinker / Concept of the Day -->
+  <div class="hcard">
+    <div class="hcard-hdr">
+      <h3>🧠 Thinker / Concept of the Day</h3>
+      <div class="thinker-nav">
+        <button onclick="prevThinker()">‹</button>
+        <span class="thinker-progress" id="thinker-progress">1/7</span>
+        <button onclick="nextThinker()">›</button>
+        <button onclick="pinThinker()" id="pin-btn" title="Pin this entry">📌</button>
+      </div>
+    </div>
+    <div class="hcard-body">
+      <div id="thinker-content"></div>
+    </div>
+  </div>
+
 </div>
-<div id="keyword-panel" style="display:none;padding:8px;border-bottom:1px solid var(--border);background:var(--bg-sunken);">
-  <div style="font-size:11px;color:var(--fg-muted);margin-bottom:4px;">Watch for keywords (comma-separated):</div>
-  <div style="display:flex;gap:6px;">
-    <input id="keyword-input" type="text" placeholder="ADHD, disability, Identity Partners..." style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--bg);color:var(--fg);">
-    <button onclick="saveKeywords()" style="padding:5px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;">Save</button>
-  </div>
-</div>
-    <div id="news-list"><div style="font-size:12px;color:var(--fg-muted);">Loading news...</div></div>
-  </div>
 
-  <div class="home-card">
-    <div class="home-card-title">🎓 Latest Research Papers <a href="/research/">All →</a></div>
-    <div id="papers-list"><div style="font-size:12px;color:var(--fg-muted);">Loading papers...</div></div>
-  </div>
-
-  <div class="home-card">
-    <div class="home-card-title">🧠 Thinker / Concept of the Day <span id="bitesize-nav" style="display:flex;gap:4px;"></span></div>
-    <div id="bitesize-content"><div style="font-size:12px;color:var(--fg-muted);">Loading...</div></div>
-  </div>
-
-</div>
-
-<!-- ── RIGHT: WIP + Socials + Inbox + Notes ───────────────────────────────── -->
+<!-- ── RIGHT ── -->
 <div class="home-col home-right">
 
-  <div class="home-card">
-    <div class="home-card-title">⏳ Agent WIP <a href="/agenti/agent-builder/">Agenti →</a></div>
-    <div id="home-wip-list"><div style="font-size:12px;color:var(--fg-muted);">Loading...</div></div>
-  </div>
-
-  <div class="home-card">
-    <div class="home-card-title">📱 Socials <a href="/social-queue/">Queue →</a></div>
-    <div id="social-status">
-      <div class="social-row"><span class="social-dot ok"></span><span>Bluesky</span><span style="margin-left:auto;font-size:10px;color:var(--fg-muted);">Active</span></div>
-      <div class="social-row"><span class="social-dot warn"></span><span>Instagram</span><span style="margin-left:auto;font-size:10px;color:var(--fg-muted);">Check queue</span></div>
-      <div class="social-row"><span class="social-dot ok"></span><span>LinkedIn</span><span style="margin-left:auto;font-size:10px;color:var(--fg-muted);">Active</span></div>
-      <div class="social-row"><span class="social-dot warn"></span><span>X/Twitter</span><span style="margin-left:auto;font-size:10px;color:var(--fg-muted);">Image issues</span></div>
+  <!-- Active agents / WIP -->
+  <div class="hcard">
+    <div class="hcard-hdr">
+      <h3>⏳ WIP / Spool</h3>
+      <a href="/agenti/agent-builder/">Agents →</a>
     </div>
-    <div id="social-queue-preview" style="margin-top:8px;font-size:11px;color:var(--fg-muted);">Loading queue...</div>
+    <div class="hcard-body" id="wip-list">
+      <div style="font-size:12px;color:var(--fg-muted);">No jobs in progress.</div>
+    </div>
   </div>
 
-  <div class="home-card">
-    <div class="home-card-title">📬 Inbox <a href="/mail/">Mail →</a></div>
-    <div id="inbox-preview" style="font-size:12px;color:var(--fg-muted);">Loading...</div>
+  <!-- Social status -->
+  <div class="hcard">
+    <div class="hcard-hdr">
+      <h3>📱 Socials</h3>
+      <a href="/social-queue/">Queue →</a>
+    </div>
+    <div class="hcard-body">
+      <div class="social-row"><span class="social-dot dot-ok"></span><span>Bluesky</span><span style="margin-left:auto;font-size:10px;color:var(--fg-muted);">Active</span></div>
+      <div class="social-row"><span class="social-dot dot-warn"></span><span>Instagram</span><span style="margin-left:auto;font-size:10px;color:var(--fg-muted);" id="ig-status">Check queue</span></div>
+      <div class="social-row"><span class="social-dot dot-ok"></span><span>LinkedIn</span><span style="margin-left:auto;font-size:10px;color:var(--fg-muted);">Active</span></div>
+      <div class="social-row"><span class="social-dot dot-warn"></span><span>X/Twitter</span><span style="margin-left:auto;font-size:10px;color:var(--fg-muted);">Image issues</span></div>
+      <div id="queue-count" style="margin-top:8px;font-size:11px;color:var(--fg-muted);"></div>
+    </div>
   </div>
 
-  <div class="home-card">
-    <div class="home-card-title">📝 Quick Notes</div>
-    <textarea class="quick-notes-ta" id="quick-notes" placeholder="Jot something down..." onblur="saveQuickNotes()"></textarea>
+  <!-- Quick notes -->
+  <div class="hcard">
+    <div class="hcard-hdr"><h3>📝 Quick Notes</h3></div>
+    <div class="hcard-body">
+      <textarea class="quick-notes" id="quick-notes" placeholder="Jot something down..." onblur="saveNotes()"></textarea>
+    </div>
   </div>
 
 </div>
@@ -212,9 +281,23 @@
 
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
-var homeInputMode = 'chat';
+var quickMode = 'chat';
 var tasks = [];
-var bitesize_idx = 0;
+var thinkerIdx = 0;
+var thinkerPinned = false;
+
+var THINKERS = [
+  {concept:'Emotional Labour',thinker:'Arlie Hochschild',def:'The management of feeling to create a publicly observable facial and bodily display — the commodification of emotion in service work.',tags:['sociology','work','emotion']},
+  {concept:'Habitus',thinker:'Pierre Bourdieu',def:'Durable, transposable dispositions — the embodied history of social conditions that shapes perception, thought, and action.',tags:['sociology','Bourdieu','capital']},
+  {concept:'Stigma',thinker:'Erving Goffman',def:'A deeply discrediting attribute that reduces the bearer from a whole person to a tainted, discounted one in social interaction.',tags:['sociology','identity','disability']},
+  {concept:'Intersectionality',thinker:'Kimberlé Crenshaw',def:'The complex, cumulative way in which the effects of multiple forms of discrimination combine, overlap, and intersect.',tags:['sociology','race','gender']},
+  {concept:'Medicalisation',thinker:'Peter Conrad',def:'The process by which non-medical problems become defined and treated as medical problems, usually in terms of illness or disorder.',tags:['sociology','health','disability']},
+  {concept:'Zemiological Harm',thinker:'Paddy Hillyard',def:'Social harm analysis that moves beyond crime to examine the full range of harms — physical, financial, emotional, cultural — caused by social arrangements.',tags:['criminology','harm','disability']},
+  {concept:'Social Capital',thinker:'Robert Putnam',def:'Features of social organisation — networks, norms, trust — that facilitate coordination and cooperation for mutual benefit.',tags:['sociology','community','networks']},
+  {concept:'Sick Role',thinker:'Talcott Parsons',def:'A temporary, socially sanctioned state that exempts the ill from normal obligations while requiring them to seek help and cooperate with treatment.',tags:['sociology','health','disability']},
+  {concept:'Moral Panic',thinker:'Stanley Cohen',def:'A condition, episode, person or group of persons emerges to become defined as a threat to societal values and interests.',tags:['sociology','media','deviance']},
+  {concept:'Othering',thinker:'Edward Said',def:'The process by which a dominant group defines into existence an inferior group — constructing identity through exclusion.',tags:['sociology','identity','power']},
+];
 
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
@@ -224,392 +307,257 @@ document.addEventListener('DOMContentLoaded', function() {
     mount.parentNode.removeChild(mount);
   }
 
-  // Set greeting and date
+  // Hero
   var h = new Date().getHours();
   var greeting = h < 6 ? 'Good evening' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
   document.getElementById('hero-greeting').textContent = greeting + ', Simon.';
-  document.getElementById('hero-date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById('hero-date').textContent = new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
   // Load everything
   loadCalendar();
   loadNews();
-  loadPapers();
-  loadBitesize();
+  loadThinker();
+  loadTasks();
+  loadNotes();
   loadWIP();
   loadSocialQueue();
-  loadTasks();
-  loadQuickNotes();
+  loadKeywords();
 });
+
+// ── Quick input ───────────────────────────────────────────────────────────────
+function setQuickMode(mode, btn) {
+  quickMode = mode;
+  document.querySelectorAll('.quick-tab').forEach(function(b){b.classList.remove('active');});
+  if (btn) btn.classList.add('active');
+  var placeholders = {chat:"What are we working on?",research:"Search for...",draft:"Draft something...",atomise:"Paste content to atomise...",image:"Describe an image..."};
+  document.getElementById('quick-input').placeholder = placeholders[mode] || '';
+}
+
+function quickSend() {
+  var text = document.getElementById('quick-input').value.trim();
+  if (!text) return;
+  document.getElementById('quick-input').value = '';
+  var routes = {chat:'/chat/?q=',research:'/research/?q=',draft:'/drafting/?q=',atomise:'/atomise/?q=',image:'/creator/assets/?q='};
+  window.location.href = (routes[quickMode]||'/chat/?q=') + encodeURIComponent(text);
+}
 
 // ── Calendar ──────────────────────────────────────────────────────────────────
 function loadCalendar() {
-  // Static demo events — replace with Zoho CalDAV integration
-  var now = new Date();
-  var today = now.toLocaleDateString('en-GB',{weekday:'short'});
-  // Calendar events loaded from Zoho CalDAV when connected
-  // Connect at: /comms/zoho-calendar/
-  var todayEvents = [];
-  var weekEvents = [];
-  var nextEvents = [];
-  // Try loading from Worker (Zoho integration)
   fetch(WORKER + '/api/calendar/events')
     .then(function(r){return r.json();})
     .then(function(d){
-      todayEvents = d.today || [];
-      weekEvents = d.week || [];
-      nextEvents = d.next_week || [];
-      renderEvents('cal-today-events', todayEvents);
-      renderEvents('cal-week-events', weekEvents);
-      renderEvents('cal-next-events', nextEvents);
+      if (d.status === 'not_connected') return; // keep connect link
+      var body = document.getElementById('cal-body');
+      body.innerHTML = '';
+      var sections = [{label:'Today',events:d.today||[]},{label:'This Week',events:d.week||[]},{label:'Next Week',events:d.next_week||[]}];
+      sections.forEach(function(sec) {
+        var lbl = document.createElement('div');
+        lbl.className = 'cal-period-label';
+        lbl.textContent = sec.label;
+        body.appendChild(lbl);
+        if (!sec.events.length) {
+          var empty = document.createElement('div');
+          empty.className = 'cal-empty';
+          empty.textContent = 'Nothing scheduled';
+          body.appendChild(empty);
+        } else {
+          sec.events.forEach(function(ev) {
+            var row = document.createElement('div');
+            row.className = 'cal-event';
+            var time = ev.start ? new Date(ev.start).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '';
+            row.innerHTML = '<div class="cal-time">' + time + '</div><div><div class="cal-title">' + (ev.title||'').replace(/</g,'&lt;') + '</div><div class="cal-sub">' + (ev.calendar||'') + '</div></div>';
+            body.appendChild(row);
+          });
+        }
+      });
     })
-    .catch(function(){
-      // Show connect prompt
-      var el = document.getElementById('cal-today-events');
-      if (el) el.innerHTML = '<div class="cal-empty" style="color:var(--accent);cursor:pointer;" onclick="window.location.href='/comms/zoho-calendar/'">Connect Zoho Calendar →</div>';
-    });
-
-  function renderEvents(containerId, events) {
-    var el = document.getElementById(containerId);
-    if (!el) return;
-    if (!events.length) { el.innerHTML = '<div class="cal-empty">Nothing scheduled</div>'; return; }
-    el.innerHTML = '';
-    events.forEach(function(ev) {
-      var div = document.createElement('div');
-      div.className = 'cal-event';
-      var time = document.createElement('div');
-      time.className = 'cal-event-time';
-      time.textContent = ev.time;
-      var info = document.createElement('div');
-      var title = document.createElement('div');
-      title.className = 'cal-event-title';
-      title.textContent = ev.title;
-      info.appendChild(title);
-      if (ev.sub) {
-        var sub = document.createElement('div');
-        sub.className = 'cal-event-sub';
-        sub.textContent = ev.sub;
-        info.appendChild(sub);
-      }
-      div.appendChild(time); div.appendChild(info);
-      el.appendChild(div);
-    });
-  }
-  renderEvents('cal-today-events', todayEvents);
-  renderEvents('cal-week-events', weekEvents);
-  renderEvents('cal-next-events', nextEvents);
+    .catch(function(){});
 }
-
-// ── Tasks ─────────────────────────────────────────────────────────────────────
-function loadTasks() {
-  try { tasks = JSON.parse(localStorage.getItem('home-tasks') || '[]'); } catch(e) { tasks = []; }
-  renderTasks();
-}
-function renderTasks() {
-  var el = document.getElementById('tasks-list');
-  if (!el) return;
-  if (!tasks.length) { el.textContent = 'No tasks today.'; return; }
-  el.innerHTML = '';
-  tasks.forEach(function(t, i) {
-    var row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px;';
-    var cb = document.createElement('input');
-    cb.type = 'checkbox'; cb.checked = t.done;
-    cb.onchange = function() { tasks[i].done = cb.checked; saveTasks(); renderTasks(); };
-    var label = document.createElement('span');
-    label.textContent = t.text;
-    if (t.done) label.style.cssText = 'text-decoration:line-through;color:var(--fg-muted);flex:1;';
-    else label.style.flex = '1';
-    var del = document.createElement('button');
-    del.textContent = '×'; del.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:14px;';
-    del.onclick = function() { tasks.splice(i,1); saveTasks(); renderTasks(); };
-    row.appendChild(cb); row.appendChild(label); row.appendChild(del);
-    el.appendChild(row);
-  });
-}
-function addTask() {
-  var inp = document.getElementById('task-input');
-  if (!inp || !inp.value.trim()) return;
-  tasks.push({text:inp.value.trim(), done:false, created:new Date().toISOString()});
-  inp.value = '';
-  saveTasks(); renderTasks();
-}
-function saveTasks() { localStorage.setItem('home-tasks', JSON.stringify(tasks)); }
 
 // ── News ──────────────────────────────────────────────────────────────────────
+var watchedKeywords = [];
+
+function loadKeywords() {
+  try { watchedKeywords = JSON.parse(localStorage.getItem('news-keywords')||'[]'); } catch(e){}
+  var inp = document.getElementById('kw-input');
+  if (inp) inp.value = watchedKeywords.join(', ');
+}
+
+function toggleKwPanel() {
+  document.getElementById('kw-panel').classList.toggle('open');
+}
+
+function saveKeywords() {
+  var inp = document.getElementById('kw-input');
+  watchedKeywords = inp.value.split(',').map(function(k){return k.trim();}).filter(Boolean);
+  try { localStorage.setItem('news-keywords', JSON.stringify(watchedKeywords)); } catch(e){}
+  fetch(WORKER + '/api/news/keywords', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({keywords:watchedKeywords})}).catch(function(){});
+  toggleKwPanel();
+  loadNews();
+}
+
 function loadNews() {
   var el = document.getElementById('news-list');
-  if (!el) return;
-  el.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);">Loading news...</div>';
-
-  // Load saved keyword watches
-  var watchedKeywords = [];
-  try { watchedKeywords = JSON.parse(localStorage.getItem('news-keywords') || '[]'); } catch(e) {}
-
   var feeds = [
     'https://feeds.theguardian.com/theguardian/uk/rss',
     'https://feeds.bbci.co.uk/news/rss.xml',
     'https://feeds.skynews.com/feeds/rss/uk.xml',
     'https://www.newstatesman.com/feed',
-    'https://bylinetimes.com/feed/',
   ];
-
-  // Load from multiple feeds
-  var allItems = [];
-  var loaded = 0;
-  var toLoad = Math.min(feeds.length, 3);
-
-  feeds.slice(0, toLoad).forEach(function(feedUrl) {
+  var allItems = [], loaded = 0, toLoad = 3;
+  feeds.slice(0,toLoad).forEach(function(feedUrl) {
     fetch(WORKER + '/api/rss?url=' + encodeURIComponent(feedUrl))
-      .then(function(r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.text();
-      })
-      .then(function(xml) {
-        // Parse RSS XML client-side
+      .then(function(r){return r.text();})
+      .then(function(xml){
         var parser = new DOMParser();
-        var doc = parser.parseFromString(xml, 'text/xml');
-        var items = Array.from(doc.querySelectorAll('item, entry'));
-        items.slice(0, 5).forEach(function(item) {
-          var title = (item.querySelector('title') || {}).textContent || '';
-          var link = (item.querySelector('link') || {}).textContent ||
-                     (item.querySelector('link') || {}).getAttribute('href') || '';
-          var pubDate = (item.querySelector('pubDate, published, updated') || {}).textContent || '';
+        var doc = parser.parseFromString(xml,'text/xml');
+        var items = Array.from(doc.querySelectorAll('item,entry'));
+        items.slice(0,5).forEach(function(item){
+          var title = (item.querySelector('title')||{}).textContent||'';
+          var link = (item.querySelector('link')||{}).textContent||(item.querySelector('link')||{}).getAttribute('href')||'';
+          var pubDate = (item.querySelector('pubDate,published,updated')||{}).textContent||'';
           var img = '';
-          var mediaContent = item.querySelector('media\\:content, media\\:thumbnail, enclosure');
-          if (mediaContent) img = mediaContent.getAttribute('url') || '';
+          var mc = item.querySelector('media\\:content,media\\:thumbnail,enclosure');
+          if (mc) img = mc.getAttribute('url')||'';
           if (!img) {
-            var desc = (item.querySelector('description, summary, content') || {}).textContent || '';
-            var imgMatch = desc.match(/src=["']([^"']+\.(?:jpg|jpeg|png|webp))/i);
-            if (imgMatch) img = imgMatch[1];
+            var desc = (item.querySelector('description,summary,content')||{}).textContent||'';
+            var m = desc.match(/src=["']([^"']+\.(?:jpg|jpeg|png|webp))/i);
+            if (m) img = m[1];
           }
-          // Check keyword match
-          var titleLower = title.toLowerCase();
-          var isWatched = watchedKeywords.length > 0 && watchedKeywords.some(function(kw) {
-            return titleLower.includes(kw.toLowerCase());
-          });
-          allItems.push({title: title, url: link, date: pubDate, image: img, watched: isWatched});
+          var tl = title.toLowerCase();
+          var watched = watchedKeywords.length > 0 && watchedKeywords.some(function(kw){return tl.includes(kw.toLowerCase());});
+          allItems.push({title:title,url:link,date:pubDate,image:img,watched:watched});
         });
         loaded++;
         if (loaded >= toLoad) renderNews(allItems);
       })
-      .catch(function() {
-        loaded++;
-        if (loaded >= toLoad) renderNews(allItems);
-      });
+      .catch(function(){loaded++;if(loaded>=toLoad)renderNews(allItems);});
   });
 
   function renderNews(items) {
-    if (!items.length) { el.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);">No news loaded.</div>'; return; }
-    // Sort: watched keywords first
-    items.sort(function(a,b) { return (b.watched?1:0)-(a.watched?1:0); });
+    if (!items.length){el.innerHTML='<div style="padding:12px 0;font-size:12px;color:var(--fg-muted);">No news loaded.</div>';return;}
+    items.sort(function(a,b){return (b.watched?1:0)-(a.watched?1:0);});
     el.innerHTML = '';
-    items.slice(0, 8).forEach(function(item) {
+    items.slice(0,8).forEach(function(item){
       var div = document.createElement('div');
       div.className = 'news-item';
       if (item.watched) div.style.borderLeft = '3px solid var(--accent)';
-      div.onclick = function() { if(item.url) window.open(item.url,'_blank'); };
+      div.onclick = function(){if(item.url)window.open(item.url,'_blank');};
       if (item.image) {
         var img = document.createElement('img');
         img.className = 'news-thumb'; img.src = item.image; img.alt = '';
         img.onerror = function(){this.style.display='none';};
         div.appendChild(img);
       }
-      var info = document.createElement('div'); info.style.flex = '1';
-      var headline = document.createElement('div');
-      headline.className = 'news-headline';
-      headline.textContent = (item.watched ? '★ ' : '') + item.title;
-      var meta = document.createElement('div');
-      meta.className = 'news-meta';
+      var info = document.createElement('div'); info.style.flex='1';
+      var hl = document.createElement('div'); hl.className = 'news-headline';
+      hl.textContent = (item.watched?'★ ':'')+item.title;
+      var meta = document.createElement('div'); meta.className = 'news-meta';
       meta.textContent = item.date ? new Date(item.date).toLocaleDateString('en-GB') : '';
-      info.appendChild(headline); info.appendChild(meta);
+      info.appendChild(hl); info.appendChild(meta);
       div.appendChild(info);
       el.appendChild(div);
     });
   }
 }
 
-
-function loadPapers() {
-  var el = document.getElementById('papers-list');
-  var queries = ['disability mental health UK policy', 'ADHD neurodivergence social', 'addiction recovery sociology'];
-  var q = queries[Math.floor(Math.random()*queries.length)];
-  fetch(WORKER + '/api/search', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({query:q, sources:['scholarly']})
-  })
-  .then(function(r){return r.json();})
-  .then(function(d){
-    var papers = (d.results||[]).filter(function(r){return r.type==='academic';});
-    if (!papers.length) { el.textContent = 'No papers loaded.'; return; }
-    el.innerHTML = '';
-    papers.slice(0,4).forEach(function(p) {
-      var div = document.createElement('div');
-      div.className = 'paper-item';
-      var title = document.createElement('div');
-      title.className = 'paper-title';
-      title.textContent = p.title || '';
-      title.onclick = function() { if(p.url) window.open(p.url,'_blank'); };
-      var meta = document.createElement('div');
-      meta.className = 'paper-meta';
-      meta.textContent = (p.authors||'') + (p.year?' · '+p.year:'') + ' · Semantic Scholar';
-      div.appendChild(title); div.appendChild(meta);
-      el.appendChild(div);
-    });
-  })
-  .catch(function(){ el.textContent = 'Papers unavailable.'; });
+// ── Thinker ───────────────────────────────────────────────────────────────────
+function loadThinker() {
+  try {
+    var pinned = localStorage.getItem('thinker-pinned');
+    if (pinned) { thinkerIdx = parseInt(pinned); thinkerPinned = true; }
+    else {
+      var dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(),0,0)) / 86400000);
+      thinkerIdx = dayOfYear % THINKERS.length;
+    }
+  } catch(e) {}
+  renderThinker();
 }
 
-// ── Bitesize ──────────────────────────────────────────────────────────────────
-var BITESIZE = [
-  {concept:'Emotional Labour', thinker:'Arlie Hochschild', def:'The management of feeling to create a publicly observable facial and bodily display; the commodification of emotion in service work.', tags:['sociology','work','emotion']},
-  {concept:'Habitus', thinker:'Pierre Bourdieu', def:'Durable, transposable dispositions — the embodied history of social conditions that shapes perception, thought, and action.', tags:['sociology','Bourdieu','capital']},
-  {concept:'Stigma', thinker:'Erving Goffman', def:'A deeply discrediting attribute that reduces the bearer from a whole person to a tainted, discounted one in social interaction.', tags:['sociology','identity','disability']},
-  {concept:'Intersectionality', thinker:'Kimberlé Crenshaw', def:'The complex, cumulative way in which the effects of multiple forms of discrimination combine, overlap, and intersect.', tags:['sociology','race','gender']},
-  {concept:'Social Capital', thinker:'Robert Putnam', def:'Features of social organisation — networks, norms, trust — that facilitate coordination and cooperation for mutual benefit.', tags:['sociology','community','networks']},
-  {concept:'Medicalisation', thinker:'Peter Conrad', def:'The process by which non-medical problems become defined and treated as medical problems, usually in terms of illness or disorder.', tags:['sociology','health','disability']},
-  {concept:'Zemiological Harm', thinker:'Paddy Hillyard', def:'Social harm analysis that moves beyond crime to examine the full range of harms — physical, financial, emotional, cultural — caused by social arrangements.', tags:['criminology','harm','disability']},
-];
-
-function loadBitesize() {
-  var el = document.getElementById('bitesize-content');
-  var nav = document.getElementById('bitesize-nav');
-  var item = BITESIZE[bitesize_idx % BITESIZE.length];
-
-  el.innerHTML = '';
-  var card = document.createElement('div');
-  card.className = 'bitesize-card';
-  var concept = document.createElement('div');
-  concept.className = 'bitesize-concept';
-  concept.textContent = item.concept;
-  var thinker = document.createElement('div');
-  thinker.style.cssText = 'font-size:11px;color:var(--accent);margin-bottom:6px;font-weight:600;';
-  thinker.textContent = item.thinker;
-  var def = document.createElement('div');
-  def.className = 'bitesize-def';
-  def.textContent = item.def;
-  var actions = document.createElement('div');
-  actions.className = 'bitesize-actions';
-  [['🔍 Research', '/research/?q='+encodeURIComponent(item.concept)],
-   ['💬 Debate', '/agenti/round-table/?topic='+encodeURIComponent(item.concept)],
-   ['📖 Wiki', 'https://en.wikipedia.org/wiki/'+encodeURIComponent(item.concept)]
-  ].forEach(function(btn) {
-    var a = document.createElement('a');
-    a.className = 'bitesize-btn'; a.href = btn[1]; a.target = btn[1].startsWith('http')?'_blank':'_self';
-    a.textContent = btn[0]; actions.appendChild(a);
-  });
-  card.appendChild(concept); card.appendChild(thinker); card.appendChild(def); card.appendChild(actions);
-  el.appendChild(card);
-
-  // Nav buttons
-  nav.innerHTML = '';
-  var prev = document.createElement('button');
-  prev.textContent = '‹'; prev.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:14px;';
-  prev.onclick = function(){bitesize_idx--;loadBitesize();};
-  var next = document.createElement('button');
-  next.textContent = '›'; next.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:14px;';
-  next.onclick = function(){bitesize_idx++;loadBitesize();};
-  var counter = document.createElement('span');
-  counter.style.cssText = 'font-size:10px;color:var(--fg-muted);';
-  counter.textContent = (bitesize_idx%BITESIZE.length+1)+'/'+BITESIZE.length;
-  nav.appendChild(prev); nav.appendChild(counter); nav.appendChild(next);
+function renderThinker() {
+  var t = THINKERS[thinkerIdx % THINKERS.length];
+  var el = document.getElementById('thinker-content');
+  el.innerHTML = '<div class="thinker-card">' +
+    '<div class="thinker-concept">' + t.concept + '</div>' +
+    '<div class="thinker-name">' + t.thinker + '</div>' +
+    '<div class="thinker-def">' + t.def + '</div>' +
+    '<div class="thinker-actions">' +
+      '<a class="thinker-btn" href="/research/?q=' + encodeURIComponent(t.concept) + '">🔍 Research</a>' +
+      '<a class="thinker-btn" href="/agenti/round-table/?topic=' + encodeURIComponent(t.concept) + '">💬 Debate</a>' +
+      '<a class="thinker-btn" href="https://en.wikipedia.org/wiki/' + encodeURIComponent(t.concept) + '" target="_blank">📖 Wiki</a>' +
+    '</div></div>';
+  document.getElementById('thinker-progress').textContent = (thinkerIdx % THINKERS.length + 1) + '/' + THINKERS.length;
+  document.getElementById('pin-btn').textContent = thinkerPinned ? '📌' : '📍';
 }
+
+function prevThinker() { thinkerPinned = false; thinkerIdx = (thinkerIdx - 1 + THINKERS.length) % THINKERS.length; renderThinker(); }
+function nextThinker() { thinkerPinned = false; thinkerIdx = (thinkerIdx + 1) % THINKERS.length; renderThinker(); }
+function pinThinker() {
+  thinkerPinned = !thinkerPinned;
+  try { if (thinkerPinned) localStorage.setItem('thinker-pinned', thinkerIdx); else localStorage.removeItem('thinker-pinned'); } catch(e){}
+  renderThinker();
+}
+
+// ── Tasks ─────────────────────────────────────────────────────────────────────
+function loadTasks() {
+  try { tasks = JSON.parse(localStorage.getItem('home-tasks')||'[]'); } catch(e){tasks=[];}
+  renderTasks();
+}
+function renderTasks() {
+  var el = document.getElementById('task-list');
+  if (!tasks.length){el.innerHTML='<div style="font-size:12px;color:var(--fg-muted);padding:4px 0;">No tasks.</div>';return;}
+  el.innerHTML = tasks.map(function(t,i){
+    return '<div class="task-item">' +
+      '<div class="task-check' + (t.done?' done':'') + '" onclick="toggleTask(' + i + ')">' + (t.done?'✓':'') + '</div>' +
+      '<div class="task-text' + (t.done?' done':'') + '">' + t.text.replace(/</g,'&lt;') + '</div>' +
+      '<button class="task-del" onclick="deleteTask(' + i + ')">×</button>' +
+      '</div>';
+  }).join('');
+}
+function addTask() {
+  var inp = document.getElementById('task-input');
+  if (!inp.value.trim()) return;
+  tasks.push({text:inp.value.trim(),done:false,created:new Date().toISOString()});
+  inp.value = '';
+  saveTasks(); renderTasks();
+}
+function toggleTask(i) { tasks[i].done = !tasks[i].done; saveTasks(); renderTasks(); }
+function deleteTask(i) { tasks.splice(i,1); saveTasks(); renderTasks(); }
+function clearDoneTasks() { tasks = tasks.filter(function(t){return !t.done;}); saveTasks(); renderTasks(); }
+function saveTasks() { try{localStorage.setItem('home-tasks',JSON.stringify(tasks));}catch(e){} }
+
+// ── Notes ─────────────────────────────────────────────────────────────────────
+function loadNotes() { try{document.getElementById('quick-notes').value=localStorage.getItem('home-notes')||'';}catch(e){} }
+function saveNotes() { try{localStorage.setItem('home-notes',document.getElementById('quick-notes').value);}catch(e){} }
 
 // ── WIP ───────────────────────────────────────────────────────────────────────
 function loadWIP() {
-  var el = document.getElementById('home-wip-list');
   fetch(WORKER + '/api/jobs')
     .then(function(r){return r.json();})
     .then(function(d){
-      var jobs = (d.jobs||[]).filter(function(j){return j.status==='running';});
-      if (!jobs.length) { el.textContent = 'No jobs in progress.'; return; }
-      el.innerHTML = '';
-      jobs.slice(0,5).forEach(function(job) {
-        var div = document.createElement('div');
-        div.className = 'wip-item';
-        var name = document.createElement('div');
-        name.className = 'wip-name';
-        name.textContent = '📄 ' + (job.document_name||'Job');
-        var prog = document.createElement('div');
-        prog.className = 'wip-progress';
-        prog.textContent = job.progress || '';
-        var bar = document.createElement('div');
-        bar.className = 'wip-bar';
-        var fill = document.createElement('div');
-        fill.className = 'wip-fill';
-        var pct = job.chunks_total ? Math.round(100*(job.chunks_done||0)/job.chunks_total) : 0;
-        fill.style.width = pct + '%';
-        bar.appendChild(fill);
-        div.appendChild(name); div.appendChild(prog); div.appendChild(bar);
-        el.appendChild(div);
-      });
+      var jobs = (d.jobs||[]).filter(function(j){return j.status==='running'||j.status==='synthesising';});
+      var el = document.getElementById('wip-list');
+      if (!jobs.length){el.innerHTML='<div style="font-size:12px;color:var(--fg-muted);">No jobs in progress.</div>';return;}
+      el.innerHTML = jobs.slice(0,5).map(function(job){
+        var pct = job.total_chunks ? Math.round(100*(job.completed_chunks||0)/job.total_chunks) : 0;
+        return '<div style="margin-bottom:8px;">' +
+          '<div style="font-size:12px;font-weight:500;margin-bottom:3px;">' + (job.document_name||'Job').replace(/</g,'&lt;') + '</div>' +
+          '<div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;">' +
+          '<div style="height:100%;width:'+pct+'%;background:var(--accent);border-radius:2px;"></div></div>' +
+          '<div style="font-size:10px;color:var(--fg-muted);margin-top:2px;">' + pct + '% · ' + (job.status||'running') + '</div>' +
+          '</div>';
+      }).join('');
     })
-    .catch(function(){ el.textContent = 'WIP unavailable.'; });
+    .catch(function(){});
 }
 
 // ── Social queue ──────────────────────────────────────────────────────────────
 function loadSocialQueue() {
-  var el = document.getElementById('social-queue-preview');
-  fetch(WORKER + '/api/mm/queue')
-    .then(function(r){return r.json();})
-    .then(function(d){
-      var pending = (d.queue||[]).filter(function(i){return i.status==='pending';}).length;
-      el.textContent = pending > 0 ? pending + ' post(s) pending approval' : 'Queue clear';
-    })
-    .catch(function(){ el.textContent = ''; });
-}
-
-// ── Quick notes ───────────────────────────────────────────────────────────────
-function loadQuickNotes() {
-  var el = document.getElementById('quick-notes');
-  if (el) el.value = localStorage.getItem('home-quick-notes') || '';
-}
-function saveQuickNotes() {
-  var el = document.getElementById('quick-notes');
-  if (el) localStorage.setItem('home-quick-notes', el.value);
-}
-
-// ── Input strip ───────────────────────────────────────────────────────────────
-function setInputMode(mode, btn) {
-  homeInputMode = mode;
-  document.querySelectorAll('.home-input-tab').forEach(function(t){t.classList.remove('active');});
-  if (btn) btn.classList.add('active');
-  var inp = document.getElementById('home-input');
-  var placeholders = {chat:"What's on your mind?",research:"Search for...",draft:"Draft something...",atomise:"Paste content to atomise...",image:"Describe an image..."};
-  if (inp) inp.placeholder = placeholders[mode] || "Type here...";
-}
-
-function homeInputSend() {
-  var inp = document.getElementById('home-input');
-  if (!inp || !inp.value.trim()) return;
-  var text = inp.value.trim();
-  inp.value = '';
-  var routes = {chat:'/chat/?q=',research:'/research/?q=',draft:'/drafting/?q=',atomise:'/atomise/?q=',image:'/creator/assets/?q='};
-  window.location.href = (routes[homeInputMode]||'/chat/?q=') + encodeURIComponent(text);
-}
-
-function toggleKeywordPanel() {
-  var panel = document.getElementById('keyword-panel');
-  if (!panel) return;
-  var visible = panel.style.display !== 'none';
-  panel.style.display = visible ? 'none' : 'block';
-  if (!visible) {
-    var inp = document.getElementById('keyword-input');
-    try { if (inp) inp.value = JSON.parse(localStorage.getItem('news-keywords') || '[]').join(', '); } catch(e) {}
-  }
-}
-
-function saveKeywords() {
-  var inp = document.getElementById('keyword-input');
-  if (!inp) return;
-  var keywords = inp.value.split(',').map(function(k){return k.trim();}).filter(Boolean);
-  localStorage.setItem('news-keywords', JSON.stringify(keywords));
-  // Also save to Worker KV
-  fetch(WORKER + '/api/news/keywords', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({keywords: keywords})
+  fetch(WORKER + '/api/mm/queue').then(function(r){return r.json();}).then(function(d){
+    var pending = (d.queue||[]).filter(function(i){return i.status==='pending';}).length;
+    var el = document.getElementById('queue-count');
+    if (el) el.textContent = pending > 0 ? pending + ' post(s) pending approval' : 'Queue clear';
   }).catch(function(){});
-  toggleKeywordPanel();
-  loadNews(); // Reload with new keywords
 }
 </script>
 </body>
