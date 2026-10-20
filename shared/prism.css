@@ -184,6 +184,15 @@ input, textarea, select { font-family: var(--font-ui); }
   min-width: 0;
   overflow-x: hidden;
   transition: margin-left var(--transition);
+  /* Ensure content never goes under the fixed sidebar */
+  width: calc(100vw - var(--sidebar-w));
+  max-width: calc(100vw - var(--sidebar-w));
+  box-sizing: border-box;
+}
+.main-content.sidebar-collapsed {
+  margin-left: var(--sidebar-w-collapsed);
+  width: calc(100vw - var(--sidebar-w-collapsed));
+  max-width: calc(100vw - var(--sidebar-w-collapsed));
 }
 .main-content.sidebar-collapsed { margin-left: var(--sidebar-w-collapsed); }
 
@@ -781,5 +790,16 @@ input, textarea, select { font-family: var(--font-ui); }
   padding: 6px 14px 6px 12px;
   font-size: 12.5px;
 }
-.nav-group-children .nav-item::before { display: none; }
-.nav-group-children .nav-item.active { background: var(--accent-light); color: var(--accent); }
+
+/* Page shells must not overflow under sidebar */
+.chat-shell,
+.hub-shell,
+.ws-shell,
+.mail-shell,
+.msg-shell,
+.crm-shell,
+.wh-shell {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
