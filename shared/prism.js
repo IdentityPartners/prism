@@ -700,6 +700,7 @@ function buildSidebar(activePage) {
     {type:'item', label:'Orchestrator', icon:'⚙', href:'/orchestrator/'},
     {type:'section', label:'System'},
     {type:'item', label:'My Profile', icon:'👤', href:'/profile/'},
+    {type:'item', label:'Inbox', icon:'📥', href:'/inbox/'},
     {type:'item', label:'Messages', icon:'💬', href:'/messages/', badge:'messages-unread'},
     {type:'item', label:'Memory', icon:'🧠', href:'/memory/'},
     {type:'item', label:'Whiteboard', icon:'🖊', href:'/whiteboard/'},
