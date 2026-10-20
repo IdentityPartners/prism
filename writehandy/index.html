@@ -7,6 +7,7 @@
 <title>WriteHandy — Argentica</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
 /* ── Layout ── */
 .wh-shell { display:flex; height:100vh; overflow:hidden; }
@@ -182,6 +183,7 @@
     <select id="ocr-provider" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);cursor:pointer;" title="OCR provider">
       <option value="mistral">Mistral (recommended)</option>
       <option value="gemini">Gemini</option>
+      <option value="tesseract">Tesseract (offline, no API key)</option>
     </select>
     <button class="wh-tb-btn" onclick="runOCR(false)" id="ocr-btn" title="Convert handwriting to text">OCR</button>
     <button class="wh-tb-btn" onclick="clearInk()" title="Clear ink canvas only">🗑 Ink</button>
@@ -748,7 +750,35 @@ function runOCR(auto) {
   var btn = document.getElementById('ocr-btn');
   if (btn && !auto) btn.textContent = 'OCR...';
 
-  var ocrProvider = (document.getElementById('ocr-provider') || {value:'gemini'}).value;
+  var ocrProvider = (document.getElementById('ocr-provider') || {value:'mistral'}).value;
+
+  // Tesseract.js: client-side OCR, no API key needed
+  if (ocrProvider === 'tesseract') {
+    if (typeof Tesseract === 'undefined') {
+      if (btn) btn.textContent = 'OCR';
+      showOCRResult('Tesseract.js not loaded. Check internet connection.');
+      return;
+    }
+    if (btn) btn.textContent = 'OCR...';
+    Tesseract.recognize(ocrCanvas, 'eng', {
+      logger: function(m) { if (m.status === 'recognizing text' && btn) btn.textContent = Math.round(m.progress*100) + '%'; }
+    }).then(function(result) {
+      if (btn) btn.textContent = 'OCR';
+      var text = result.data.text.trim();
+      if (!text || text === lastOcrText) return;
+      lastOcrText = text;
+      var textEl = document.getElementById('wh-text');
+      if (textEl && currentView === 'dual') {
+        textEl.innerHTML = text.replace(/\n/g,'<br>');
+        textEl.dispatchEvent(new Event('input',{bubbles:true}));
+      } else { showOCRResult(text); }
+    }).catch(function(e) {
+      if (btn) btn.textContent = 'OCR';
+      showOCRResult('Tesseract error: ' + e.message);
+    });
+    return;
+  }
+
   fetch(WORKER + '/api/ocr', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
