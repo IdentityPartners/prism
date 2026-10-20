@@ -732,8 +732,8 @@ function runOCR(auto) {
     // In dual view: put in text editor
     var textEl = document.getElementById('wh-text');
     if (textEl && currentView === 'dual') {
-      var existing = textEl.innerText || '';
-      textEl.innerHTML += (existing.trim() ? '<br>' : '') + text.replace(/\n/g,'<br>');
+      // Replace with latest OCR result — don't accumulate wrong transcriptions
+      textEl.innerHTML = text.replace(/\n/g,'<br>');
       textEl.dispatchEvent(new Event('input',{bubbles:true}));
     } else {
       showOCRResult(text);
