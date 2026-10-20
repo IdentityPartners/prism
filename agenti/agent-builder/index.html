@@ -1,15 +1,4 @@
-setTimeout(function() {
-        // Store pending resume info globally — avoids quote-nesting in onclick
-        window._pendingResumeJob = jobInfo;
-        var progress = jobInfo.chunksTotal
-          ? 'chunk ' + (jobInfo.chunksDone || 0) + '/' + jobInfo.chunksTotal
-          : 'job ' + jobInfo.jobId.slice(-8);
-        addChatMsg('system',
-          'Previous analysis of <strong>' + jobInfo.docName + '</strong> was in progress (' + progress + '). ' +
-          '<button onclick="doResumeJob()" style="padding:3px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-left:6px;">Resume</button>' +
-          ' <button onclick="doDiscardJob()" style="padding:3px 10px;background:var(--bg-sunken);color:var(--fg);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;margin-left:4px;">Discard</button>'
-        );
-      }, 500);<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en-GB">
 <head>
 <meta charset="UTF-8">
@@ -18,1097 +7,630 @@ setTimeout(function() {
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
 <style>
-.hub-layout { display:grid; grid-template-columns:280px 1fr 320px; height:calc(100vh - var(--topbar-h,48px)); overflow:hidden; margin-left:var(--sidebar-w,240px); }
+.hub-shell { display:flex; height:100vh; overflow:hidden; }
+.hub-agents { width:260px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-surface); overflow:hidden; }
+.hub-workspace { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+.hub-right { width:260px; flex-shrink:0; border-left:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-surface); overflow-y:auto; }
+@media(max-width:1100px){.hub-right{display:none;}}
 
-/* Left: Agent library */
-.agent-library { border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
-.agent-library-hdr { padding:12px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
-.agent-library-hdr h3 { font-size:13px; font-weight:600; margin:0; }
-.agent-list { flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:6px; }
-.agent-card { padding:10px 12px; border:1px solid var(--border); border-radius:8px; cursor:pointer; transition:all 0.15s; background:var(--bg-elevated); }
-.agent-card:hover, .agent-card.active { border-color:var(--accent); background:var(--accent-light,#e8f0f8); }
-.agent-card-name { font-size:12px; font-weight:600; color:var(--fg); }
+/* Agent list */
+.agent-list-hdr { padding:10px 12px 8px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.agent-list-hdr h3 { font-size:13px; font-weight:600; margin:0; }
+.agent-list-body { flex:1; overflow-y:auto; padding:6px; }
+.agent-card { padding:10px 12px; border:1px solid var(--border); border-radius:8px; cursor:pointer; margin-bottom:5px; transition:all 0.15s; background:var(--bg-elevated); }
+.agent-card:hover { border-color:var(--accent); }
+.agent-card.active { border-color:var(--accent); background:var(--accent-light,#e8f0f8); }
+.agent-card-name { font-size:12.5px; font-weight:600; display:flex; align-items:center; gap:6px; }
 .agent-card-desc { font-size:11px; color:var(--fg-muted); margin-top:2px; }
-.agent-card-status { display:flex; align-items:center; gap:4px; margin-top:4px; font-size:10px; }
-.status-dot { width:6px; height:6px; border-radius:50%; }
-.status-idle { background:#9ca3af; }
-.status-running { background:#f59e0b; animation:pulse 1s infinite; }
-.status-done { background:#16a34a; }
-.status-error { background:#dc2626; }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.agent-card-status { display:flex; align-items:center; gap:4px; margin-top:4px; font-size:10px; color:var(--fg-muted); }
+.status-dot { width:6px; height:6px; border-radius:50%; background:#9ca3af; }
+.status-dot.running { background:#f59e0b; animation:pulse 1s infinite; }
+.status-dot.done { background:#16a34a; }
+.status-dot.error { background:#dc2626; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
 
-/* Centre: Agent workspace */
-.agent-workspace { display:flex; flex-direction:column; overflow:hidden; }
-.workspace-hdr { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
-.workspace-hdr h2 { font-size:14px; font-weight:600; margin:0; flex:1; }
-.agent-chat { flex:1; overflow-y:auto; padding:12px 16px; display:flex; flex-direction:column; gap:10px; }
-.agent-msg { display:flex; gap:8px; align-items:flex-start; }
-.agent-msg.user { flex-direction:row-reverse; }
-.agent-bubble { max-width:80%; padding:8px 12px; border-radius:10px; font-size:12.5px; line-height:1.5; }
-.agent-msg.user .agent-bubble { background:var(--accent); color:#fff; }
-.agent-msg.agent .agent-bubble { background:var(--bg-elevated); border:1px solid var(--border); color:var(--fg); }
-.agent-msg.system .agent-bubble { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:var(--fg); font-size:11px; font-style:italic; }
-.agent-avatar { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; background:var(--accent); color:#fff; }
-.agent-input-area { border-top:1px solid var(--border); padding:12px 16px; background:var(--bg-elevated); }
-.agent-input-row { display:flex; gap:8px; align-items:flex-end; }
-.agent-textarea { flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; font-family:inherit; resize:none; min-height:60px; max-height:150px; background:var(--bg); color:var(--fg); }
-.agent-send { padding:8px 16px; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; }
-.agent-send:hover { opacity:0.85; }
-.quick-tasks { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:8px; }
-.quick-task { padding:3px 10px; border:1px solid var(--border); border-radius:12px; font-size:10px; cursor:pointer; background:var(--bg); color:var(--fg-muted); }
-.quick-task:hover { border-color:var(--accent); color:var(--accent); }
+/* Workspace */
+.hub-ws-hdr { padding:10px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; background:var(--bg-elevated); flex-shrink:0; }
+.agent-avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#0f3b3a,#5c2d3f); display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+.hub-ws-name { font-size:14px; font-weight:600; }
+.hub-ws-status { font-size:11px; color:var(--fg-muted); }
+.hub-ws-actions { margin-left:auto; display:flex; gap:6px; }
 
-/* Right: Output + supervisor */
-.agent-output { border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
-.output-tabs { display:flex; border-bottom:1px solid var(--border); }
-.output-tab { padding:8px 14px; font-size:11px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; color:var(--fg-muted); }
-.output-tab.active { border-bottom-color:var(--accent); color:var(--accent); }
-.output-panel { flex:1; overflow-y:auto; padding:12px; display:none; }
-.output-panel.active { display:block; }
-.output-item { padding:8px 10px; border:1px solid var(--border); border-radius:6px; margin-bottom:6px; font-size:11.5px; }
-.output-item-hdr { font-weight:600; font-size:11px; color:var(--fg-muted); margin-bottom:4px; display:flex; justify-content:space-between; }
-.download-btn { padding:2px 8px; background:var(--accent); color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; }
+/* Output tabs */
+.hub-tabs { display:flex; border-bottom:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; }
+.hub-tab { padding:7px 14px; font-size:11px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; color:var(--fg-muted); }
+.hub-tab.active { border-bottom-color:var(--accent); color:var(--accent); }
+
+/* Chat */
+.hub-chat { flex:1; overflow-y:auto; padding:12px 14px; display:flex; flex-direction:column; gap:10px; }
+.hub-msg { display:flex; gap:8px; align-items:flex-start; }
+.hub-msg.user { flex-direction:row-reverse; }
+.hub-bubble { max-width:85%; padding:8px 12px; border-radius:10px; font-size:13px; line-height:1.5; }
+.hub-msg.agent .hub-bubble { background:var(--bg-elevated); border:1px solid var(--border); color:var(--fg); border-radius:4px 10px 10px 10px; }
+.hub-msg.user .hub-bubble { background:var(--accent); color:#fff; border-radius:10px 4px 10px 10px; }
+.hub-msg.system .hub-bubble { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:var(--fg); font-size:11px; font-style:italic; }
+.hub-msg-avatar { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; background:linear-gradient(135deg,#0f3b3a,#5c2d3f); color:#fff; }
+.hub-msg.user .hub-msg-avatar { background:var(--accent); }
+
+/* WIP panel */
+.wip-panel { padding:10px 14px; }
+.wip-job { padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; background:var(--bg-elevated); }
+.wip-job-name { font-size:12.5px; font-weight:600; margin-bottom:4px; display:flex; justify-content:space-between; }
+.wip-job-task { font-size:11px; color:var(--fg-muted); margin-bottom:6px; }
+.wip-bar { height:5px; background:var(--border); border-radius:3px; overflow:hidden; margin-bottom:4px; }
+.wip-fill { height:100%; border-radius:3px; transition:width 0.5s; }
+.wip-meta { font-size:10px; color:var(--fg-muted); display:flex; justify-content:space-between; align-items:center; }
+
+/* Input */
+.hub-input-area { border-top:1px solid var(--border); padding:10px 12px; background:var(--bg-elevated); flex-shrink:0; }
+.hub-attach-strip { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; }
+.hub-attach-badge { display:flex; align-items:center; gap:4px; padding:2px 8px; background:var(--accent-light,#e8f0f8); border:1px solid var(--accent); border-radius:10px; font-size:11px; color:var(--accent); }
+.hub-attach-badge button { background:none; border:none; cursor:pointer; color:var(--accent); font-size:11px; padding:0; }
+.hub-input-row { display:flex; gap:6px; align-items:flex-end; }
+.hub-textarea { flex:1; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-family:inherit; resize:none; min-height:40px; max-height:120px; background:var(--bg); color:var(--fg); }
+.hub-send { padding:8px 14px; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; }
+.hub-quick-btns { display:flex; gap:4px; margin-top:6px; flex-wrap:wrap; }
+.hub-quick { padding:3px 9px; border:1px solid var(--border); border-radius:8px; font-size:11px; cursor:pointer; background:var(--bg); color:var(--fg-muted); font-family:inherit; }
+.hub-quick:hover { border-color:var(--accent); color:var(--accent); }
+
+/* Right panel */
+.right-sec { padding:10px 12px; border-bottom:1px solid var(--border); }
+.right-sec h4 { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--fg-muted); margin:0 0 8px; }
+.output-item { padding:8px 10px; border:1px solid var(--border); border-radius:6px; margin-bottom:5px; font-size:11.5px; }
+.output-item-hdr { font-size:10px; color:var(--fg-muted); margin-bottom:3px; display:flex; justify-content:space-between; }
 
 /* Create agent modal */
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:9999; display:none; align-items:center; justify-content:center; }
 .modal-overlay.open { display:flex; }
-.modal-box { background:var(--bg-elevated); border-radius:12px; padding:24px; width:480px; max-height:80vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.2); }
-.modal-box h3 { margin:0 0 16px; font-size:15px; }
-.form-row { margin-bottom:12px; }
-.form-label { font-size:11px; font-weight:600; color:var(--fg-muted); display:block; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px; }
-.form-input, .form-select, .form-textarea { width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; background:var(--bg); color:var(--fg); box-sizing:border-box; }
-.form-textarea { min-height:80px; resize:vertical; }
-.modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+.modal-box { background:var(--bg-elevated); border-radius:12px; padding:20px; width:480px; max-height:80vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.2); }
+.modal-box h3 { margin:0 0 14px; font-size:15px; }
+.form-row { margin-bottom:10px; }
+.form-label { font-size:11px; font-weight:600; color:var(--fg-muted); display:block; margin-bottom:3px; text-transform:uppercase; letter-spacing:0.4px; }
+.form-input, .form-select, .form-textarea { width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit; background:var(--bg); color:var(--fg); box-sizing:border-box; }
+.form-textarea { min-height:70px; resize:vertical; }
+.modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
 </style>
 </head>
 <body>
 <script src="/shared/prism.js"></script>
 <div id="sidebar-mount"></div>
 <div id="main-content">
+<div class="hub-shell">
 
-<!-- Create Agent Modal -->
-<div class="modal-overlay" id="create-modal">
-<div class="modal-box">
-<h3>Create Agent</h3>
-
-<!-- NL description tab -->
-<div style="display:flex;gap:0;margin-bottom:16px;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
-  <button id="tab-nl" onclick="switchCreateTab('nl')" style="flex:1;padding:7px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:var(--accent);color:#fff;">Describe in plain English</button>
-  <button id="tab-manual" onclick="switchCreateTab('manual')" style="flex:1;padding:7px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:var(--bg);color:var(--fg);">Manual setup</button>
+<!-- Agent list -->
+<div class="hub-agents">
+  <div class="agent-list-hdr">
+    <h3>🤖 Agents</h3>
+    <button onclick="openCreateModal()" style="padding:3px 9px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">+ New</button>
+  </div>
+  <div class="agent-list-body" id="agent-list"></div>
 </div>
 
-<!-- NL creation panel -->
-<div id="create-nl-panel">
-  <div style="font-size:11px;color:var(--fg-muted);margin-bottom:8px;">Describe what you want this agent to do. The Orchestrator will translate it into a full agent specification.</div>
-  <textarea id="nl-description" style="width:100%;min-height:100px;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;font-family:inherit;background:var(--bg);color:var(--fg);resize:vertical;box-sizing:border-box;" placeholder="e.g. I want an agent that monitors my research notes, finds connections between concepts, and suggests relevant thinkers from my 365-day curriculum. It should save insights to WriteHandy and alert me via Telegram."></textarea>
-  
-  <!-- File attachments for agent context -->
-  <div style="margin-top:8px;">
-    <label style="font-size:11px;color:var(--fg-muted);display:block;margin-bottom:4px;">Attach reference files (optional)</label>
-    <div style="display:flex;gap:6px;align-items:center;">
-      <input type="file" id="agent-files" multiple accept=".md,.txt,.pdf,.csv,.json" style="display:none;" onchange="handleAgentFiles(this)">
-      <button onclick="document.getElementById('agent-files').click()" style="padding:5px 12px;border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;background:var(--bg);color:var(--fg);">📎 Attach files</button>
-      <span id="agent-files-label" style="font-size:11px;color:var(--fg-muted);">No files attached</span>
+<!-- Workspace -->
+<div class="hub-workspace">
+  <div class="hub-ws-hdr">
+    <div class="agent-avatar" id="active-avatar">🤖</div>
+    <div>
+      <div class="hub-ws-name" id="active-name">Select an agent</div>
+      <div class="hub-ws-status" id="active-status">idle</div>
     </div>
-    <div id="agent-files-preview" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;"></div>
-  </div>
-  
-  <div style="display:flex;gap:6px;margin-top:12px;">
-    <button onclick="generateAgentFromNL()" style="flex:1;padding:8px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">✨ Generate agent spec</button>
-  </div>
-  <div id="nl-result" style="margin-top:10px;display:none;"></div>
-</div>
-
-<!-- Manual creation panel (hidden by default) -->
-<div id="create-manual-panel" style="display:none;">
-<div class="form-row">
-  <label class="form-label">Agent Name</label>
-  <input class="form-input" id="new-agent-name" type="text" placeholder="e.g. Research Assistant">
-</div>
-<div class="form-row">
-  <label class="form-label">Description</label>
-  <input class="form-input" id="new-agent-desc" type="text" placeholder="What does this agent do?">
-</div>
-<div class="form-row">
-  <label class="form-label">Avatar</label>
-  <input class="form-input" id="new-agent-avatar" type="text" placeholder="🤖" style="width:80px;">
-</div>
-<div class="form-row">
-  <label class="form-label">System Prompt / Persona</label>
-  <textarea class="form-textarea" id="new-agent-prompt" placeholder="You are a research assistant for Identity Partners. You find, synthesise, and structure information. British English. No sycophancy. Cite sources."></textarea>
-</div>
-<div class="form-row">
-  <label class="form-label">Routing Profile</label>
-  <select class="form-select" id="new-agent-profile">
-    <option value="balanced">Balanced (Nemotron → Kimi → Mistral)</option>
-    <option value="reasoning">Reasoning (DeepSeek → Gemini)</option>
-    <option value="fast">Fast (Cerebras → Groq)</option>
-    <option value="frontier">Frontier (Gemini 2.5 Pro)</option>
-  </select>
-</div>
-<div class="form-row">
-  <label class="form-label">Tools</label>
-  <div style="display:flex;flex-wrap:wrap;gap:6px;">
-    <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" value="search_web" class="agent-tool"> Web search</label>
-    <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" value="post_to_social" class="agent-tool"> Post to social</label>
-    <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" value="save_to_notes" class="agent-tool"> Save to notes</label>
-    <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" value="generate_canvas" class="agent-tool"> Generate canvas</label>
-    <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" value="send_telegram" class="agent-tool"> Send Telegram</label>
-    <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" value="check_queue" class="agent-tool"> Check MM queue</label>
-  </div>
-</div>
-</div><!-- end manual panel -->
-<div class="modal-actions">
-  <button class="btn btn-secondary btn-sm" onclick="closeCreateModal()">Cancel</button>
-  <button class="btn btn-primary btn-sm" onclick="createAgent()">Create Agent</button>
-</div>
-</div>
-</div>
-
-<div class="hub-layout">
-
-<!-- Left: Agent library -->
-<div class="agent-library">
-  <div class="agent-library-hdr">
-    <h3>&#x1F916; Agents</h3>
-    <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ New</button>
-  </div>
-  <div class="agent-list" id="agent-list">
-    <div style="font-size:12px;color:var(--fg-muted);padding:8px;">Loading agents...</div>
-  </div>
-</div>
-
-<!-- Centre: Workspace -->
-<div class="agent-workspace">
-  <div class="workspace-hdr">
-    <div class="agent-avatar" id="active-avatar">&#x1F916;</div>
-    <h2 id="active-agent-name">Select an agent</h2>
-    <div id="active-status" style="font-size:11px;color:var(--fg-muted);">idle</div>
-    <button class="btn btn-secondary btn-sm" onclick="clearChat()" title="Clear conversation">Clear</button>
-    <button class="btn btn-primary btn-sm" id="run-btn" onclick="runAgent()" disabled>&#x25B6; Run</button>
-  </div>
-  
-  <div class="agent-chat" id="agent-chat">
-    <div style="text-align:center;padding:40px;color:var(--fg-muted);font-size:13px;">
-      Select an agent from the left, then describe your task below.<br>
-      The agent will execute it and report back here.
+    <div class="hub-ws-actions">
+      <button onclick="clearChat()" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);color:var(--fg);">Clear</button>
+      <button id="run-btn" onclick="runAgent()" disabled style="padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;opacity:0.5;">▶ Run</button>
     </div>
   </div>
-  
-  <class="agent-input-area">
-    <div class="quick-tasks" id="quick-tasks"></div>
-    <div id="agent-attach-strip" style="display:none;padding:6px 12px;background:rgba(45,106,159,0.1);border-top:2px solid var(--accent);font-size:12px;flex-wrap:wrap;gap:6px;align-items:center;"></div>
-    <div class="agent-input-row">
-      <textarea class="agent-textarea" id="agent-input" placeholder="Describe the task... Attach documents below for analysis." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendTask();}"></textarea>
-      <button class="agent-send" onclick="sendTask()">Send</button>
-    </div>
-    <div style="display:flex;gap:6px;padding:5px 0 2px;align-items:center;border-top:1px solid var(--border);margin-top:4px;">
-      <input type="file" id="agent-file-input" multiple accept=".txt,.md,.pdf,.docx,.csv,.json,.html,.py,.js" style="display:none;" onchange="handleAgentAttachment(this)">
-      <button onclick="document.getElementById('agent-file-input').click()" style="padding:5px 12px;border:1px solid var(--accent);border-radius:5px;font-size:12px;cursor:pointer;background:var(--accent-light,#e8f0f8);color:var(--accent);font-weight:600;">📎 Attach document</button>
-      <button onclick="clearAgentAttachments()" id="clear-attach-btn" style="display:none;padding:5px 10px;border:1px solid var(--border);border-radius:5px;font-size:11px;cursor:pointer;background:var(--bg);color:var(--fg-muted);">✕ Clear</button>
-      <span style="font-size:10px;color:var(--fg-muted);">Large docs are chunked — no truncation</span>
-    </div>
-  </div>
-</div>
 
-<!-- Right: Output + Supervisor -->
-<div class="agent-output">
-  <div class="output-tabs">
-    <div class="output-tab active" onclick="switchTab('output',this)">Output</div>
-    <div class="output-tab" onclick="switchTab('wip',this)" id="wip-tab-btn">WIP / Spool</div>
-    <div class="output-tab" onclick="switchTab('supervisor',this)">Supervisor</div>
-    <div class="output-tab" onclick="switchTab('history',this)">History</div>
+  <div class="hub-tabs">
+    <div class="hub-tab active" onclick="switchTab('chat',this)">Chat</div>
+    <div class="hub-tab" onclick="switchTab('wip',this)" id="wip-tab-btn">WIP / Spool</div>
+    <div class="hub-tab" onclick="switchTab('output',this)">Output</div>
   </div>
-  
-  <div class="output-panel active" id="tab-output">
+
+  <div id="tab-chat" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+    <div class="hub-chat" id="hub-chat">
+      <div style="text-align:center;padding:30px;color:var(--fg-muted);font-size:13px;">Select an agent from the left, then describe your task.</div>
+    </div>
+    <div class="hub-input-area">
+      <div class="hub-attach-strip" id="hub-attach-strip"></div>
+      <div class="hub-input-row">
+        <input type="file" id="hub-file-input" multiple accept=".md,.txt,.pdf,.csv,.json,.docx" style="display:none" onchange="handleHubFiles(this)">
+        <textarea class="hub-textarea" id="hub-input" placeholder="Describe the task for this agent..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendTask();}"></textarea>
+        <button class="hub-send" onclick="sendTask()">Send</button>
+      </div>
+      <div class="hub-quick-btns">
+        <button class="hub-quick" onclick="document.getElementById('hub-file-input').click()">📎 Attach doc</button>
+        <button class="hub-quick" onclick="setQuickTask('Check status and report.')">Check status</button>
+        <button class="hub-quick" onclick="setQuickTask('Generate a summary report.')">Summary</button>
+        <button class="hub-quick" onclick="setQuickTask('What tasks are pending?')">Pending tasks</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-wip" style="flex:1;overflow-y:auto;display:none;">
+    <div class="wip-panel" id="wip-panel">
+      <div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No jobs in progress.</div>
+    </div>
+  </div>
+
+  <div id="tab-output" style="flex:1;overflow-y:auto;padding:12px;display:none;">
     <div id="output-list" style="font-size:12px;color:var(--fg-muted);">No output yet.</div>
   </div>
-  
-  <div class="output-panel" id="tab-supervisor">
-    <div style="font-size:11px;font-weight:600;color:var(--fg-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Orchestrator Oversight</div>
-    <div id="supervisor-log" style="font-size:11.5px;color:var(--fg);"></div>
-    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-      <div style="font-size:11px;font-weight:600;color:var(--fg-muted);margin-bottom:6px;">Active agents across system</div>
-      <div id="all-agents-status" style="font-size:11px;color:var(--fg-muted);">Loading...</div>
-    </div>
-  </div>
-  
-  <div class="output-panel" id="tab-wip">
-    <div style="font-size:11px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Work In Progress / Spool</div>
-    <div id="wip-spool-list" style="font-size:12px;color:var(--fg-muted);">No jobs in progress.</div>
-  </div>
+</div>
 
-    <div class="output-panel" id="tab-history">
-    <div id="history-list" style="font-size:12px;color:var(--fg-muted);">No history yet.</div>
+<!-- Right panel -->
+<div class="hub-right">
+  <div class="right-sec">
+    <h4>Active Agent</h4>
+    <div id="agent-info" style="font-size:12px;color:var(--fg-muted);">None selected</div>
+  </div>
+  <div class="right-sec">
+    <h4>Recent Output</h4>
+    <div id="recent-output" style="font-size:11.5px;color:var(--fg-muted);">—</div>
+  </div>
+  <div class="right-sec">
+    <h4>System Status</h4>
+    <div id="system-status" style="font-size:11px;color:var(--fg-muted);">Loading...</div>
   </div>
 </div>
 
+</div>
+</div>
+
+<!-- Create agent modal -->
+<div class="modal-overlay" id="create-modal">
+<div class="modal-box">
+  <h3>Create Agent</h3>
+  <div class="form-row">
+    <label class="form-label">Name</label>
+    <input class="form-input" id="new-name" type="text" placeholder="e.g. Research Assistant">
+  </div>
+  <div class="form-row">
+    <label class="form-label">Avatar</label>
+    <input class="form-input" id="new-avatar" type="text" placeholder="🤖" style="width:80px;">
+  </div>
+  <div class="form-row">
+    <label class="form-label">Description</label>
+    <input class="form-input" id="new-desc" type="text" placeholder="What does this agent do?">
+  </div>
+  <div class="form-row">
+    <label class="form-label">System Prompt / Persona</label>
+    <textarea class="form-textarea" id="new-prompt" placeholder="You are a research assistant for Identity Partners. Find, synthesise, and structure information. British English. No sycophancy. Cite sources."></textarea>
+  </div>
+  <div class="form-row">
+    <label class="form-label">Routing Profile</label>
+    <select class="form-select" id="new-profile">
+      <option value="balanced">Balanced (default)</option>
+      <option value="frontier">Frontier (best quality)</option>
+      <option value="fast">Fast (low latency)</option>
+    </select>
+  </div>
+  <div class="modal-actions">
+    <button onclick="closeCreateModal()" style="padding:6px 14px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);">Cancel</button>
+    <button onclick="createAgent()" style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;">Create Agent</button>
+  </div>
 </div>
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Restore active agent from sessionStorage
-  var savedAgentId = sessionStorage.getItem('agent-active-id');
-  if (savedAgentId) {
-    setTimeout(function() {
-      var agentCard = document.getElementById('card-' + savedAgentId);
-      if (agentCard) agentCard.click();
-      // Restore chat history
-      if (chatHistory.length > 0) {
-        var chat = document.getElementById('agent-chat');
-        if (chat) {
-          chat.innerHTML = '';
-          chatHistory.forEach(function(m) {
-            addChatMsg(m.role === 'user' ? 'user' : 'agent', m.content);
-          });
-        }
-      }
-    }, 800);
-  }
-  // Resume any running analysis jobs
-  var runningJob = sessionStorage.getItem('agent-running-job');
-  if (runningJob) {
-    try {
-      var jobInfo = JSON.parse(runningJob);
-      setTimeout(function() {
-        addChatMsg('system', '\u23F3 Resuming analysis of ' + jobInfo.docName + ' (job ' + jobInfo.jobId.slice(-8) + ')...');
-        resumeJobPolling(jobInfo.jobId, jobInfo.docName, jobInfo.task);
-      }, 1000);
-    } catch(e) {}
-  }
-
-  // Pick up document sent from Workspaces
-  var wsDocContent = sessionStorage.getItem('agent-doc-content');
-  var wsDocName = sessionStorage.getItem('agent-doc-name');
-  if (wsDocContent && wsDocName) {
-    sessionStorage.removeItem('agent-doc-content');
-    sessionStorage.removeItem('agent-doc-name');
-    window._agentAttachments = [{
-      name: wsDocName,
-      size: wsDocContent.length,
-      content: wsDocContent
-    }];
-    setTimeout(function() {
-      updateAttachmentIndicator();
-      var input = document.getElementById('agent-input');
-      if (input) {
-        input.placeholder = 'Document loaded: ' + wsDocName + '. Describe your analysis task...';
-        input.focus();
-      }
-      Toast.info('Document loaded from Workspace: ' + wsDocName);
-    }, 500);
-  }
-  var mount = document.getElementById('sidebar-mount');
-  if (mount) { var sb = buildSidebar('/agenti/agent-builder/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  loadAgents();
-  loadSupervisorStatus();
-  setInterval(loadSupervisorStatus, 30000);
-});
-
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
+
+var BUILTIN_AGENTS = [
+  {id:'orchestrator',name:'Orchestrator',avatar:'🧠',desc:'Oversees all agents, routes tasks, manages memory',profile:'balanced',builtIn:true},
+  {id:'researcher',name:'Research Agent',avatar:'🔍',desc:'Finds, synthesises, and structures information',profile:'balanced',builtIn:true},
+  {id:'media-manager',name:'Media Manager',avatar:'📋',desc:'Owns all content publication and scheduling',profile:'balanced',builtIn:true},
+  {id:'creator',name:'Creator Agent',avatar:'✍',desc:'Creates social posts, scripts, and content',profile:'balanced',builtIn:true},
+  {id:'api-champion',name:'API Champion',avatar:'⚡',desc:'Monitors model providers, updates routing chain',profile:'fast',builtIn:true},
+  {id:'harms-analyst',name:'Harms Analyst',avatar:'🔬',desc:'Analyses documents to map harms and flag issues',profile:'frontier',builtIn:true},
+];
+
 var agents = [];
 var activeAgent = null;
 var chatHistory = [];
+var hubAttachments = [];
+var wipJobs = {};
+var currentTab = 'chat';
 
-// Restore state from sessionStorage on load
-(function() {
-  try {
-    var saved = sessionStorage.getItem('agent-chat-history');
-    if (saved) chatHistory = JSON.parse(saved);
-  } catch(e) {}
-})();
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/agenti/agent-builder/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  loadAgents();
+  loadSystemStatus();
+  setInterval(refreshWIP, 10000);
+});
 
-function persistAgentState() {
-  try {
-    // Save to sessionStorage for quick restore within session
-    sessionStorage.setItem('agent-chat-history', JSON.stringify(chatHistory.slice(-20)));
-    if (activeAgent) sessionStorage.setItem('agent-active-id', activeAgent.id);
-    // Also save to KV for persistence across browser restarts
-    if (chatHistory.length > 0) {
-      fetch(WORKER + '/api/chat/history', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({user: 'simon', history: chatHistory.slice(-50)})
-      }).catch(function(){});
-    }
-  } catch(e) {}
-}
-var taskHistory = [];
-
+// ── Agents ────────────────────────────────────────────────────────────────────
 function loadAgents() {
   fetch(WORKER + '/api/agents/list')
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      var custom = d.agents || [];
-      var builtIn = [
-        { id: 'orchestrator', name: 'Orchestrator', avatar: String.fromCodePoint(0x1F9E0), description: 'Oversees all agents, routes tasks, manages memory', profile: 'balanced', tools: ['search_web','post_to_social','save_to_notes','check_queue'], builtIn: true },
-        { id: 'researcher', name: 'Research Agent', avatar: String.fromCodePoint(0x1F50D), description: 'Finds, synthesises, and structures information', profile: 'balanced', tools: ['search_web','save_to_notes'], builtIn: true },
-        { id: 'media-manager', name: 'Media Manager', avatar: String.fromCodePoint(0x1F4CB), description: 'Owns all content publication and scheduling', profile: 'balanced', tools: ['post_to_social','generate_canvas','check_queue'], builtIn: true },
-        { id: 'creator', name: 'Creator Agent', avatar: String.fromCodePoint(0x270D), description: 'Creates social posts, scripts, and content', profile: 'balanced', tools: ['generate_canvas','post_to_social','save_to_notes'], builtIn: true },
-        { id: 'api-champion', name: 'API Champion', avatar: String.fromCodePoint(0x26A1), description: 'Monitors model providers, updates routing chain', profile: 'fast', tools: [], builtIn: true },
-      ];
-      agents = builtIn.concat(custom.filter(function(a){ return !a.builtIn; }));
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var custom = (d.agents||[]).filter(function(a){return !a.builtIn;});
+      agents = [...BUILTIN_AGENTS, ...custom];
       renderAgentList();
     })
-    .catch(function() {
-      agents = [
-        { id: 'orchestrator', name: 'Orchestrator', avatar: String.fromCodePoint(0x1F9E0), description: 'Oversees all agents', profile: 'balanced', tools: [], builtIn: true },
-        { id: 'researcher', name: 'Research Agent', avatar: String.fromCodePoint(0x1F50D), description: 'Finds and synthesises information', profile: 'balanced', tools: ['search_web'], builtIn: true },
-        { id: 'media-manager', name: 'Media Manager', avatar: String.fromCodePoint(0x1F4CB), description: 'Owns all content publication', profile: 'balanced', tools: ['post_to_social'], builtIn: true },
-        { id: 'creator', name: 'Creator Agent', avatar: String.fromCodePoint(0x270D), description: 'Creates content', profile: 'balanced', tools: [], builtIn: true },
-      ];
+    .catch(function(){
+      agents = [...BUILTIN_AGENTS];
       renderAgentList();
     });
 }
 
 function renderAgentList() {
   var list = document.getElementById('agent-list');
-  if (!list) return;
-  while (list.firstChild) list.removeChild(list.firstChild);
-  if (!agents.length) {
-    var msg = document.createElement('div');
-    msg.style.cssText = 'font-size:12px;color:var(--fg-muted);padding:8px;';
-    msg.textContent = 'No agents yet. Click + New to create one.';
-    list.appendChild(msg);
-    return;
-  }
-  for (var i = 0; i < agents.length; i++) {
-    (function(a) {
-      var card = document.createElement('div');
-      card.className = 'agent-card';
-      card.id = 'card-' + a.id;
-      card.onclick = function() { selectAgent(a.id); };
-      var nm = document.createElement('div');
-      nm.className = 'agent-card-name';
-      nm.textContent = (a.avatar || 'A') + ' ' + a.name;
-      if (a.builtIn) {
-        var bg = document.createElement('span');
-        bg.style.cssText = 'font-size:9px;color:var(--fg-muted);margin-left:4px;';
-        bg.textContent = 'built-in';
-        nm.appendChild(bg);
-      }
-      var dc = document.createElement('div');
-      dc.className = 'agent-card-desc';
-      dc.textContent = a.description || '';
-      var sd = document.createElement('div');
-      sd.className = 'agent-card-status';
-      var dot = document.createElement('span');
-      dot.className = 'status-dot status-idle';
-      var st = document.createElement('span');
-      st.style.color = 'var(--fg-muted)';
-      st.textContent = 'idle';
-      sd.appendChild(dot);
-      sd.appendChild(st);
-      if (!a.builtIn) {
-        var db = document.createElement('button');
-        db.textContent = 'x';
-        db.style.cssText = 'margin-left:auto;background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:10px;';
-        db.onclick = function(ev) { ev.stopPropagation(); deleteAgent(a.id); };
-        sd.appendChild(db);
-      }
-      card.appendChild(nm);
-      card.appendChild(dc);
-      card.appendChild(sd);
-      list.appendChild(card);
-    })(agents[i]);
-  }
+  list.innerHTML = agents.map(function(a) {
+    var active = activeAgent && activeAgent.id === a.id ? ' active' : '';
+    return '<div class="agent-card' + active + '" id="ac-' + a.id + '" onclick="selectAgent(\'' + a.id + '\')">' +
+      '<div class="agent-card-name"><span>' + (a.avatar||'🤖') + '</span>' + a.name + (a.builtIn?'<span style="font-size:9px;color:var(--fg-muted);margin-left:auto;">built-in</span>':'') + '</div>' +
+      '<div class="agent-card-desc">' + (a.desc||'').replace(/</g,'&lt;') + '</div>' +
+      '<div class="agent-card-status"><span class="status-dot" id="dot-' + a.id + '"></span><span id="status-' + a.id + '">idle</span>' +
+      (!a.builtIn ? '<button onclick="deleteAgent(\'' + a.id + '\',event)" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:10px;">✕</button>' : '') +
+      '</div></div>';
+  }).join('');
 }
 
-function selectAgent(agentId) {
-  activeAgent = agents.find(function(a){ return a.id === agentId; });
+function selectAgent(id) {
+  activeAgent = agents.find(function(a){return a.id===id;});
   if (!activeAgent) return;
-  document.querySelectorAll('.agent-card').forEach(function(c){ c.classList.remove('active'); });
-  var card = document.getElementById('card-' + agentId);
+  document.querySelectorAll('.agent-card').forEach(function(el){el.classList.remove('active');});
+  var card = document.getElementById('ac-' + id);
   if (card) card.classList.add('active');
-  document.getElementById('active-avatar').textContent = activeAgent.avatar || 'A';
-  document.getElementById('active-agent-name').textContent = activeAgent.name;
+  document.getElementById('active-avatar').textContent = activeAgent.avatar || '🤖';
+  document.getElementById('active-name').textContent = activeAgent.name;
   document.getElementById('active-status').textContent = 'ready';
   document.getElementById('run-btn').disabled = false;
+  document.getElementById('run-btn').style.opacity = '1';
+  document.getElementById('agent-info').innerHTML = '<strong>' + activeAgent.name + '</strong><br>' + (activeAgent.desc||'');
   chatHistory = [];
-  var chat = document.getElementById('agent-chat');
-  if (chat) {
-    chat.innerHTML = '';
-    addChatMsg('system', activeAgent.name + ' is ready. Describe your task below.');
-  }
-  var quickTasks = {
-    'orchestrator': ['What tasks are pending?', 'Check all agent status', 'What went out today?'],
-    'researcher': ['Research ADHD and executive function', 'Find recent papers on addiction recovery', 'Summarise the latest mental health policy'],
-    'media-manager': ['What is in the queue?', 'Approve all pending posts', 'Schedule this weeks content'],
-    'creator': ['Write a Bluesky post about recovery', 'Create an Instagram caption', 'Draft a newsletter intro'],
-    'api-champion': ['Check which models are available', 'Update the routing chain', 'Test all providers']
-  };
-  var tasks = quickTasks[agentId] || ['Run a task', 'Check status', 'Generate a report'];
-  var qtEl = document.getElementById('quick-tasks');
-  if (qtEl) {
-    qtEl.innerHTML = '';
-    tasks.forEach(function(t) {
-      var btn = document.createElement('div');
-      btn.className = 'quick-task';
-      btn.textContent = t;
-      btn.onclick = function() {
-        var inp = document.getElementById('agent-input');
-        if (inp) { inp.value = t; inp.focus(); }
-      };
-      qtEl.appendChild(btn);
-    });
-  }
-  var inp = document.getElementById('agent-input');
-  if (inp) inp.focus();
+  var chat = document.getElementById('hub-chat');
+  chat.innerHTML = '<div class="hub-msg system"><div class="hub-bubble">' + activeAgent.name + ' is ready. Describe your task below.</div></div>';
+  document.getElementById('hub-input').focus();
 }
 
+function deleteAgent(id, e) {
+  e.stopPropagation();
+  if (!confirm('Delete this agent?')) return;
+  fetch(WORKER + '/api/agents/' + id, {method:'DELETE'}).catch(function(){});
+  agents = agents.filter(function(a){return a.id!==id;});
+  renderAgentList();
+  if (activeAgent && activeAgent.id === id) {
+    activeAgent = null;
+    document.getElementById('active-name').textContent = 'Select an agent';
+    document.getElementById('run-btn').disabled = true;
+    document.getElementById('run-btn').style.opacity = '0.5';
+  }
+}
+
+// ── Task execution ────────────────────────────────────────────────────────────
 function sendTask() {
-  var input = document.getElementById('agent-input');
-  var task = input ? input.value.trim() : '';
-  if (!task || !activeAgent) return;
-  if (input) input.value = '';
-  addChatMsg('user', task);
-  runAgentTask(task);
-}
+  var input = document.getElementById('hub-input');
+  var task = input.value.trim();
+  if (!task && !hubAttachments.length) return;
+  if (!activeAgent) { alert('Select an agent first.'); return; }
+  input.value = '';
 
-function runAgent() {
-  var input = document.getElementById('agent-input');
-  var task = (input ? input.value.trim() : '') || 'Check status and report.';
-  if (input) input.value = '';
-  addChatMsg('user', task);
-  runAgentTask(task);
-}
+  addHubMsg('user', task);
 
-function runAgentTask(task) {
-  if (!activeAgent) return;
-  setAgentStatus(activeAgent.id, 'running');
-
-  var attachedFiles = window._agentAttachments || [];
-  // Only route to chunked analysis for large TEXT documents (>50KB)
-  // Images and small files go through direct chat with file context
-  var hasLargeTextDoc = attachedFiles.some(function(f) {
-    return f.type === 'text' && f.size > 50000;
-  });
-
-  if (attachedFiles.length > 0 && hasLargeTextDoc) {
-    runDocumentAnalysis(task, attachedFiles);
+  // Check for large text documents → use chunked analysis
+  var largeDoc = hubAttachments.find(function(a){return a.type==='text'&&a.size>50000;});
+  if (largeDoc) {
+    runDocumentAnalysis(task, largeDoc);
     return;
   }
 
-  // Standard chat route
+  // Build messages
   var sysPrompt = activeAgent.systemPrompt ||
-    ('You are ' + activeAgent.name + ' for Identity Partners. ' + (activeAgent.description || '') +
+    ('You are ' + activeAgent.name + ' for Identity Partners. ' + (activeAgent.desc||'') +
      ' British English. Execute tasks completely. Never truncate. Show all your work.');
 
   var fileContext = '';
-  if (attachedFiles.length > 0) {
-    fileContext = '\n\n[ATTACHED FILES]\n';
-    attachedFiles.forEach(function(f) {
-      if (f.type === 'image') {
-        fileContext += 'Image attached: ' + f.name + ' (' + Math.round(f.size/1024) + 'KB)\n';
-        fileContext += 'Note: This is an image file. Describe what you can infer from the filename and context.\n\n---\n\n';
-      } else {
-        fileContext += 'File: ' + f.name + ' (' + Math.round(f.size/1024) + 'KB)\n\n' + (f.content || '').substring(0, 30000) + '\n\n---\n\n';
-      }
-    });
-  }
+  hubAttachments.forEach(function(att) {
+    if (att.content) fileContext += '\n\n[Attached: ' + att.name + ']\n' + att.content.substring(0,30000);
+  });
 
-  var messages = [{role:'system', content:sysPrompt}];
-  chatHistory.slice(-8).forEach(function(m){messages.push(m);});
-  messages.push({role:'user', content:task + fileContext});
+  hubAttachments = [];
+  updateHubAttachStrip();
 
-  addChatMsg('system', activeAgent.name + ' is working...');
+  chatHistory.push({role:'user', content: task + fileContext});
+  var messages = [{role:'system',content:sysPrompt}].concat(chatHistory);
 
-  // Use /api/devteam so the agent's own system prompt is respected
-  // /api/chat always uses the Gerald/Orchestrator persona
+  setAgentStatus(activeAgent.id, 'running');
+  addHubMsg('system', activeAgent.name + ' is working...');
+
   fetch(WORKER + '/api/devteam', {
-    method:'POST', headers:{'Content-Type':'application/json'},
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
       agent: activeAgent.id,
       agentName: activeAgent.name,
       systemPrompt: sysPrompt,
       messages: messages,
       message: task + fileContext,
-      profile: 'balanced'
+      profile: activeAgent.profile || 'balanced'
     })
   })
   .then(function(r){return r.json();})
   .then(function(d){
     setAgentStatus(activeAgent.id, 'done');
-    var response = d.content;
-    if (!response || response.trim() === '' || response === 'Task completed.') {
-      response = 'No output returned. Try attaching the document and using the 📎 Attach button — large documents are processed via the chunked analysis pipeline.';
-    }
-    addChatMsg('agent', response);
-    chatHistory.push({role:'user', content:task});
-    chatHistory.push({role:'assistant', content:response});
-    persistAgentState();
-    addOutput(activeAgent.name, task, response, []);
-    addSupervisorLog(activeAgent.name + ' (' + (d.provider||'?') + '): ' + task.substring(0,50));
-    taskHistory.unshift({agent:activeAgent.name, task:task, response:response, ts:Date.now()});
-    renderHistory();
-    window._agentAttachments = [];
-    updateAttachmentIndicator();
+    var response = d.content || 'No response.';
+    chatHistory.push({role:'assistant',content:response});
+    // Remove "working" message
+    var chat = document.getElementById('hub-chat');
+    var systemMsgs = chat.querySelectorAll('.hub-msg.system');
+    if (systemMsgs.length) systemMsgs[systemMsgs.length-1].remove();
+    addHubMsg('agent', response, d.provider);
+    addOutput(activeAgent.name, task, response);
+    document.getElementById('recent-output').textContent = response.substring(0,150) + '...';
   })
   .catch(function(e){
     setAgentStatus(activeAgent.id, 'error');
-    addChatMsg('system', 'Error: ' + e.message);
+    addHubMsg('system', 'Error: ' + e.message);
   });
 }
 
-function runDocumentAnalysis(task, files) {
-  var file = files[0];
-  addChatMsg('system', '\u{1F4C4} Starting background analysis of ' + file.name + ' (' + Math.round(file.size/1024) + 'KB)...');
-  addChatMsg('system', '\u23F3 This runs in the background with no timeout. Results appear here when ready.');
+function runAgent() {
+  document.getElementById('hub-input').value = 'Check status and report.';
+  sendTask();
+}
 
-  fetch(WORKER + '/api/agent/analyse', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({task: task, document: file.content, document_name: file.name, agent: activeAgent ? activeAgent.name : 'Research Agent'})
+function setQuickTask(text) {
+  document.getElementById('hub-input').value = text;
+  document.getElementById('hub-input').focus();
+}
+
+// ── Document analysis (chunked) ───────────────────────────────────────────────
+function runDocumentAnalysis(task, doc) {
+  addHubMsg('system', 'Chunking ' + doc.name + ' (' + Math.round(doc.size/1024) + 'KB)...');
+  var sysPrompt = activeAgent.systemPrompt ||
+    ('You are ' + activeAgent.name + ' for Identity Partners. British English. Execute tasks completely. Never truncate.');
+
+  fetch(WORKER + '/api/jobs/create', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      document: doc.content,
+      document_name: doc.name,
+      task: task,
+      agent_name: activeAgent.name,
+      system_prompt: sysPrompt
+    })
   })
-  .then(function(r) { return r.json(); })
-  .then(function(d) {
-    if (!d.job_id) {
-      addChatMsg('system', 'Error starting analysis: ' + (d.error || 'Unknown'));
-      setAgentStatus(activeAgent ? activeAgent.id : 'researcher', 'error');
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if (!d.success || !d.job_id) {
+      addHubMsg('system', 'Error creating job: ' + (d.error||'unknown'));
       return;
     }
     var jobId = d.job_id;
-    // Save to sessionStorage so polling resumes after refresh
-    sessionStorage.setItem('agent-running-job', JSON.stringify({jobId:jobId, docName:file.name, task:task}));
-    var progressEl = null;
-    var progressMsg = document.createElement('div');
-    progressMsg.className = 'agent-msg system';
-    var bubble = document.createElement('div');
-    bubble.className = 'agent-bubble';
-    bubble.textContent = '\u23F3 Analysis running... (job ' + jobId.slice(-8) + ')';
-    progressMsg.appendChild(bubble);
-    var chat = document.getElementById('agent-chat');
-    if (chat) { chat.appendChild(progressMsg); chat.scrollTop = chat.scrollHeight; }
-    progressEl = bubble;
-
-    setAgentStatus(activeAgent ? activeAgent.id : 'researcher', 'running');
-    var pollCount = 0;
-    var maxPolls = 72; // 12 minutes
-    var pollInterval = setInterval(function() {
-      pollCount++;
-      if (pollCount > maxPolls) {
-        clearInterval(pollInterval);
-        if (progressEl) progressEl.textContent = '\u26A0\uFE0F Analysis taking longer than expected. The job continues in the background — refresh and check again.';
-        setAgentStatus(activeAgent ? activeAgent.id : 'researcher', 'done');
-        return;
-      }
-      fetch(WORKER + '/api/agent/job/' + jobId)
-        .then(function(r) { return r.json(); })
-        .then(function(job) {
-          if (job.status === 'running') {
-            if (progressEl) progressEl.textContent = '\u23F3 ' + (job.progress || 'Processing...') + ' (check ' + pollCount + ')';
-          } else if (job.status === 'complete') {
-            clearInterval(pollInterval);
-            if (progressEl) progressEl.textContent = '\u2713 Analysis complete.';
-            setAgentStatus(activeAgent ? activeAgent.id : 'researcher', 'done');
-            var header = '## Analysis: ' + job.document_name + '\n\n**Sections:** ' + job.chunks_successful + '/' + job.chunks_total + '\n\n---\n\n';
-            var footer = job.chunks_failed > 0 ? ('\n\n---\n\u26A0\uFE0F ' + job.chunks_failed + ' sections failed.') : '';
-            var response = header + (job.synthesis || 'No synthesis generated.') + footer;
-            addChatMsg('agent', response);
-            chatHistory.push({role:'user', content:task + ' [' + file.name + ']'});
-            chatHistory.push({role:'assistant', content:response});
-            addOutput(activeAgent ? activeAgent.name : 'Research Agent', task, response, []);
-            addSupervisorLog('Analysis complete: ' + file.name);
-            taskHistory.unshift({agent:activeAgent ? activeAgent.name : 'Research Agent', task:task, response:response, ts:Date.now()});
-            renderHistory();
-            window._agentAttachments = [];
-            updateAttachmentIndicator();
-            Toast.success('Analysis complete: ' + file.name);
-          } else if (job.status === 'error') {
-            clearInterval(pollInterval);
-            if (progressEl) progressEl.textContent = '\u274C Analysis failed: ' + (job.error || 'Unknown');
-            setAgentStatus(activeAgent ? activeAgent.id : 'researcher', 'error');
-          }
-        })
-        .catch(function() {});
-    }, 10000);
+    var total = d.total_chunks;
+    addHubMsg('system', 'Document split into ' + total + ' chunks. Starting analysis...');
+    addToWIP(jobId, doc.name, task, 0, total);
+    hubAttachments = [];
+    updateHubAttachStrip();
+    processNextChunk(jobId, doc.name, task, 0, total);
   })
-  .catch(function(e) {
-    setAgentStatus(activeAgent ? activeAgent.id : 'researcher', 'error');
-    addChatMsg('system', 'Failed to start: ' + e.message);
+  .catch(function(e){addHubMsg('system','Job creation failed: '+e.message);});
+}
+
+function processNextChunk(jobId, docName, task, done, total) {
+  updateWIP(jobId, done, total, 'running');
+  fetch(WORKER + '/api/jobs/' + jobId + '/process', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({chunk_index:done})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if (d.error) {
+      addHubMsg('system','Chunk '+(done+1)+' error: '+d.error+'. Retrying...');
+      setTimeout(function(){processNextChunk(jobId,docName,task,done,total);},3000);
+      return;
+    }
+    if (d.status==='complete'&&d.synthesis) {
+      addHubMsg('agent', d.synthesis);
+      addOutput(activeAgent?activeAgent.name:'Agent', task, d.synthesis);
+      updateWIP(jobId, total, total, 'complete');
+      setAgentStatus(activeAgent?activeAgent.id:'agent','done');
+      return;
+    }
+    var nextDone = d.chunk || done+1;
+    if (nextDone >= total) {
+      addHubMsg('system','All '+total+' sections processed. Synthesising...');
+      updateWIP(jobId, total, total, 'synthesising');
+    }
+    setTimeout(function(){processNextChunk(jobId,docName,task,nextDone,total);},800);
+  })
+  .catch(function(e){
+    addHubMsg('system','Network error: '+e.message+'. Retrying...');
+    setTimeout(function(){processNextChunk(jobId,docName,task,done,total);},5000);
   });
 }
-function addChatMsg(role, text) {
-  var chat = document.getElementById('agent-chat');
-  if (!chat) return;
+
+// ── WIP ───────────────────────────────────────────────────────────────────────
+function addToWIP(jobId, docName, task, done, total) {
+  wipJobs[jobId] = {jobId:jobId,docName:docName,task:task,done:done,total:total,status:'running',started:new Date().toLocaleTimeString('en-GB')};
+  renderWIP();
+  switchTab('wip', document.getElementById('wip-tab-btn'));
+}
+
+function updateWIP(jobId, done, total, status) {
+  if (wipJobs[jobId]) { wipJobs[jobId].done=done; wipJobs[jobId].total=total; wipJobs[jobId].status=status; wipJobs[jobId].updated=new Date().toLocaleTimeString('en-GB'); }
+  renderWIP();
+}
+
+function renderWIP() {
+  var panel = document.getElementById('wip-panel');
+  var jobs = Object.values(wipJobs);
+  var running = jobs.filter(function(j){return j.status==='running'||j.status==='synthesising';}).length;
+  var tabBtn = document.getElementById('wip-tab-btn');
+  if (tabBtn) tabBtn.textContent = 'WIP / Spool' + (running>0?' ('+running+')':'');
+  if (!jobs.length) { panel.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No jobs in progress.</div>'; return; }
+  panel.innerHTML = jobs.map(function(job){
+    var pct = job.total>0?Math.round(100*job.done/job.total):0;
+    var sc = job.status==='complete'?'#16a34a':job.status==='error'?'#dc2626':'var(--accent)';
+    var sl = job.status==='complete'?'Complete':job.status==='synthesising'?'Synthesising...':job.status==='error'?'Error':'Processing '+job.done+'/'+job.total;
+    return '<div class="wip-job">' +
+      '<div class="wip-job-name"><span>'+job.docName.replace(/</g,'&lt;')+'</span><span style="font-size:10px;color:'+sc+';font-weight:600;">'+sl+'</span></div>' +
+      '<div class="wip-job-task">'+(job.task||'').substring(0,80).replace(/</g,'&lt;')+'</div>' +
+      '<div class="wip-bar"><div class="wip-fill" style="width:'+pct+'%;background:'+sc+';"></div></div>' +
+      '<div class="wip-meta"><span>'+pct+'% · Started: '+job.started+'</span>' +
+      (job.status!=='complete'?'<button onclick="discardJob(\''+job.jobId+'\')" style="padding:1px 7px;font-size:10px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--bg);">Discard</button>':'') +
+      '</div></div>';
+  }).join('');
+}
+
+function refreshWIP() {
+  fetch(WORKER + '/api/jobs')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      (d.jobs||[]).forEach(function(job){
+        if (!wipJobs[job.id]) {
+          wipJobs[job.id] = {jobId:job.id,docName:job.document_name||'Job',task:job.task||'',done:job.completed_chunks||0,total:job.total_chunks||1,status:job.status||'running',started:new Date(job.created).toLocaleTimeString('en-GB')};
+        } else {
+          wipJobs[job.id].done = job.completed_chunks||0;
+          wipJobs[job.id].status = job.status||'running';
+        }
+      });
+      renderWIP();
+    }).catch(function(){});
+}
+
+function discardJob(jobId) {
+  fetch(WORKER + '/api/jobs/' + jobId, {method:'DELETE'}).catch(function(){});
+  delete wipJobs[jobId];
+  renderWIP();
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function addHubMsg(role, text, provider) {
+  var chat = document.getElementById('hub-chat');
+  var welcome = chat.querySelector('[style*="text-align:center"]');
+  if (welcome) welcome.remove();
   var div = document.createElement('div');
-  div.className = 'agent-msg ' + role;
-  var avatarEl = document.createElement('div');
-  avatarEl.className = 'agent-avatar';
-  if (role === 'user') { avatarEl.style.background = 'var(--rose,#5c2d3f)'; avatarEl.textContent = 'S'; }
-  else if (role === 'agent') { avatarEl.textContent = activeAgent ? activeAgent.avatar : 'A'; }
+  div.className = 'hub-msg ' + role;
+  var avatar = document.createElement('div');
+  avatar.className = 'hub-msg-avatar';
+  avatar.textContent = role==='user'?'S':(activeAgent?activeAgent.avatar:'🤖');
   var bubble = document.createElement('div');
-  bubble.className = 'agent-bubble';
+  bubble.className = 'hub-bubble';
   bubble.textContent = text;
-  if (role !== 'system') div.appendChild(avatarEl);
-  div.appendChild(bubble);
+  if (provider) {
+    var meta = document.createElement('div');
+    meta.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.6);margin-top:4px;';
+    meta.textContent = provider;
+    bubble.appendChild(meta);
+  }
+  if (role==='user') { div.appendChild(avatar); div.appendChild(bubble); }
+  else { div.appendChild(avatar); div.appendChild(bubble); }
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
 }
 
-function clearChat() {
-  chatHistory = [];
-  var chat = document.getElementById('agent-chat');
-  if (chat) { chat.innerHTML = ''; addChatMsg('system', 'Conversation cleared.'); }
-}
-
-function setAgentStatus(agentId, status) {
-  var card = document.getElementById('card-' + agentId);
-  if (card) {
-    var dot = card.querySelector('.status-dot');
-    var label = card.querySelector('.agent-card-status span:last-child');
-    if (dot) dot.className = 'status-dot status-' + status;
-    if (label) label.textContent = status;
-  }
-  var statusEl = document.getElementById('active-status');
-  if (statusEl) statusEl.textContent = status;
-}
-
-function addOutput(agentName, task, response, toolResults) {
+function addOutput(agentName, task, response) {
   var list = document.getElementById('output-list');
-  if (!list) return;
   if (list.textContent === 'No output yet.') list.innerHTML = '';
   var item = document.createElement('div');
   item.className = 'output-item';
-  var hdr = document.createElement('div');
-  hdr.className = 'output-item-hdr';
-  var lbl = document.createElement('span');
-  lbl.textContent = agentName + ' - ' + new Date().toLocaleTimeString('en-GB');
-  var dlBtn = document.createElement('button');
-  dlBtn.className = 'download-btn';
-  dlBtn.textContent = 'Download .txt';
-  dlBtn.onclick = function() { downloadOutput(response, 'output.txt', 'text/plain'); };
-  hdr.appendChild(lbl);
-  hdr.appendChild(dlBtn);
-  var taskEl = document.createElement('div');
-  taskEl.style.cssText = 'font-size:11px;color:var(--fg-muted);margin-bottom:4px;';
-  taskEl.textContent = 'Task: ' + task.substring(0, 60);
-  var respEl = document.createElement('div');
-  respEl.style.cssText = 'font-size:12px;white-space:pre-wrap;';
-  respEl.textContent = response.substring(0, 500) + (response.length > 500 ? '...' : '');
-  item.appendChild(hdr);
-  item.appendChild(taskEl);
-  item.appendChild(respEl);
+  item.innerHTML = '<div class="output-item-hdr"><span>' + agentName + ' · ' + new Date().toLocaleTimeString('en-GB') + '</span>' +
+    '<button onclick="copyOutput(this)" data-text="' + response.replace(/"/g,'&quot;') + '" style="padding:1px 7px;font-size:10px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--bg);">Copy</button></div>' +
+    '<div style="font-size:11px;color:var(--fg-muted);margin-bottom:3px;">' + task.substring(0,60).replace(/</g,'&lt;') + '</div>' +
+    '<div style="font-size:12px;">' + response.substring(0,300).replace(/</g,'&lt;') + (response.length>300?'...':'') + '</div>';
   list.insertBefore(item, list.firstChild);
 }
 
-function downloadOutput(content, filename, mimeType) {
-  var blob = new Blob([content], { type: mimeType });
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
+function copyOutput(btn) {
+  navigator.clipboard.writeText(btn.dataset.text);
+  btn.textContent = 'Copied!';
+  setTimeout(function(){btn.textContent='Copy';},2000);
 }
 
-function loadSupervisorStatus() {
-  fetch(WORKER + '/api/mm/queue')
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      var counts = d.counts || {};
-      var statusEl = document.getElementById('all-agents-status');
-      if (statusEl) {
-        statusEl.innerHTML = '';
-        var items = [
-          'Media Manager: ' + (counts.pending || 0) + ' pending, ' + (counts.posted || 0) + ' posted',
-          'Orchestrator: active',
-          'Research Agent: standby',
-        ];
-        items.forEach(function(txt) {
-          var el = document.createElement('div');
-          el.textContent = txt;
-          statusEl.appendChild(el);
-        });
-      }
-    }).catch(function(){});
+function setAgentStatus(id, status) {
+  var dot = document.getElementById('dot-' + id);
+  var lbl = document.getElementById('status-' + id);
+  if (dot) dot.className = 'status-dot' + (status==='running'?' running':status==='done'?' done':status==='error'?' error':'');
+  if (lbl) lbl.textContent = status;
+  document.getElementById('active-status').textContent = status;
 }
 
-function addSupervisorLog(msg) {
-  var log = document.getElementById('supervisor-log');
-  if (!log) return;
-  var entry = document.createElement('div');
-  entry.style.cssText = 'padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;';
-  var time = document.createElement('span');
-  time.style.color = 'var(--fg-muted)';
-  time.textContent = new Date().toLocaleTimeString('en-GB') + ' ';
-  entry.appendChild(time);
-  entry.appendChild(document.createTextNode(msg));
-  log.insertBefore(entry, log.firstChild);
-}
-
-function renderHistory() {
-  var list = document.getElementById('history-list');
-  if (!list) return;
-  if (!taskHistory.length) { list.textContent = 'No history yet.'; return; }
-  list.innerHTML = '';
-  taskHistory.slice(0, 20).forEach(function(h) {
-    var el = document.createElement('div');
-    el.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--border);';
-    var meta = document.createElement('div');
-    meta.style.cssText = 'font-size:10px;color:var(--fg-muted);';
-    meta.textContent = h.agent + ' - ' + new Date(h.ts).toLocaleTimeString('en-GB');
-    var task = document.createElement('div');
-    task.style.cssText = 'font-size:11.5px;font-weight:600;';
-    task.textContent = h.task.substring(0, 60);
-    var resp = document.createElement('div');
-    resp.style.cssText = 'font-size:11px;color:var(--fg-muted);';
-    resp.textContent = h.response.substring(0, 80) + '...';
-    el.appendChild(meta); el.appendChild(task); el.appendChild(resp);
-    list.appendChild(el);
-  });
+function clearChat() {
+  chatHistory = [];
+  var chat = document.getElementById('hub-chat');
+  chat.innerHTML = '<div class="hub-msg system"><div class="hub-bubble">Chat cleared.</div></div>';
 }
 
 function switchTab(tab, el) {
-  document.querySelectorAll('.output-tab').forEach(function(t){ t.classList.remove('active'); });
-  document.querySelectorAll('.output-panel').forEach(function(p){ p.classList.remove('active'); });
-  el.classList.add('active');
-  var panel = document.getElementById('tab-' + tab);
-  if (panel) panel.classList.add('active');
+  document.querySelectorAll('.hub-tab').forEach(function(t){t.classList.remove('active');});
+  if (el) el.classList.add('active');
+  document.getElementById('tab-chat').style.display = tab==='chat'?'flex':'none';
+  document.getElementById('tab-wip').style.display = tab==='wip'?'block':'none';
+  document.getElementById('tab-output').style.display = tab==='output'?'block':'none';
+  currentTab = tab;
+  if (tab==='wip') renderWIP();
 }
 
-function openCreateModal() { document.getElementById('create-modal').classList.add('open'); }
-function closeCreateModal() { document.getElementById('create-modal').classList.remove('open'); }
-
-function switchCreateTab(tab) {
-  document.getElementById('create-nl-panel').style.display = tab === 'nl' ? 'block' : 'none';
-  document.getElementById('create-manual-panel').style.display = tab === 'manual' ? 'block' : 'none';
-  document.getElementById('tab-nl').style.background = tab === 'nl' ? 'var(--accent)' : 'var(--bg)';
-  document.getElementById('tab-nl').style.color = tab === 'nl' ? '#fff' : 'var(--fg)';
-  document.getElementById('tab-manual').style.background = tab === 'manual' ? 'var(--accent)' : 'var(--bg)';
-  document.getElementById('tab-manual').style.color = tab === 'manual' ? '#fff' : 'var(--fg)';
-}
-
-var agentAttachments = [];
-
-function handleAgentFiles(input) {
-  window._agentAttachments = [];
-  var label = document.getElementById('agent-files-label');
-  var preview = document.getElementById('agent-files-preview');
-  if (!input || !input.files || !input.files.length) {
-    if (label) label.textContent = 'No files attached';
-    if (preview) preview.innerHTML = '';
-    updateAttachmentIndicator();
-    return;
-  }
-  var files = Array.from(input.files);
-  if (label) label.textContent = files.length + ' file(s) attached';
-  if (preview) preview.innerHTML = '';
-  var loaded = 0;
-  files.forEach(function(file) {
-    var isText = /\.(md|txt|csv|json|html|js|py|xml|yaml|yml)$/i.test(file.name);
-    var isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(file.name);
+// ── File attachments ──────────────────────────────────────────────────────────
+function handleHubFiles(input) {
+  Array.from(input.files).forEach(function(file){
     var reader = new FileReader();
-    if (isImage) {
-      reader.onload = function(e) {
-        window._agentAttachments.push({
-          name: file.name,
-          size: file.size,
-          type: 'image',
-          dataUrl: e.target.result,
-          content: '[Image: ' + file.name + ' (' + Math.round(file.size/1024) + 'KB) — attached for visual analysis]'
-        });
-        loaded++;
-        if (loaded === files.length) updateAttachmentIndicator();
-      };
-      reader.readAsDataURL(file);
-    } else {
-      reader.onload = function(e) {
-        window._agentAttachments.push({
-          name: file.name,
-          size: file.size,
-          type: 'text',
-          content: e.target.result
-        });
-        loaded++;
-        if (loaded === files.length) updateAttachmentIndicator();
-      };
-      reader.readAsText(file);
-    }
-  });
-}
-
-function generateAgentFromNL() {
-  var description = document.getElementById('nl-description').value.trim();
-  if (!description) { Toast.warning('Describe what you want the agent to do.'); return; }
-  var resultEl = document.getElementById('nl-result');
-  if (resultEl) { resultEl.style.display = 'block'; resultEl.textContent = 'Generating agent specification...'; }
-  var attachContext = agentAttachments.length > 0 ? ' Reference files: ' + agentAttachments.map(function(a){ return a.name + ': ' + a.content.substring(0, 500); }).join(' | ') : '';
-  var prompt = 'Create an AI agent spec for Argentica. Description: ' + description + attachContext + ' Return ONLY valid JSON: {"name":"string","avatar":"emoji","description":"one sentence","systemPrompt":"full prompt","profile":"balanced|reasoning|fast|frontier","tools":["search_web","post_to_social","save_to_notes","generate_canvas","send_telegram","check_queue"],"suggestedWorkspace":"workspace name"}';
-  fetch(WORKER + '/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], profile: 'fast' })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(d) {
-    var content = d.content || '';
-    var jsonMatch = content.match(/\{[\s\S]+\}/);
-    if (!jsonMatch) { if (resultEl) resultEl.textContent = 'Could not parse spec. Try being more specific.'; return; }
-    try {
-      var spec = JSON.parse(jsonMatch[0]);
-      window._generatedSpec = spec;
-      if (resultEl) {
-        resultEl.innerHTML = '';
-        var preview = document.createElement('div');
-        preview.style.cssText = 'padding:10px;background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:6px;font-size:11px;';
-        preview.innerHTML = '<strong>' + (spec.avatar || '') + ' ' + spec.name + '</strong><br>' + spec.description + '<br><small>Profile: ' + spec.profile + ' | Tools: ' + (spec.tools || []).join(', ') + '</small>';
-        var useBtn = document.createElement('button');
-        useBtn.textContent = 'Use this spec';
-        useBtn.style.cssText = 'margin-top:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;';
-        useBtn.onclick = function() { applyGeneratedSpec(spec); };
-        preview.appendChild(document.createElement('br'));
-        preview.appendChild(useBtn);
-        resultEl.appendChild(preview);
-      }
-    } catch(e) { if (resultEl) resultEl.textContent = 'Parse error: ' + e.message; }
-  })
-  .catch(function(e) { if (resultEl) resultEl.textContent = 'Error: ' + e.message; });
-}
-
-function applyGeneratedSpec(spec) {
-  switchCreateTab('manual');
-  var fields = { 'new-agent-name': spec.name, 'new-agent-avatar': spec.avatar, 'new-agent-desc': spec.description, 'new-agent-prompt': spec.systemPrompt };
-  Object.keys(fields).forEach(function(id) { var el = document.getElementById(id); if (el) el.value = fields[id] || ''; });
-  var profileEl = document.getElementById('new-agent-profile');
-  if (profileEl) profileEl.value = spec.profile || 'balanced';
-  document.querySelectorAll('.agent-tool').forEach(function(cb) { cb.checked = (spec.tools || []).includes(cb.value); });
-  if (spec.suggestedWorkspace) window._suggestedWorkspace = spec.suggestedWorkspace;
-  Toast.success('Spec applied. Review and click Create Agent.');
-}
-
-function createAgent() {
-  var name = document.getElementById('new-agent-name').value.trim();
-  if (!name) { Toast.warning('Enter an agent name'); return; }
-  var tools = Array.from(document.querySelectorAll('.agent-tool:checked')).map(function(c){ return c.value; });
-  var agent = { id: 'agent-' + Date.now(), name: name, avatar: document.getElementById('new-agent-avatar').value || 'A', description: document.getElementById('new-agent-desc').value, systemPrompt: document.getElementById('new-agent-prompt').value, profile: document.getElementById('new-agent-profile').value, tools: tools, builtIn: false, created: new Date().toISOString() };
-  fetch(WORKER + '/api/agents/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(agent) })
-    .then(function() { agents.push(agent); renderAgentList(); closeCreateModal(); Toast.success('Agent created: ' + name); selectAgent(agent.id); })
-    .catch(function() { agents.push(agent); renderAgentList(); closeCreateModal(); Toast.success('Agent created: ' + name); });
-}
-
-function deleteAgent(agentId) {
-  if (!confirm('Delete this agent?')) return;
-  fetch(WORKER + '/api/agents/' + agentId, { method: 'DELETE' }).catch(function(){});
-  agents = agents.filter(function(a){ return a.id !== agentId; });
-  renderAgentList();
-  if (activeAgent && activeAgent.id === agentId) { activeAgent = null; document.getElementById('active-agent-name').textContent = 'Select an agent'; document.getElementById('run-btn').disabled = true; }
-}
-
-window._agentAttachments = [];
-function handleAgentAttachment(input) {
-  if (!input.files || !input.files.length) return;
-  Array.from(input.files).forEach(function(file) {
-    var reader = new FileReader();
-    reader.onload = function(e) {
-      window._agentAttachments.push({ name: file.name, size: file.size, content: e.target.result });
-      updateAttachmentIndicator();
+    reader.onload = function(e){
+      hubAttachments.push({name:file.name,size:file.size,type:'text',content:e.target.result});
+      updateHubAttachStrip();
     };
     reader.readAsText(file);
   });
   input.value = '';
 }
-function updateAttachmentIndicator() {
-  var strip = document.getElementById('agent-attach-strip');
-  var clearBtn = document.getElementById('clear-attach-btn');
-  if (!strip) return;
-  var files = window._agentAttachments || [];
-  if (!files.length) {
-    strip.style.display = 'none';
-    strip.innerHTML = '';
-    if (clearBtn) clearBtn.style.display = 'none';
-    return;
-  }
-  strip.style.display = 'flex';
-  if (clearBtn) clearBtn.style.display = 'inline-block';
-  strip.innerHTML = '<span style="color:var(--fg-muted);font-weight:600;">📎 Attached:</span>' +
-    files.map(function(f, i) {
-      var sizeStr = f.size > 1048576 ? (f.size/1048576).toFixed(1)+'MB' : Math.round(f.size/1024)+'KB';
-      var isLarge = f.size > 10000;
-      return '<span style="background:var(--accent-light,#e8f0f8);border:1px solid var(--accent);border-radius:4px;padding:3px 10px;display:inline-flex;align-items:center;gap:5px;">' +
-        (isLarge ? '📄' : '📝') + ' <strong>' + f.name + '</strong> <span style="color:var(--fg-muted);font-size:10px;">(' + sizeStr + (isLarge ? ' — chunked analysis' : '') + ')</span>' +
-        '<button onclick="removeAgentAttachment(' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:14px;padding:0 2px;line-height:1;">&times;</button>' +
-        '</span>';
-    }).join('');
-}
 
-function clearAgentAttachments() {
-  window._agentAttachments = [];
-  updateAttachmentIndicator();
-}
-function removeAgentAttachment(idx) {
-  window._agentAttachments.splice(idx, 1);
-  updateAttachmentIndicator();
-}
-
-function resumeJobPolling(jobId, docName, task) {
-  sessionStorage.setItem('agent-running-job', JSON.stringify({jobId:jobId, docName:docName, task:task}));
-  var pollCount = 0;
-  var maxPolls = 72;
-  var pollInterval = setInterval(function() {
-    pollCount++;
-    if (pollCount > maxPolls) {
-      clearInterval(pollInterval);
-      sessionStorage.removeItem('agent-running-job');
-      addChatMsg('system', '\u26A0\uFE0F Job timed out waiting. Check /api/agent/job/' + jobId + ' manually.');
-      return;
-    }
-    fetch(WORKER + '/api/agent/job/' + jobId)
-      .then(function(r){return r.json();})
-      .then(function(job){
-        if (job.status === 'running') {
-          var msgs = document.querySelectorAll('.agent-msg.system .agent-bubble');
-          if (msgs.length > 0) msgs[msgs.length-1].textContent = '\u23F3 ' + (job.progress||'Processing...') + ' (check '+pollCount+')';
-        } else if (job.status === 'complete') {
-          clearInterval(pollInterval);
-          sessionStorage.removeItem('agent-running-job');
-          var header = '## Analysis: ' + (job.document_name||docName) + '\n\n**Sections:** ' + job.chunks_successful + '/' + job.chunks_total + '\n\n---\n\n';
-          var response = header + (job.synthesis || 'No synthesis.');
-          addChatMsg('agent', response);
-          chatHistory.push({role:'user',content:task});
-          chatHistory.push({role:'assistant',content:response});
-          persistAgentState();
-          addOutput('Research Agent', task, response, []);
-          Toast.success('Analysis complete: ' + (job.document_name||docName));
-        } else if (job.status === 'error') {
-          clearInterval(pollInterval);
-          sessionStorage.removeItem('agent-running-job');
-          addChatMsg('system', '\u274C Analysis failed: ' + (job.error||'Unknown'));
-        }
-      }).catch(function(){});
-  }, 10000);
-}
-
-function processNextChunk(jobId, docName, task, done, total) {
-  updateWIPSpool(jobId, done, total, 'running');
-  try {
-    localStorage.setItem('agent-running-job', JSON.stringify({
-      jobId: jobId, docName: docName, task: task, chunksTotal: total, chunksDone: done
-    }));
-  } catch(e) {}
-  fetch(WORKER + '/api/jobs/' + jobId + '/process', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({chunk_index: done})
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(d) {
-    if (d.error) {
-      addChatMsg('system', 'Chunk ' + (done+1) + ' error: ' + d.error + '. Retrying in 3s...');
-      setTimeout(function() { processNextChunk(jobId, docName, task, done, total); }, 3000);
-      return;
-    }
-    if (d.status === 'complete' && d.synthesis) {
-      addChatMsg('agent', d.synthesis);
-      addOutput(activeAgent ? activeAgent.name : 'Agent', task, d.synthesis, []);
-      setAgentStatus(activeAgent ? activeAgent.id : 'agent', 'done');
-      updateWIPSpool(jobId, total, total, 'complete');
-      try { localStorage.removeItem('agent-running-job'); } catch(e) {}
-      window._agentAttachments = [];
-      updateAttachmentIndicator();
-      return;
-    }
-    var nextDone = d.chunk || done + 1;
-    if (nextDone >= total) {
-      addChatMsg('system', 'All ' + total + ' sections processed. Synthesising...');
-      updateWIPSpool(jobId, total, total, 'synthesising');
-    }
-    setTimeout(function() { processNextChunk(jobId, docName, task, nextDone, total); }, 800);
-  })
-  .catch(function(e) {
-    addChatMsg('system', 'Network error on chunk ' + (done+1) + ': ' + e.message + '. Retrying in 5s...');
-    setTimeout(function() { processNextChunk(jobId, docName, task, done, total); }, 5000);
-  });
-}
-
-function runAgentTaskDirect(task, attachedFiles) {
-  var sysPrompt = activeAgent ? (activeAgent.systemPrompt ||
-    ('You are ' + activeAgent.name + ' for Identity Partners. British English. Execute tasks completely.')) : '';
-  var fileContext = '';
-  (attachedFiles || []).forEach(function(f) {
-    fileContext += '\n\nFile: ' + f.name + '\n' + (f.content || '').substring(0, 20000);
-  });
-  var messages = [{role:'system', content:sysPrompt}, {role:'user', content: task + fileContext}];
-  fetch(WORKER + '/api/devteam', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({agent: activeAgent ? activeAgent.id : 'pm', agentName: activeAgent ? activeAgent.name : 'Agent', systemPrompt: sysPrompt, messages: messages, message: task + fileContext})
-  })
-  .then(function(r){return r.json();})
-  .then(function(d){ addChatMsg('agent', d.content || 'No response.'); setAgentStatus(activeAgent ? activeAgent.id : 'agent', 'done'); })
-  .catch(function(e){ addChatMsg('system', 'Error: ' + e.message); });
-}
-
-function addToWIPSpool(jobId, docName, task, done, total) {
-  wipJobs[jobId] = {jobId:jobId, docName:docName, task:task, done:done, total:total, status:'running', started:new Date().toLocaleTimeString('en-GB')};
-  renderWIPSpool();
-  document.querySelectorAll('.output-tab').forEach(function(t){t.classList.remove('active');});
-  var wipTabBtn = document.getElementById('wip-tab-btn');
-  if (wipTabBtn) wipTabBtn.classList.add('active');
-  document.querySelectorAll('.output-panel').forEach(function(p){p.classList.remove('active');});
-  var wipPanel = document.getElementById('tab-wip');
-  if (wipPanel) wipPanel.classList.add('active');
-}
-
-function updateWIPSpool(jobId, done, total, status) {
-  if (wipJobs[jobId]) {
-    wipJobs[jobId].done = done; wipJobs[jobId].total = total;
-    wipJobs[jobId].status = status; wipJobs[jobId].updated = new Date().toLocaleTimeString('en-GB');
-  }
-  renderWIPSpool();
-}
-
-function renderWIPSpool() {
-  var list = document.getElementById('wip-spool-list');
-  if (!list) return;
-  var jobs = Object.values(wipJobs);
-  var running = jobs.filter(function(j){ return j.status === 'running' || j.status === 'synthesising'; }).length;
-  var tabBtn = document.getElementById('wip-tab-btn');
-  if (tabBtn) tabBtn.textContent = 'WIP / Spool' + (running > 0 ? ' (' + running + ')' : '');
-  if (!jobs.length) { list.textContent = 'No jobs in progress.'; return; }
-  list.innerHTML = jobs.map(function(job) {
-    var pct = job.total > 0 ? Math.round(100 * job.done / job.total) : 0;
-    var sc = job.status === 'complete' ? '#16a34a' : job.status === 'error' ? '#dc2626' : '#f59e0b';
-    var sl = job.status === 'complete' ? 'Complete' : job.status === 'synthesising' ? 'Synthesising...' :
-             job.status === 'error' ? 'Error' : 'Processing ' + job.done + '/' + job.total;
-    return '<div style="padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--bg-elevated);">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
-        '<strong style="font-size:12px;">' + job.docName + '</strong>' +
-        '<span style="font-size:10px;color:' + sc + ';font-weight:600;">' + sl + '</span>' +
-      '</div>' +
-      '<div style="font-size:11px;color:var(--fg-muted);margin-bottom:6px;">' + (job.task||'').substring(0,80) + '</div>' +
-      '<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px;">' +
-        '<div style="height:100%;width:' + pct + '%;background:' + (job.status==='complete'?'#16a34a':'var(--accent)') + ';border-radius:3px;transition:width 0.5s;"></div>' +
-      '</div>' +
-      '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--fg-muted);">' +
-        '<span>' + pct + '% &middot; Started: ' + job.started + (job.updated ? ' &middot; ' + job.updated : '') + '</span>' +
-        (job.status !== 'complete' ? '<button onclick="doDiscardJob2(\'' + job.jobId + '\')" style="padding:1px 7px;font-size:10px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--bg);color:var(--fg);">Discard</button>' : '') +
-      '</div></div>';
+function updateHubAttachStrip() {
+  var strip = document.getElementById('hub-attach-strip');
+  if (!hubAttachments.length){strip.innerHTML='';return;}
+  strip.innerHTML = hubAttachments.map(function(att,i){
+    return '<div class="hub-attach-badge">📎 '+att.name+' ('+Math.round(att.size/1024)+'KB)<button onclick="hubAttachments.splice('+i+',1);updateHubAttachStrip()">✕</button></div>';
   }).join('');
 }
 
-function doDiscardJob2(jobId) {
-  if (!confirm('Discard this job?')) return;
-  fetch(WORKER + '/api/jobs/' + jobId, {method:'DELETE'}).catch(function(){});
-  delete wipJobs[jobId];
-  try { localStorage.removeItem('agent-running-job'); } catch(e) {}
-  renderWIPSpool();
-}
-function doResumeJob() {
-  var jobInfo = window._pendingResumeJob;
-  if (!jobInfo) return;
-  window._pendingResumeJob = null;
-  addChatMsg('system', 'Resuming analysis of ' + jobInfo.docName + '...');
-  resumeJobPolling(jobInfo.jobId, jobInfo.docName, jobInfo.task || '');
+// ── Create agent ──────────────────────────────────────────────────────────────
+function openCreateModal() { document.getElementById('create-modal').classList.add('open'); }
+function closeCreateModal() { document.getElementById('create-modal').classList.remove('open'); }
+
+function createAgent() {
+  var name = document.getElementById('new-name').value.trim();
+  if (!name) { alert('Enter an agent name.'); return; }
+  var agent = {
+    id: 'agent-' + Date.now(),
+    name: name,
+    avatar: document.getElementById('new-avatar').value || '🤖',
+    desc: document.getElementById('new-desc').value,
+    systemPrompt: document.getElementById('new-prompt').value,
+    profile: document.getElementById('new-profile').value,
+    builtIn: false,
+    created: new Date().toISOString()
+  };
+  fetch(WORKER + '/api/agents/save', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(agent)
+  }).catch(function(){});
+  agents.push(agent);
+  renderAgentList();
+  closeCreateModal();
+  selectAgent(agent.id);
 }
 
-function doDiscardJob(jobId) {
-  var jobInfo = window._pendingResumeJob || {jobId: jobId};
-  window._pendingResumeJob = null;
-  try { localStorage.removeItem('agent-running-job'); } catch(e) {}
-  fetch(WORKER + '/api/jobs/' + (jobId || jobInfo.jobId), {method:'DELETE'}).catch(function(){});
-  addChatMsg('system', 'Previous job discarded. Ready for a new task.');
+// ── System status ─────────────────────────────────────────────────────────────
+function loadSystemStatus() {
+  fetch(WORKER + '/')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      document.getElementById('system-status').innerHTML =
+        '<div style="color:#16a34a;">✓ Worker v' + d.version + '</div>' +
+        '<div style="margin-top:4px;">' + new Date(d.timestamp).toLocaleTimeString('en-GB') + '</div>';
+    })
+    .catch(function(){
+      document.getElementById('system-status').innerHTML = '<div style="color:#dc2626;">✗ Worker unreachable</div>';
+    });
 }
-
 </script>
-
 </body>
 </html>
