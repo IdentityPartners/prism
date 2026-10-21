@@ -261,15 +261,17 @@ async function orchestrate(env, messages, profile = 'balanced') {
         ).then(r => r.json()).catch(() => ({}));
         if (embResp.embedding?.values) {
           const qv = embResp.embedding.values;
-          const rows = await env.PRISM_D1.prepare('SELECT doc_name,chunk_text,embedding FROM rag_chunks LIMIT 300').all().catch(() => ({ results: [] }));
-          const scored = (rows.results || []).map(row => {
+          const rows = await env.PRISM_D1.prepare('SELECT doc_name,chunk_text,embedding FROM rag_chunks ORDER BY rowid DESC LIMIT 100').all().catch(() => ({ results: [] }));
+          const scored = (rows.results || []).map(function(row) {
             try {
               const v = JSON.parse(row.embedding);
-              let d = 0, na = 0, nb = 0;
-              for (let i = 0; i < v.length; i++) { d += qv[i]*v[i]; na += qv[i]*qv[i]; nb += v[i]*v[i]; }
-              return { text: row.chunk_text, doc: row.doc_name, score: na && nb ? d / (Math.sqrt(na) * Math.sqrt(nb)) : 0 };
-            } catch { return { text: row.chunk_text, doc: row.doc_name, score: 0 }; }
-          }).sort((a, b) => b.score - a.score).filter(c => c.score > 0.5).slice(0, 3);
+              // Fast dot product only (skip sqrt normalisation for speed)
+              let dot = 0;
+              const len = Math.min(v.length, qv.length, 256); // Only use first 256 dims for speed
+              for (let i = 0; i < len; i++) { dot += qv[i] * v[i]; }
+              return { text: row.chunk_text, doc: row.doc_name, score: dot };
+            } catch(e) { return { text: row.chunk_text, doc: row.doc_name, score: 0 }; }
+          }).sort(function(a, b) { return b.score - a.score; }).filter(function(c) { return c.score > 0; }).slice(0, 3);
           if (scored.length > 0) {
             const ragCtx = '\n\n[RELEVANT CONTEXT FROM YOUR DOCUMENTS]\n' +
               scored.map(c => `From '${c.doc}':\n${c.text}`).join('\n\n---\n\n') +
@@ -321,6 +323,8 @@ async function orchestrate(env, messages, profile = 'balanced') {
 
   for (const entry of chain) {
     if (!entry.key && entry.p !== 'pollinations') { log.push(`${entry.note}:no key`); continue; }
+    // Yield to event loop between providers to avoid CPU limit
+    await new Promise(function(r) { setTimeout(r, 0); });
     const ta = Date.now();
     const isThinking = THINKING_PROVIDERS.includes(entry.m);
     const timeout = FAST_PROVIDERS.includes(entry.p) ? 20000 : isThinking ? 60000 : 45000;
