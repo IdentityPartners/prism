@@ -342,7 +342,7 @@ function saveSettings() {
 function testChain() {
   var resultEl = document.getElementById('test-result');
   resultEl.style.display = 'block';
-  resultEl.textContent = 'Testing chain...\n';
+  resultEl.textContent = 'Testing chain...';
   fetch(WORKER + '/api/champion/test-providers', {
     method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'
   })
