@@ -1,538 +1,343 @@
 <!DOCTYPE html>
-
 <html lang="en-GB">
 <head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Dev Team — Prism</title>
-<link href="/shared/prism.css" rel="stylesheet"/>
-<link href="/shared/themes.css" rel="stylesheet"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dev Team &mdash; Argentica</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
 <style>
-.devteam-shell { display: flex; height: 100vh; overflow: hidden; }
-.devteam-sidebar {
-  width: 220px;
-  flex-shrink: 0;
-  border-right: 1px solid var(--border);
-  background: var(--bg-surface);
-  display: flex;
-  flex-direction: column;
-  padding: 16px 0;
-}
-.devteam-sidebar-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--fg-muted);
-  padding: 0 14px 10px;
-}
-.agent-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  cursor: pointer;
-  border: none;
-  background: none;
-  width: 100%;
-  text-align: left;
-  font-family: var(--font-ui);
-  font-size: 13px;
-  color: var(--fg-secondary);
-  transition: background 0.15s;
-  border-left: 3px solid transparent;
-}
-.agent-btn:hover { background: var(--accent-light); color: var(--accent); }
-.agent-btn.active { background: var(--accent-light); color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
-.agent-icon { font-size: 18px; flex-shrink: 0; }
-.agent-info { display: flex; flex-direction: column; }
-.agent-name { font-weight: 500; font-size: 13px; }
-.agent-desc { font-size: 10.5px; color: var(--fg-muted); margin-top: 1px; }
-.devteam-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.devteam-topbar {
-  height: 56px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-elevated);
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  gap: 12px;
-  flex-shrink: 0;
-}
-.devteam-topbar-title { font-family: var(--font-heading); font-size: 16px; font-weight: 600; flex: 1; }
-.devteam-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.dt-message { display: flex; gap: 10px; }
-.dt-message.user { flex-direction: row-reverse; }
-.dt-avatar {
-  width: 34px; height: 34px;
-  border-radius: 50%;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 18px;
-  flex-shrink: 0;
-}
-.dt-body { max-width: 75%; }
-.dt-message.user .dt-body { align-items: flex-end; display: flex; flex-direction: column; }
-.dt-bubble {
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 13.5px;
-  line-height: 1.6;
-  word-break: break-word;
-}
-.dt-message.user .dt-bubble { background: var(--accent); color: #fff; border-radius: 12px 12px 2px 12px; }
-.dt-message.assistant .dt-bubble { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px 12px 12px 2px; }
-.dt-meta { font-size: 10.5px; color: var(--fg-muted); margin-top: 4px; }
-.devteam-input-area {
-  border-top: 1px solid var(--border);
-  background: var(--bg-elevated);
-  padding: 14px 20px;
-  flex-shrink: 0;
-}
-.devteam-input-row { display: flex; gap: 8px; align-items: flex-end; }
-.devteam-textarea {
-  flex: 1;
-  min-height: 80px;
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  font-size: 13.5px;
-  font-family: var(--font-ui);
-  resize: none;
-  outline: none;
-  background: var(--bg-primary);
-  color: var(--fg-primary);
-  line-height: 1.6;
-}
-.devteam-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(15,59,58,0.08); }
-.devteam-send-btn {
-  width: 44px; height: 44px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  font-size: 18px;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s;
-  flex-shrink: 0;
-}
-.devteam-send-btn:hover { background: var(--accent-hover); }
-.devteam-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.history-badge {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--accent-light);
-  color: var(--accent);
-}
-.typing-indicator { display: flex; gap: 4px; align-items: center; padding: 10px 14px; }
-.typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fg-muted); animation: typingBounce 1.2s infinite; }
-.typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-dot:nth-child(3) { animation-delay: 0.4s; }
-@keyframes typingBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
-.diagnostic-panel {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px 14px;
-  margin: 0 20px 14px;
-  font-size: 12px;
-  color: var(--fg-secondary);
-}
-.diagnostic-panel h4 { font-size: 12px; font-weight: 600; margin-bottom: 8px; color: var(--fg-primary); }
-.diag-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid var(--border); }
-.diag-row:last-child { border-bottom: none; }
-.diag-ok { color: var(--success); font-weight: 500; }
-.diag-warn { color: var(--warning); font-weight: 500; }
-.diag-err { color: var(--danger); font-weight: 500; }
+.dt-shell{display:flex;height:100vh;overflow:hidden;}
+.dt-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.dt-hdr{padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-elevated);display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.dt-hdr h2{font-size:16px;font-weight:700;margin:0;flex:1;}
+.dt-body{flex:1;display:grid;grid-template-columns:1fr 320px;overflow:hidden;}
+.dt-chat{display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border);}
+.dt-messages{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px;}
+.dt-msg{display:flex;gap:8px;align-items:flex-start;}
+.dt-msg.user{flex-direction:row-reverse;}
+.dt-bubble{max-width:85%;padding:8px 12px;border-radius:10px;font-size:13px;line-height:1.5;font-family:monospace;}
+.dt-msg.agent .dt-bubble{background:var(--bg-elevated);border:1px solid var(--border);color:var(--fg);border-radius:4px 10px 10px 10px;font-family:inherit;}
+.dt-msg.user .dt-bubble{background:var(--accent);color:#fff;border-radius:10px 4px 10px 10px;font-family:inherit;}
+.dt-msg.system .dt-bubble{background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);color:var(--fg);font-size:11px;font-style:italic;font-family:inherit;}
+.dt-avatar{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;background:linear-gradient(135deg,#0f3b3a,#5c2d3f);color:#fff;}
+.dt-input-area{border-top:1px solid var(--border);padding:10px 12px;background:var(--bg-elevated);flex-shrink:0;}
+.dt-textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:none;min-height:44px;max-height:120px;background:var(--bg);color:var(--fg);box-sizing:border-box;}
+.dt-send{padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:600;margin-top:6px;float:right;}
+.dt-quick{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;}
+.dt-quick-btn{padding:3px 9px;border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;background:var(--bg);color:var(--fg-muted);font-family:inherit;}
+.dt-quick-btn:hover{border-color:var(--accent);color:var(--accent);}
+.dt-tools{overflow-y:auto;padding:12px;}
+.tool-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;}
+.tool-card h4{font-size:12px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);}
+.tool-btn{display:block;width:100%;padding:7px 10px;margin-bottom:5px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);font-family:inherit;text-align:left;transition:all 0.15s;}
+.tool-btn:hover{border-color:var(--accent);color:var(--accent);}
+.tool-btn.danger:hover{border-color:#dc2626;color:#dc2626;}
+.tool-result{font-size:11px;font-family:monospace;background:var(--bg-sunken);border-radius:5px;padding:8px;margin-top:6px;max-height:120px;overflow-y:auto;white-space:pre-wrap;display:none;}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;}
+.status-ok{background:#16a34a;}
+.status-warn{background:#f59e0b;}
+.status-err{background:#dc2626;}
 </style>
 </head>
 <body>
-<div class="devteam-shell">
-<!-- Sidebar -->
-<div id="sidebar-mount"></div>
-<!-- Agent selector -->
-<div class="devteam-sidebar">
-<div class="devteam-sidebar-title">Dev Team Agents</div>
-<button class="agent-btn active" id="btn-pm" onclick="selectAgent('pm')" title="Programme Manager — coordinates the dev team and maintains the roadmap">
-<span class="agent-icon">📋</span>
-<span class="agent-info">
-<span class="agent-name">Programme Manager</span>
-<span class="agent-desc">Roadmap &amp; coordination</span>
-</span>
-</button>
-<button class="agent-btn" id="btn-troubleshooter" onclick="selectAgent('troubleshooter')" title="Troubleshooter — diagnoses and fixes platform issues">
-<span class="agent-icon">🔧</span>
-<span class="agent-info">
-<span class="agent-name">Troubleshooter</span>
-<span class="agent-desc">Diagnose &amp; fix issues</span>
-</span>
-</button>
-<button class="agent-btn" id="btn-researcher" onclick="selectAgent('researcher')" title="Research Agent — finds information and synthesises reports">
-<span class="agent-icon">🔬</span>
-<span class="agent-info">
-<span class="agent-name">Research Agent</span>
-<span class="agent-desc">Information &amp; synthesis</span>
-</span>
-</button>
-<button class="agent-btn" id="btn-creator" onclick="selectAgent('creator')" title="Creator Agent — creates content and social media assets">
-<span class="agent-icon">🎨</span>
-<span class="agent-info">
-<span class="agent-name">Creator Agent</span>
-<span class="agent-desc">Content creation</span>
-</span>
-</button>
-<button class="agent-btn" id="btn-api_champion" onclick="selectAgent('api_champion')" title="API Champion — monitors model registry and API keys">
-<span class="agent-icon">⚡</span>
-<span class="agent-info">
-<span class="agent-name">API Champion</span>
-<span class="agent-desc">Model registry &amp; keys</span>
-</span>
-</button>
-<div style="margin-top:auto;padding:14px;">
-<button class="btn btn-sm btn-secondary" onclick="clearHistory()" style="width:100%;margin-bottom:6px;" title="Clear conversation history for this agent">Clear History</button>
-<button class="btn btn-sm btn-secondary" onclick="runDiagnostics()" style="width:100%;" title="Run system diagnostics">Run Diagnostics</button>
-</div>
-</div>
-<!-- Main chat area -->
-<div class="devteam-main">
-<div class="devteam-topbar">
-<div class="devteam-topbar-title" id="agent-title">Programme Manager</div>
-<span class="history-badge" id="history-badge">0 messages in memory</span>
-<button class="btn btn-sm btn-ghost" onclick="exportConversation()" title="Export conversation as Markdown">⬇ Export</button>
-</div>
-<!-- Diagnostic panel (hidden by default) -->
-<div class="diagnostic-panel hidden" id="diagnostic-panel">
-<h4>System Diagnostics</h4>
-<div id="diagnostic-rows"></div>
-</div>
-<div class="devteam-messages" id="devteam-messages">
-<div class="dt-message assistant">
-<div class="dt-avatar">📋</div>
-<div class="dt-body">
-<div class="dt-bubble md-content">
-<p>Gerald here. I have full knowledge of the Prism system: Worker at <code>prism-api.identitypartners.workers.dev</code>, Pages at <code>prism.identitypartners.uk</code>, repo at <code>IdentityPartners/prism</code>.</p>
-<p>My conversation history persists across page refreshes. What do you need?</p>
-</div>
-<div class="dt-meta">Programme Manager · ready</div>
-</div>
-</div>
-</div>
-<div class="devteam-input-area">
-<div class="devteam-input-row">
-<textarea class="devteam-textarea" id="devteam-input" placeholder="Message the agent… (Enter to send, Shift+Enter for new line)" rows="3"></textarea>
-<button class="devteam-send-btn" id="devteam-send-btn" onclick="sendDevTeamMessage()" title="Send message">➤</button>
-</div>
-</div>
-</div>
-</div>
 <script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="dt-shell">
+<div class="dt-main">
+  <div class="dt-hdr">
+    <div class="dt-avatar">&#x1F6E0;</div>
+    <div>
+      <h2>Dev Team</h2>
+      <div style="font-size:11px;color:var(--fg-muted);">Autonomous system maintenance. Can push to GitHub, test providers, read/write KV.</div>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button onclick="runDiagnostic()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);font-size:12px;">&#x1F50D; Diagnose</button>
+      <button onclick="clearChat()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);font-size:12px;">Clear</button>
+    </div>
+  </div>
+
+  <div class="dt-body">
+    <div class="dt-chat">
+      <div class="dt-messages" id="dt-messages">
+        <div class="dt-msg system"><div class="dt-bubble">Dev Team online. I can diagnose issues, test providers, push fixes to GitHub, and read/write KV. What needs fixing?</div></div>
+      </div>
+      <div class="dt-input-area">
+        <div class="dt-quick">
+          <button class="dt-quick-btn" onclick="quickMsg('Run full diagnostic')">Full diagnostic</button>
+          <button class="dt-quick-btn" onclick="quickMsg('Test all providers and report which are working')">Test providers</button>
+          <button class="dt-quick-btn" onclick="quickMsg('Check Worker status')">Worker status</button>
+          <button class="dt-quick-btn" onclick="quickMsg('What is in the queue?')">Queue status</button>
+          <button class="dt-quick-btn" onclick="quickMsg('Clean up test threads from KV')">Clean test threads</button>
+        </div>
+        <textarea class="dt-textarea" id="dt-input" placeholder="Describe the issue or task..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendDT();}"></textarea>
+        <button class="dt-send" onclick="sendDT()">Send</button>
+      </div>
+    </div>
+
+    <div class="dt-tools">
+      <div class="tool-card">
+        <h4>&#x26A1; Quick Actions</h4>
+        <button class="tool-btn" onclick="toolAction('test_providers')">&#x25B6; Test all providers</button>
+        <button class="tool-btn" onclick="toolAction('check_worker')">&#x1F50D; Check Worker status</button>
+        <button class="tool-btn" onclick="toolAction('get_queue')">&#x1F4CB; Get MM queue</button>
+        <button class="tool-btn" onclick="toolAction('check_kv')">&#x1F5C4; Check KV health</button>
+        <div class="tool-result" id="result-quick"></div>
+      </div>
+
+      <div class="tool-card">
+        <h4>&#x1F4C1; GitHub</h4>
+        <button class="tool-btn" onclick="showPushFile()">&#x2B06; Push file to GitHub</button>
+        <div id="push-file-form" style="display:none;margin-top:8px;">
+          <input type="text" id="push-path" placeholder="Path e.g. shared/prism.js" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);box-sizing:border-box;margin-bottom:4px;">
+          <textarea id="push-content" placeholder="File content..." style="width:100%;min-height:80px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);resize:vertical;box-sizing:border-box;margin-bottom:4px;"></textarea>
+          <input type="text" id="push-message" placeholder="Commit message" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);box-sizing:border-box;margin-bottom:4px;">
+          <button onclick="executePushFile()" style="padding:5px 12px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">Push</button>
+        </div>
+        <div class="tool-result" id="result-github"></div>
+      </div>
+
+      <div class="tool-card">
+        <h4>&#x1F5C4; KV Store</h4>
+        <div style="display:flex;gap:4px;margin-bottom:4px;">
+          <input type="text" id="kv-key" placeholder="Key" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);">
+          <button onclick="kvGet()" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);">Get</button>
+        </div>
+        <textarea id="kv-value" placeholder="Value (for set)" style="width:100%;min-height:50px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);resize:vertical;box-sizing:border-box;margin-bottom:4px;"></textarea>
+        <button onclick="kvSet()" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);">Set</button>
+        <div class="tool-result" id="result-kv"></div>
+      </div>
+
+      <div class="tool-card">
+        <h4>&#x26A0; Danger Zone</h4>
+        <button class="tool-btn danger" onclick="cleanTestThreads()">&#x1F5D1; Clean test threads</button>
+        <button class="tool-btn danger" onclick="clearMMQueue()">&#x1F5D1; Clear MM queue</button>
+        <div class="tool-result" id="result-danger"></div>
+      </div>
+
+      <div class="tool-card">
+        <h4>&#x1F4CA; System Status</h4>
+        <div id="system-status" style="font-size:11px;color:var(--fg-muted);">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
 <script>
-// Dev Team — standalone agent interface
-// All critical functions are self-contained
-
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
-var currentAgent = 'pm';
-var localHistory = {};
-var agentMeta = {
-  pm:            {name: 'Programme Manager', icon: '📋'},
-  troubleshooter:{name: 'Troubleshooter',    icon: '🔧'},
-  researcher:    {name: 'Research Agent',     icon: '🔬'},
-  creator:       {name: 'Creator Agent',      icon: '🎨'},
-  api_champion:  {name: 'API Champion',       icon: '⚡'},
-};
+var chatHistory = [];
 
-// ── Send message — self-contained ─────────────────────────────────────────────
-function sendDevTeamMessage() {
-  var input = document.getElementById('devteam-input');
-  if (!input) return;
-  var text = input.value.trim();
-  if (!text) return;
-
-  var sendBtn = document.getElementById('devteam-send-btn');
-  if (sendBtn) sendBtn.disabled = true;
-  input.value = '';
-
-  appendDTMessage('user', text, null);
-
-  var typingId = showDTTyping();
-
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/devteam', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    removeDTTyping(typingId);
-    if (sendBtn) sendBtn.disabled = false;
-    try {
-      var result = JSON.parse(xhr.responseText);
-      if (result.content) {
-        appendDTMessage('assistant', result.content, result.provider);
-        // Update local history count
-        if (!localHistory[currentAgent]) localHistory[currentAgent] = 0;
-        localHistory[currentAgent] += 2;
-        updateHistoryBadge();
-      } else {
-        appendDTMessage('assistant', 'Error: ' + (result.error || 'No response'), null);
-      }
-    } catch(e) {
-      appendDTMessage('assistant', 'Failed to parse response: ' + e.message, null);
-    }
-  };
-  xhr.onerror = function() {
-    removeDTTyping(typingId);
-    if (sendBtn) sendBtn.disabled = false;
-    appendDTMessage('assistant', 'Network error. The Worker may be unreachable.', null);
-  };
-  xhr.send(JSON.stringify({agent: currentAgent, message: text}));
-}
-
-// ── DOM helpers ───────────────────────────────────────────────────────────────
-function appendDTMessage(role, content, provider) {
-  var container = document.getElementById('devteam-messages');
-  if (!container) return;
-  var meta = agentMeta[currentAgent] || {name: 'Agent', icon: '🤖'};
-
-  var msg = document.createElement('div');
-  msg.className = 'dt-message ' + role;
-
-  var avatar = document.createElement('div');
-  avatar.className = 'dt-avatar';
-  avatar.textContent = role === 'user' ? '👤' : meta.icon;
-
-  var body = document.createElement('div');
-  body.className = 'dt-body';
-
-  var bubble = document.createElement('div');
-  bubble.className = 'dt-bubble md-content';
-  if (role === 'assistant') {
-    bubble.innerHTML = Markdown.render(content);
-  } else {
-    bubble.textContent = content;
-  }
-
-  var metaEl = document.createElement('div');
-  metaEl.className = 'dt-meta';
-  var timeStr = new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'});
-  metaEl.textContent = (role === 'user' ? 'You' : meta.name) + ' · ' + timeStr;
-  if (provider) metaEl.textContent += ' · via ' + provider;
-
-  body.appendChild(bubble);
-  body.appendChild(metaEl);
-  msg.appendChild(avatar);
-  msg.appendChild(body);
-  container.appendChild(msg);
-  container.scrollTop = container.scrollHeight;
-}
-
-function showDTTyping() {
-  var container = document.getElementById('devteam-messages');
-  if (!container) return null;
-  var meta = agentMeta[currentAgent] || {icon: '🤖'};
-  var id = 'dt-typing-' + Date.now();
-  var msg = document.createElement('div');
-  msg.className = 'dt-message assistant';
-  msg.id = id;
-  var avatar = document.createElement('div');
-  avatar.className = 'dt-avatar';
-  avatar.textContent = meta.icon;
-  var body = document.createElement('div');
-  body.className = 'dt-body';
-  var bubble = document.createElement('div');
-  bubble.className = 'dt-bubble';
-  var indicator = document.createElement('div');
-  indicator.className = 'typing-indicator';
-  for (var i = 0; i < 3; i++) {
-    var dot = document.createElement('div');
-    dot.className = 'typing-dot';
-    indicator.appendChild(dot);
-  }
-  bubble.appendChild(indicator);
-  body.appendChild(bubble);
-  msg.appendChild(avatar);
-  msg.appendChild(body);
-  container.appendChild(msg);
-  container.scrollTop = container.scrollHeight;
-  return id;
-}
-
-function removeDTTyping(id) {
-  if (!id) return;
-  var el = document.getElementById(id);
-  if (el && el.parentNode) el.parentNode.removeChild(el);
-}
-
-// ── Agent selection ───────────────────────────────────────────────────────────
-function selectAgent(agent) {
-  currentAgent = agent;
-  var meta = agentMeta[agent] || {name: 'Agent', icon: '🤖'};
-
-  // Update buttons
-  var btns = document.querySelectorAll('.agent-btn');
-  for (var i = 0; i < btns.length; i++) {
-    btns[i].classList.remove('active');
-  }
-  var activeBtn = document.getElementById('btn-' + agent);
-  if (activeBtn) activeBtn.classList.add('active');
-
-  // Update title
-  var titleEl = document.getElementById('agent-title');
-  if (titleEl) titleEl.textContent = meta.name;
-
-  // Clear messages and show welcome
-  var container = document.getElementById('devteam-messages');
-  if (container) {
-    container.innerHTML = '';
-    appendDTMessage('assistant', 'Switching to ' + meta.name + '. History for this agent is stored in Cloudflare KV and persists across sessions. What do you need?', null);
-  }
-
-  updateHistoryBadge();
-}
-
-function updateHistoryBadge() {
-  var badge = document.getElementById('history-badge');
-  if (!badge) return;
-  var count = localHistory[currentAgent] || 0;
-  badge.textContent = count + ' messages in memory';
-}
-
-// ── Clear history ─────────────────────────────────────────────────────────────
-function clearHistory() {
-  if (!confirm('Clear conversation history for ' + (agentMeta[currentAgent] || {name:'this agent'}).name + '? This cannot be undone.')) return;
-  // Clear from KV via a direct KV delete (we use the devteam endpoint with a special message)
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/devteam', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState === 4) {
-      localHistory[currentAgent] = 0;
-      updateHistoryBadge();
-      var container = document.getElementById('devteam-messages');
-      if (container) {
-        container.innerHTML = '';
-        appendDTMessage('assistant', 'History cleared. Starting fresh.', null);
-      }
-    }
-  };
-  // Send a clear signal — the worker will reset history on next message
-  xhr.send(JSON.stringify({agent: currentAgent, message: '__CLEAR_HISTORY__'}));
-}
-
-// ── Diagnostics ───────────────────────────────────────────────────────────────
-function runDiagnostics() {
-  var panel = document.getElementById('diagnostic-panel');
-  var rows = document.getElementById('diagnostic-rows');
-  if (!panel || !rows) return;
-  panel.classList.remove('hidden');
-  rows.innerHTML = '';
-
-  var checks = [
-    {label: 'Worker health', url: WORKER + '/health'},
-    {label: 'KV namespace', url: WORKER + '/api/kv?prefix='},
-    {label: 'Threads API', url: WORKER + '/api/threads'},
-    {label: 'Memory API', url: WORKER + '/api/memory'},
-  ];
-
-  function addRow(label, status, detail) {
-    var row = document.createElement('div');
-    row.className = 'diag-row';
-    var lbl = document.createElement('span');
-    lbl.textContent = label;
-    var stat = document.createElement('span');
-    stat.className = status === 'ok' ? 'diag-ok' : status === 'warn' ? 'diag-warn' : 'diag-err';
-    stat.textContent = status === 'ok' ? '✓ OK' : status === 'warn' ? '⚠ ' + detail : '✗ ' + detail;
-    row.appendChild(lbl);
-    row.appendChild(stat);
-    rows.appendChild(row);
-  }
-
-  var pending = checks.length;
-  for (var i = 0; i < checks.length; i++) {
-    (function(check) {
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', check.url, true);
-      xhr.timeout = 8000;
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState !== 4) return;
-        if (xhr.status >= 200 && xhr.status < 300) {
-          addRow(check.label, 'ok', '');
-        } else {
-          addRow(check.label, 'error', 'HTTP ' + xhr.status);
-        }
-        pending--;
-        if (pending === 0) {
-          appendDTMessage('assistant', 'Diagnostics complete. See the panel above for results.', null);
-        }
-      };
-      xhr.ontimeout = function() {
-        addRow(check.label, 'error', 'Timeout');
-        pending--;
-      };
-      xhr.onerror = function() {
-        addRow(check.label, 'error', 'Network error');
-        pending--;
-      };
-      xhr.send();
-    })(checks[i]);
-  }
-}
-
-// ── Export ────────────────────────────────────────────────────────────────────
-function exportConversation() {
-  var messages = document.querySelectorAll('.dt-message');
-  var lines = ['# Dev Team Export — ' + (agentMeta[currentAgent] || {name:'Agent'}).name, '## ' + new Date().toLocaleDateString('en-GB'), ''];
-  for (var i = 0; i < messages.length; i++) {
-    var bubble = messages[i].querySelector('.dt-bubble');
-    var meta = messages[i].querySelector('.dt-meta');
-    if (bubble && meta) {
-      lines.push('**' + meta.textContent + '**');
-      lines.push(bubble.textContent.trim());
-      lines.push('');
-    }
-  }
-  var blob = new Blob([lines.join('\n')], {type: 'text/markdown'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'devteam-' + currentAgent + '-' + Date.now() + '.md';
-  a.click();
-}
-
-// ── Keyboard shortcut ─────────────────────────────────────────────────────────
-document.addEventListener('keydown', function(e) {
-  var input = document.getElementById('devteam-input');
-  if (document.activeElement === input) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendDevTeamMessage();
-    }
-  }
-});
-
-// ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
-  if (mount) {
+  if (mount && typeof buildSidebar === 'function') {
     var sb = buildSidebar('/dev-team/');
     mount.parentNode.insertBefore(sb, mount);
     mount.parentNode.removeChild(mount);
   }
-  var input = document.getElementById('devteam-input');
-  if (input) input.focus();
+  loadSystemStatus();
 });
+
+function addMsg(role, text) {
+  var msgs = document.getElementById('dt-messages');
+  var div = document.createElement('div');
+  div.className = 'dt-msg ' + role;
+  var avatar = document.createElement('div');
+  avatar.className = 'dt-avatar';
+  avatar.textContent = role === 'user' ? 'S' : role === 'agent' ? '&#x1F6E0;' : '!';
+  if (role === 'user') avatar.style.background = 'var(--accent)';
+  var bubble = document.createElement('div');
+  bubble.className = 'dt-bubble';
+  bubble.textContent = text;
+  div.appendChild(avatar);
+  div.appendChild(bubble);
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function sendDT() {
+  var input = document.getElementById('dt-input');
+  var text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  addMsg('user', text);
+  chatHistory.push({role:'user',content:text});
+
+  var sysPrompt = 'You are the Dev Team for Argentica. You have access to tools: test_providers, check_worker, push_file, get_kv, set_kv. When you need to use a tool, write TOOL: tool_name({"param":"value"}) on its own line. British English. Never ask Simon to do anything technical. Execute tasks directly.';
+  var messages = [{role:'system',content:sysPrompt}].concat(chatHistory);
+
+  fetch(WORKER + '/api/devteam', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({agent:'dev-team',messages:messages,message:text,profile:'balanced'})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    var response = d.content || 'No response.';
+    chatHistory.push({role:'assistant',content:response});
+    addMsg('agent', response);
+
+    // Check for tool calls in response
+    var toolMatch = response.match(/TOOL:\s*(\w+)\(({[^}]*})\)/);
+    if (toolMatch) {
+      var toolName = toolMatch[1];
+      var toolArgs = {};
+      try { toolArgs = JSON.parse(toolMatch[2]); } catch(e) {}
+      executeTool(toolName, toolArgs);
+    }
+  })
+  .catch(function(e){ addMsg('system', 'Error: ' + e.message); });
+}
+
+function quickMsg(text) {
+  document.getElementById('dt-input').value = text;
+  sendDT();
+}
+
+function clearChat() {
+  chatHistory = [];
+  var msgs = document.getElementById('dt-messages');
+  msgs.innerHTML = '<div class="dt-msg system"><div class="dt-bubble">Chat cleared. Dev Team ready.</div></div>';
+}
+
+function executeTool(name, args) {
+  addMsg('system', 'Executing tool: ' + name + '...');
+  fetch(WORKER + '/api/devteam/execute', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:name, ...args})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    addMsg('agent', 'Tool result: ' + JSON.stringify(d.results || d, null, 2).substring(0, 500));
+  })
+  .catch(function(e){ addMsg('system', 'Tool error: ' + e.message); });
+}
+
+function toolAction(action) {
+  var resultEl = document.getElementById('result-quick');
+  resultEl.style.display = 'block';
+  resultEl.textContent = 'Running ' + action + '...';
+  fetch(WORKER + '/api/devteam/execute', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:action})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    resultEl.textContent = JSON.stringify(d.results || d, null, 2).substring(0, 800);
+  })
+  .catch(function(e){ resultEl.textContent = 'Error: ' + e.message; });
+}
+
+function showPushFile() {
+  var form = document.getElementById('push-file-form');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+function executePushFile() {
+  var path = document.getElementById('push-path').value.trim();
+  var content = document.getElementById('push-content').value;
+  var message = document.getElementById('push-message').value || 'Dev Team fix';
+  if (!path || !content) { alert('Enter path and content.'); return; }
+  var resultEl = document.getElementById('result-github');
+  resultEl.style.display = 'block';
+  resultEl.textContent = 'Pushing...';
+  fetch(WORKER + '/api/devteam/execute', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'push_file', path:path, content:content, message:message})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    resultEl.textContent = d.results && d.results.push ? (d.results.push.success ? 'Pushed: ' + d.results.push.sha : 'Failed: ' + JSON.stringify(d.results.push)) : JSON.stringify(d).substring(0,200);
+  })
+  .catch(function(e){ resultEl.textContent = 'Error: ' + e.message; });
+}
+
+function kvGet() {
+  var key = document.getElementById('kv-key').value.trim();
+  if (!key) return;
+  var resultEl = document.getElementById('result-kv');
+  resultEl.style.display = 'block';
+  resultEl.textContent = 'Getting...';
+  fetch(WORKER + '/api/devteam/execute', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'get_kv', key:key})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){ resultEl.textContent = d.results && d.results.value !== undefined ? (d.results.value || '(empty)') : JSON.stringify(d).substring(0,200); })
+  .catch(function(e){ resultEl.textContent = 'Error: ' + e.message; });
+}
+
+function kvSet() {
+  var key = document.getElementById('kv-key').value.trim();
+  var value = document.getElementById('kv-value').value;
+  if (!key) return;
+  var resultEl = document.getElementById('result-kv');
+  resultEl.style.display = 'block';
+  resultEl.textContent = 'Setting...';
+  fetch(WORKER + '/api/devteam/execute', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'set_kv', key:key, value:value})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){ resultEl.textContent = d.results && d.results.set ? 'Set OK' : JSON.stringify(d).substring(0,200); })
+  .catch(function(e){ resultEl.textContent = 'Error: ' + e.message; });
+}
+
+function cleanTestThreads() {
+  if (!confirm('Delete all test threads from KV?')) return;
+  var resultEl = document.getElementById('result-danger');
+  resultEl.style.display = 'block';
+  resultEl.textContent = 'Cleaning...';
+  fetch(WORKER + '/api/chat/cleanup-test-threads', {method:'POST'})
+  .then(function(r){return r.json();})
+  .then(function(d){ resultEl.textContent = 'Cleaned: ' + JSON.stringify(d).substring(0,200); })
+  .catch(function(e){ resultEl.textContent = 'Error: ' + e.message; });
+}
+
+function clearMMQueue() {
+  if (!confirm('Clear all pending Media Manager queue items?')) return;
+  var resultEl = document.getElementById('result-danger');
+  resultEl.style.display = 'block';
+  resultEl.textContent = 'Clearing...';
+  fetch(WORKER + '/api/mm/queue/clear', {method:'POST'})
+  .then(function(r){return r.json();})
+  .then(function(d){ resultEl.textContent = 'Cleared: ' + JSON.stringify(d).substring(0,200); })
+  .catch(function(e){ resultEl.textContent = 'Error: ' + e.message; });
+}
+
+function runDiagnostic() {
+  addMsg('system', 'Running full diagnostic...');
+  fetch(WORKER + '/api/devteam/execute', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'test_providers'})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    var results = d.results && d.results.providers ? d.results.providers : d;
+    var ok = results.ok || 0;
+    var tested = results.tested || 0;
+    var lines = ['Provider test: ' + ok + '/' + tested + ' OK'];
+    (results.results || []).forEach(function(r) {
+      lines.push((r.status==='ok'?'OK':'FAIL') + ' ' + r.name + ': ' + r.status + (r.ms?' ('+r.ms+'ms)':'')+  (r.error?' - '+r.error:''));
+    });
+    addMsg('agent', lines.join('\n'));
+  })
+  .catch(function(e){ addMsg('system', 'Diagnostic error: ' + e.message); });
+}
+
+function loadSystemStatus() {
+  var el = document.getElementById('system-status');
+  fetch(WORKER + '/')
+  .then(function(r){return r.json();})
+  .then(function(d){
+    el.innerHTML = '<span class="status-dot status-ok"></span>Worker v' + d.version + ' &middot; ' + new Date(d.timestamp).toLocaleTimeString('en-GB');
+  })
+  .catch(function(){
+    el.innerHTML = '<span class="status-dot status-err"></span>Worker unreachable';
+  });
+}
 </script>
 </body>
 </html>
