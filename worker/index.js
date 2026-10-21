@@ -135,7 +135,20 @@ async function callProvider(env, provider, key, model, messages) {
     const resp = await fetch(OAI_PROVIDERS[provider], { method: 'POST', headers, body: JSON.stringify(body) });
     const d = await resp.json();
     if (!resp.ok) throw new Error(`${provider} ${resp.status}: ${JSON.stringify(d).substring(0, 100)}`);
-    const text = d.choices?.[0]?.message?.content;
+    // Handle thinking-mode responses (Mistral Large 4, GLM 5.3) where content is an array
+    const rawContent = d.choices?.[0]?.message?.content;
+    let text = '';
+    if (typeof rawContent === 'string') {
+      text = rawContent;
+    } else if (Array.isArray(rawContent)) {
+      const textParts = rawContent.filter(function(p) { return p.type === 'text'; }).map(function(p) { return p.text || ''; });
+      text = textParts.join('');
+      if (!text) {
+        const thinkParts = rawContent.filter(function(p) { return p.type === 'thinking'; })
+          .flatMap(function(p) { return (p.thinking || []).map(function(t) { return t.text || ''; }); });
+        text = thinkParts.join('').substring(0, 3000);
+      }
+    }
     if (!text) throw new Error(`${provider} empty response`);
     return { content: text, provider, model };
   }
