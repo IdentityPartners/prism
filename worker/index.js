@@ -175,6 +175,8 @@ async function orchestrate(env, messages, profile = 'balanced') {
     perplexity: k(env, ['perplexity', 'perplexity_api_key', 'PERPLEXITY_API_KEY']),
     // Note: Cerebras key is stored as CEREBRAS_FREE_1 in CF secrets
     cerebras:   k(env, ['CEREBRAS_FREE_1', 'cerebras_free_1', 'CEREBRAS_PAID', 'cerebras_paid']),
+    github:     k(env, ['github_token', 'GITHUB_TOKEN']),
+    fal:        k(env, ['fal_api_key', 'FAL_API_KEY']),
   };
 
   // Build chain based on profile
@@ -1056,6 +1058,136 @@ export default {
       } catch (e) { return json({ error: e.message }, 500, origin); }
     }
 
+    // ── Agentic social canvas pipeline ───────────────────────────────────────
+    if (path === '/api/canvas/social' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = body.text || '';
+        const platforms = body.platforms || ['bluesky', 'instagram', 'facebook'];
+        const topic = body.topic || 'identity-partners';
+        const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
+
+        if (!text) return json({error: 'No text provided'}, 400, origin);
+
+        // Step 1: Generate image via Gemini image gen (free, no Playwright needed)
+        let imageDataUrl = null;
+        let imageSource = 'svg';
+
+        if (GKEY) {
+          try {
+            const imgResp = await fetch(
+              'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent',
+              {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'x-goog-api-key': GKEY},
+                body: JSON.stringify({
+                  contents: [{parts: [{text: 'Professional landscape photography for social media background. Serene nature vista, no people, no text, wide format, high quality. Style: ' + (topic || 'peaceful landscape')}]}],
+                  generationConfig: {responseModalities: ['IMAGE', 'TEXT']}
+                })
+              }
+            );
+            if (imgResp.ok) {
+              const imgData = await imgResp.json();
+              const parts = imgData.candidates?.[0]?.content?.parts || [];
+              for (const part of parts) {
+                if (part.inlineData) {
+                  imageDataUrl = 'data:' + part.inlineData.mimeType + ';base64,' + part.inlineData.data;
+                  imageSource = 'gemini';
+                  break;
+                }
+              }
+            }
+          } catch(e) { /* fall through to SVG */ }
+        }
+
+        // Step 2: Build SVG canvas
+        const safeText = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const words = safeText.split(' ');
+        const lines = [];
+        let line = '';
+        words.forEach(function(w) {
+          if ((line + ' ' + w).trim().length > 28 && line) { lines.push(line.trim()); line = w; }
+          else { line = (line + ' ' + w).trim(); }
+        });
+        if (line) lines.push(line.trim());
+        const lineH = 68;
+        const startY = Math.max(220, 540 - (lines.length * lineH) / 2);
+        const attrY = startY + lines.length * lineH + 40;
+        const textEls = lines.map(function(l, i) {
+          return '<text x="540" y="' + (startY + i * lineH) + '" font-family="Georgia,serif" font-size="48" font-style="italic" fill="#f7f3e9" text-anchor="middle" filter="url(#shadow)">' + l + '</text>';
+        }).join('');
+
+        const bgEl = imageDataUrl
+          ? '<image href="' + imageDataUrl + '" x="0" y="0" width="1080" height="1080" preserveAspectRatio="xMidYMid slice"/><rect width="1080" height="1080" fill="rgba(15,59,58,0.55)"/>'
+          : '<rect width="1080" height="1080" fill="#0f3b3a"/>';
+
+        const svg = '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1080" viewBox="0 0 1080 1080"><defs><filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.8)"/></filter></defs>' + bgEl + '<rect x="0" y="0" width="1080" height="10" fill="#ddd0c8" opacity="0.85"/><rect x="0" y="1070" width="1080" height="10" fill="#ddd0c8" opacity="0.85"/><rect x="30" y="30" width="46" height="46" rx="6" fill="#0f3b3a" opacity="0.9"/><rect x="82" y="30" width="46" height="46" rx="6" fill="#5c2d3f" opacity="0.9"/><rect x="30" y="82" width="46" height="46" rx="6" fill="#1a5550" opacity="0.7"/><rect x="82" y="82" width="46" height="46" rx="6" fill="#7a4254" opacity="0.7"/><text x="80" y="210" font-family="Georgia,serif" font-size="110" fill="#f7f3e9" opacity="0.1">&#x201C;</text>' + textEls + '<line x1="380" y1="' + attrY + '" x2="700" y2="' + attrY + '" stroke="#ddd0c8" stroke-width="2" opacity="0.65"/><text x="440" y="' + (attrY+48) + '" font-family="Georgia,serif" font-size="30" font-weight="600" fill="#7ecfcd" text-anchor="middle">Identity</text><text x="640" y="' + (attrY+48) + '" font-family="Georgia,serif" font-size="30" font-weight="600" fill="#d4899a" text-anchor="middle">Partners</text><text x="540" y="' + (attrY+82) + '" font-family="Georgia,serif" font-size="18" font-style="italic" fill="#ddd0c8" text-anchor="middle" opacity="0.85">Understand your past &#xB7; Appreciate the present &#xB7; Define your future</text><text x="540" y="1042" font-family="Arial,sans-serif" font-size="18" fill="#ddd0c8" text-anchor="middle" opacity="0.85">www.identitypartners.uk &#xB7; hello@identitypartners.uk</text></svg>';
+
+        // Step 3: Store in R2
+        const canvasKey = 'social-canvas-' + Date.now() + '.svg';
+        let canvasUrl = null;
+        if (env.PRISM_ASSETS) {
+          await env.PRISM_ASSETS.put(canvasKey, svg, {httpMetadata: {contentType: 'image/svg+xml'}, expirationTtl: 86400 * 30});
+          canvasUrl = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + canvasKey;
+        }
+
+        // Step 4: Queue for Media Manager
+        const queueItems = [];
+        for (var pi = 0; pi < platforms.length; pi++) {
+          var platform = platforms[pi];
+          var qKey = 'mm:queue:' + Date.now() + ':' + platform + ':' + pi;
+          var item = {id: qKey, platform: platform, text: text, imageUrl: canvasUrl, imageSource: imageSource, topic: topic, status: 'pending', source: 'agentic-pipeline', created: new Date().toISOString()};
+          if (env.PRISM_KV) await env.PRISM_KV.put(qKey, JSON.stringify(item));
+          queueItems.push(item);
+        }
+
+        return json({success: true, canvas: {url: canvasUrl, source: imageSource}, queued: queueItems.length, platforms: platforms, message: queueItems.length + ' items queued for Media Manager approval'}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Dev Team tool execution ───────────────────────────────────────────────
+    if (path === '/api/devteam/execute' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const action = body.action || '';
+        const GH_TOKEN = k(env, ['github_token', 'GITHUB_TOKEN']) || '';
+        const CF_TOKEN_VAL = k(env, ['cloudflare_token', 'CLOUDFLARE_TOKEN']) || '';
+        const CF_ACCOUNT_ID = 'd741de91f8cfff2306cc0f850a76ee07';
+        const results = {};
+
+        if (action === 'test_providers') {
+          const testResult = await fetch('https://prism-api.identitypartners.workers.dev/api/champion/test-providers', {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(function(r){return r.json();}).catch(function(e){return {error:e.message};});
+          results.providers = testResult;
+        }
+
+        if (action === 'check_worker') {
+          const workerResp = await fetch('https://api.cloudflare.com/client/v4/accounts/' + CF_ACCOUNT_ID + '/workers/scripts', {headers: {'Authorization': 'Bearer ' + CF_TOKEN_VAL}}).then(function(r){return r.json();}).catch(function(e){return {error:e.message};});
+          results.worker = {scripts: (workerResp.result||[]).map(function(s){return {id:s.id,modified:s.modified_on};})};
+        }
+
+        if (action === 'push_file' && body.path && body.content && GH_TOKEN) {
+          const getResp = await fetch('https://api.github.com/repos/IdentityPartners/prism/contents/' + body.path, {headers: {'Authorization': 'token ' + GH_TOKEN, 'User-Agent': 'Argentica-DevTeam'}}).then(function(r){return r.json();}).catch(function(){return null;});
+          const sha = getResp && getResp.sha ? getResp.sha : undefined;
+          const b64content = btoa(unescape(encodeURIComponent(body.content)));
+          const pushPayload = {message: body.message || 'Dev Team auto-fix', content: b64content, branch: 'main'};
+          if (sha) pushPayload.sha = sha;
+          const pushResp = await fetch('https://api.github.com/repos/IdentityPartners/prism/contents/' + body.path, {method:'PUT',headers:{'Authorization':'token '+GH_TOKEN,'User-Agent':'Argentica-DevTeam','Content-Type':'application/json'},body:JSON.stringify(pushPayload)}).then(function(r){return r.json();}).catch(function(e){return {error:e.message};});
+          results.push = {path: body.path, sha: pushResp && pushResp.content ? pushResp.content.sha.substring(0,8) : null, success: !!(pushResp && pushResp.content && pushResp.content.sha)};
+        }
+
+        if (action === 'get_kv' && body.key) {
+          const val = await env.PRISM_KV?.get(body.key).catch(function(){return null;});
+          results.value = val;
+        }
+
+        if (action === 'set_kv' && body.key && body.value) {
+          await env.PRISM_KV?.put(body.key, body.value).catch(function(){});
+          results.set = true;
+        }
+
+        return json({success: true, action: action, results: results}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
     return json({ error: 'Not found', path }, 404, origin);
   },
 
