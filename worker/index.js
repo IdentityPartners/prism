@@ -219,6 +219,7 @@ async function orchestrate(env, messages, profile = 'balanced') {
     if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemini-3.8-flash',                     note: 'Gemini 3.8 Flash' });
     if (KEYS.deepseek)   chain.push({ p: 'deepseek',   key: KEYS.deepseek,   m: 'deepseek-chat',                        note: 'DeepSeek V4 Flash' });
     if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3-ultra-550b-a55b:free', note: 'Nemotron Ultra 550B' });
+    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3.5-super-vl:free', note: 'Nemotron 3.5 Super VL' });
 
   } else {
     // Balanced (default): full chain in Simon's preferred order
@@ -232,6 +233,8 @@ async function orchestrate(env, messages, profile = 'balanced') {
     if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemini-3.5-flash',                     note: 'Gemini 3.5 Flash' });
     // 5. GLM 5.3 via Mistral — 1M ctx, web search, thinking (slow ~7s, use later in chain)
     if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',                          note: 'GLM 5.3 via Mistral' });
+    // 5b. Nemotron Ultra 550B — frontier reasoning, 1M ctx, free (slow ~15-20s)
+    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3-ultra-550b-a55b:free', note: 'Nemotron Ultra 550B' });
     // 5. DeepSeek V4 Flash — 1M ctx, web search
     if (KEYS.deepseek)   chain.push({ p: 'deepseek',   key: KEYS.deepseek,   m: 'deepseek-chat',                        note: 'DeepSeek V4 Flash' });
     // 6. Cohere Command A+ — 256K ctx, RAG, web search
@@ -313,11 +316,15 @@ async function orchestrate(env, messages, profile = 'balanced') {
   const log = [];
   const t0 = Date.now();
   const FAST_PROVIDERS = ['cerebras', 'groq', 'pollinations'];
+  // Thinking providers get extra time (GLM 5.3 ~7.5s, Nemotron ~15-20s, Magistral ~10s)
+  const THINKING_PROVIDERS = ['zai-glm-5-3', 'magistral-medium-latest', 'nvidia/nemotron-3-ultra-550b-a55b:free', 'nvidia/nemotron-3.5-super-vl:free'];
 
   for (const entry of chain) {
     if (!entry.key && entry.p !== 'pollinations') { log.push(`${entry.note}:no key`); continue; }
     const ta = Date.now();
-    const timeout = FAST_PROVIDERS.includes(entry.p) ? 12000 : 30000;
+    const isThinking = THINKING_PROVIDERS.includes(entry.m);
+    const timeout = FAST_PROVIDERS.includes(entry.p) ? 20000 : isThinking ? 60000 : 45000;
+    // Fast providers: 20s | Thinking models (GLM, Nemotron, Magistral): 60s | Others: 45s
     try {
       const result = await Promise.race([
         callProvider(env, entry.p, entry.key, entry.m, messages),
