@@ -200,14 +200,16 @@ async function orchestrate(env, messages, profile = 'balanced') {
 
   } else {
     // Balanced (default): full chain in Simon's preferred order
-    // 1. GLM 5.3 via Mistral — 1M ctx, web search, thinking
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',                          note: 'GLM 5.3 via Mistral' });
-    // 2. Mistral Large 4 — 1M ctx, vision, web search
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-4',                      note: 'Mistral Large 4' });
-    // 3. Gemma 4 31B via NVIDIA — fastest (269ms), 262K ctx
+    // 1. Gemma 4 31B via NVIDIA — fastest (269ms), 262K ctx — FIRST for speed
     if (KEYS.nvidia)     chain.push({ p: 'nvidia',     key: KEYS.nvidia,     m: 'google/gemma-4-31b-it',                note: 'Gemma 4 NVIDIA' });
-    // 4. Gemini 3.8 Flash — 1M ctx, vision, Google Search grounding
-    if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemini-3.8-flash',                     note: 'Gemini 3.8 Flash' });
+    // 2. Mistral Large 4 — 1M ctx, vision, web search (thinking mode, extract text parts)
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-4',                      note: 'Mistral Large 4' });
+    // 3. Gemma 4 31B via Gemini API — Google Search grounding
+    if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemma-4-31b-it',                       note: 'Gemma 4 Gemini' });
+    // 4. Gemini 3.5 Flash — reliable, 1M ctx, no thinking mode issues
+    if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemini-3.5-flash',                     note: 'Gemini 3.5 Flash' });
+    // 5. GLM 5.3 via Mistral — 1M ctx, web search, thinking (slow ~7s, use later in chain)
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',                          note: 'GLM 5.3 via Mistral' });
     // 5. DeepSeek V4 Flash — 1M ctx, web search
     if (KEYS.deepseek)   chain.push({ p: 'deepseek',   key: KEYS.deepseek,   m: 'deepseek-chat',                        note: 'DeepSeek V4 Flash' });
     // 6. Cohere Command A+ — 256K ctx, RAG, web search
