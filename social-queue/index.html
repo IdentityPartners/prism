@@ -468,6 +468,52 @@
 <!-- Compose -->
 <div class="compose-panel">
 <div class="compose-ttl">Add to queue</div>
+      <div style="margin-bottom:8px;">
+        <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);display:block;margin-bottom:3px;">Canvas Template</label>
+        <select id="canvas-template" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg);color:var(--fg);">
+          <optgroup label="Block Colour">
+            <option value="block-teal">Teal (brand primary)</option>
+            <option value="block-rose">Rose (brand secondary)</option>
+            <option value="block-ivory">Ivory (light)</option>
+            <option value="block-grey">Warm Grey</option>
+            <option value="block-split">Split Teal/Rose</option>
+          </optgroup>
+          <optgroup label="Image Background">
+            <option value="img-sunrise">Sunrise</option>
+            <option value="img-sunset">Sunset</option>
+            <option value="img-landscape" selected>Landscape</option>
+            <option value="img-seascape">Seascape</option>
+            <option value="img-cityscape">Cityscape</option>
+            <option value="img-aurora">Aurora Borealis</option>
+            <option value="img-reef">Great Barrier Reef</option>
+            <option value="img-glacier">Glacier</option>
+            <option value="img-fjord">Norwegian Fjord</option>
+            <option value="img-space">Earth from Space</option>
+            <option value="img-stars">Night Sky / Stars</option>
+            <option value="img-fire">Cosy Fire (hygge)</option>
+            <option value="img-rain">Rain on Window (hygge)</option>
+            <option value="img-fractal">Abstract / Fractal</option>
+          </optgroup>
+          <optgroup label="Dual Panel">
+            <option value="dual-partnership">Partnership (people)</option>
+            <option value="dual-primates">Primates</option>
+            <option value="dual-catdog">Cat &amp; Dog</option>
+            <option value="dual-children">Children Playing</option>
+            <option value="dual-cosplay">Children as Professionals</option>
+          </optgroup>
+          <optgroup label="Post Type">
+            <option value="post-calendar">Calendar / Event</option>
+            <option value="post-research">Research / Microscope</option>
+            <option value="post-library">Library / Reading</option>
+            <option value="post-news">News / Newspaper</option>
+          </optgroup>
+          <optgroup label="Testimonial">
+            <option value="testimonial-teal">Testimonial (Teal)</option>
+            <option value="testimonial-rose">Testimonial (Rose)</option>
+            <option value="testimonial-ivory">Testimonial (Ivory)</option>
+          </optgroup>
+        </select>
+      </div>
 <textarea class="compose-ta" id="compose-text" placeholder="Write a post or paste content to queue for Media Manager review..."></textarea>
 <div class="plt-row" id="plt-row">
   <!-- Direct API -->
@@ -867,6 +913,37 @@ document.addEventListener('DOMContentLoaded', function() {
     this.style.height = Math.min(this.scrollHeight, 100) + 'px';
   });
 });
+
+function previewCanvas() {
+  var text = document.getElementById('compose-text').value.trim();
+  var template = document.getElementById('canvas-template') ? document.getElementById('canvas-template').value : 'img-landscape';
+  if (!text) { Toast.warning('Write some text first.'); return; }
+  Toast.info('Generating preview...');
+  fetch(WORKER + '/api/canvas/social', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text: text, template: template, platforms: [], preview: true})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.canvas && d.canvas.url) {
+      var modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      modal.onclick = function() { modal.remove(); };
+      var img = document.createElement('img');
+      img.src = d.canvas.url;
+      img.style.cssText = 'max-width:90vmin;max-height:90vmin;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.4);';
+      var info = document.createElement('div');
+      info.style.cssText = 'position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;';
+      info.textContent = 'Source: ' + d.canvas.source + ' | Template: ' + template + ' | Click anywhere to close';
+      modal.appendChild(img);
+      modal.appendChild(info);
+      document.body.appendChild(modal);
+    } else {
+      Toast.warning('Preview failed: ' + (d.error || 'unknown error'));
+    }
+  })
+  .catch(function(e) { Toast.warning('Preview error: ' + e.message); });
+}
 </script>
 </body>
 </html>
