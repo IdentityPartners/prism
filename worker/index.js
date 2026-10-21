@@ -165,43 +165,59 @@ async function callProvider(env, provider, key, model, messages) {
 async function orchestrate(env, messages, profile = 'balanced') {
   const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
   const KEYS = {
-    mistral: k(env, ['mistral_api_key', 'MISTRAL_API_KEY']),
-    deepseek: k(env, ['deepseek_paid', 'DEEPSEEK_PAID', 'deepseek_free_1', 'DEEPSEEK_FREE_1']),
-    cerebras: k(env, ['cerebras_paid', 'CEREBRAS_PAID', 'cerebras_free_1', 'CEREBRAS_FREE_1']),
-    groq: k(env, ['groq_free_1', 'GROQ_FREE_1']),
-    xai: k(env, ['xai_api_key', 'XAI_API_KEY']),
-    cohere: k(env, ['cohere_api_key', 'COHERE_API_KEY']),
-    nvidia: k(env, ['nvidia_build_api_key', 'NVIDIA_BUILD_API_KEY']),
+    mistral:    k(env, ['mistral_api_key', 'MISTRAL_API_KEY']),
+    deepseek:   k(env, ['deepseek_paid', 'DEEPSEEK_PAID', 'deepseek_free_1', 'DEEPSEEK_FREE_1']),
+    groq:       k(env, ['groq_free_1', 'GROQ_FREE_1', 'GROQ_FREE_2', 'groq_free_2']),
+    xai:        k(env, ['xai_api_key', 'XAI_API_KEY']),
+    cohere:     k(env, ['cohere_api_key', 'COHERE_API_KEY']),
+    nvidia:     k(env, ['nvidia_build_api_key', 'NVIDIA_BUILD_API_KEY']),
     openrouter: k(env, ['openrouter_api_key', 'OPENROUTER_API_KEY']),
     perplexity: k(env, ['perplexity', 'perplexity_api_key', 'PERPLEXITY_API_KEY']),
+    // Note: Cerebras key is stored as CEREBRAS_FREE_1 in CF secrets
+    cerebras:   k(env, ['CEREBRAS_FREE_1', 'cerebras_free_1', 'CEREBRAS_PAID', 'cerebras_paid']),
   };
 
   // Build chain based on profile
+  // Simon's preferred order: GLM 5.3, Mistral Large 4, Gemma 4 (NVIDIA), Gemini 3.8, DeepSeek, Cohere A+, GPT-OSS, Nemotron, MiniMax, Pollinations
   const chain = [];
 
   if (profile === 'fast') {
-    // Fast: Cerebras → Groq → Gemma via NVIDIA → Pollinations
-    if (KEYS.cerebras) chain.push({ p: 'cerebras', key: KEYS.cerebras, m: 'gpt-oss-120b', note: 'GPT-OSS Cerebras' });
-    if (KEYS.groq) chain.push({ p: 'groq', key: KEYS.groq, m: 'meta-llama/llama-4-scout-17b-16e-instruct', note: 'Llama 4 Scout' });
-    if (KEYS.nvidia && GKEY) chain.push({ p: 'nvidia', key: KEYS.nvidia, m: 'google/gemma-4-31b-it', note: 'Gemma 4 NVIDIA' });
-  } else if (profile === 'frontier') {
-    // Frontier: best models only
-    if (KEYS.mistral) chain.push({ p: 'mistral', key: KEYS.mistral, m: 'mistral-large-4', note: 'Mistral Large 4' });
-    if (GKEY) chain.push({ p: 'gemini', key: GKEY, m: 'gemma-4-31b-it', note: 'Gemma 4 31B' });
-    if (KEYS.deepseek) chain.push({ p: 'deepseek', key: KEYS.deepseek, m: 'deepseek-chat', note: 'DeepSeek V4' });
-  } else {
-    // Balanced (default): full chain
-    if (KEYS.mistral) chain.push({ p: 'mistral', key: KEYS.mistral, m: 'zai-glm-5-3', note: 'GLM 5.3 via Mistral' });
-    if (KEYS.mistral) chain.push({ p: 'mistral', key: KEYS.mistral, m: 'mistral-large-4', note: 'Mistral Large 4' });
+    // Fast: GPT-OSS Groq → Gemma NVIDIA → Qwen Groq → Pollinations
+    if (KEYS.groq)   chain.push({ p: 'groq',   key: KEYS.groq,   m: 'openai/gpt-oss-120b',  note: 'GPT-OSS 120B Groq' });
     if (KEYS.nvidia) chain.push({ p: 'nvidia', key: KEYS.nvidia, m: 'google/gemma-4-31b-it', note: 'Gemma 4 NVIDIA' });
-    if (GKEY) chain.push({ p: 'gemini', key: GKEY, m: 'gemma-4-31b-it', note: 'Gemma 4 Gemini' });
-    if (KEYS.deepseek) chain.push({ p: 'deepseek', key: KEYS.deepseek, m: 'deepseek-chat', note: 'DeepSeek V4' });
-    if (KEYS.xai) chain.push({ p: 'xai', key: KEYS.xai, m: 'grok-3-mini', note: 'Grok 3 Mini' });
-    if (KEYS.cohere) chain.push({ p: 'cohere', key: KEYS.cohere, m: 'command-r-plus-08-2024', note: 'Cohere R+' });
-    if (KEYS.cerebras) chain.push({ p: 'cerebras', key: KEYS.cerebras, m: 'gpt-oss-120b', note: 'GPT-OSS Cerebras' });
-    if (KEYS.groq) chain.push({ p: 'groq', key: KEYS.groq, m: 'meta-llama/llama-4-scout-17b-16e-instruct', note: 'Llama 4 Scout' });
-    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'minimax/minimax-m3.1-flash:free', note: 'MiniMax M3.1 Free' });
+    if (KEYS.groq)   chain.push({ p: 'groq',   key: KEYS.groq,   m: 'qwen/qwen3.8-27b',     note: 'Qwen 3.8 Groq' });
+    if (KEYS.cerebras) chain.push({ p: 'cerebras', key: KEYS.cerebras, m: 'gpt-oss-120b',   note: 'GPT-OSS Cerebras' });
+
+  } else if (profile === 'frontier') {
+    // Frontier: GLM 5.3 → Mistral Large 4 → Gemini 3.8 → DeepSeek → Nemotron Ultra
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',                          note: 'GLM 5.3 via Mistral' });
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-4',                      note: 'Mistral Large 4' });
+    if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemini-3.8-flash',                     note: 'Gemini 3.8 Flash' });
+    if (KEYS.deepseek)   chain.push({ p: 'deepseek',   key: KEYS.deepseek,   m: 'deepseek-chat',                        note: 'DeepSeek V4 Flash' });
+    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3-ultra-550b-a55b:free', note: 'Nemotron Ultra 550B' });
+
+  } else {
+    // Balanced (default): full chain in Simon's preferred order
+    // 1. GLM 5.3 via Mistral — 1M ctx, web search, thinking
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',                          note: 'GLM 5.3 via Mistral' });
+    // 2. Mistral Large 4 — 1M ctx, vision, web search
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-4',                      note: 'Mistral Large 4' });
+    // 3. Gemma 4 31B via NVIDIA — fastest (269ms), 262K ctx
+    if (KEYS.nvidia)     chain.push({ p: 'nvidia',     key: KEYS.nvidia,     m: 'google/gemma-4-31b-it',                note: 'Gemma 4 NVIDIA' });
+    // 4. Gemini 3.8 Flash — 1M ctx, vision, Google Search grounding
+    if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemini-3.8-flash',                     note: 'Gemini 3.8 Flash' });
+    // 5. DeepSeek V4 Flash — 1M ctx, web search
+    if (KEYS.deepseek)   chain.push({ p: 'deepseek',   key: KEYS.deepseek,   m: 'deepseek-chat',                        note: 'DeepSeek V4 Flash' });
+    // 6. Cohere Command A+ — 256K ctx, RAG, web search
+    if (KEYS.cohere)     chain.push({ p: 'cohere',     key: KEYS.cohere,     m: 'command-a-plus-05-2026',               note: 'Cohere Command A+' });
+    // 7. GPT-OSS 120B via Groq — fast, 131K ctx
+    if (KEYS.groq)       chain.push({ p: 'groq',       key: KEYS.groq,       m: 'openai/gpt-oss-120b',                  note: 'GPT-OSS 120B Groq' });
+    // 8. Nemotron Ultra 550B — frontier-grade, 1M ctx, free
+    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3-ultra-550b-a55b:free', note: 'Nemotron Ultra 550B' });
+    // 9. MiniMax M3.1 Flash — 1M ctx, free
+    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'minimax/minimax-m3.1-flash:free',      note: 'MiniMax M3.1 Free' });
   }
+  // Unconditional fallback — always responds
   chain.push({ p: 'pollinations', key: null, m: 'openai', note: 'Pollinations' });
 
   // RAG context injection
