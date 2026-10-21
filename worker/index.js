@@ -80,19 +80,28 @@ async function callProvider(env, provider, key, model, messages) {
       .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content || '' }] }));
     const body = {
       contents,
-      generationConfig: { maxOutputTokens: 8192, temperature: 0.7 },
+      generationConfig: { maxOutputTokens: 32768, temperature: 0.7 },
     };
     if (sysMsg) body.systemInstruction = { parts: [{ text: sysMsg.content }] };
-    if (model && model.includes('gemma-4')) body.tools = [{ googleSearch: {} }];
+    // Google Search grounding for Gemini models (not Gemma)
+    if (model && (model.includes('gemini-') || model.includes('gemma-4'))) {
+      body.tools = [{ googleSearch: {} }];
+    }
     const resp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key || GKEY }, body: JSON.stringify(body) }
     );
     const d = await resp.json();
     if (!resp.ok) throw new Error(`Gemini ${resp.status}: ${JSON.stringify(d).substring(0, 100)}`);
-    const parts = d.candidates?.[0]?.content?.parts || [];
-    const text = parts.filter(p => p.text).map(p => p.text).join('');
-    if (!text) throw new Error('Gemini empty response');
+    const candidate = d.candidates?.[0];
+    if (!candidate) throw new Error('Gemini no candidates');
+    // Handle thinking models that return empty content (all tokens used for thinking)
+    const parts = candidate.content?.parts || [];
+    const text = parts.filter(function(p) { return p.text; }).map(function(p) { return p.text; }).join('');
+    if (!text) {
+      if (candidate.finishReason === 'MAX_TOKENS') throw new Error('Gemini MAX_TOKENS - thinking used all budget');
+      throw new Error('Gemini empty response (finishReason: ' + (candidate.finishReason || 'unknown') + ')');
+    }
     return { content: text, provider: 'gemini', model };
   }
 
