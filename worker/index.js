@@ -318,6 +318,269 @@ async function orchestrate(env, messages, profile = 'balanced') {
 }
 
 // ── MAIN FETCH HANDLER ────────────────────────────────────────────────────────
+async function generateCanvasHtml(text, templateId, env) {
+  // Full canvas template system per Simon's brief
+  // Templates: block-colour, image-bg, dual-panel, post-type, testimonial
+
+  const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
+  const PEXELS_KEY = k(env, ['pexels', 'PEXELS_API_KEY']) || '';
+
+  // Brand colours
+  const TEAL = '#0f3b3a';
+  const ROSE = '#5c2d3f';
+  const IVORY = '#f7f3e9';
+  const GREY = '#ddd0c8';
+  const TEAL2 = '#1a5550';
+  const ROSE2 = '#7a4254';
+  const TEAL_LIGHT = '#7ecfcd';
+  const ROSE_LIGHT = '#d4899a';
+
+  // Template definitions
+  const TEMPLATES = {
+    // ── 1. Block colour backgrounds ──────────────────────────────────────────
+    'block-teal':   { type: 'block', bg: TEAL,  fg: IVORY, accent: GREY,       border: ROSE },
+    'block-rose':   { type: 'block', bg: ROSE,  fg: IVORY, accent: GREY,       border: TEAL },
+    'block-ivory':  { type: 'block', bg: IVORY, fg: TEAL,  accent: ROSE,       border: TEAL },
+    'block-grey':   { type: 'block', bg: GREY,  fg: TEAL,  accent: ROSE,       border: TEAL },
+    'block-teal2':  { type: 'block', bg: TEAL2, fg: IVORY, accent: GREY,       border: ROSE2 },
+    'block-rose2':  { type: 'block', bg: ROSE2, fg: IVORY, accent: GREY,       border: TEAL2 },
+    'block-split':  { type: 'block-split', bg1: TEAL, bg2: ROSE, fg: IVORY },
+
+    // ── 2. Image backgrounds ─────────────────────────────────────────────────
+    'img-sunrise':    { type: 'image', query: 'sunrise golden hour sky dramatic', overlay: 'rgba(15,59,58,0.55)' },
+    'img-sunset':     { type: 'image', query: 'sunset orange sky clouds beautiful', overlay: 'rgba(92,45,63,0.55)' },
+    'img-landscape':  { type: 'image', query: 'landscape mountains valley nature serene', overlay: 'rgba(15,59,58,0.5)' },
+    'img-seascape':   { type: 'image', query: 'ocean waves seascape coastal dramatic', overlay: 'rgba(15,59,58,0.5)' },
+    'img-cityscape':  { type: 'image', query: 'city skyline night lights urban', overlay: 'rgba(15,59,58,0.65)' },
+    'img-aurora':     { type: 'image', query: 'aurora borealis northern lights night sky', overlay: 'rgba(15,59,58,0.45)' },
+    'img-reef':       { type: 'image', query: 'great barrier reef coral underwater colourful', overlay: 'rgba(15,59,58,0.5)' },
+    'img-glacier':    { type: 'image', query: 'glacier ice blue arctic landscape', overlay: 'rgba(15,59,58,0.5)' },
+    'img-fjord':      { type: 'image', query: 'norwegian fjord dramatic landscape water', overlay: 'rgba(15,59,58,0.5)' },
+    'img-space':      { type: 'image', query: 'earth from space stars cosmos', overlay: 'rgba(0,0,0,0.4)' },
+    'img-stars':      { type: 'image', query: 'night sky stars milky way constellation', overlay: 'rgba(0,0,0,0.45)' },
+    'img-fire':       { type: 'image', query: 'cosy fireplace warm fire hygge', overlay: 'rgba(15,59,58,0.5)' },
+    'img-rain':       { type: 'image', query: 'rain window drops cosy indoor', overlay: 'rgba(15,59,58,0.55)' },
+    'img-fractal':    { type: 'image', query: 'abstract fractal pattern geometric colourful', overlay: 'rgba(15,59,58,0.55)' },
+
+    // ── 3. Dual panel ────────────────────────────────────────────────────────
+    'dual-partnership': { type: 'dual', query: 'two people partnership collaboration handshake', side: 'right' },
+    'dual-primates':    { type: 'dual', query: 'primates monkeys together family bond', side: 'right' },
+    'dual-catdog':      { type: 'dual', query: 'cat and dog together friends cute', side: 'right' },
+    'dual-children':    { type: 'dual', query: 'children playing happy joyful childhood', side: 'right' },
+    'dual-cosplay':     { type: 'dual', query: 'children dressed as professionals cute', side: 'right' },
+
+    // ── 4. Post-type imagery ─────────────────────────────────────────────────
+    'post-calendar':    { type: 'post-type', icon: 'calendar', bg: TEAL, fg: IVORY },
+    'post-research':    { type: 'post-type', icon: 'microscope', bg: TEAL2, fg: IVORY },
+    'post-library':     { type: 'post-type', icon: 'library', bg: ROSE, fg: IVORY },
+    'post-news':        { type: 'post-type', icon: 'newspaper', bg: '#1a1a2e', fg: IVORY },
+    'post-hero':        { type: 'image', query: 'hero journey path forward light', overlay: 'rgba(15,59,58,0.6)' },
+
+    // ── 5. Testimonial / feedback ────────────────────────────────────────────
+    'testimonial-teal': { type: 'testimonial', bg: TEAL, fg: IVORY, accent: TEAL_LIGHT },
+    'testimonial-rose': { type: 'testimonial', bg: ROSE, fg: IVORY, accent: ROSE_LIGHT },
+    'testimonial-ivory':{ type: 'testimonial', bg: IVORY, fg: TEAL, accent: ROSE },
+  };
+
+  const tmpl = TEMPLATES[templateId] || TEMPLATES['block-teal'];
+  const safeText = (text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // Word wrap helper
+  function wrapText(t, maxChars) {
+    const words = t.split(' ');
+    const lines = [];
+    let line = '';
+    words.forEach(w => {
+      if ((line + ' ' + w).trim().length > maxChars && line) { lines.push(line.trim()); line = w; }
+      else { line = (line + ' ' + w).trim(); }
+    });
+    if (line) lines.push(line.trim());
+    return lines;
+  }
+
+  // IP branding elements (always present)
+  function ipGrid(x, y) {
+    return '<rect x="' + x + '" y="' + y + '" width="46" height="46" rx="6" fill="' + TEAL + '" opacity="0.9"/>' +
+           '<rect x="' + (x+52) + '" y="' + y + '" width="46" height="46" rx="6" fill="' + ROSE + '" opacity="0.9"/>' +
+           '<rect x="' + x + '" y="' + (y+52) + '" width="46" height="46" rx="6" fill="' + TEAL2 + '" opacity="0.7"/>' +
+           '<rect x="' + (x+52) + '" y="' + (y+52) + '" width="46" height="46" rx="6" fill="' + ROSE2 + '" opacity="0.7"/>';
+  }
+
+  function ipWordmark(cx, y, fg) {
+    return '<text x="' + (cx-100) + '" y="' + y + '" font-family="Georgia,serif" font-size="30" font-weight="600" fill="' + TEAL_LIGHT + '" text-anchor="middle">Identity</text>' +
+           '<text x="' + (cx+100) + '" y="' + y + '" font-family="Georgia,serif" font-size="30" font-weight="600" fill="' + ROSE_LIGHT + '" text-anchor="middle">Partners</text>';
+  }
+
+  function ipTagline(cx, y) {
+    return '<text x="' + cx + '" y="' + y + '" font-family="Georgia,serif" font-size="16" font-style="italic" fill="' + GREY + '" text-anchor="middle" opacity="0.85">Understand your past &middot; Appreciate the present &middot; Define your future</text>';
+  }
+
+  function ipFooter(cx, y) {
+    return '<text x="' + cx + '" y="' + y + '" font-family="Arial,sans-serif" font-size="16" fill="' + GREY + '" text-anchor="middle" opacity="0.8">www.identitypartners.uk &middot; hello@identitypartners.uk</text>';
+  }
+
+  function quoteText(lines, startY, lineH, fg, shadow) {
+    const filter = shadow ? ' filter="url(#shadow)"' : '';
+    return lines.map((l, i) =>
+      '<text x="540" y="' + (startY + i * lineH) + '" font-family="Georgia,serif" font-size="48" font-style="italic" fill="' + fg + '" text-anchor="middle"' + filter + '>' + l + '</text>'
+    ).join('');
+  }
+
+  // Fetch image from Pexels
+  async function fetchPexelsImage(query) {
+    if (!PEXELS_KEY) return null;
+    try {
+      const resp = await fetch(
+        'https://api.pexels.com/v1/search?query=' + encodeURIComponent(query) + '&per_page=15&orientation=landscape',
+        { headers: { 'Authorization': PEXELS_KEY } }
+      );
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const photos = (data.photos || []).filter(p => !['yoga','wellness','boardroom','office','corporate','meeting'].some(bad => (p.alt||'').toLowerCase().includes(bad)));
+      if (!photos.length) return null;
+      const photo = photos[Math.floor(Math.random() * Math.min(photos.length, 5))];
+      const imgUrl = photo.src?.landscape || photo.src?.large2x || photo.src?.large;
+      if (!imgUrl) return null;
+      // Fetch and base64 encode
+      const imgResp = await fetch(imgUrl);
+      if (!imgResp.ok) return null;
+      const buf = await imgResp.arrayBuffer();
+      const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+      const mime = imgResp.headers.get('content-type') || 'image/jpeg';
+      return 'data:' + mime + ';base64,' + b64;
+    } catch(e) { return null; }
+  }
+
+  // ── Build SVG based on template type ─────────────────────────────────────
+  let svg = '';
+  const W = 1080, H = 1080;
+  const svgOpen = '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '"><defs><filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="rgba(0,0,0,0.9)"/></filter></defs>';
+
+  if (tmpl.type === 'block') {
+    const lines = wrapText(safeText, 28);
+    const lineH = 68;
+    const startY = Math.max(220, 540 - (lines.length * lineH) / 2);
+    const attrY = startY + lines.length * lineH + 40;
+    svg = svgOpen +
+      '<rect width="' + W + '" height="' + H + '" fill="' + tmpl.bg + '"/>' +
+      '<rect x="0" y="0" width="' + W + '" height="12" fill="' + tmpl.border + '" opacity="0.9"/>' +
+      '<rect x="0" y="' + (H-12) + '" width="' + W + '" height="12" fill="' + tmpl.border + '" opacity="0.9"/>' +
+      ipGrid(30, 30) +
+      '<text x="80" y="210" font-family="Georgia,serif" font-size="110" fill="' + tmpl.fg + '" opacity="0.08">&#x201C;</text>' +
+      quoteText(lines, startY, lineH, tmpl.fg, false) +
+      '<line x1="380" y1="' + attrY + '" x2="700" y2="' + attrY + '" stroke="' + tmpl.accent + '" stroke-width="2" opacity="0.6"/>' +
+      ipWordmark(540, attrY + 48, tmpl.fg) +
+      ipTagline(540, attrY + 82) +
+      ipFooter(540, H - 28) +
+      '</svg>';
+
+  } else if (tmpl.type === 'block-split') {
+    const lines = wrapText(safeText, 26);
+    const lineH = 64;
+    const startY = Math.max(200, 540 - (lines.length * lineH) / 2);
+    const attrY = startY + lines.length * lineH + 40;
+    svg = svgOpen +
+      '<rect width="' + W + '" height="' + H + '" fill="' + tmpl.bg1 + '"/>' +
+      '<rect x="540" y="0" width="540" height="' + H + '" fill="' + tmpl.bg2 + '"/>' +
+      '<line x1="540" y1="0" x2="540" y2="' + H + '" stroke="' + GREY + '" stroke-width="2" opacity="0.4"/>' +
+      ipGrid(30, 30) +
+      quoteText(lines, startY, lineH, tmpl.fg, false) +
+      ipWordmark(540, attrY + 48, tmpl.fg) +
+      ipTagline(540, attrY + 82) +
+      ipFooter(540, H - 28) +
+      '</svg>';
+
+  } else if (tmpl.type === 'image') {
+    const imgData = await fetchPexelsImage(tmpl.query);
+    const lines = wrapText(safeText, 28);
+    const lineH = 68;
+    const startY = Math.max(220, 540 - (lines.length * lineH) / 2);
+    const attrY = startY + lines.length * lineH + 40;
+    const bgEl = imgData
+      ? '<image href="' + imgData + '" x="0" y="0" width="' + W + '" height="' + H + '" preserveAspectRatio="xMidYMid slice"/><rect width="' + W + '" height="' + H + '" fill="' + tmpl.overlay + '"/>'
+      : '<rect width="' + W + '" height="' + H + '" fill="' + TEAL + '"/>';
+    svg = svgOpen + bgEl +
+      '<rect x="0" y="0" width="' + W + '" height="12" fill="' + GREY + '" opacity="0.8"/>' +
+      '<rect x="0" y="' + (H-12) + '" width="' + W + '" height="12" fill="' + GREY + '" opacity="0.8"/>' +
+      ipGrid(30, 30) +
+      '<text x="80" y="210" font-family="Georgia,serif" font-size="110" fill="' + IVORY + '" opacity="0.08">&#x201C;</text>' +
+      quoteText(lines, startY, lineH, IVORY, true) +
+      '<line x1="380" y1="' + attrY + '" x2="700" y2="' + attrY + '" stroke="' + GREY + '" stroke-width="2" opacity="0.65"/>' +
+      ipWordmark(540, attrY + 48, IVORY) +
+      ipTagline(540, attrY + 82) +
+      ipFooter(540, H - 28) +
+      '</svg>';
+
+  } else if (tmpl.type === 'dual') {
+    const imgData = await fetchPexelsImage(tmpl.query);
+    const lines = wrapText(safeText, 22);
+    const lineH = 60;
+    const startY = Math.max(180, 540 - (lines.length * lineH) / 2);
+    const attrY = startY + lines.length * lineH + 30;
+    const textX = 270; // centre of left panel
+    const imgX = 540;  // right panel starts
+    const imgEl = imgData
+      ? '<image href="' + imgData + '" x="' + imgX + '" y="0" width="540" height="' + H + '" preserveAspectRatio="xMidYMid slice"/><rect x="' + imgX + '" y="0" width="540" height="' + H + '" fill="rgba(15,59,58,0.2)"/>'
+      : '<rect x="' + imgX + '" y="0" width="540" height="' + H + '" fill="' + ROSE + '"/>';
+    svg = svgOpen +
+      '<rect width="540" height="' + H + '" fill="' + TEAL + '"/>' +
+      imgEl +
+      '<line x1="540" y1="0" x2="540" y2="' + H + '" stroke="' + GREY + '" stroke-width="3" opacity="0.6"/>' +
+      ipGrid(30, 30) +
+      lines.map((l, i) => '<text x="' + textX + '" y="' + (startY + i * lineH) + '" font-family="Georgia,serif" font-size="42" font-style="italic" fill="' + IVORY + '" text-anchor="middle">' + l + '</text>').join('') +
+      '<line x1="80" y1="' + attrY + '" x2="460" y2="' + attrY + '" stroke="' + GREY + '" stroke-width="2" opacity="0.6"/>' +
+      '<text x="180" y="' + (attrY+40) + '" font-family="Georgia,serif" font-size="26" font-weight="600" fill="' + TEAL_LIGHT + '" text-anchor="middle">Identity</text>' +
+      '<text x="360" y="' + (attrY+40) + '" font-family="Georgia,serif" font-size="26" font-weight="600" fill="' + ROSE_LIGHT + '" text-anchor="middle">Partners</text>' +
+      '<text x="270" y="' + (attrY+70) + '" font-family="Georgia,serif" font-size="14" font-style="italic" fill="' + GREY + '" text-anchor="middle" opacity="0.85">Understand your past &middot; Appreciate the present &middot; Define your future</text>' +
+      '<text x="270" y="' + (H-28) + '" font-family="Arial,sans-serif" font-size="14" fill="' + GREY + '" text-anchor="middle" opacity="0.8">www.identitypartners.uk</text>' +
+      '</svg>';
+
+  } else if (tmpl.type === 'post-type') {
+    // Post-type: large icon/graphic + text
+    const lines = wrapText(safeText, 30);
+    const lineH = 60;
+    const startY = 580;
+    const icons = {
+      calendar: '<rect x="390" y="180" width="300" height="280" rx="20" fill="' + IVORY + '" opacity="0.15"/><text x="540" y="360" font-family="Arial,sans-serif" font-size="120" fill="' + IVORY + '" text-anchor="middle" opacity="0.6">&#x1F4C5;</text>',
+      microscope: '<text x="540" y="360" font-family="Arial,sans-serif" font-size="120" fill="' + IVORY + '" text-anchor="middle" opacity="0.6">&#x1F52C;</text>',
+      library: '<text x="540" y="360" font-family="Arial,sans-serif" font-size="120" fill="' + IVORY + '" text-anchor="middle" opacity="0.6">&#x1F4DA;</text>',
+      newspaper: '<text x="540" y="360" font-family="Arial,sans-serif" font-size="120" fill="' + IVORY + '" text-anchor="middle" opacity="0.6">&#x1F4F0;</text>',
+    };
+    svg = svgOpen +
+      '<rect width="' + W + '" height="' + H + '" fill="' + tmpl.bg + '"/>' +
+      '<rect x="0" y="0" width="' + W + '" height="12" fill="' + GREY + '" opacity="0.8"/>' +
+      '<rect x="0" y="' + (H-12) + '" width="' + W + '" height="12" fill="' + GREY + '" opacity="0.8"/>' +
+      ipGrid(30, 30) +
+      (icons[tmpl.icon] || '') +
+      lines.map((l, i) => '<text x="540" y="' + (startY + i * lineH) + '" font-family="Georgia,serif" font-size="44" font-style="italic" fill="' + tmpl.fg + '" text-anchor="middle">' + l + '</text>').join('') +
+      ipWordmark(540, startY + lines.length * lineH + 50, tmpl.fg) +
+      ipFooter(540, H - 28) +
+      '</svg>';
+
+  } else if (tmpl.type === 'testimonial') {
+    // Testimonial: large quote marks, attribution line
+    const lines = wrapText(safeText, 30);
+    const lineH = 62;
+    const startY = Math.max(240, 520 - (lines.length * lineH) / 2);
+    const attrY = startY + lines.length * lineH + 50;
+    svg = svgOpen +
+      '<rect width="' + W + '" height="' + H + '" fill="' + tmpl.bg + '"/>' +
+      '<rect x="0" y="0" width="' + W + '" height="12" fill="' + tmpl.accent + '" opacity="0.9"/>' +
+      '<rect x="0" y="' + (H-12) + '" width="' + W + '" height="12" fill="' + tmpl.accent + '" opacity="0.9"/>' +
+      ipGrid(30, 30) +
+      '<text x="100" y="260" font-family="Georgia,serif" font-size="180" fill="' + tmpl.accent + '" opacity="0.15">&#x201C;</text>' +
+      '<text x="980" y="' + (H-80) + '" font-family="Georgia,serif" font-size="180" fill="' + tmpl.accent + '" opacity="0.15">&#x201D;</text>' +
+      lines.map((l, i) => '<text x="540" y="' + (startY + i * lineH) + '" font-family="Georgia,serif" font-size="46" font-style="italic" fill="' + tmpl.fg + '" text-anchor="middle">' + l + '</text>').join('') +
+      '<line x1="340" y1="' + attrY + '" x2="740" y2="' + attrY + '" stroke="' + tmpl.accent + '" stroke-width="3" opacity="0.7"/>' +
+      '<text x="540" y="' + (attrY+44) + '" font-family="Georgia,serif" font-size="22" fill="' + tmpl.accent + '" text-anchor="middle" opacity="0.9">&#x2014; Identity Partners Client</text>' +
+      ipWordmark(540, attrY + 90, tmpl.fg) +
+      ipFooter(540, H - 28) +
+      '</svg>';
+  }
+
+  return svg || '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080"><rect width="1080" height="1080" fill="' + TEAL + '"/><text x="540" y="540" fill="white" text-anchor="middle" font-size="40">Canvas Error</text></svg>';
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
