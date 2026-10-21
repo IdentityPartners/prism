@@ -4,564 +4,581 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Drafting — Argentica</title>
+<title>Drafting Desk — Argentica</title>
+<link href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E" rel="icon" type="image/svg+xml"/>
 <link href="/shared/prism.css" rel="stylesheet"/>
 <link href="/shared/themes.css" rel="stylesheet"/>
+<!-- TipTap via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@tiptap/core@2.10.3/dist/index.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tiptap/starter-kit@2.10.3/dist/index.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tiptap/extension-placeholder@2.10.3/dist/index.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tiptap/extension-character-count@2.10.3/dist/index.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tiptap/extension-highlight@2.10.3/dist/index.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tiptap/extension-task-list@2.10.3/dist/index.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tiptap/extension-task-item@2.10.3/dist/index.umd.min.js"></script>
 <style>
-.drafting-layout { display: grid; grid-template-columns: 220px 1fr 280px; height: calc(100vh - var(--topbar-h)); overflow: hidden; }
-@media(max-width:1100px){ .drafting-layout{ grid-template-columns: 1fr 260px; } .drafting-docs{ display:none; } }
-@media(max-width:800px){ .drafting-layout{ grid-template-columns: 1fr; } .drafting-assist{ display:none; } }
-.drafting-docs { border-right: 1px solid var(--border); background: var(--bg-surface); overflow-y: auto; padding: 12px; }
-.drafting-editor { display: flex; flex-direction: column; overflow: hidden; }
-.drafting-assist { border-left: 1px solid var(--border); background: var(--bg-surface); overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
-.editor-toolbar { padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); display: flex; gap: 4px; flex-wrap: wrap; align-items: center; flex-shrink: 0; }
-.toolbar-btn { padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; background: var(--bg-surface); color: var(--fg-secondary); cursor: pointer; transition: all 0.15s; }
-.toolbar-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
-.toolbar-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
-.editor-meta { padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
-.doc-title-input { flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; font-weight: 500; outline: none; background: var(--bg-primary); color: var(--fg-primary); }
-.doc-title-input:focus { border-color: var(--accent); }
-.editor-area { flex: 1; overflow-y: auto; padding: 20px 24px; }
-.editor-textarea { width: 100%; min-height: 100%; padding: 0; border: none; outline: none; font-size: 14px; font-family: var(--font-ui); line-height: 1.8; color: var(--fg-primary); background: transparent; resize: none; }
-.word-count { font-size: 11px; color: var(--fg-muted); padding: 6px 14px; border-top: 1px solid var(--border); background: var(--bg-elevated); flex-shrink: 0; }
-.doc-item { padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; background: var(--bg-elevated); transition: border-color 0.15s; }
-.doc-item:hover { border-color: var(--accent); }
-.doc-item.active { border-color: var(--accent); background: var(--accent-light); }
-.doc-item-title { font-size: 12.5px; font-weight: 500; color: var(--fg-primary); margin-bottom: 2px; }
-.doc-item-meta { font-size: 11px; color: var(--fg-muted); }
-.assist-section { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
-.assist-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--fg-muted); margin-bottom: 8px; }
-.assist-prompt { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; font-family: var(--font-ui); resize: none; outline: none; background: var(--bg-primary); color: var(--fg-primary); min-height: 60px; }
-.assist-prompt:focus { border-color: var(--accent); }
-.assist-result { font-size: 12.5px; line-height: 1.6; color: var(--fg-secondary); margin-top: 8px; padding: 8px; background: var(--bg-surface); border-radius: 6px; }
-.tone-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
-.tone-chip { padding: 3px 8px; border: 1px solid var(--border); border-radius: 12px; font-size: 11px; cursor: pointer; color: var(--fg-secondary); background: var(--bg-surface); transition: all 0.15s; }
-.tone-chip:hover, .tone-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.draft-shell { display:flex; height:100vh; overflow:hidden; }
+.draft-main { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+
+/* Toolbar */
+.draft-toolbar {
+  padding:6px 12px;
+  border-bottom:1px solid var(--border);
+  background:var(--bg-elevated);
+  display:flex;
+  align-items:center;
+  gap:4px;
+  flex-wrap:wrap;
+  flex-shrink:0;
+}
+.tb-btn {
+  padding:4px 8px;
+  border:1px solid var(--border);
+  border-radius:5px;
+  cursor:pointer;
+  font-size:12px;
+  background:var(--bg);
+  color:var(--fg);
+  font-family:inherit;
+  transition:all 0.15s;
+  min-width:28px;
+  text-align:center;
+}
+.tb-btn:hover { border-color:var(--accent); color:var(--accent); }
+.tb-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.tb-sep { width:1px; height:20px; background:var(--border); margin:0 3px; flex-shrink:0; }
+.tb-select {
+  padding:4px 6px;
+  border:1px solid var(--border);
+  border-radius:5px;
+  font-size:12px;
+  background:var(--bg);
+  color:var(--fg);
+  cursor:pointer;
+}
+.tb-label { font-size:10px; color:var(--fg-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.4px; padding:0 4px; }
+
+/* Editor area */
+.draft-body { flex:1; overflow:hidden; display:flex; }
+.draft-editor-wrap { flex:1; overflow-y:auto; padding:40px 60px; max-width:860px; margin:0 auto; width:100%; box-sizing:border-box; }
+
+/* TipTap editor styles */
+.tiptap-editor {
+  outline:none;
+  font-size:15px;
+  line-height:1.8;
+  color:var(--fg);
+  min-height:calc(100vh - 200px);
+}
+.tiptap-editor p { margin:0 0 10px; }
+.tiptap-editor h1 { font-size:28px; font-weight:700; margin:24px 0 12px; font-family:var(--font-heading,Georgia,serif); }
+.tiptap-editor h2 { font-size:22px; font-weight:700; margin:20px 0 10px; font-family:var(--font-heading,Georgia,serif); }
+.tiptap-editor h3 { font-size:18px; font-weight:600; margin:16px 0 8px; }
+.tiptap-editor ul, .tiptap-editor ol { padding-left:24px; margin:8px 0; }
+.tiptap-editor li { margin:4px 0; }
+.tiptap-editor blockquote { border-left:3px solid var(--accent); padding-left:16px; margin:12px 0; color:var(--fg-muted); font-style:italic; }
+.tiptap-editor code { background:var(--bg-sunken); padding:2px 6px; border-radius:4px; font-family:monospace; font-size:0.9em; }
+.tiptap-editor pre { background:var(--bg-sunken); padding:14px; border-radius:8px; overflow-x:auto; margin:12px 0; }
+.tiptap-editor pre code { background:none; padding:0; }
+.tiptap-editor mark { background:rgba(255,220,0,0.3); border-radius:2px; }
+.tiptap-editor hr { border:none; border-top:2px solid var(--border); margin:20px 0; }
+.tiptap-editor ul[data-type="taskList"] { list-style:none; padding-left:0; }
+.tiptap-editor ul[data-type="taskList"] li { display:flex; align-items:flex-start; gap:8px; }
+.tiptap-editor ul[data-type="taskList"] li input { margin-top:4px; cursor:pointer; }
+.tiptap-editor p.is-editor-empty:first-child::before { content:attr(data-placeholder); color:var(--fg-muted); pointer-events:none; float:left; height:0; }
+
+/* Status bar */
+.draft-status {
+  padding:4px 12px;
+  border-top:1px solid var(--border);
+  background:var(--bg-elevated);
+  display:flex;
+  gap:16px;
+  font-size:11px;
+  color:var(--fg-muted);
+  flex-shrink:0;
+}
+
+/* AI panel */
+.draft-ai-panel {
+  width:280px;
+  flex-shrink:0;
+  border-left:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  background:var(--bg-surface);
+  overflow:hidden;
+  transition:width 0.2s;
+}
+.draft-ai-panel.collapsed { width:0; overflow:hidden; }
+.ai-panel-hdr { padding:10px 12px; border-bottom:1px solid var(--border); font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.ai-panel-body { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:8px; }
+.ai-action-btn { padding:7px 10px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px; background:var(--bg); color:var(--fg); font-family:inherit; text-align:left; transition:all 0.15s; }
+.ai-action-btn:hover { border-color:var(--accent); color:var(--accent); }
+.ai-result { background:var(--bg-elevated); border:1px solid var(--border); border-radius:6px; padding:10px; font-size:12px; line-height:1.5; max-height:200px; overflow-y:auto; }
+.ai-input { width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; background:var(--bg); color:var(--fg); resize:none; min-height:60px; box-sizing:border-box; }
+.ai-send { width:100%; padding:6px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-family:inherit; margin-top:5px; }
+
+/* Export modal */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:9999; display:none; align-items:center; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal-box { background:var(--bg-elevated); border-radius:12px; padding:22px; width:380px; box-shadow:0 8px 32px rgba(0,0,0,0.2); }
+.modal-box h3 { margin:0 0 14px; font-size:15px; }
+.export-btn { display:block; width:100%; padding:10px 14px; margin-bottom:8px; border:1px solid var(--border); border-radius:8px; cursor:pointer; font-size:13px; background:var(--bg); color:var(--fg); font-family:inherit; text-align:left; transition:all 0.15s; }
+.export-btn:hover { border-color:var(--accent); color:var(--accent); }
+.export-btn .ext { font-size:10px; color:var(--fg-muted); float:right; margin-top:2px; }
 </style>
 </head>
 <body>
-<div class="prism-shell">
+<script src="/shared/prism.js"></script>
 <div id="sidebar-mount"></div>
-<div class="main-content" id="main-content">
-<div class="topbar">
-<div class="topbar-title">Drafting Desk</div>
-<div class="topbar-actions">
-<button class="btn btn-sm btn-secondary" onclick="newDoc()" title="New document">＋ New</button>
-<button class="btn btn-sm btn-secondary" onclick="saveDoc()" title="Save document">💾 Save</button>
-<button class="btn btn-sm btn-secondary" onclick="saveToWorkspaceFromDrafting()" title="Save to workspace">📁 Workspace</button>
-<button class="btn btn-sm btn-secondary" onclick="exportDoc()" title="Export as Markdown">⬇ Export</button>
-<button class="btn btn-sm btn-primary" onclick="sendToAtomise()" title="Send to Atomise pipeline">⚡ Atomise</button>
-<div style="width:1px;height:20px;background:var(--border);margin:0 4px;"></div>
-<button class="btn btn-sm btn-secondary" id="wh-toggle-btn" onclick="toggleWriteHandy()" title="Toggle handwriting mode">✒ Handwrite</button>
-</div>
-</div>
-<!-- WriteHandy panel (hidden by default) -->
-<div id="wh-panel" style="display:none;position:fixed;top:var(--topbar-h,48px);right:0;width:50%;height:calc(100vh - var(--topbar-h,48px));background:var(--bg-elevated);border-left:2px solid var(--accent);z-index:100;flex-direction:column;">
-  <div style="padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg-sunken);">
-    <span style="font-size:12px;font-weight:600;">✒ WriteHandy</span>
-    <div style="display:flex;gap:6px;">
-      <button onclick="transferInkToEditor()" style="padding:3px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">→ Transfer to editor</button>
-      <button onclick="toggleWriteHandy()" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;background:var(--bg);">Close</button>
-    </div>
-  </div>
-  <iframe id="wh-iframe" src="/writehandy/" style="flex:1;border:none;width:100%;height:100%;" title="WriteHandy"></iframe>
-</div>
-<div class="drafting-layout">
-<!-- Documents list -->
-<div class="drafting-docs">
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-<span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--fg-muted);">Documents</span>
-<button class="btn btn-ghost btn-sm btn-icon" onclick="newDoc()" title="New document">＋</button>
-</div>
-<div id="docs-list"></div>
+<div id="main-content">
+<div class="draft-shell">
+<div class="draft-main">
+<!-- Toolbar -->
+<div class="draft-toolbar">
+<span class="tb-label">Format</span>
+<select class="tb-select" id="heading-select" onchange="setHeading(this.value)">
+<option value="0">Paragraph</option>
+<option value="1">Heading 1</option>
+<option value="2">Heading 2</option>
+<option value="3">Heading 3</option>
+</select>
+<div class="tb-sep"></div>
+<button class="tb-btn" id="btn-bold" onclick="editor.chain().focus().toggleBold().run()" title="Bold (Ctrl+B)"><strong>B</strong></button>
+<button class="tb-btn" id="btn-italic" onclick="editor.chain().focus().toggleItalic().run()" title="Italic (Ctrl+I)"><em>I</em></button>
+<button class="tb-btn" id="btn-underline" onclick="editor.chain().focus().toggleStrike().run()" title="Strikethrough"><s>S</s></button>
+<button class="tb-btn" id="btn-highlight" onclick="editor.chain().focus().toggleHighlight().run()" title="Highlight">🟡</button>
+<div class="tb-sep"></div>
+<button class="tb-btn" id="btn-ul" onclick="editor.chain().focus().toggleBulletList().run()" title="Bullet list">•—</button>
+<button class="tb-btn" id="btn-ol" onclick="editor.chain().focus().toggleOrderedList().run()" title="Numbered list">1.</button>
+<button class="tb-btn" id="btn-task" onclick="editor.chain().focus().toggleTaskList().run()" title="Task list">☑</button>
+<button class="tb-btn" id="btn-quote" onclick="editor.chain().focus().toggleBlockquote().run()" title="Blockquote">“</button>
+<button class="tb-btn" id="btn-code" onclick="editor.chain().focus().toggleCodeBlock().run()" title="Code block">&lt;/&gt;</button>
+<button class="tb-btn" onclick="editor.chain().focus().setHorizontalRule().run()" title="Horizontal rule">—</button>
+<div class="tb-sep"></div>
+<button class="tb-btn" onclick="editor.chain().focus().undo().run()" title="Undo">↶</button>
+<button class="tb-btn" onclick="editor.chain().focus().redo().run()" title="Redo">↷</button>
+<div class="tb-sep"></div>
+<button class="tb-btn" onclick="openExport()" title="Export document">⬇ Export</button>
+<button class="tb-btn" onclick="saveToWorkspace()" title="Save to Workspace">📁 Save</button>
+<button class="tb-btn" onclick="sendToAtomise()" title="Atomise for social media">⚡ Atomise</button>
+<button class="tb-btn" onclick="toggleAI()" title="AI assistant">✨ AI</button>
+<button class="tb-btn" id="dictate-btn" onclick="dictate()" title="Voice dictation">🎤</button>
+<div class="tb-sep"></div>
+<span id="doc-title-wrap">
+<input id="doc-title" oninput="scheduleSave()" placeholder="Document title..." style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:13px;font-weight:600;background:var(--bg);color:var(--fg);width:180px;" type="text"/>
+</span>
 </div>
 <!-- Editor -->
-<div class="drafting-editor">
-<div class="editor-toolbar">
-<button class="toolbar-btn" onclick="insertMd('**','**')" title="Bold">B</button>
-<button class="toolbar-btn" onclick="insertMd('*','*')" style="font-style:italic;" title="Italic">I</button>
-<button class="toolbar-btn" onclick="insertMd('# ','')" title="Heading 1">H1</button>
-<button class="toolbar-btn" onclick="insertMd('## ','')" title="Heading 2">H2</button>
-<button class="toolbar-btn" onclick="insertMd('### ','')" title="Heading 3">H3</button>
-<div class="toolbar-sep"></div>
-<button class="toolbar-btn" onclick="insertMd('- ','')" title="Bullet list">• List</button>
-<button class="toolbar-btn" onclick="insertMd('&gt; ','')" title="Blockquote">❝</button>
-<button class="toolbar-btn" onclick="insertMd('`','`')" title="Inline code">Code</button>
-<button class="toolbar-btn" onclick="insertMd('---\n','')" title="Horizontal rule">—</button>
-<div class="toolbar-sep"></div>
-<button class="toolbar-btn" id="preview-btn" onclick="togglePreview()" title="Toggle preview">Preview</button>
-<button class="toolbar-btn" onclick="toggleHandwriting()" title="Toggle handwriting mode">✒ Handwriting</button>
-<button class="toolbar-btn" id="dictate-btn" onclick="toggleDictation()" title="Toggle voice dictation">🎤 Dictate</button>
+<div class="draft-body">
+<div class="draft-editor-wrap">
+<div class="tiptap-editor" id="tiptap-editor"></div>
 </div>
-<div class="editor-meta">
-<input class="doc-title-input" id="doc-title" placeholder="Document title…" type="text" value="Untitled Document"/>
-<select class="select" id="doc-type" style="width:auto;padding:6px 10px;font-size:12.5px;" title="Document type">
-<option>General</option>
-<option>Report</option>
-<option>Email</option>
-<option>Blog Post</option>
-<option>Session Note</option>
-<option>Proposal</option>
-<option>Newsletter</option>
-</select>
+<!-- AI panel -->
+<div class="draft-ai-panel collapsed" id="ai-panel">
+<div class="ai-panel-hdr">
+<span>✨ AI Assistant</span>
+<button onclick="toggleAI()" style="background:none;border:none;cursor:pointer;color:var(--fg-muted);">✕</button>
 </div>
-<div class="editor-area" id="editor-area">
-<textarea class="editor-textarea" id="editor" placeholder="Start writing… Handwriting via Surface Slim Pen 2 works directly in this field."></textarea>
-<div class="md-content hidden" id="preview-pane"></div>
+<div class="ai-panel-body">
+<button class="ai-action-btn" onclick="aiAction('improve')">✏ Improve writing</button>
+<button class="ai-action-btn" onclick="aiAction('expand')">⬆ Expand selection</button>
+<button class="ai-action-btn" onclick="aiAction('summarise')">⬇ Summarise</button>
+<button class="ai-action-btn" onclick="aiAction('academic')">🎓 Academic tone</button>
+<button class="ai-action-btn" onclick="aiAction('citations')">📚 Suggest citations</button>
+<button class="ai-action-btn" onclick="aiAction('continue')">➡ Continue writing</button>
+<div style="border-top:1px solid var(--border);margin:6px 0;padding-top:6px;">
+<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);margin-bottom:5px;">Custom instruction</div>
+<textarea class="ai-input" id="ai-custom-input" placeholder="Tell the AI what to do with the selected text..."></textarea>
+<button class="ai-send" onclick="aiCustom()">Apply</button>
 </div>
-<div class="word-count" id="word-count">0 words · 0 characters</div>
-</div>
-<!-- AI Assist panel -->
-<div class="drafting-assist">
-<div class="assist-section">
-<div class="assist-title">AI Assist</div>
-<div class="tone-chips" id="tone-chips">
-<span class="tone-chip active" onclick="setTone(this,'professional')">Professional</span>
-<span class="tone-chip" onclick="setTone(this,'academic')">Academic</span>
-<span class="tone-chip" onclick="setTone(this,'conversational')">Conversational</span>
-<span class="tone-chip" onclick="setTone(this,'persuasive')">Persuasive</span>
-<span class="tone-chip" onclick="setTone(this,'empathetic')">Empathetic</span>
-</div>
-<textarea class="assist-prompt" id="assist-prompt" placeholder="Ask the AI to help… e.g. 'Improve this paragraph', 'Add an introduction', 'Make this more concise'"></textarea>
-<button class="btn btn-primary btn-sm" onclick="runAssist()" style="width:100%;margin-top:6px;" title="Run AI assist">✨ Assist</button>
-<div class="assist-result hidden" id="assist-result"></div>
-</div>
-<div class="assist-section">
-<div class="assist-title">Quick Actions</div>
-<div style="display:flex;flex-direction:column;gap:6px;">
-<button class="btn btn-sm btn-secondary" onclick="quickAction('Improve the clarity and flow of this text')" title="Improve clarity">✨ Improve Clarity</button>
-<button class="btn btn-sm btn-secondary" onclick="quickAction('Make this more concise without losing meaning')" title="Make concise">✂ Make Concise</button>
-<button class="btn btn-sm btn-secondary" onclick="quickAction('Expand this with more detail and examples')" title="Expand">↕ Expand</button>
-<button class="btn btn-sm btn-secondary" onclick="quickAction('Fix any grammar and spelling errors')" title="Fix grammar">✓ Fix Grammar</button>
-<button class="btn btn-sm btn-secondary" onclick="quickAction('Rewrite this in British English')" title="British English">🇬🇧 British English</button>
-<button class="btn btn-sm btn-secondary" onclick="quickAction('Write an executive summary of this document')" title="Summarise">📋 Summarise</button>
+<div class="ai-result" id="ai-result" style="display:none;"></div>
 </div>
 </div>
-<div class="assist-section">
-<div class="assist-title">Insert</div>
-<div style="display:flex;flex-direction:column;gap:6px;">
-<button class="btn btn-sm btn-secondary" onclick="insertTemplate('email')" title="Insert email template">📧 Email Template</button>
-<button class="btn btn-sm btn-secondary" onclick="insertTemplate('report')" title="Insert report template">📄 Report Template</button>
-<button class="btn btn-sm btn-secondary" onclick="insertTemplate('session')" title="Insert session note template">📝 Session Note</button>
+</div>
+<!-- Status bar -->
+<div class="draft-status">
+<span id="word-count">0 words</span>
+<span id="char-count">0 chars</span>
+<span id="save-status">Not saved</span>
+<span id="provider-badge"></span>
 </div>
 </div>
 </div>
 </div>
+<!-- Export modal -->
+<div class="modal-overlay" id="export-modal">
+<div class="modal-box">
+<h3>Export Document</h3>
+<button class="export-btn" onclick="exportAs('docx')">📄 Word Document <span class="ext">.docx</span></button>
+<button class="export-btn" onclick="exportAs('md')">📝 Markdown <span class="ext">.md</span></button>
+<button class="export-btn" onclick="exportAs('txt')">📃 Plain Text <span class="ext">.txt</span></button>
+<button class="export-btn" onclick="exportAs('html')">🌐 HTML <span class="ext">.html</span></button>
+<button onclick="closeExport()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);font-size:12px;margin-top:4px;">Cancel</button>
 </div>
 </div>
-<script src="/shared/prism.js"></script>
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
-var docs = [];
-var currentDocId = null;
-var currentTone = 'professional';
-var previewing = false;
-var dictating = false;
-var recognition = null;
-
-var TEMPLATES = {
-  email: 'Subject: \n\nDear [Name],\n\nI hope this finds you well.\n\n[Body]\n\nKind regards,\nSimon Johnson\nIdentity Partners',
-  report: '# Report Title\n\n## Executive Summary\n\n[Summary]\n\n## Background\n\n[Context]\n\n## Findings\n\n[Findings]\n\n## Recommendations\n\n[Recommendations]\n\n## Conclusion\n\n[Conclusion]',
-  session: '# Session Note\n\n**Date:** ' + new Date().toLocaleDateString('en-GB') + '\n**Client:** \n**Session type:** \n\n## Presenting issues\n\n## Key themes\n\n## Interventions\n\n## Client response\n\n## Next steps\n\n## Risk assessment\n',
-};
-
-function init() {
-  try { docs = JSON.parse(localStorage.getItem('prism-docs') || '[]'); } catch(e) { docs = []; }
-  if (docs.length === 0) newDoc();
-  else { currentDocId = docs[0].id; loadDoc(docs[0]); }
-  renderDocsList();
-  updateWordCount();
-}
-
-function newDoc() {
-  var doc = {id: 'd' + Date.now(), title: 'Untitled Document', content: '', type: 'General', created: new Date().toISOString(), updated: new Date().toISOString()};
-  docs.unshift(doc);
-  saveDocs();
-  currentDocId = doc.id;
-  loadDoc(doc);
-  renderDocsList();
-}
-
-function loadDoc(doc) {
-  var titleEl = document.getElementById('doc-title');
-  var editor = document.getElementById('editor');
-  var typeEl = document.getElementById('doc-type');
-  if (titleEl) titleEl.value = doc.title || '';
-  if (editor) editor.value = doc.content || '';
-  if (typeEl) typeEl.value = doc.type || 'General';
-  updateWordCount();
-}
-
-function saveDoc() {
-  // Also sync to WriteHandy notes API
-  var titleEl = document.getElementById('doc-title');
-  var editor = document.getElementById('editor');
-  var title = titleEl ? titleEl.value : 'Untitled';
-  var content = editor ? editor.value : '';
-  if (content && typeof WORKER !== 'undefined') {
-    fetch(WORKER + '/api/notes/save', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ title: title, content: content, module: 'Drafting', tags: ['drafting', 'auto-sync'] })
-    }).catch(function(){});
-  }
-  var titleEl = document.getElementById('doc-title');
-  var editor = document.getElementById('editor');
-  var typeEl = document.getElementById('doc-type');
-  var doc = docs.find(function(d) { return d.id === currentDocId; });
-  if (!doc) return;
-  doc.title = titleEl ? titleEl.value : doc.title;
-  doc.content = getEditorContent ? getEditorContent() : (editor ? editor.value : doc.content);
-  doc.type = typeEl ? typeEl.value : doc.type;
-  doc.updated = new Date().toISOString();
-  saveDocs();
-  renderDocsList();
-  Toast.success('Saved');
-}
-
-function saveDocs() {
-  try { localStorage.setItem('prism-docs', JSON.stringify(docs)); } catch(e) {}
-}
-
-function renderDocsList() {
-  var list = document.getElementById('docs-list');
-  if (!list) return;
-  list.innerHTML = '';
-  for (var i = 0; i < docs.length; i++) {
-    (function(doc) {
-      var item = document.createElement('div');
-      item.className = 'doc-item' + (doc.id === currentDocId ? ' active' : '');
-      var title = document.createElement('div');
-      title.className = 'doc-item-title';
-      title.textContent = doc.title || 'Untitled';
-      var meta = document.createElement('div');
-      meta.className = 'doc-item-meta';
-      meta.textContent = doc.type + ' · ' + new Date(doc.updated).toLocaleDateString('en-GB');
-      item.appendChild(title);
-      item.appendChild(meta);
-      item.onclick = function() { saveDoc(); currentDocId = doc.id; loadDoc(doc); renderDocsList(); };
-      list.appendChild(item);
-    })(docs[i]);
-  }
-}
-
-function updateWordCount() {
-  var editor = document.getElementById('editor');
-  var el = document.getElementById('word-count');
-  if (!editor || !el) return;
-  var text = getEditorContent ? getEditorContent() : (editor ? editor.value : '');
-  var words = text.trim() ? text.trim().split(/\s+/).length : 0;
-  el.textContent = words + ' words · ' + text.length + ' characters';
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-  var editor = document.getElementById('editor');
-  if (editor) {
-    editor.addEventListener('input', updateWordCount);
-    editor.addEventListener('keydown', function(e) {
-      if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveDoc(); }
-    });
-  }
-});
-
-function insertMd(before, after) {
-  var editor = document.getElementById('editor');
-  if (!editor) return;
-  var start = editor.selectionStart;
-  var end = editor.selectionEnd;
-  var selected = editor.value.substring(start, end);
-  var replacement = before + selected + after;
-  editor.value = editor.value.substring(0, start) + replacement + editor.value.substring(end);
-  editor.selectionStart = start + before.length;
-  editor.selectionEnd = start + before.length + selected.length;
-  editor.focus();
-  updateWordCount();
-}
-
-function togglePreview() {
-  previewing = !previewing;
-  var editor = document.getElementById('editor');
-  var preview = document.getElementById('preview-pane');
-  var btn = document.getElementById('preview-btn');
-  if (!editor || !preview) return;
-  if (previewing) {
-    preview.innerHTML = Markdown.render(editor.value);
-    editor.classList.add('hidden');
-    preview.classList.remove('hidden');
-    if (btn) btn.textContent = 'Edit';
-  } else {
-    editor.classList.remove('hidden');
-    preview.classList.add('hidden');
-    if (btn) btn.textContent = 'Preview';
-  }
-}
-
-function toggleHandwriting() {
-  var editor = document.getElementById('editor');
-  if (!editor) return;
-  editor.focus();
-  Toast.info('Focus is on the editor. Use your Surface Slim Pen 2 to write directly.');
-}
-
-function toggleDictation() {
-  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) { Toast.warning('Voice dictation not supported'); return; }
-  var btn = document.getElementById('dictate-btn');
-  if (dictating) {
-    if (recognition) recognition.stop();
-    dictating = false;
-    if (btn) btn.textContent = '🎤 Dictate';
-    return;
-  }
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  recognition = new SR();
-  recognition.continuous = true;
-  recognition.interimResults = false;
-  recognition.lang = 'en-GB';
-  recognition.onresult = function(e) {
-    var editor = document.getElementById('editor');
-    if (!editor) return;
-    for (var i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal) editor.value += e.results[i][0].transcript + ' ';
-    }
-    updateWordCount();
-  };
-  recognition.onend = function() { dictating = false; if (btn) btn.textContent = '🎤 Dictate'; };
-  recognition.start();
-  dictating = true;
-  if (btn) btn.textContent = '🔴 Stop';
-}
-
-function setTone(el, tone) {
-  currentTone = tone;
-  var chips = document.querySelectorAll('.tone-chip');
-  for (var i = 0; i < chips.length; i++) chips[i].classList.remove('active');
-  el.classList.add('active');
-}
-
-function runAssist() {
-  var prompt = document.getElementById('assist-prompt').value.trim();
-  var editor = document.getElementById('editor');
-  var resultEl = document.getElementById('assist-result');
-  if (!prompt || !editor) return;
-  var content = editor.value;
-  if (resultEl) { resultEl.classList.remove('hidden'); resultEl.textContent = 'Working…'; }
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/chat', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      var result = JSON.parse(xhr.responseText);
-      if (resultEl) {
-        resultEl.classList.remove('hidden');
-        resultEl.innerHTML = Markdown.render(result.content || 'No response');
-        var applyBtn = document.createElement('button');
-        applyBtn.className = 'btn btn-sm btn-primary';
-        applyBtn.style.marginTop = '8px';
-        applyBtn.textContent = 'Apply to document';
-        applyBtn.onclick = function() {
-          if (editor) { editor.value = result.content; updateWordCount(); }
-          resultEl.classList.add('hidden');
-          Toast.success('Applied');
-        };
-        resultEl.appendChild(applyBtn);
-      }
-    } catch(e) {
-      if (resultEl) resultEl.textContent = 'Error: ' + e.message;
-    }
-  };
-  xhr.onerror = function() { if (resultEl) resultEl.textContent = 'Network error'; };
-  xhr.send(JSON.stringify({
-    messages: [
-      {role:'system', content:'You are a professional writing assistant. Tone: ' + currentTone + '. British English. No sycophancy.'},
-      {role:'user', content: prompt + '\n\nDocument:\n' + content}
-    ],
-    profile: 'balanced'
-  }));
-}
-
-function quickAction(prompt) {
-  var el = document.getElementById('assist-prompt');
-  if (el) el.value = prompt;
-  runAssist();
-}
-
-function insertTemplate(type) {
-  var editor = document.getElementById('editor');
-  if (!editor) return;
-  editor.value = TEMPLATES[type] || '';
-  updateWordCount();
-  Toast.info('Template inserted');
-}
-
-function exportDoc() {
-  var editor = document.getElementById('editor');
-  var title = document.getElementById('doc-title');
-  if (!editor) return;
-  var content = getEditorContent ? getEditorContent() : (editor ? editor.value : '');
-  var blob = new Blob([content], {type: 'text/markdown'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = (title ? title.value : 'document') + '.md';
-  a.click();
-}
-
-function sendToAtomise() {
-  var editor = document.getElementById('editor');
-  if (!editor || !editor.value.trim()) { Toast.warning('Nothing to atomise'); return; }
-  try { sessionStorage.setItem('prism-atomise', editor.value); } catch(e) {}
-  window.location.href = '/atomise/';
-}
-
-// TipTap-style rich text editor (pure contenteditable, no dependencies)
-var editorEl = null;
-
-function buildTipTapToolbar() {
-  var toolbar = document.getElementById('tiptap-toolbar');
-  if (!toolbar) return;
-  var btns = [
-    {label:'B', cmd:'bold', title:'Bold (Ctrl+B)'},
-    {label:'I', cmd:'italic', title:'Italic (Ctrl+I)', style:'font-style:italic'},
-    {label:'U', cmd:'underline', title:'Underline (Ctrl+U)', style:'text-decoration:underline'},
-    {sep:true},
-    {label:'H1', cmd:'h1', title:'Heading 1'},
-    {label:'H2', cmd:'h2', title:'Heading 2'},
-    {label:'H3', cmd:'h3', title:'Heading 3'},
-    {sep:true},
-    {label:'• List', cmd:'ul', title:'Bullet list'},
-    {label:'1. List', cmd:'ol', title:'Numbered list'},
-    {sep:true},
-    {label:'❝', cmd:'blockquote', title:'Blockquote'},
-    {label:'</>', cmd:'code', title:'Code block'},
-    {sep:true},
-    {label:'🔗', cmd:'link', title:'Insert link'},
-    {sep:true},
-    {label:'✕ Clear', cmd:'clear', title:'Clear formatting'},
-  ];
-  btns.forEach(function(b) {
-    if (b.sep) {
-      var sep = document.createElement('div'); sep.className = 'tt-sep'; toolbar.appendChild(sep); return;
-    }
-    var btn = document.createElement('button');
-    btn.className = 'tt-btn';
-    btn.textContent = b.label;
-    btn.title = b.title || b.label;
-    if (b.style) btn.style.cssText = b.style;
-    btn.type = 'button';
-    btn.onmousedown = function(e) {
-      e.preventDefault(); // Don't lose focus
-      execCmd(b.cmd);
-    };
-    toolbar.appendChild(btn);
-  });
-}
-
-function execCmd(cmd) {
-  var editor = document.getElementById('tiptap-editor');
-  if (!editor) return;
-  editor.focus();
-  if (cmd === 'bold') document.execCommand('bold', false, null);
-  else if (cmd === 'italic') document.execCommand('italic', false, null);
-  else if (cmd === 'underline') document.execCommand('underline', false, null);
-  else if (cmd === 'h1') document.execCommand('formatBlock', false, 'h1');
-  else if (cmd === 'h2') document.execCommand('formatBlock', false, 'h2');
-  else if (cmd === 'h3') document.execCommand('formatBlock', false, 'h3');
-  else if (cmd === 'ul') document.execCommand('insertUnorderedList', false, null);
-  else if (cmd === 'ol') document.execCommand('insertOrderedList', false, null);
-  else if (cmd === 'blockquote') document.execCommand('formatBlock', false, 'blockquote');
-  else if (cmd === 'code') document.execCommand('formatBlock', false, 'pre');
-  else if (cmd === 'link') {
-    var url = prompt('URL:');
-    if (url) document.execCommand('createLink', false, url);
-  }
-  else if (cmd === 'clear') document.execCommand('removeFormat', false, null);
-  updateWordCount();
-}
-
-function getEditorContent() {
-  var editor = document.getElementById('tiptap-editor');
-  if (editor) return editor.innerText || editor.textContent || '';
-  var ta = document.getElementById('editor');
-  return ta ? ta.value : '';
-}
-
-function getEditorHTML() {
-  var editor = document.getElementById('tiptap-editor');
-  return editor ? editor.innerHTML : '';
-}
+var editor = null;
+var saveTimer = null;
+var currentDocId = 'draft-' + Date.now();
 
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
-  if (mount) { var sb = buildSidebar('/drafting/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  
-  buildTipTapToolbar();
-  editorEl = document.getElementById('tiptap-editor');
-  
-  if (editorEl) {
-    editorEl.addEventListener('input', updateWordCount);
-    editorEl.addEventListener('keydown', function(e) {
-      if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveDoc(); }
-      if (e.ctrlKey && e.key === 'b') { e.preventDefault(); execCmd('bold'); }
-      if (e.ctrlKey && e.key === 'i') { e.preventDefault(); execCmd('italic'); }
-      if (e.ctrlKey && e.key === 'u') { e.preventDefault(); execCmd('underline'); }
-    });
-    // Placeholder
-    editorEl.addEventListener('focus', function() { if (editorEl.textContent === '') editorEl.innerHTML = ''; });
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/drafting/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
   }
-  
-  init();
-  var prefill = '';
-  try { prefill = sessionStorage.getItem('prism-draft') || ''; sessionStorage.removeItem('prism-draft'); } catch(e) {}
-  if (prefill && editorEl) {
-    editorEl.innerHTML = prefill.replace(/\n/g, '<br>');
-    updateWordCount();
+
+  // Check if TipTap loaded
+  if (typeof tiptap === 'undefined' && typeof StarterKit === 'undefined') {
+    // Fallback: use contenteditable
+    initFallbackEditor();
+    return;
   }
+
+  initTipTap();
+  loadSavedDoc();
 });
 
-function saveToWorkspaceFromDrafting() {
-  var titleEl = document.getElementById('doc-title');
-  var title = titleEl ? titleEl.value : 'Untitled';
-  if (window.saveItemToWorkspace) {
-    window.saveItemToWorkspace('folders', title);
-  } else {
-    Toast.info('Open Workspaces to save this document to a workspace.');
-  }
-}
-
-// ── WriteHandy integration ────────────────────────────────────────────────────
-var whOpen = false;
-
-function toggleWriteHandy() {
-  whOpen = !whOpen;
-  var panel = document.getElementById('wh-panel');
-  var btn = document.getElementById('wh-toggle-btn');
-  var layout = document.querySelector('.drafting-layout');
-  if (panel) panel.style.display = whOpen ? 'flex' : 'none';
-  if (btn) { btn.style.background = whOpen ? 'var(--accent)' : ''; btn.style.color = whOpen ? '#fff' : ''; }
-  if (layout) layout.style.marginRight = whOpen ? '50%' : '0';
-}
-
-function transferInkToEditor() {
-  // Get OCR text from WriteHandy iframe
-  var iframe = document.getElementById('wh-iframe');
-  if (!iframe || !iframe.contentWindow) return;
+function initTipTap() {
   try {
-    var ocrEl = iframe.contentWindow.document.getElementById('ocr-result');
-    var text = ocrEl ? ocrEl.value || ocrEl.textContent : '';
-    if (text && text.trim()) {
-      var editor = document.getElementById('editor');
-      if (editor) {
-        var current = editor.value || '';
-        editor.value = current + (current ? '\n\n' : '') + text.trim();
-        editor.dispatchEvent(new Event('input', {bubbles: true}));
-        Toast.success('Handwriting transferred to editor.');
-      }
-    } else {
-      Toast.warning('No OCR text found. Write something first.');
+    var extensions = [];
+
+    // Try to use StarterKit
+    if (typeof StarterKit !== 'undefined') {
+      extensions.push(StarterKit.configure({heading: {levels: [1,2,3]}}));
+    } else if (typeof tiptap !== 'undefined' && tiptap.StarterKit) {
+      extensions.push(tiptap.StarterKit.configure({heading: {levels: [1,2,3]}}));
     }
+
+    // Add optional extensions if available
+    if (typeof Placeholder !== 'undefined') {
+      extensions.push(Placeholder.configure({placeholder: 'Start writing... or use the AI assistant to help.'}));
+    }
+    if (typeof Highlight !== 'undefined') {
+      extensions.push(Highlight);
+    }
+    if (typeof TaskList !== 'undefined' && typeof TaskItem !== 'undefined') {
+      extensions.push(TaskList);
+      extensions.push(TaskItem.configure({nested: true}));
+    }
+    if (typeof CharacterCount !== 'undefined') {
+      extensions.push(CharacterCount);
+    }
+
+    var EditorClass = (typeof Editor !== 'undefined') ? Editor : (tiptap && tiptap.Editor);
+    if (!EditorClass) { initFallbackEditor(); return; }
+
+    editor = new EditorClass({
+      element: document.getElementById('tiptap-editor'),
+      extensions: extensions,
+      content: '',
+      onUpdate: function() {
+        updateCounts();
+        scheduleSave();
+        updateToolbarState();
+      },
+      onSelectionUpdate: function() {
+        updateToolbarState();
+      }
+    });
+
+    document.getElementById('tiptap-editor').style.minHeight = 'calc(100vh - 200px)';
+    editor.commands.focus();
+    console.log('TipTap initialised');
   } catch(e) {
-    Toast.warning('Could not access WriteHandy content (cross-origin).');
+    console.error('TipTap init failed:', e);
+    initFallbackEditor();
   }
+}
+
+function initFallbackEditor() {
+  // Fallback contenteditable editor
+  var el = document.getElementById('tiptap-editor');
+  el.contentEditable = 'true';
+  el.setAttribute('data-placeholder', 'Start writing...');
+  el.style.outline = 'none';
+  el.style.minHeight = 'calc(100vh - 200px)';
+  el.addEventListener('input', function() { updateCounts(); scheduleSave(); });
+
+  // Create a minimal editor shim
+  editor = {
+    chain: function() {
+      return {
+        focus: function() { return this; },
+        toggleBold: function() { document.execCommand('bold'); return this; },
+        toggleItalic: function() { document.execCommand('italic'); return this; },
+        toggleStrike: function() { document.execCommand('strikeThrough'); return this; },
+        toggleHighlight: function() { document.execCommand('backColor', false, 'yellow'); return this; },
+        toggleBulletList: function() { document.execCommand('insertUnorderedList'); return this; },
+        toggleOrderedList: function() { document.execCommand('insertOrderedList'); return this; },
+        toggleTaskList: function() { return this; },
+        toggleBlockquote: function() { return this; },
+        toggleCodeBlock: function() { return this; },
+        setHorizontalRule: function() { document.execCommand('insertHorizontalRule'); return this; },
+        undo: function() { document.execCommand('undo'); return this; },
+        redo: function() { document.execCommand('redo'); return this; },
+        setHeading: function() { return this; },
+        run: function() {}
+      };
+    },
+    getText: function() { return document.getElementById('tiptap-editor').innerText || ''; },
+    getHTML: function() { return document.getElementById('tiptap-editor').innerHTML || ''; },
+    commands: { focus: function() { document.getElementById('tiptap-editor').focus(); } }
+  };
+  console.log('Fallback editor initialised');
+}
+
+function updateToolbarState() {
+  if (!editor || !editor.isActive) return;
+  var btns = {
+    'btn-bold': 'bold',
+    'btn-italic': 'italic',
+    'btn-ul': 'bulletList',
+    'btn-ol': 'orderedList',
+    'btn-task': 'taskList',
+    'btn-quote': 'blockquote',
+    'btn-code': 'codeBlock',
+    'btn-highlight': 'highlight'
+  };
+  Object.keys(btns).forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (btn) btn.classList.toggle('active', editor.isActive(btns[id]));
+  });
+  // Update heading select
+  var sel = document.getElementById('heading-select');
+  if (sel) {
+    for (var i = 1; i <= 3; i++) {
+      if (editor.isActive('heading', {level: i})) { sel.value = i; return; }
+    }
+    sel.value = 0;
+  }
+}
+
+function setHeading(level) {
+  if (!editor) return;
+  var lvl = parseInt(level);
+  if (lvl === 0) {
+    editor.chain().focus().setParagraph().run();
+  } else {
+    editor.chain().focus().setHeading({level: lvl}).run();
+  }
+}
+
+function updateCounts() {
+  var text = editor ? (editor.getText ? editor.getText() : '') : '';
+  var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  var chars = text.length;
+  document.getElementById('word-count').textContent = words + ' words';
+  document.getElementById('char-count').textContent = chars + ' chars';
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  document.getElementById('save-status').textContent = 'Unsaved';
+  saveTimer = setTimeout(autoSave, 2000);
+}
+
+function autoSave() {
+  var title = document.getElementById('doc-title').value || 'Untitled';
+  var content = editor ? (editor.getHTML ? editor.getHTML() : '') : '';
+  var doc = {id: currentDocId, title: title, content: content, updated: new Date().toISOString()};
+  try { localStorage.setItem('draft-' + currentDocId, JSON.stringify(doc)); } catch(e) {}
+  fetch(WORKER + '/api/notes/save', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id: currentDocId, title: title, content: content, module: 'Drafting'})
+  }).then(function() {
+    document.getElementById('save-status').textContent = 'Saved ' + new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+  }).catch(function() {
+    document.getElementById('save-status').textContent = 'Saved locally';
+  });
+}
+
+function loadSavedDoc() {
+  var params = new URLSearchParams(window.location.search);
+  var q = params.get('q');
+  if (q && editor && editor.commands) {
+    setTimeout(function() {
+      if (editor.chain) editor.chain().focus().setContent('<p>' + q + '</p>').run();
+    }, 500);
+  }
+  // Load from localStorage
+  var keys = Object.keys(localStorage).filter(function(k) { return k.startsWith('draft-'); });
+  if (keys.length > 0) {
+    var latest = keys.sort().pop();
+    try {
+      var doc = JSON.parse(localStorage.getItem(latest));
+      if (doc && doc.content && editor && editor.chain) {
+        currentDocId = doc.id || currentDocId;
+        document.getElementById('doc-title').value = doc.title || '';
+        setTimeout(function() {
+          editor.chain().focus().setContent(doc.content).run();
+          updateCounts();
+        }, 600);
+      }
+    } catch(e) {}
+  }
+}
+
+// ── AI actions ────────────────────────────────────────────────────────────────
+function getSelectedOrAll() {
+  if (!editor) return '';
+  try {
+    var sel = window.getSelection();
+    if (sel && sel.toString().trim()) return sel.toString().trim();
+  } catch(e) {}
+  return editor.getText ? editor.getText().substring(0, 2000) : '';
+}
+
+function aiAction(type) {
+  var text = getSelectedOrAll();
+  if (!text) { alert('Select some text first, or write something.'); return; }
+  var prompts = {
+    improve: 'Improve the writing quality of this text. Keep the same meaning and length. British English. Return only the improved text:\n\n' + text,
+    expand: 'Expand this text with more detail and depth. British English. Return only the expanded text:\n\n' + text,
+    summarise: 'Summarise this text concisely. British English. Return only the summary:\n\n' + text,
+    academic: 'Rewrite this in a formal academic tone suitable for a sociology dissertation. British English. Return only the rewritten text:\n\n' + text,
+    citations: 'Suggest 3-5 academic citations that would support this argument. Format as: Author (Year). Title. Journal. Return only the citation list:\n\n' + text,
+    continue: 'Continue writing from where this text ends. Match the style and tone. British English. Return only the continuation:\n\n' + text
+  };
+  runAI(prompts[type] || text);
+}
+
+function aiCustom() {
+  var instruction = document.getElementById('ai-custom-input').value.trim();
+  var text = getSelectedOrAll();
+  if (!instruction) { alert('Enter an instruction.'); return; }
+  runAI(instruction + '\n\nText:\n\n' + text);
+}
+
+function runAI(prompt) {
+  var resultEl = document.getElementById('ai-result');
+  resultEl.style.display = 'block';
+  resultEl.textContent = 'Working...';
+  fetch(WORKER + '/api/chat', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({messages: [{role:'user',content:prompt}], profile: 'balanced'})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    var result = d.content || 'No response.';
+    resultEl.textContent = result;
+    document.getElementById('provider-badge').textContent = d.provider || '';
+    // Add "Insert" button
+    var insertBtn = document.createElement('button');
+    insertBtn.textContent = 'Insert into document';
+    insertBtn.style.cssText = 'display:block;width:100%;margin-top:6px;padding:5px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;';
+    insertBtn.onclick = function() {
+      if (editor && editor.chain) {
+        editor.chain().focus().insertContent('<p>' + result.replace(/\n/g, '</p><p>') + '</p>').run();
+      }
+      resultEl.style.display = 'none';
+    };
+    resultEl.appendChild(insertBtn);
+  })
+  .catch(function(e) { resultEl.textContent = 'Error: ' + e.message; });
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function openExport() { document.getElementById('export-modal').classList.add('open'); }
+function closeExport() { document.getElementById('export-modal').classList.remove('open'); }
+
+function exportAs(format) {
+  closeExport();
+  var title = document.getElementById('doc-title').value || 'document';
+  var html = editor ? (editor.getHTML ? editor.getHTML() : '') : '';
+  var text = editor ? (editor.getText ? editor.getText() : '') : '';
+
+  if (format === 'md') {
+    // Simple HTML to Markdown conversion
+    var md = html
+      .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
+      .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
+      .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
+      .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**')
+      .replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*')
+      .replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gis, '> $1\n\n')
+      .replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n')
+      .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ');
+    download(title + '.md', md, 'text/markdown');
+  } else if (format === 'txt') {
+    download(title + '.txt', text, 'text/plain');
+  } else if (format === 'html') {
+    var fullHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + title + '</title><style>body{font-family:Georgia,serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.7;font-size:16px;}</style></head><body>' + html + '</body></html>';
+    download(title + '.html', fullHtml, 'text/html');
+  } else if (format === 'docx') {
+    // Send to Worker for DOCX generation
+    fetch(WORKER + '/api/document/generate-docx', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title: title, html: html, text: text})
+    })
+    .then(function(r) {
+      if (r.ok) return r.blob();
+      throw new Error('DOCX generation failed');
+    })
+    .then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = title + '.docx'; a.click();
+    })
+    .catch(function(e) {
+      // Fallback: download as HTML with .doc extension (opens in Word)
+      alert('DOCX generation not available. Downloading as HTML (open in Word).');
+      var fullHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + title + '</title></head><body>' + html + '</body></html>';
+      download(title + '.doc', fullHtml, 'application/msword');
+    });
+  }
+}
+
+function download(filename, content, mimeType) {
+  var blob = new Blob([content], {type: mimeType});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+// ── Other actions ─────────────────────────────────────────────────────────────
+function saveToWorkspace() {
+  var title = document.getElementById('doc-title').value || 'Untitled';
+  var content = editor ? (editor.getHTML ? editor.getHTML() : '') : '';
+  fetch(WORKER + '/api/notes/save', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id: currentDocId, title: title, content: content, module: 'Drafting', tags: ['draft']})
+  }).then(function() { alert('Saved to Workspace.'); });
+}
+
+function sendToAtomise() {
+  var text = editor ? (editor.getText ? editor.getText() : '') : '';
+  window.location.href = '/atomise/?q=' + encodeURIComponent(text.substring(0, 1000));
+}
+
+function toggleAI() {
+  var panel = document.getElementById('ai-panel');
+  panel.classList.toggle('collapsed');
+}
+
+function dictate() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('Speech recognition not supported in this browser.'); return; }
+  var rec = new SR();
+  rec.lang = 'en-GB';
+  rec.onresult = function(e) {
+    var text = e.results[0][0].transcript;
+    if (editor && editor.chain) {
+      editor.chain().focus().insertContent(text + ' ').run();
+    }
+  };
+  rec.start();
+  var btn = document.getElementById('dictate-btn');
+  btn.textContent = '&#x1F534;';
+  btn.style.color = '#dc2626';
+  rec.onend = function() { btn.innerHTML = '&#x1F3A4;'; btn.style.color = ''; };
 }
 </script>
 </body>
