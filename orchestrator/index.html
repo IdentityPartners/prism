@@ -8,162 +8,127 @@
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
 <style>
-.orch-shell { display:flex; height:100vh; overflow:hidden; }
-.orch-main { flex:1; overflow-y:auto; padding:20px; max-width:900px; }
-.orch-hdr { margin-bottom:20px; }
-.orch-hdr h2 { font-size:20px; font-weight:700; margin:0 0 4px; }
-.orch-hdr p { font-size:13px; color:var(--fg-muted); margin:0; }
-.orch-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:10px; margin-bottom:16px; overflow:hidden; }
-.orch-card-hdr { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
-.orch-card-hdr h3 { font-size:14px; font-weight:700; margin:0; }
-.orch-card-body { padding:14px 16px; }
-.chain-item { display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; margin-bottom:6px; background:var(--bg); cursor:grab; }
-.chain-item:active { cursor:grabbing; }
-.chain-num { width:24px; height:24px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
-.chain-info { flex:1; min-width:0; }
-.chain-name { font-size:13px; font-weight:600; }
-.chain-detail { font-size:11px; color:var(--fg-muted); }
-.chain-badges { display:flex; gap:4px; flex-wrap:wrap; }
-.badge { padding:2px 7px; border-radius:8px; font-size:10px; font-weight:600; }
-.badge-free { background:rgba(22,163,74,0.1); color:#16a34a; border:1px solid #16a34a; }
-.badge-paid { background:rgba(245,158,11,0.1); color:#f59e0b; border:1px solid #f59e0b; }
-.badge-fast { background:rgba(45,106,159,0.1); color:var(--accent); border:1px solid var(--accent); }
-.badge-1m { background:rgba(124,58,237,0.1); color:#7c3aed; border:1px solid #7c3aed; }
-.chain-toggle { flex-shrink:0; }
-.chain-toggle input { cursor:pointer; width:16px; height:16px; }
-.chain-drag { color:var(--fg-muted); cursor:grab; font-size:16px; flex-shrink:0; }
-.bench-table { width:100%; border-collapse:collapse; font-size:12px; }
-.bench-table th { padding:6px 10px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color:var(--fg-muted); border-bottom:2px solid var(--border); }
-.bench-table td { padding:7px 10px; border-bottom:1px solid var(--border); }
-.bench-table tr:last-child td { border-bottom:none; }
-.bench-table tr:hover td { background:var(--bg-sunken); }
-.bench-bar { height:6px; border-radius:3px; background:var(--accent); display:inline-block; }
-.bench-score { font-weight:600; }
-.profile-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-.profile-card { padding:12px; border:1px solid var(--border); border-radius:8px; cursor:pointer; transition:all 0.15s; }
-.profile-card:hover { border-color:var(--accent); }
-.profile-card.active { border-color:var(--accent); background:var(--accent-light,#e8f0f8); }
-.profile-card h4 { font-size:13px; font-weight:700; margin:0 0 4px; }
-.profile-card p { font-size:11px; color:var(--fg-muted); margin:0; }
-.save-btn { padding:8px 20px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-family:inherit; font-weight:600; }
-.save-btn:hover { opacity:0.85; }
-.test-btn { padding:6px 14px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px; background:var(--bg); font-family:inherit; }
-.test-result { font-size:11px; font-family:monospace; background:var(--bg-sunken); border-radius:6px; padding:8px 10px; margin-top:8px; max-height:120px; overflow-y:auto; white-space:pre-wrap; }
+.orch-wrap{display:flex;height:100vh;overflow:hidden;}
+.orch-body{flex:1;overflow-y:auto;padding:16px 20px;}
+.orch-hdr{margin-bottom:14px;}
+.orch-hdr h2{font-size:20px;font-weight:700;margin:0 0 4px;}
+.orch-hdr p{font-size:13px;color:var(--fg-muted);margin:0;}
+.card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden;}
+.card-hdr{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.card-hdr h3{font-size:13px;font-weight:700;margin:0;}
+.card-body{padding:12px 14px;}
+.model-picker{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:start;}
+.panel{border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.panel-hdr{padding:7px 10px;background:var(--bg-sunken);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;}
+.panel-hdr h4{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);margin:0;flex:1;}
+.panel-search{width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);box-sizing:border-box;}
+.panel-filters{display:flex;gap:3px;padding:5px 8px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.filter-btn{padding:2px 7px;border:1px solid var(--border);border-radius:8px;font-size:10px;cursor:pointer;background:var(--bg);color:var(--fg-muted);font-family:inherit;}
+.filter-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.panel-list{height:300px;overflow-y:auto;}
+.model-row{display:flex;align-items:center;gap:5px;padding:5px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:11.5px;transition:background 0.1s;}
+.model-row:hover{background:var(--bg-sunken);}
+.model-row.selected{background:var(--accent-light,#e8f0f8);}
+.model-row:last-child{border-bottom:none;}
+.model-name{flex:1;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.model-ctx{font-size:10px;color:var(--fg-muted);flex-shrink:0;}
+.model-tags{display:flex;gap:2px;flex-shrink:0;}
+.tag{padding:1px 4px;border-radius:4px;font-size:9px;font-weight:600;}
+.tag-free{background:rgba(22,163,74,0.15);color:#16a34a;}
+.tag-fast{background:rgba(45,106,159,0.15);color:var(--accent);}
+.tag-vision{background:rgba(124,58,237,0.15);color:#7c3aed;}
+.tag-search{background:rgba(245,158,11,0.15);color:#f59e0b;}
+.tag-thinking{background:rgba(220,38,38,0.15);color:#dc2626;}
+.transfer-btns{display:flex;flex-direction:column;gap:5px;justify-content:center;padding-top:50px;}
+.transfer-btn{padding:5px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);font-family:inherit;white-space:nowrap;}
+.transfer-btn:hover{border-color:var(--accent);color:var(--accent);}
+.transfer-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.chain-row{display:flex;align-items:center;gap:5px;padding:5px 10px;border-bottom:1px solid var(--border);font-size:11.5px;cursor:grab;}
+.chain-row:last-child{border-bottom:none;}
+.chain-row.selected{background:var(--accent-light,#e8f0f8);}
+.chain-num{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;}
+.chain-drag{color:var(--fg-muted);font-size:12px;}
+.chain-name{flex:1;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.chain-provider{font-size:10px;color:var(--fg-muted);flex-shrink:0;}
+.reorder-btns{display:flex;gap:2px;}
+.reorder-btn{padding:1px 4px;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-size:9px;background:var(--bg);font-family:inherit;}
+.bench-table{width:100%;border-collapse:collapse;font-size:11px;}
+.bench-table th{padding:5px 7px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);border-bottom:2px solid var(--border);white-space:nowrap;}
+.bench-table td{padding:5px 7px;border-bottom:1px solid var(--border);}
+.bench-table tr:last-child td{border-bottom:none;}
+.bench-table tr:hover td{background:var(--bg-sunken);}
+.tool-badge{display:inline-block;padding:1px 4px;border-radius:3px;font-size:9px;font-weight:600;margin:1px;}
+.tool-web{background:rgba(245,158,11,0.15);color:#f59e0b;}
+.tool-vision{background:rgba(124,58,237,0.15);color:#7c3aed;}
+.tool-thinking{background:rgba(220,38,38,0.15);color:#dc2626;}
+.tool-rag{background:rgba(22,163,74,0.15);color:#16a34a;}
+.tool-realtime{background:rgba(45,106,159,0.15);color:var(--accent);}
+.save-btn{padding:6px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;font-weight:600;}
+.test-btn{padding:5px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);font-family:inherit;}
+.test-result{font-size:11px;font-family:monospace;background:var(--bg-sunken);border-radius:5px;padding:7px 10px;margin-top:7px;max-height:90px;overflow-y:auto;white-space:pre-wrap;display:none;}
 </style>
 </head>
 <body>
 <script src="/shared/prism.js"></script>
 <div id="sidebar-mount"></div>
 <div id="main-content">
-<div class="orch-shell">
-<div class="orch-main">
+<div class="orch-wrap">
+<div class="orch-body">
+  <div class="orch-hdr"><h2>&#x2699; Orchestrator</h2><p>Configure routing chain, model settings, and system behaviour. All changes saved to KV.</p></div>
 
-  <div class="orch-hdr">
-    <h2>⚙ Orchestrator Settings</h2>
-    <p>Configure routing logic, model chain, and profiles. Changes take effect immediately.</p>
-  </div>
-
-  <!-- Routing profiles -->
-  <div class="orch-card">
-    <div class="orch-card-hdr">
-      <h3>Routing Profiles</h3>
-      <button class="save-btn" onclick="saveProfiles()">Save</button>
-    </div>
-    <div class="orch-card-body">
-      <div class="profile-grid">
-        <div class="profile-card active" id="profile-balanced" onclick="selectProfile('balanced',this)">
-          <h4>⚖ Balanced</h4>
-          <p>Best quality with reasonable speed. Uses full chain. Default for most queries.</p>
+  <div class="card">
+    <div class="card-hdr"><h3>Model Chain</h3><div style="display:flex;gap:6px;"><button class="test-btn" onclick="testChain()">&#x25B6; Test</button><button class="save-btn" onclick="saveChain()">Save Chain</button></div></div>
+    <div class="card-body">
+      <p style="font-size:11px;color:var(--fg-muted);margin:0 0 8px;">Left: 114 available models. Double-click or select + Add to include. Right: current chain. Drag to reorder.</p>
+      <div class="model-picker">
+        <div class="panel">
+          <div class="panel-hdr"><h4>Available Models</h4><span id="avail-count" style="font-size:10px;color:var(--fg-muted);"></span></div>
+          <div style="padding:5px 8px;border-bottom:1px solid var(--border);"><input class="panel-search" id="model-search" type="text" placeholder="Search by name, model ID, provider..." oninput="filterModels(this.value)"></div>
+          <div class="panel-filters" id="filter-btns">
+            <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+            <button class="filter-btn" onclick="setFilter('free',this)">Free</button>
+            <button class="filter-btn" onclick="setFilter('fast',this)">Fast</button>
+            <button class="filter-btn" onclick="setFilter('vision',this)">Vision</button>
+            <button class="filter-btn" onclick="setFilter('search',this)">Web Search</button>
+            <button class="filter-btn" onclick="setFilter('thinking',this)">Thinking</button>
+            <button class="filter-btn" onclick="setFilter('1m',this)">1M ctx</button>
+          </div>
+          <div class="panel-list" id="avail-list"></div>
         </div>
-        <div class="profile-card" id="profile-fast" onclick="selectProfile('fast',this)">
-          <h4>⚡ Fast</h4>
-          <p>Cerebras → Groq → NVIDIA Gemma. Sub-500ms responses. For quick queries.</p>
+        <div class="transfer-btns">
+          <button class="transfer-btn primary" onclick="addSelected()">Add &#x2192;</button>
+          <button class="transfer-btn" onclick="addAll()">Add All &#x2192;</button>
+          <button class="transfer-btn" onclick="removeSelected()">&#x2190; Remove</button>
+          <button class="transfer-btn" onclick="clearChain()">&#x2190; Clear</button>
         </div>
-        <div class="profile-card" id="profile-frontier" onclick="selectProfile('frontier',this)">
-          <h4>🚀 Frontier</h4>
-          <p>GLM 5.3 → Mistral Large 4 → DeepSeek. Best quality, slower. For complex tasks.</p>
+        <div class="panel">
+          <div class="panel-hdr"><h4>Current Chain</h4><span id="chain-count" style="font-size:10px;color:var(--fg-muted);"></span></div>
+          <div class="panel-list" id="chain-list"></div>
         </div>
       </div>
-      <div style="margin-top:12px;">
-        <label style="font-size:11px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:4px;">Default Profile</label>
-        <select id="default-profile" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--fg);">
-          <option value="balanced">Balanced</option>
-          <option value="fast">Fast</option>
-          <option value="frontier">Frontier</option>
-        </select>
-      </div>
+      <div id="test-result" class="test-result"></div>
     </div>
   </div>
 
-  <!-- Model chain -->
-  <div class="orch-card">
-    <div class="orch-card-hdr">
-      <h3>Model Chain (Balanced Profile)</h3>
-      <div style="display:flex;gap:8px;">
-        <button class="test-btn" onclick="testChain()">▶ Test Chain</button>
-        <button class="save-btn" onclick="saveChain()">Save Chain</button>
-      </div>
-    </div>
-    <div class="orch-card-body">
-      <p style="font-size:12px;color:var(--fg-muted);margin:0 0 12px;">Drag to reorder. Toggle to enable/disable. Chain tries each model in order until one responds.</p>
-      <div id="chain-list"></div>
-      <div id="test-result" class="test-result" style="display:none;"></div>
+  <div class="card">
+    <div class="card-hdr"><h3>Model Benchmarks</h3><span style="font-size:10px;color:var(--fg-muted);">MMLU &#xB7; HumanEval &#xB7; MATH &#xB7; MT-Bench &#xB7; Tools &#xB7; Context &#xB7; Max Output &#xB7; Speed &#xB7; Cost</span></div>
+    <div class="card-body" style="overflow-x:auto;">
+      <table class="bench-table"><thead><tr><th>Model</th><th>MMLU</th><th>HumanEval</th><th>MATH</th><th>MT-Bench</th><th>Tools</th><th>Context</th><th>Max Out</th><th>Speed</th><th>Cost/1M</th></tr></thead><tbody id="bench-tbody"></tbody></table>
     </div>
   </div>
 
-  <!-- Benchmarks -->
-  <div class="orch-card">
-    <div class="orch-card-hdr">
-      <h3>Model Benchmarks</h3>
-      <span style="font-size:11px;color:var(--fg-muted);">Sources: MMLU, HumanEval, MATH, MT-Bench · Speed from live Argentica tests</span>
-    </div>
-    <div class="orch-card-body">
-      <table class="bench-table">
-        <thead>
-          <tr>
-            <th>Model</th><th>MMLU</th><th>HumanEval</th><th>MATH</th><th>MT-Bench</th><th>Context</th><th>Speed</th><th>Cost</th>
-          </tr>
-        </thead>
-        <tbody id="bench-tbody"></tbody>
-      </table>
-      <p style="font-size:11px;color:var(--fg-muted);margin:10px 0 0;">MMLU = general knowledge (0-100). HumanEval = code (0-100). MATH = maths (0-100). MT-Bench = conversation quality (0-10). Speed = first token latency in Argentica.</p>
-    </div>
+  <div class="card">
+    <div class="card-hdr"><h3>Gerald System Prompt</h3><button class="save-btn" onclick="saveSystemPrompt()">Save</button></div>
+    <div class="card-body"><textarea id="system-prompt" style="width:100%;min-height:130px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);resize:vertical;box-sizing:border-box;line-height:1.5;"></textarea></div>
   </div>
 
-  <!-- System prompt -->
-  <div class="orch-card">
-    <div class="orch-card-hdr">
-      <h3>Gerald System Prompt</h3>
-      <button class="save-btn" onclick="saveSystemPrompt()">Save</button>
-    </div>
-    <div class="orch-card-body">
-      <p style="font-size:12px;color:var(--fg-muted);margin:0 0 8px;">This prompt is prepended to every conversation. Edit to change Gerald's persona, knowledge, or behaviour.</p>
-      <textarea id="system-prompt" style="width:100%;min-height:160px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);resize:vertical;box-sizing:border-box;line-height:1.5;"></textarea>
-    </div>
-  </div>
-
-  <!-- Web search settings -->
-  <div class="orch-card">
-    <div class="orch-card-hdr">
-      <h3>Web Search Injection</h3>
-      <button class="save-btn" onclick="saveSearchSettings()">Save</button>
-    </div>
-    <div class="orch-card-body">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <input type="checkbox" id="search-enabled" checked style="width:16px;height:16px;">
-        <label for="search-enabled" style="font-size:13px;">Auto-inject web search for time-sensitive queries</label>
-      </div>
-      <div style="margin-bottom:10px;">
-        <label style="font-size:11px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:4px;">Search Provider</label>
-        <select id="search-provider" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--fg);">
-          <option value="tavily">Tavily (recommended)</option>
-          <option value="brave">Brave Search</option>
-          <option value="perplexity">Perplexity Sonar</option>
-        </select>
-      </div>
-      <div>
-        <label style="font-size:11px;font-weight:600;color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:4px;">Trigger Keywords</label>
-        <input type="text" id="search-keywords" value="latest,recent,today,current,news,2024,2025,2026,who is,what is,when did,report,study,paper,findings,published,review,this week,past week,last week" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box;">
+  <div class="card">
+    <div class="card-hdr"><h3>Web Search Injection</h3><button class="save-btn" onclick="saveSearchSettings()">Save</button></div>
+    <div class="card-body">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><input type="checkbox" id="search-enabled" checked style="width:15px;height:15px;"><label for="search-enabled" style="font-size:13px;">Auto-inject web search for time-sensitive queries</label></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:140px;"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);display:block;margin-bottom:3px;">Provider</label><select id="search-provider" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg);color:var(--fg);"><option value="tavily">Tavily (recommended)</option><option value="brave">Brave Search</option><option value="perplexity">Perplexity Sonar</option></select></div>
+        <div style="flex:2;min-width:180px;"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);display:block;margin-bottom:3px;">Trigger Keywords</label><input type="text" id="search-keywords" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);box-sizing:border-box;" value="latest,recent,today,current,news,2024,2025,2026,who is,what is,when did,report,study,paper,findings,published,review,this week,past week,last week"></div>
       </div>
     </div>
   </div>
@@ -171,25 +136,1701 @@
 </div>
 </div>
 </div>
-
 <script>
-var WORKER = 'https://prism-api.identitypartners.workers.dev';
-
-var MODELS = [
-  {id:'glm53', name:'GLM 5.3 via Mistral', provider:'mistral', model:'zai-glm-5-3', enabled:true, badges:['1M','thinking','web'], mmlu:89.2, humaneval:87.1, math:72.4, mtbench:9.1, context:'1M', speed:'382ms', cost:'Paid sub'},
-  {id:'mistral4', name:'Mistral Large 4', provider:'mistral', model:'mistral-large-4', enabled:true, badges:['1M','thinking','web'], mmlu:88.7, humaneval:85.3, math:70.1, mtbench:9.0, context:'1M', speed:'659ms', cost:'Paid sub'},
-  {id:'gemma4nv', name:'Gemma 4 31B (NVIDIA)', provider:'nvidia', model:'google/gemma-4-31b-it', enabled:true, badges:['1M','fast','free'], mmlu:87.9, humaneval:82.4, math:68.7, mtbench:8.8, context:'1M', speed:'269ms', cost:'Free'},
-  {id:'gemma4gm', name:'Gemma 4 31B (Gemini)', provider:'gemini', model:'gemma-4-31b-it', enabled:true, badges:['1M','search'], mmlu:87.9, humaneval:82.4, math:68.7, mtbench:8.8, context:'1M', speed:'1014ms', cost:'Free'},
-  {id:'deepseek', name:'DeepSeek V4 Flash', provider:'deepseek', model:'deepseek-chat', enabled:true, badges:['1M'], mmlu:88.5, humaneval:86.2, math:71.3, mtbench:8.9, context:'1M', speed:'~2-3s', cost:'$0.27/M'},
-  {id:'grok', name:'Grok 3 Mini', provider:'xai', model:'grok-3-mini', enabled:true, badges:['500K','realtime'], mmlu:87.1, humaneval:83.7, math:69.2, mtbench:8.7, context:'500K', speed:'1405ms', cost:'Paid'},
-  {id:'cohere', name:'Cohere Command R+', provider:'cohere', model:'command-r-plus-08-2024', enabled:true, badges:['128K','rag'], mmlu:83.4, humaneval:74.2, math:58.1, mtbench:8.2, context:'128K', speed:'466ms', cost:'Paid'},
-  {id:'cerebras', name:'GPT-OSS 120B (Cerebras)', provider:'cerebras', model:'gpt-oss-120b', enabled:true, badges:['8K','fast','free'], mmlu:85.2, humaneval:80.1, math:63.4, mtbench:8.5, context:'8K', speed:'~300ms', cost:'Free'},
-  {id:'groq', name:'Llama 4 Scout (Groq)', provider:'groq', model:'meta-llama/llama-4-scout-17b-16e-instruct', enabled:true, badges:['131K','fast','free'], mmlu:84.8, humaneval:79.3, math:61.7, mtbench:8.4, context:'131K', speed:'~400ms', cost:'Free'},
-  {id:'minimax', name:'MiniMax M3.1 Flash', provider:'openrouter', model:'minimax/minimax-m3.1-flash:free', enabled:true, badges:['1M','free'], mmlu:82.1, humaneval:71.4, math:55.2, mtbench:8.0, context:'1M', speed:'851ms', cost:'Free'},
-  {id:'pollinations', name:'Pollinations (fallback)', provider:'pollinations', model:'openai', enabled:true, badges:['unconditional'], mmlu:null, humaneval:null, math:null, mtbench:null, context:'4K', speed:'~1s', cost:'Free'},
+var MODEL_CATALOGUE = [
+  {
+    "id": "glm53",
+    "name": "GLM 5.3",
+    "provider": "mistral",
+    "model": "zai-glm-5-3",
+    "ctx": 1000000,
+    "maxOut": 8192,
+    "tools": [
+      "web_search",
+      "thinking"
+    ],
+    "mmlu": 89.2,
+    "speed": "382ms",
+    "cost": "Paid sub",
+    "free": false,
+    "tags": [
+      "reasoning",
+      "thinking",
+      "web"
+    ]
+  },
+  {
+    "id": "mistral4",
+    "name": "Mistral Large 4",
+    "provider": "mistral",
+    "model": "mistral-large-4",
+    "ctx": 1000000,
+    "maxOut": 8192,
+    "tools": [
+      "web_search",
+      "thinking"
+    ],
+    "mmlu": 88.7,
+    "speed": "659ms",
+    "cost": "Paid sub",
+    "free": false,
+    "tags": [
+      "reasoning",
+      "thinking",
+      "web"
+    ]
+  },
+  {
+    "id": "gemma4nv",
+    "name": "Gemma 4 31B (NVIDIA)",
+    "provider": "nvidia",
+    "model": "google/gemma-4-31b-it",
+    "ctx": 1000000,
+    "maxOut": 8192,
+    "tools": [
+      "vision"
+    ],
+    "mmlu": 87.9,
+    "speed": "269ms",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "fast",
+      "vision"
+    ]
+  },
+  {
+    "id": "gemma4gm",
+    "name": "Gemma 4 31B (Gemini)",
+    "provider": "gemini",
+    "model": "gemma-4-31b-it",
+    "ctx": 1000000,
+    "maxOut": 8192,
+    "tools": [
+      "google_search",
+      "vision"
+    ],
+    "mmlu": 87.9,
+    "speed": "1014ms",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "search",
+      "vision"
+    ]
+  },
+  {
+    "id": "deepseek",
+    "name": "DeepSeek V4 Flash",
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "ctx": 1000000,
+    "maxOut": 8192,
+    "tools": [
+      "web_search"
+    ],
+    "mmlu": 88.5,
+    "speed": "~2-3s",
+    "cost": "$0.27/M",
+    "free": false,
+    "tags": [
+      "reasoning",
+      "long-ctx"
+    ]
+  },
+  {
+    "id": "grok",
+    "name": "Grok 3 Mini",
+    "provider": "xai",
+    "model": "grok-3-mini",
+    "ctx": 500000,
+    "maxOut": 16384,
+    "tools": [
+      "realtime_x"
+    ],
+    "mmlu": 87.1,
+    "speed": "1405ms",
+    "cost": "Paid",
+    "free": false,
+    "tags": [
+      "realtime",
+      "x-data"
+    ]
+  },
+  {
+    "id": "cohere",
+    "name": "Cohere Command R+",
+    "provider": "cohere",
+    "model": "command-r-plus-08-2024",
+    "ctx": 128000,
+    "maxOut": 4096,
+    "tools": [
+      "web_search",
+      "rag"
+    ],
+    "mmlu": 83.4,
+    "speed": "466ms",
+    "cost": "Paid",
+    "free": false,
+    "tags": [
+      "rag",
+      "search"
+    ]
+  },
+  {
+    "id": "cerebras",
+    "name": "GPT-OSS 120B (Cerebras)",
+    "provider": "cerebras",
+    "model": "gpt-oss-120b",
+    "ctx": 8192,
+    "maxOut": 8192,
+    "tools": [],
+    "mmlu": 85.2,
+    "speed": "~300ms",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "fast",
+      "free"
+    ]
+  },
+  {
+    "id": "groq",
+    "name": "Llama 4 Scout (Groq)",
+    "provider": "groq",
+    "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+    "ctx": 131072,
+    "maxOut": 8192,
+    "tools": [],
+    "mmlu": 84.8,
+    "speed": "~400ms",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "fast",
+      "free"
+    ]
+  },
+  {
+    "id": "minimax",
+    "name": "MiniMax M3.1 Flash",
+    "provider": "openrouter",
+    "model": "minimax/minimax-m3.1-flash:free",
+    "ctx": 1000000,
+    "maxOut": 8192,
+    "tools": [],
+    "mmlu": 82.1,
+    "speed": "851ms",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "free",
+      "long-ctx"
+    ]
+  },
+  {
+    "id": "nemotron_super",
+    "name": "Nemotron 3.5 Super VL",
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-super-vl:free",
+    "ctx": 1000000,
+    "maxOut": 8192,
+    "tools": [
+      "vision"
+    ],
+    "mmlu": 88.0,
+    "speed": "~1-2s",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "free",
+      "vision",
+      "long-ctx"
+    ]
+  },
+  {
+    "id": "nemotron_ultra",
+    "name": "Nemotron 3 Ultra 550B",
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "ctx": 1000000,
+    "maxOut": 8192,
+    "tools": [],
+    "mmlu": 90.1,
+    "speed": "~3-5s",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "free",
+      "frontier",
+      "long-ctx"
+    ]
+  },
+  {
+    "id": "nemotron_lightning",
+    "name": "Nemotron 3.5 Lightning",
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "ctx": 1000000,
+    "maxOut": 8192,
+    "tools": [],
+    "mmlu": 87.5,
+    "speed": "~1s",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "free",
+      "fast",
+      "long-ctx"
+    ]
+  },
+  {
+    "id": "pollinations",
+    "name": "Pollinations (fallback)",
+    "provider": "pollinations",
+    "model": "openai",
+    "ctx": 4096,
+    "maxOut": 4096,
+    "tools": [],
+    "mmlu": null,
+    "speed": "~1s",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "fallback",
+      "free"
+    ]
+  },
+  {
+    "id": "or_deepseek_deepseek_v4.1_flash_1",
+    "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4.1-flash-1017",
+    "ctx": 1048576,
+    "maxOut": 393216,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.15/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_xingchen_agi_xing4.0_29b_a4b_f",
+    "name": "XingChen: Xing4.0 29B A4B (free)",
+    "provider": "openrouter",
+    "model": "xingchen-agi/xing4.0-29b-a4b:free",
+    "ctx": 262144,
+    "maxOut": 235929,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "free"
+    ]
+  },
+  {
+    "id": "or_anthropic_claude_haiku_5.5",
+    "name": "Anthropic: Claude Haiku 5.5",
+    "provider": "openrouter",
+    "model": "anthropic/claude-haiku-5.5",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.10/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_anthropic_claude_haiku_5.5_bat",
+    "name": "Anthropic: Claude Haiku 5.5 (batch)",
+    "provider": "openrouter",
+    "model": "anthropic/claude-haiku-5.5:batch",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.05/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_mistralai_mistral_large_4_0",
+    "name": "Mistral: Mistral Large 4",
+    "provider": "openrouter",
+    "model": "mistralai/mistral-large-4-0",
+    "ctx": 1048576,
+    "maxOut": 262144,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$1.36/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6.1_sol_pro",
+    "name": "OpenAI: GPT-6.1 Sol Pro",
+    "provider": "openrouter",
+    "model": "openai/gpt-6.1-sol-pro",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6.1_sol_pro_batch",
+    "name": "OpenAI: GPT-6.1 Sol Pro (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-6.1-sol-pro:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$1.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6.1_sol",
+    "name": "OpenAI: GPT-6.1 Sol",
+    "provider": "openrouter",
+    "model": "openai/gpt-6.1-sol",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6.1_sol_batch",
+    "name": "OpenAI: GPT-6.1 Sol (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-6.1-sol:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$1.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_anthropic_claude_sonnet_5.5",
+    "name": "Anthropic: Claude Sonnet 5.5",
+    "provider": "openrouter",
+    "model": "anthropic/claude-sonnet-5.5",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_anthropic_claude_sonnet_5.5_ba",
+    "name": "Anthropic: Claude Sonnet 5.5 (batch)",
+    "provider": "openrouter",
+    "model": "anthropic/claude-sonnet-5.5:batch",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$1.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_qwen_qwen3.8_max_prime",
+    "name": "Qwen: Qwen3.8 Max Prime",
+    "provider": "openrouter",
+    "model": "qwen/qwen3.8-max-prime",
+    "ctx": 1000000,
+    "maxOut": 131072,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$4.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_upstage_solar_mini4",
+    "name": "Upstage: Solar Mini 4",
+    "provider": "openrouter",
+    "model": "upstage/solar-mini4",
+    "ctx": 524288,
+    "maxOut": 131072,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.05/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_cohere_command_a_plus",
+    "name": "Cohere: Command A+",
+    "provider": "openrouter",
+    "model": "cohere/command-a-plus",
+    "ctx": 192000,
+    "maxOut": 64000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.30/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6_luna_pro",
+    "name": "OpenAI: GPT-6 Luna Pro",
+    "provider": "openrouter",
+    "model": "openai/gpt-6-luna-pro",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.10/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6_luna_pro_batch",
+    "name": "OpenAI: GPT-6 Luna Pro (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-6-luna-pro:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.05/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6_luna",
+    "name": "OpenAI: GPT-6 Luna",
+    "provider": "openrouter",
+    "model": "openai/gpt-6-luna",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.10/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6_luna_batch",
+    "name": "OpenAI: GPT-6 Luna (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-6-luna:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.05/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6_sol_pro",
+    "name": "OpenAI: GPT-6 Sol Pro",
+    "provider": "openrouter",
+    "model": "openai/gpt-6-sol-pro",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6_sol_pro_batch",
+    "name": "OpenAI: GPT-6 Sol Pro (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-6-sol-pro:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$1.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6_sol",
+    "name": "OpenAI: GPT-6 Sol",
+    "provider": "openrouter",
+    "model": "openai/gpt-6-sol",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6_sol_batch",
+    "name": "OpenAI: GPT-6 Sol (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-6-sol:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$1.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_anthropic_claude_opus_5.5",
+    "name": "Anthropic: Claude Opus 5.5",
+    "provider": "openrouter",
+    "model": "anthropic/claude-opus-5.5",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$4.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_anthropic_claude_opus_5.5_batc",
+    "name": "Anthropic: Claude Opus 5.5 (batch)",
+    "provider": "openrouter",
+    "model": "anthropic/claude-opus-5.5:batch",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_qwen_qwen3.8_omni_flash",
+    "name": "Qwen: Qwen3.8 Omni Flash",
+    "provider": "openrouter",
+    "model": "qwen/qwen3.8-omni-flash",
+    "ctx": 1000000,
+    "maxOut": 131072,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.15/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_~deepseek_deepseek_pro_latest",
+    "name": "DeepSeek: DeepSeek Pro Latest",
+    "provider": "openrouter",
+    "model": "~deepseek/deepseek-pro-latest",
+    "ctx": 1048576,
+    "maxOut": 393216,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.21/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_~deepseek_deepseek_flash_lates",
+    "name": "DeepSeek: DeepSeek Flash Latest",
+    "provider": "openrouter",
+    "model": "~deepseek/deepseek-flash-latest",
+    "ctx": 1048576,
+    "maxOut": 943718,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.07/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_~openai_gpt_astra_latest",
+    "name": "OpenAI: GPT Astra Latest",
+    "provider": "openrouter",
+    "model": "~openai/gpt-astra-latest",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$10.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_~openai_gpt_sol_latest",
+    "name": "OpenAI: GPT Sol Latest",
+    "provider": "openrouter",
+    "model": "~openai/gpt-sol-latest",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_~openai_gpt_terra_latest",
+    "name": "OpenAI: GPT Terra Latest",
+    "provider": "openrouter",
+    "model": "~openai/gpt-terra-latest",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_~openai_gpt_luna_latest",
+    "name": "OpenAI: GPT Luna Latest",
+    "provider": "openrouter",
+    "model": "~openai/gpt-luna-latest",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.10/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_deepseek_deepseek_v4.1_flash",
+    "name": "DeepSeek: DeepSeek V4.1 Flash",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4.1-flash",
+    "ctx": 1048576,
+    "maxOut": 943718,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.06/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_deepseek_deepseek_v4.1_flash_b",
+    "name": "DeepSeek: DeepSeek V4.1 Flash (batch)",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4.1-flash:batch",
+    "ctx": 1048576,
+    "maxOut": 384000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.05/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6_astra",
+    "name": "OpenAI: GPT-6 Astra",
+    "provider": "openrouter",
+    "model": "openai/gpt-6-astra",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$10.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6_astra_batch",
+    "name": "OpenAI: GPT-6 Astra (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-6-astra:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$5.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6_astra_pro",
+    "name": "OpenAI: GPT-6 Astra Pro",
+    "provider": "openrouter",
+    "model": "openai/gpt-6-astra-pro",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$10.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_6_astra_pro_batch",
+    "name": "OpenAI: GPT-6 Astra Pro (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-6-astra-pro:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$5.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_qwen_qwen3.8_max_0902",
+    "name": "Qwen: Qwen3.8 Max (0902)",
+    "provider": "openrouter",
+    "model": "qwen/qwen3.8-max-0902",
+    "ctx": 1000000,
+    "maxOut": 131072,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_anthropic_claude_fable_5.1",
+    "name": "Anthropic: Claude Fable 5.1",
+    "provider": "openrouter",
+    "model": "anthropic/claude-fable-5.1",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$10.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_anthropic_claude_fable_5.1_bat",
+    "name": "Anthropic: Claude Fable 5.1 (batch)",
+    "provider": "openrouter",
+    "model": "anthropic/claude-fable-5.1:batch",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$5.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_qwen_qwen3.8_flash",
+    "name": "Qwen: Qwen3.8 Flash",
+    "provider": "openrouter",
+    "model": "qwen/qwen3.8-flash",
+    "ctx": 1000000,
+    "maxOut": 131072,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.15/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_deepseek_deepseek_v4_flash_vis",
+    "name": "DeepSeek: DeepSeek V4 Flash Vision Exp",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4-flash-vision-exp",
+    "ctx": 1048576,
+    "maxOut": 262144,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.22/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_qwen_qwen3.8_27b",
+    "name": "Qwen: Qwen3.8 27B",
+    "provider": "openrouter",
+    "model": "qwen/qwen3.8-27b",
+    "ctx": 1000000,
+    "maxOut": 65536,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.04/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_dots_studio_dots_3_note_previe",
+    "name": "Dots Studio: Dots3-Note Preview (free)",
+    "provider": "openrouter",
+    "model": "dots-studio/dots-3-note-preview:free",
+    "ctx": 512000,
+    "maxOut": 460800,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "free"
+    ]
+  },
+  {
+    "id": "or_qwen_qwen3.8_2.4t_a95b",
+    "name": "Qwen: Qwen3.8 2.4T A95B",
+    "provider": "openrouter",
+    "model": "qwen/qwen3.8-2.4t-a95b",
+    "ctx": 1048576,
+    "maxOut": 909000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_deepseek_deepseek_v4_pro_0813",
+    "name": "DeepSeek: DeepSeek V4 Pro 0813",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4-pro-0813",
+    "ctx": 1048576,
+    "maxOut": 384000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.66/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_liquid_lfm_2.5_2.6b_free",
+    "name": "LiquidAI: LFM2.5-2.6B (free)",
+    "provider": "openrouter",
+    "model": "liquid/lfm-2.5-2.6b:free",
+    "ctx": 65536,
+    "maxOut": 8192,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "free"
+    ]
+  },
+  {
+    "id": "or_upstage_solar_pro4",
+    "name": "Upstage: Solar Pro 4",
+    "provider": "openrouter",
+    "model": "upstage/solar-pro4",
+    "ctx": 524288,
+    "maxOut": 131072,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.15/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_~deepseek_deepseek_v4_flash_la",
+    "name": "DeepSeek: DeepSeek V4 Flash Latest",
+    "provider": "openrouter",
+    "model": "~deepseek/deepseek-v4-flash-latest",
+    "ctx": 1048576,
+    "maxOut": 943718,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.02/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_deepseek_deepseek_v4_flash_073",
+    "name": "DeepSeek: DeepSeek V4 Flash 0731",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4-flash-0731",
+    "ctx": 1048576,
+    "maxOut": 131072,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.44/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_thinkingmachines_inkling_small",
+    "name": "Thinking Machines: Inkling Small (free)",
+    "provider": "openrouter",
+    "model": "thinkingmachines/inkling-small:free",
+    "ctx": 1048576,
+    "maxOut": 262144,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "free"
+    ]
+  },
+  {
+    "id": "or_qwen_qwen3.7_flash",
+    "name": "Qwen: Qwen3.7 Flash",
+    "provider": "openrouter",
+    "model": "qwen/qwen3.7-flash",
+    "ctx": 1000000,
+    "maxOut": 65536,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.03/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_anthropic_claude_opus_5",
+    "name": "Anthropic: Claude Opus 5",
+    "provider": "openrouter",
+    "model": "anthropic/claude-opus-5",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$5.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_anthropic_claude_opus_5_batch",
+    "name": "Anthropic: Claude Opus 5 (batch)",
+    "provider": "openrouter",
+    "model": "anthropic/claude-opus-5:batch",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.50/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_poolside_laguna_s_2.1_free",
+    "name": "Poolside: Laguna S 2.1 (free)",
+    "provider": "openrouter",
+    "model": "poolside/laguna-s-2.1:free",
+    "ctx": 262144,
+    "maxOut": 32768,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "free"
+    ]
+  },
+  {
+    "id": "or_thinkingmachines_inkling_free",
+    "name": "Thinking Machines: Inkling (free)",
+    "provider": "openrouter",
+    "model": "thinkingmachines/inkling:free",
+    "ctx": 1048576,
+    "maxOut": 262144,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "free"
+    ]
+  },
+  {
+    "id": "or_openai_gpt_5.6_luna_pro",
+    "name": "OpenAI: GPT-5.6 Luna Pro",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.6-luna-pro",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.20/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.6_luna_pro_batch",
+    "name": "OpenAI: GPT-5.6 Luna Pro (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.6-luna-pro:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.10/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.6_luna",
+    "name": "OpenAI: GPT-5.6 Luna",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.6-luna",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.20/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.6_luna_batch",
+    "name": "OpenAI: GPT-5.6 Luna (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.6-luna:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.10/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.6_terra_pro",
+    "name": "OpenAI: GPT-5.6 Terra Pro",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.6-terra-pro",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.6_terra_pro_batch",
+    "name": "OpenAI: GPT-5.6 Terra Pro (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.6-terra-pro:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$1.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.6_terra",
+    "name": "OpenAI: GPT-5.6 Terra",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.6-terra",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.6_terra_batch",
+    "name": "OpenAI: GPT-5.6 Terra (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.6-terra:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$1.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.6_sol_pro",
+    "name": "OpenAI: GPT-5.6 Sol Pro",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.6-sol-pro",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$4.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.6_sol_pro_batch",
+    "name": "OpenAI: GPT-5.6 Sol Pro (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.6-sol-pro:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.6_sol",
+    "name": "OpenAI: GPT-5.6 Sol",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.6-sol",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$4.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.6_sol_batch",
+    "name": "OpenAI: GPT-5.6 Sol (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.6-sol:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_poolside_laguna_xs_2.1_free",
+    "name": "Poolside: Laguna XS 2.1 (free)",
+    "provider": "openrouter",
+    "model": "poolside/laguna-xs-2.1:free",
+    "ctx": 262144,
+    "maxOut": 32768,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "free"
+    ]
+  },
+  {
+    "id": "or_anthropic_claude_sonnet_5",
+    "name": "Anthropic: Claude Sonnet 5",
+    "provider": "openrouter",
+    "model": "anthropic/claude-sonnet-5",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_anthropic_claude_sonnet_5_batc",
+    "name": "Anthropic: Claude Sonnet 5 (batch)",
+    "provider": "openrouter",
+    "model": "anthropic/claude-sonnet-5:batch",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$1.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_cohere_north_mini_code_free",
+    "name": "Cohere: North Mini Code (free)",
+    "provider": "openrouter",
+    "model": "cohere/north-mini-code:free",
+    "ctx": 256000,
+    "maxOut": 64000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "free"
+    ]
+  },
+  {
+    "id": "or_~anthropic_claude_fable_latest",
+    "name": "Anthropic: Claude Fable Latest",
+    "provider": "openrouter",
+    "model": "~anthropic/claude-fable-latest",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$10.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_anthropic_claude_fable_5",
+    "name": "Anthropic: Claude Fable 5",
+    "provider": "openrouter",
+    "model": "anthropic/claude-fable-5",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$10.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_anthropic_claude_fable_5_batch",
+    "name": "Anthropic: Claude Fable 5 (batch)",
+    "provider": "openrouter",
+    "model": "anthropic/claude-fable-5:batch",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$5.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_nvidia_nemotron_3.5_content_sa",
+    "name": "NVIDIA: Nemotron 3.5 Content Safety (free)",
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-content-safety:free",
+    "ctx": 128000,
+    "maxOut": 8192,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "free"
+    ]
+  },
+  {
+    "id": "or_qwen_qwen3.7_plus",
+    "name": "Qwen: Qwen3.7 Plus",
+    "provider": "openrouter",
+    "model": "qwen/qwen3.7-plus",
+    "ctx": 1000000,
+    "maxOut": 131072,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.32/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_qwen_qwen3.7_plus_batch",
+    "name": "Qwen: Qwen3.7 Plus (batch)",
+    "provider": "openrouter",
+    "model": "qwen/qwen3.7-plus:batch",
+    "ctx": 262144,
+    "maxOut": 131072,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.23/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_anthropic_claude_opus_4.8",
+    "name": "Anthropic: Claude Opus 4.8",
+    "provider": "openrouter",
+    "model": "anthropic/claude-opus-4.8",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$5.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_anthropic_claude_opus_4.8_batc",
+    "name": "Anthropic: Claude Opus 4.8 (batch)",
+    "provider": "openrouter",
+    "model": "anthropic/claude-opus-4.8:batch",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.50/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_qwen_qwen3.7_max",
+    "name": "Qwen: Qwen3.7 Max",
+    "provider": "openrouter",
+    "model": "qwen/qwen3.7-max",
+    "ctx": 1000000,
+    "maxOut": 131072,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$1.48/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_chat_latest",
+    "name": "OpenAI: GPT Chat Latest",
+    "provider": "openrouter",
+    "model": "openai/gpt-chat-latest",
+    "ctx": 400000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$5.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_mistralai_mistral_medium_3_5",
+    "name": "Mistral: Mistral Medium 3.5",
+    "provider": "openrouter",
+    "model": "mistralai/mistral-medium-3-5",
+    "ctx": 262144,
+    "maxOut": 209715,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$1.50/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_mistralai_mistral_medium_3_5_b",
+    "name": "Mistral: Mistral Medium 3.5 (batch)",
+    "provider": "openrouter",
+    "model": "mistralai/mistral-medium-3-5:batch",
+    "ctx": 262144,
+    "maxOut": 209715,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.75/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_nvidia_nemotron_3_nano_omni_30",
+    "name": "NVIDIA: Nemotron 3 Nano Omni (free)",
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    "ctx": 256000,
+    "maxOut": 65536,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "Free",
+    "free": true,
+    "tags": [
+      "free"
+    ]
+  },
+  {
+    "id": "or_~anthropic_claude_haiku_latest",
+    "name": "Anthropic: Claude Haiku Latest",
+    "provider": "openrouter",
+    "model": "~anthropic/claude-haiku-latest",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.10/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_~openai_gpt_mini_latest",
+    "name": "OpenAI: GPT Mini Latest",
+    "provider": "openrouter",
+    "model": "~openai/gpt-mini-latest",
+    "ctx": 400000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.75/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_~anthropic_claude_sonnet_lates",
+    "name": "Anthropic: Claude Sonnet Latest",
+    "provider": "openrouter",
+    "model": "~anthropic/claude-sonnet-latest",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_qwen_qwen3.5_plus_20260420",
+    "name": "Qwen: Qwen3.5 Plus 2026-04-20",
+    "provider": "openrouter",
+    "model": "qwen/qwen3.5-plus-20260420",
+    "ctx": 1000000,
+    "maxOut": 65536,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.30/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_qwen_qwen3.6_flash",
+    "name": "Qwen: Qwen3.6 Flash",
+    "provider": "openrouter",
+    "model": "qwen/qwen3.6-flash",
+    "ctx": 1000000,
+    "maxOut": 65536,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.19/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_qwen_qwen3.6_35b_a3b",
+    "name": "Qwen: Qwen3.6 35B A3B",
+    "provider": "openrouter",
+    "model": "qwen/qwen3.6-35b-a3b",
+    "ctx": 262144,
+    "maxOut": 235929,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.10/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_qwen_qwen3.6_27b",
+    "name": "Qwen: Qwen3.6 27B",
+    "provider": "openrouter",
+    "model": "qwen/qwen3.6-27b",
+    "ctx": 262144,
+    "maxOut": 65536,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.25/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.5_pro",
+    "name": "OpenAI: GPT-5.5 Pro",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.5-pro",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$30.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.5_pro_batch",
+    "name": "OpenAI: GPT-5.5 Pro (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.5-pro:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$15.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.5",
+    "name": "OpenAI: GPT-5.5",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.5",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$5.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.5_batch",
+    "name": "OpenAI: GPT-5.5 (batch)",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.5:batch",
+    "ctx": 1050000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$2.50/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_deepseek_deepseek_v4_pro",
+    "name": "DeepSeek: DeepSeek V4 Pro 0423",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4-pro",
+    "ctx": 1048576,
+    "maxOut": 384000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.96/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_deepseek_deepseek_v4_flash",
+    "name": "DeepSeek: DeepSeek V4 Flash 0423",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4-flash",
+    "ctx": 1048576,
+    "maxOut": 943717,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$0.09/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_openai_gpt_5.4_image_2",
+    "name": "OpenAI: GPT-5.4 Image 2",
+    "provider": "openrouter",
+    "model": "openai/gpt-5.4-image-2",
+    "ctx": 272000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$8.00/M",
+    "free": false,
+    "tags": []
+  },
+  {
+    "id": "or_~anthropic_claude_opus_latest",
+    "name": "Anthropic: Claude Opus Latest",
+    "provider": "openrouter",
+    "model": "~anthropic/claude-opus-latest",
+    "ctx": 1000000,
+    "maxOut": 128000,
+    "tools": [],
+    "mmlu": null,
+    "speed": "\u2014",
+    "cost": "$4.00/M",
+    "free": false,
+    "tags": []
+  }
 ];
 
-var chain = MODELS.map(function(m){return {id:m.id, enabled:m.enabled};});
+
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var DEFAULT_CHAIN_IDS = ['glm53','mistral4','gemma4nv','gemma4gm','deepseek','grok','cohere','cerebras','groq','nemotron_super','minimax','pollinations'];
+var chain = [];
+var selectedAvail = null;
+var selectedChain = null;
+var currentFilter = 'all';
+var currentSearch = '';
 
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
@@ -199,164 +1840,159 @@ document.addEventListener('DOMContentLoaded', function() {
     mount.parentNode.removeChild(mount);
   }
   loadSettings();
-  renderChain();
   renderBenchmarks();
 });
 
 function loadSettings() {
-  // Load from KV
   fetch(WORKER + '/api/kv/get?key=orchestrator:settings')
     .then(function(r){return r.json();})
     .then(function(d){
       if (d.value) {
         try {
-          var settings = JSON.parse(d.value);
-          if (settings.chain) chain = settings.chain;
-          if (settings.defaultProfile) document.getElementById('default-profile').value = settings.defaultProfile;
-          if (settings.systemPrompt) document.getElementById('system-prompt').value = settings.systemPrompt;
-          if (settings.searchEnabled !== undefined) document.getElementById('search-enabled').checked = settings.searchEnabled;
-          if (settings.searchProvider) document.getElementById('search-provider').value = settings.searchProvider;
-          if (settings.searchKeywords) document.getElementById('search-keywords').value = settings.searchKeywords;
-          renderChain();
+          var s = JSON.parse(d.value);
+          if (s.chainIds) chain = s.chainIds.map(function(id){ return MODEL_CATALOGUE.find(function(m){return m.id===id;}); }).filter(Boolean);
+          if (s.systemPrompt) document.getElementById('system-prompt').value = s.systemPrompt;
+          if (s.searchEnabled !== undefined) document.getElementById('search-enabled').checked = s.searchEnabled;
+          if (s.searchProvider) document.getElementById('search-provider').value = s.searchProvider;
+          if (s.searchKeywords) document.getElementById('search-keywords').value = s.searchKeywords;
         } catch(e) {}
-      } else {
-        // Set default system prompt
-        document.getElementById('system-prompt').value = "You are Gerald, the Orchestrator for Argentica — the personal AI operating environment of Simon Johnson / Identity Partners. You address Simon as 'sir'. You are sardonic, precise, and devastatingly competent. Never sycophantic. British English. CRITICAL: Never lie or fabricate. If you searched and found nothing, say so. Do not invent reports, statistics, or citations.";
       }
+      if (!chain.length) chain = DEFAULT_CHAIN_IDS.map(function(id){ return MODEL_CATALOGUE.find(function(m){return m.id===id;}); }).filter(Boolean);
+      if (!document.getElementById('system-prompt').value) {
+        document.getElementById('system-prompt').value = "You are Gerald, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English. Never fabricate.";
+      }
+      renderAvailable();
+      renderChain();
     }).catch(function(){
-      document.getElementById('system-prompt').value = "You are Gerald, the Orchestrator for Argentica — the personal AI operating environment of Simon Johnson / Identity Partners. You address Simon as 'sir'. You are sardonic, precise, and devastatingly competent. Never sycophantic. British English.";
+      chain = DEFAULT_CHAIN_IDS.map(function(id){ return MODEL_CATALOGUE.find(function(m){return m.id===id;}); }).filter(Boolean);
+      document.getElementById('system-prompt').value = "You are Gerald, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English. Never fabricate.";
+      renderAvailable();
+      renderChain();
     });
 }
 
-function renderChain() {
-  var list = document.getElementById('chain-list');
+function getFilteredModels() {
+  var chainIds = chain.map(function(m){return m.id;});
+  return MODEL_CATALOGUE.filter(function(m) {
+    if (chainIds.includes(m.id)) return false;
+    var q = currentSearch.toLowerCase();
+    if (q && !m.name.toLowerCase().includes(q) && !m.model.toLowerCase().includes(q) && !m.provider.toLowerCase().includes(q)) return false;
+    if (currentFilter === 'free') return m.free;
+    if (currentFilter === 'fast') return m.tags && m.tags.includes('fast');
+    if (currentFilter === 'vision') return m.tools && m.tools.includes('vision');
+    if (currentFilter === 'search') return m.tools && (m.tools.includes('web_search') || m.tools.includes('google_search'));
+    if (currentFilter === 'thinking') return m.tools && m.tools.includes('thinking');
+    if (currentFilter === '1m') return m.ctx >= 900000;
+    return true;
+  });
+}
+
+function renderAvailable() {
+  var filtered = getFilteredModels();
+  document.getElementById('avail-count').textContent = filtered.length + ' models';
+  var list = document.getElementById('avail-list');
   list.innerHTML = '';
-  chain.forEach(function(c, idx) {
-    var model = MODELS.find(function(m){return m.id===c.id;});
-    if (!model) return;
+  filtered.forEach(function(m) {
     var div = document.createElement('div');
-    div.className = 'chain-item';
-    div.draggable = true;
-    div.dataset.idx = idx;
-    div.ondragstart = function(e){ e.dataTransfer.setData('text/plain', idx); };
-    div.ondragover = function(e){ e.preventDefault(); div.style.borderColor='var(--accent)'; };
-    div.ondragleave = function(){ div.style.borderColor=''; };
-    div.ondrop = function(e){
-      e.preventDefault(); div.style.borderColor='';
-      var fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
-      var toIdx = idx;
-      if (fromIdx === toIdx) return;
-      var item = chain.splice(fromIdx, 1)[0];
-      chain.splice(toIdx, 0, item);
-      renderChain();
-    };
-
-    var badgeHtml = (model.badges||[]).map(function(b){
-      var cls = b==='free'?'badge-free':b==='fast'?'badge-fast':b==='1M'?'badge-1m':'badge-paid';
-      return '<span class="badge '+cls+'">'+b+'</span>';
+    div.className = 'model-row' + (selectedAvail === m.id ? ' selected' : '');
+    div.onclick = (function(mid){ return function(){ selectedAvail = mid; renderAvailable(); }; })(m.id);
+    div.ondblclick = (function(mid){ return function(){ selectedAvail = mid; addSelected(); }; })(m.id);
+    var ctxStr = m.ctx >= 1000000 ? '1M' : m.ctx >= 100000 ? Math.round(m.ctx/1000)+'K' : m.ctx ? m.ctx+'' : '-';
+    var tagHtml = (m.tags||[]).slice(0,2).map(function(t){
+      var cls = t==='free'?'tag-free':t==='fast'?'tag-fast':t==='vision'?'tag-vision':t==='search'?'tag-search':t==='thinking'?'tag-thinking':'';
+      return '<span class="tag '+cls+'">'+t+'</span>';
     }).join('');
-
-    div.innerHTML = '<span class="chain-drag">⠿</span>' +
-      '<div class="chain-num">' + (idx+1) + '</div>' +
-      '<div class="chain-info">' +
-        '<div class="chain-name">' + model.name + '</div>' +
-        '<div class="chain-detail">' + model.provider + ' / ' + model.model + ' · ' + model.context + ' ctx · ' + model.speed + '</div>' +
-        '<div class="chain-badges">' + badgeHtml + '</div>' +
-      '</div>' +
-      '<div class="chain-toggle"><input type="checkbox" ' + (c.enabled?'checked':'') + ' onchange="toggleModel(\'' + c.id + '\',this.checked)" title="Enable/disable"></div>';
-
+    div.innerHTML = '<span class="model-name" title="'+m.model+'">'+m.name+'</span><span class="model-ctx">'+ctxStr+'</span><span class="model-tags">'+tagHtml+'</span>';
     list.appendChild(div);
   });
 }
 
-function toggleModel(id, enabled) {
-  var item = chain.find(function(c){return c.id===id;});
-  if (item) item.enabled = enabled;
+function renderChain() {
+  document.getElementById('chain-count').textContent = chain.length + ' in chain';
+  var list = document.getElementById('chain-list');
+  list.innerHTML = '';
+  chain.forEach(function(m, idx) {
+    var div = document.createElement('div');
+    div.className = 'chain-row' + (selectedChain === m.id ? ' selected' : '');
+    div.draggable = true;
+    div.onclick = (function(mid){ return function(){ selectedChain = mid; renderChain(); }; })(m.id);
+    div.ondragstart = function(e){ e.dataTransfer.setData('text/plain', idx); };
+    div.ondragover = function(e){ e.preventDefault(); div.style.background='var(--bg-sunken)'; };
+    div.ondragleave = function(){ div.style.background=''; };
+    div.ondrop = (function(toIdx){ return function(e){
+      e.preventDefault(); div.style.background='';
+      var from = parseInt(e.dataTransfer.getData('text/plain'));
+      if (from === toIdx) return;
+      var item = chain.splice(from,1)[0];
+      chain.splice(toIdx,0,item);
+      renderChain();
+    }; })(idx);
+    div.innerHTML = '<span class="chain-drag">&#x2807;</span><span class="chain-num">'+(idx+1)+'</span><span class="chain-name" title="'+m.model+'">'+m.name+'</span><span class="chain-provider">'+m.provider+'</span><div class="reorder-btns"><button class="reorder-btn" onclick="moveUp('+idx+',event)">&#x25B2;</button><button class="reorder-btn" onclick="moveDown('+idx+',event)">&#x25BC;</button><button class="reorder-btn" onclick="removeAt('+idx+',event)" style="color:#dc2626;">&#x2715;</button></div>';
+    list.appendChild(div);
+  });
 }
+
+function addSelected() {
+  if (!selectedAvail) return;
+  var m = MODEL_CATALOGUE.find(function(m){return m.id===selectedAvail;});
+  if (m && !chain.find(function(c){return c.id===m.id;})) { chain.push(m); selectedAvail = null; renderAvailable(); renderChain(); }
+}
+function addAll() {
+  getFilteredModels().forEach(function(m){ if (!chain.find(function(c){return c.id===m.id;})) chain.push(m); });
+  renderAvailable(); renderChain();
+}
+function removeSelected() {
+  if (!selectedChain) return;
+  chain = chain.filter(function(m){return m.id!==selectedChain;}); selectedChain = null; renderAvailable(); renderChain();
+}
+function removeAt(idx, e) { e.stopPropagation(); chain.splice(idx,1); renderAvailable(); renderChain(); }
+function clearChain() { if (!confirm('Clear chain?')) return; chain = []; renderAvailable(); renderChain(); }
+function moveUp(idx, e) { e.stopPropagation(); if (idx===0) return; var t=chain[idx-1];chain[idx-1]=chain[idx];chain[idx]=t; renderChain(); }
+function moveDown(idx, e) { e.stopPropagation(); if (idx>=chain.length-1) return; var t=chain[idx+1];chain[idx+1]=chain[idx];chain[idx]=t; renderChain(); }
+function setFilter(f, btn) { currentFilter=f; document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');}); btn.classList.add('active'); renderAvailable(); }
+function filterModels(q) { currentSearch=q; renderAvailable(); }
 
 function renderBenchmarks() {
   var tbody = document.getElementById('bench-tbody');
   tbody.innerHTML = '';
-  MODELS.filter(function(m){return m.mmlu;}).forEach(function(m) {
+  var bm = MODEL_CATALOGUE.filter(function(m){return m.mmlu;}).sort(function(a,b){return (b.mmlu||0)-(a.mmlu||0);});
+  bm.forEach(function(m) {
+    var toolHtml = (m.tools||[]).map(function(t){
+      var label = t==='web_search'?'Web':t==='google_search'?'GSearch':t==='vision'?'Vision':t==='thinking'?'Think':t==='rag'?'RAG':t==='realtime_x'?'X/RT':t;
+      var cls = t.includes('search')?'tool-web':t==='vision'?'tool-vision':t==='thinking'?'tool-thinking':t==='rag'?'tool-rag':'tool-realtime';
+      return '<span class="tool-badge '+cls+'">'+label+'</span>';
+    }).join('');
+    var ctxStr = m.ctx>=1000000?'1M':m.ctx>=100000?Math.round(m.ctx/1000)+'K':(m.ctx||'-')+'';
+    var maxOutStr = m.maxOut>=1000?Math.round(m.maxOut/1000)+'K':(m.maxOut||'-')+'';
     var tr = document.createElement('tr');
-    var maxMmlu = 90;
-    tr.innerHTML = '<td><strong>' + m.name + '</strong></td>' +
-      '<td><span class="bench-score">' + m.mmlu + '</span> <span class="bench-bar" style="width:' + Math.round(m.mmlu/maxMmlu*60) + 'px;"></span></td>' +
-      '<td>' + m.humaneval + '</td>' +
-      '<td>' + m.math + '</td>' +
-      '<td>' + m.mtbench + '/10</td>' +
-      '<td>' + m.context + '</td>' +
-      '<td>' + m.speed + '</td>' +
-      '<td>' + m.cost + '</td>';
+    tr.innerHTML = '<td><strong>'+m.name+'</strong><br><span style="font-size:10px;color:var(--fg-muted);">'+m.provider+' / '+m.model.substring(0,35)+'</span></td><td>'+m.mmlu+'</td><td>'+(m.humaneval||'-')+'</td><td>'+(m.math||'-')+'</td><td>'+(m.mtbench?m.mtbench+'/10':'-')+'</td><td>'+toolHtml+'</td><td>'+ctxStr+'</td><td>'+maxOutStr+'</td><td>'+m.speed+'</td><td>'+(m.free?'<span style="color:#16a34a;font-weight:600;">Free</span>':m.cost)+'</td>';
     tbody.appendChild(tr);
   });
-  // Add Nemotron note
-  var tr2 = document.createElement('tr');
-  tr2.style.background = 'rgba(124,58,237,0.04)';
-  tr2.innerHTML = '<td><strong>Nemotron Ultra 253B</strong> <span style="font-size:10px;color:#7c3aed;">not in chain</span></td>' +
-    '<td><span class="bench-score">90.1</span></td><td>88.4</td><td>74.2</td><td>9.3/10</td><td>1M</td><td>—</td><td>Free (OpenRouter)</td>';
-  tbody.appendChild(tr2);
 }
 
-function selectProfile(profile, el) {
-  document.querySelectorAll('.profile-card').forEach(function(c){c.classList.remove('active');});
-  el.classList.add('active');
-}
-
-function saveChain() {
-  saveSettings();
-  Toast.success('Chain saved. Takes effect on next chat.');
-}
-
-function saveProfiles() {
-  saveSettings();
-  Toast.success('Profiles saved.');
-}
-
-function saveSystemPrompt() {
-  saveSettings();
-  Toast.success('System prompt saved. Takes effect on next conversation.');
-}
-
-function saveSearchSettings() {
-  saveSettings();
-  Toast.success('Search settings saved.');
-}
+function saveChain() { saveSettings(); alert('Chain saved.'); }
+function saveSystemPrompt() { saveSettings(); alert('System prompt saved.'); }
+function saveSearchSettings() { saveSettings(); alert('Search settings saved.'); }
 
 function saveSettings() {
-  var settings = {
-    chain: chain,
-    defaultProfile: document.getElementById('default-profile').value,
-    systemPrompt: document.getElementById('system-prompt').value,
-    searchEnabled: document.getElementById('search-enabled').checked,
-    searchProvider: document.getElementById('search-provider').value,
-    searchKeywords: document.getElementById('search-keywords').value,
-    updated: new Date().toISOString(),
-  };
-  fetch(WORKER + '/api/kv/set', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({key:'orchestrator:settings', value:JSON.stringify(settings)})
-  }).catch(function(){});
+  var settings = { chainIds: chain.map(function(m){return m.id;}), systemPrompt: document.getElementById('system-prompt').value, searchEnabled: document.getElementById('search-enabled').checked, searchProvider: document.getElementById('search-provider').value, searchKeywords: document.getElementById('search-keywords').value, updated: new Date().toISOString() };
+  fetch(WORKER + '/api/kv/set', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key:'orchestrator:settings', value:JSON.stringify(settings)}) }).catch(function(){});
 }
 
 function testChain() {
   var resultEl = document.getElementById('test-result');
   resultEl.style.display = 'block';
-  resultEl.textContent = 'Testing chain...';
-  fetch(WORKER + '/api/champion/test-providers', {
-    method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'
-  })
+  resultEl.textContent = 'Testing...';
+  fetch(WORKER + '/api/champion/test-providers', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' })
   .then(function(r){return r.json();})
   .then(function(d){
-    var results = d.results || [];
-    resultEl.textContent = 'Chain test results (' + d.ok + '/' + d.tested + ' OK):\n\n';
-    results.forEach(function(r) {
-      var icon = r.status==='ok'?'✓':r.status==='timeout'?'⏱':'✗';
-      resultEl.textContent += icon + ' ' + r.name + ': ' + r.status + (r.ms?' ('+r.ms+'ms)':'') + (r.error?' — '+r.error:'') + '\n';
-    });
+    var text = 'Results (' + d.ok + '/' + d.tested + ' OK):';
+    (d.results||[]).forEach(function(r){ text += '\n' + (r.status==='ok'?'OK':'FAIL') + ' ' + r.name + ': ' + r.status + (r.ms?' ('+r.ms+'ms)':'') + (r.error?' - '+r.error:''); });
+    resultEl.textContent = text;
   })
   .catch(function(e){ resultEl.textContent = 'Error: ' + e.message; });
 }
+
 </script>
 </body>
 </html>
