@@ -208,7 +208,7 @@ async function orchestrate(env, messages, profile = 'balanced') {
   if (profile === 'fast') {
     // Fast: GPT-OSS Groq → Gemma NVIDIA → Qwen Groq → Pollinations
     if (KEYS.groq)   chain.push({ p: 'groq',   key: KEYS.groq,   m: 'openai/gpt-oss-120b',  note: 'GPT-OSS 120B Groq' });
-    if (KEYS.nvidia) chain.push({ p: 'nvidia', key: KEYS.nvidia, m: 'google/gemma-4-31b-it', note: 'Gemma 4 NVIDIA' });
+    // NVIDIA endpoint timing out - skipped
     if (KEYS.groq)   chain.push({ p: 'groq',   key: KEYS.groq,   m: 'qwen/qwen3.8-27b',     note: 'Qwen 3.8 Groq' });
     if (KEYS.cerebras) chain.push({ p: 'cerebras', key: KEYS.cerebras, m: 'gpt-oss-120b',   note: 'GPT-OSS Cerebras' });
 
@@ -227,8 +227,8 @@ async function orchestrate(env, messages, profile = 'balanced') {
     if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-medium-3.5',                   note: 'Mistral Medium 3.5' });
     // 2. Mistral Large Latest — 573ms, reliable, web search, vision
     if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-latest',                 note: 'Mistral Large Latest' });
-    // 3. Gemma 4 31B via NVIDIA — 269ms when working, 262K ctx
-    if (KEYS.nvidia)     chain.push({ p: 'nvidia',     key: KEYS.nvidia,     m: 'google/gemma-4-31b-it',                note: 'Gemma 4 NVIDIA' });
+    // 3. Gemma 4 31B via Gemini API — reliable, Google Search grounding
+    // Note: NVIDIA endpoint confirmed timing out (20s+) - using Gemini API instead
     // 3. Gemma 4 31B via Gemini API — Google Search grounding
     if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemma-4-31b-it',                       note: 'Gemma 4 Gemini' });
     // 4. Gemini 3.5 Flash — reliable, 1M ctx, no thinking mode issues
