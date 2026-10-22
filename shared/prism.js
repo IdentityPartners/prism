@@ -14,6 +14,17 @@
 })();
 
 
+// ── Load Iconify for colourful icons ─────────────────────────────────────────
+(function() {
+  if (!document.getElementById('iconify-script')) {
+    var s = document.createElement('script');
+    s.id = 'iconify-script';
+    s.src = 'https://cdn.jsdelivr.net/npm/@iconify/iconify@3/dist/iconify.min.js';
+    s.async = true;
+    document.head.appendChild(s);
+  }
+})();
+
 // ── Load Playfair Display for serif themes ───────────────────────────────────
 (function() {
   var link = document.createElement('link');
@@ -780,7 +791,12 @@ function buildSidebar(activePage) {
       header.className = 'nav-group-header' + (anyActive ? ' active' : '');
       var hIcon = document.createElement('span');
       hIcon.className = 'nav-item-icon';
+      // Render icon: Iconify format (contains ':') or plain emoji/text
+    if (item.icon && item.icon.includes(':')) {
+      hIcon.innerHTML = '<span class="iconify" data-icon="' + item.icon + '" style="font-size:18px;"></span>';
+    } else {
       hIcon.innerHTML = item.icon || '';
+    }
       var hLabel = document.createElement('span');
       hLabel.className = 'nav-item-label';
       hLabel.textContent = item.label;
@@ -820,7 +836,11 @@ function buildSidebar(activePage) {
     if (item.icon) {
       var icon = document.createElement('span');
       icon.className = 'nav-item-icon';
-      icon.innerHTML = item.icon || "";
+      if (item.icon && item.icon.includes(':')) {
+        icon.innerHTML = '<span class="iconify" data-icon="' + item.icon + '" style="font-size:15px;"></span>';
+      } else {
+        icon.innerHTML = item.icon || '';
+      }
       a.appendChild(icon);
     }
     var lbl = document.createElement('span');
