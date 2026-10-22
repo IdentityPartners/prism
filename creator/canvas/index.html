@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792701125 -->
+<!-- cache-bust-1792701424 -->
+
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Canvas — Argentica</title>
 <link rel="stylesheet" href="/shared/prism.css">
@@ -118,6 +119,16 @@
   </div>
 </div>
 <input type="file" id="img-upload" accept="image/*" style="display:none;">
+
+<div id="template-gallery" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;overflow-y:auto;padding:20px;">
+  <div style="max-width:900px;margin:0 auto;background:var(--bg-elevated);border-radius:12px;padding:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2 style="margin:0;font-size:18px;">Canvas Templates (34)</h2>
+      <button onclick="document.getElementById('template-gallery').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--fg-muted);">✕</button>
+    </div>
+    <div id="template-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;"></div>
+  </div>
+</div>
 <script src="/shared/prism.js"></script>
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
@@ -568,6 +579,112 @@ function generateAIImage() {
   .catch(function(e) {
     if (status) status.textContent = 'Error: ' + e.message;
   });
+}
+
+// Template gallery
+var CANVAS_TEMPLATES = [
+  {id:'block-teal',label:'Teal Block',group:'Block Colour'},
+  {id:'block-rose',label:'Rose Block',group:'Block Colour'},
+  {id:'block-ivory',label:'Ivory Block',group:'Block Colour'},
+  {id:'block-grey',label:'Grey Block',group:'Block Colour'},
+  {id:'block-split',label:'Split Teal/Rose',group:'Block Colour'},
+  {id:'img-sunrise',label:'Sunrise',group:'Image Background'},
+  {id:'img-sunset',label:'Sunset',group:'Image Background'},
+  {id:'img-landscape',label:'Landscape',group:'Image Background'},
+  {id:'img-seascape',label:'Seascape',group:'Image Background'},
+  {id:'img-cityscape',label:'Cityscape',group:'Image Background'},
+  {id:'img-aurora',label:'Aurora Borealis',group:'Image Background'},
+  {id:'img-reef',label:'Great Barrier Reef',group:'Image Background'},
+  {id:'img-glacier',label:'Glacier',group:'Image Background'},
+  {id:'img-fjord',label:'Norwegian Fjord',group:'Image Background'},
+  {id:'img-space',label:'Earth from Space',group:'Image Background'},
+  {id:'img-stars',label:'Night Sky',group:'Image Background'},
+  {id:'img-fire',label:'Cosy Fire',group:'Image Background'},
+  {id:'img-rain',label:'Rain on Window',group:'Image Background'},
+  {id:'img-fractal',label:'Abstract/Fractal',group:'Image Background'},
+  {id:'dual-partnership',label:'Partnership',group:'Dual Panel'},
+  {id:'dual-primates',label:'Primates',group:'Dual Panel'},
+  {id:'dual-catdog',label:'Cat & Dog',group:'Dual Panel'},
+  {id:'dual-children',label:'Children Playing',group:'Dual Panel'},
+  {id:'dual-cosplay',label:'Children as Professionals',group:'Dual Panel'},
+  {id:'post-calendar',label:'Calendar/Event',group:'Post Type'},
+  {id:'post-research',label:'Research',group:'Post Type'},
+  {id:'post-library',label:'Library',group:'Post Type'},
+  {id:'post-news',label:'News',group:'Post Type'},
+  {id:'testimonial-teal',label:'Testimonial Teal',group:'Testimonial'},
+  {id:'testimonial-rose',label:'Testimonial Rose',group:'Testimonial'},
+  {id:'testimonial-ivory',label:'Testimonial Ivory',group:'Testimonial'},
+];
+
+function showTemplateGallery() {
+  var grid = document.getElementById('template-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  var groups = {};
+  CANVAS_TEMPLATES.forEach(function(t) {
+    if (!groups[t.group]) groups[t.group] = [];
+    groups[t.group].push(t);
+  });
+  Object.keys(groups).forEach(function(group) {
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'grid-column:1/-1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px;';
+    hdr.textContent = group;
+    grid.appendChild(hdr);
+    groups[group].forEach(function(t) {
+      var card = document.createElement('div');
+      card.style.cssText = 'background:var(--bg-sunken);border:1px solid var(--border);border-radius:8px;padding:10px;cursor:pointer;text-align:center;transition:all 0.15s;';
+      card.onmouseenter = function(){card.style.borderColor='var(--accent)';};
+      card.onmouseleave = function(){card.style.borderColor='var(--border)';};
+      card.onclick = function() {
+        generateCanvasPreview(t.id, t.label);
+        document.getElementById('template-gallery').style.display = 'none';
+      };
+      card.innerHTML = '<div style="font-size:11px;font-weight:600;color:var(--fg);">' + t.label + '</div>';
+      grid.appendChild(card);
+    });
+  });
+  document.getElementById('template-gallery').style.display = 'block';
+}
+
+function generateCanvasPreview(templateId, label) {
+  var text = prompt('Enter text for the canvas:', 'Understand your past. Appreciate the present. Define your future.');
+  if (!text) return;
+  var statusEl = document.getElementById('canvas-status') || document.createElement('div');
+  statusEl.id = 'canvas-status';
+  statusEl.style.cssText = 'position:fixed;bottom:20px;right:20px;background:var(--accent);color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;z-index:9999;';
+  statusEl.textContent = 'Generating ' + label + '...';
+  document.body.appendChild(statusEl);
+  
+  fetch('https://prism-api.identitypartners.workers.dev/api/canvas/social', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({text:text, template:templateId, platforms:[], preview:true})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    statusEl.remove();
+    var url = d.canvas && (d.canvas.url || d.canvas.dataUrl);
+    if (url) {
+      var modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;';
+      modal.onclick = function(){modal.remove();};
+      var img = document.createElement('img');
+      img.src = url;
+      img.style.cssText = 'max-width:90vmin;max-height:80vmin;border-radius:8px;';
+      var info = document.createElement('div');
+      info.style.cssText = 'color:#fff;font-size:13px;';
+      info.textContent = label + ' · ' + (d.canvas.source||'') + ' · Click to close';
+      var dlBtn = document.createElement('a');
+      dlBtn.href = url; dlBtn.download = templateId + '.svg';
+      dlBtn.style.cssText = 'padding:8px 16px;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:13px;';
+      dlBtn.textContent = '⬇ Download SVG';
+      dlBtn.onclick = function(e){e.stopPropagation();};
+      modal.appendChild(img); modal.appendChild(info); modal.appendChild(dlBtn);
+      document.body.appendChild(modal);
+    } else {
+      alert('Canvas generation failed: ' + (d.error||'unknown'));
+    }
+  })
+  .catch(function(e){statusEl.remove();alert('Error: '+e.message);});
 }
 </script>
 </body>
