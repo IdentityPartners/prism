@@ -380,3 +380,71 @@
 [data-mobile-theme="gold"] {
   --bg-primary: #fdf8f0; --accent: #c87820; --fg-primary: #4a3020;
 }
+
+/* ── Argentica Serif ─────────────────────────────────────────────────────── */
+[data-theme="serif"],
+[data-theme="argentica-serif"] {
+  --bg-primary:   #faf8f4;
+  --bg-surface:   #f4f0ea;
+  --bg-elevated:  #ffffff;
+  --bg-sunken:    #ede8e0;
+  --fg-primary:   #1c1a17;
+  --fg-secondary: #3d3830;
+  --fg-muted:     #7a6f62;
+  --border:       #d4ccc0;
+  --accent:       #8b4513;
+  --accent-hover: #6b3410;
+  --accent-light: #f5ede5;
+  --rose:         #9b6b4a;
+  --rose-light:   #f5ede5;
+  --font-ui:      'Georgia', 'Times New Roman', serif;
+  --font-heading: 'Playfair Display', 'Georgia', serif;
+  --radius:       6px;
+  --topbar-h:     48px;
+  --sidebar-w:    220px;
+}
+
+/* ── Argentica Ink ───────────────────────────────────────────────────────── */
+[data-theme="ink"],
+[data-theme="argentica-ink"] {
+  --bg-primary:   #1a1814;
+  --bg-surface:   #141210;
+  --bg-elevated:  #242018;
+  --bg-sunken:    #0e0c0a;
+  --fg-primary:   #f0ebe0;
+  --fg-secondary: #d4cfc4;
+  --fg-muted:     #8a8070;
+  --border:       #3a3428;
+  --accent:       #c8956a;
+  --accent-hover: #e0a87a;
+  --accent-light: #2a2018;
+  --rose:         #b87a5a;
+  --rose-light:   #2a1e14;
+  --font-ui:      'Georgia', serif;
+  --font-heading: 'Playfair Display', 'Georgia', serif;
+  --radius:       6px;
+  --topbar-h:     48px;
+  --sidebar-w:    220px;
+}
+
+/* ── Slate ───────────────────────────────────────────────────────────────── */
+[data-theme="slate"] {
+  --bg-primary:   #f1f3f5;
+  --bg-surface:   #e8eaed;
+  --bg-elevated:  #ffffff;
+  --bg-sunken:    #dde0e4;
+  --fg-primary:   #1a1d21;
+  --fg-secondary: #2d3238;
+  --fg-muted:     #5a6270;
+  --border:       #c8cdd4;
+  --accent:       #3b5bdb;
+  --accent-hover: #2f4ac4;
+  --accent-light: #e8ecff;
+  --rose:         #5c7cfa;
+  --rose-light:   #e8ecff;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Inter', sans-serif;
+  --radius:       8px;
+  --topbar-h:     48px;
+  --sidebar-w:    220px;
+}
