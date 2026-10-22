@@ -1,1 +1,1 @@
-Deploy trigger: 1792694767
+Deploy: 1792696631 - paid plan active, notifications re-enabled
