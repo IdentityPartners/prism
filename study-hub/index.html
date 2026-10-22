@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792702293 -->
+<!-- cache-bust-1792702354 -->
+
 
 
 <meta charset="utf-8"/>
@@ -924,6 +925,36 @@ function addAIMsg(role, text) {
   div.textContent = text;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
+}
+
+function readAloud(resourceId, e) {
+  if (e) e.stopPropagation();
+  var resource = null;
+  if (currentWeek) resource = (currentWeek.resources||[]).find(function(r){return r.id===resourceId;});
+  if (!resource) return;
+  var text = resource.content || resource.title || '';
+  if (!text) { alert('No text content to read.'); return; }
+  var btn = e ? e.target : null;
+  if (btn) btn.textContent = '⏳';
+  fetch(WORKER + '/api/tts/read', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({text:text.substring(0,5000), voice:'aura-arcas-en', provider:'deepgram'})
+  })
+  .then(function(r) {
+    if (!r.ok) throw new Error('TTS failed: ' + r.status);
+    return r.blob();
+  })
+  .then(function(blob) {
+    if (btn) btn.textContent = '🔊';
+    var url = URL.createObjectURL(blob);
+    var audio = new Audio(url);
+    audio.play();
+    audio.onended = function() { if (btn) btn.textContent = '🔊'; };
+  })
+  .catch(function(e) {
+    if (btn) btn.textContent = '🔊';
+    alert('TTS error: ' + e.message);
+  });
 }
 
 function askAbout(resourceId) {
