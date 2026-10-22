@@ -247,12 +247,12 @@ function loadModules() {
       if (!modules.length) {
         // Default modules
         modules = [
-          { id:'qrm', name:'Quant Research Methods', icon:'&#x1F4CA;', colour:'#2d6a9f', weeks:[] },
-          { id:'mn', name:'Methodology Now', icon:'&#x1F52C;', colour:'#0f3b3a', weeks:[] },
-          { id:'rp', name:'Research Project', icon:'&#x1F4DD;', colour:'#5c2d3f', weeks:[] },
-          { id:'diss', name:'Dissertation', icon:'&#x1F393;', colour:'#16a34a', weeks:[] },
-          { id:'concepts', name:'Concepts & Thinkers', icon:'&#x1F9E0;', colour:'#7c3aed', weeks:[] },
-          { id:'phd', name:'PhD Material', icon:'&#x1F4D6;', colour:'#f59e0b', weeks:[] },
+          { id:'qrm', name:'Quant Research Methods', icon:'📊', colour:'#2d6a9f', weeks:[] },
+          { id:'mn', name:'Methodology Now', icon:'🔬', colour:'#0f3b3a', weeks:[] },
+          { id:'rp', name:'Research Project', icon:'📝', colour:'#5c2d3f', weeks:[] },
+          { id:'diss', name:'Dissertation', icon:'🎓', colour:'#16a34a', weeks:[] },
+          { id:'concepts', name:'Concepts & Thinkers', icon:'🧠', colour:'#7c3aed', weeks:[] },
+          { id:'phd', name:'PhD Material', icon:'📖', colour:'#f59e0b', weeks:[] },
         ];
         saveModules();
       }
@@ -262,12 +262,12 @@ function loadModules() {
       try { modules = JSON.parse(localStorage.getItem('study:modules') || '[]'); } catch(e) { modules = []; }
       if (!modules.length) {
         modules = [
-          { id:'qrm', name:'Quant Research Methods', icon:'&#x1F4CA;', colour:'#2d6a9f', weeks:[] },
-          { id:'mn', name:'Methodology Now', icon:'&#x1F52C;', colour:'#0f3b3a', weeks:[] },
-          { id:'rp', name:'Research Project', icon:'&#x1F4DD;', colour:'#5c2d3f', weeks:[] },
-          { id:'diss', name:'Dissertation', icon:'&#x1F393;', colour:'#16a34a', weeks:[] },
-          { id:'concepts', name:'Concepts & Thinkers', icon:'&#x1F9E0;', colour:'#7c3aed', weeks:[] },
-          { id:'phd', name:'PhD Material', icon:'&#x1F4D6;', colour:'#f59e0b', weeks:[] },
+          { id:'qrm', name:'Quant Research Methods', icon:'📊', colour:'#2d6a9f', weeks:[] },
+          { id:'mn', name:'Methodology Now', icon:'🔬', colour:'#0f3b3a', weeks:[] },
+          { id:'rp', name:'Research Project', icon:'📝', colour:'#5c2d3f', weeks:[] },
+          { id:'diss', name:'Dissertation', icon:'🎓', colour:'#16a34a', weeks:[] },
+          { id:'concepts', name:'Concepts & Thinkers', icon:'🧠', colour:'#7c3aed', weeks:[] },
+          { id:'phd', name:'PhD Material', icon:'📖', colour:'#f59e0b', weeks:[] },
         ];
       }
       renderTree();
@@ -413,8 +413,8 @@ function renderResources(body) {
 
   // Group by type
   var groups = {
-    ppt: { label:'Slides / Presentations', icon:'&#x1F4CA;', items:[] },
-    reading: { label:'Essential Reading', icon:'&#x1F4D6;', items:[] },
+    ppt: { label:'Slides / Presentations', icon:'📊', items:[] },
+    reading: { label:'Essential Reading', icon:'📖', items:[] },
     recommended: { label:'Recommended Reading', icon:'&#x1F4D5;', items:[] },
     paper: { label:'Research Papers', icon:'&#x1F4C4;', items:[] },
     news: { label:'News & Current Affairs', icon:'&#x1F4F0;', items:[] },
