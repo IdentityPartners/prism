@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792701125 -->
+<!-- cache-bust-1792702450 -->
+
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Drafting Desk — Argentica</title>
@@ -135,9 +136,82 @@
 .export-btn { display:block; width:100%; padding:10px 14px; margin-bottom:8px; border:1px solid var(--border); border-radius:8px; cursor:pointer; font-size:13px; background:var(--bg); color:var(--fg); font-family:inherit; text-align:left; transition:all 0.15s; }
 .export-btn:hover { border-color:var(--accent); color:var(--accent); }
 .export-btn .ext { font-size:10px; color:var(--fg-muted); float:right; margin-top:2px; }
+
+/* Handwriting panel in Drafting */
+.handwriting-panel {
+  width: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--border);
+  background: var(--bg-surface);
+  transition: width 0.3s;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+.handwriting-panel.open {
+  width: 380px;
+}
+.hw-panel-hdr {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.hw-canvas-wrap {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+.hw-canvas-wrap canvas {
+  display: block;
+  touch-action: none;
+  cursor: crosshair;
+  background: white;
+}
+.hw-toolbar {
+  padding: 6px 8px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.hw-btn {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: inherit;
+}
+.hw-btn:hover { border-color: var(--accent); color: var(--accent); }
 </style>
 </head>
 <body>
+
+<div class="handwriting-panel" id="hw-panel">
+  <div class="hw-panel-hdr">
+    <span>✒️ Handwriting</span>
+    <button onclick="toggleHandwriting()" style="background:none;border:none;cursor:pointer;color:var(--fg-muted);">✕</button>
+  </div>
+  <div class="hw-canvas-wrap" id="hw-canvas-wrap">
+    <canvas id="hw-canvas"></canvas>
+  </div>
+  <div class="hw-toolbar">
+    <button class="hw-btn" onclick="hwSetTool('pen')" title="Pen">✒️</button>
+    <button class="hw-btn" onclick="hwSetTool('hi')" title="Highlight">🟡</button>
+    <button class="hw-btn" onclick="hwSetTool('erase')" title="Erase">⬜</button>
+    <button class="hw-btn" onclick="hwClear()" title="Clear">🗑</button>
+    <button class="hw-btn" onclick="hwOCR()" title="Convert to text">📝 → Text</button>
+    <button class="hw-btn" onclick="hwInsert()" title="Insert OCR text into editor">Insert</button>
+  </div>
+</div>
 <script src="/shared/prism.js"></script>
 <div id="sidebar-mount"></div>
 <div id="main-content">
@@ -654,6 +728,139 @@ function dictate() {
   btn.textContent = '&#x1F534;';
   btn.style.color = '#dc2626';
   rec.onend = function() { btn.innerHTML = '&#x1F3A4;'; btn.style.color = ''; };
+}
+
+// Handwriting panel
+var hwOpen = false;
+var hwTool = 'pen';
+var hwDrawing = false;
+var hwStrokes = [];
+var hwCurrentStroke = null;
+
+function toggleHandwriting() {
+  hwOpen = !hwOpen;
+  var panel = document.getElementById('hw-panel');
+  var btn = document.getElementById('handwrite-btn');
+  if (panel) panel.classList.toggle('open', hwOpen);
+  if (btn) btn.classList.toggle('active', hwOpen);
+  if (hwOpen) initHWCanvas();
+}
+
+function initHWCanvas() {
+  var wrap = document.getElementById('hw-canvas-wrap');
+  var canvas = document.getElementById('hw-canvas');
+  if (!wrap || !canvas) return;
+  canvas.width = wrap.clientWidth || 360;
+  canvas.height = wrap.clientHeight || 400;
+  canvas.style.width = canvas.width + 'px';
+  canvas.style.height = canvas.height + 'px';
+  canvas.removeEventListener('pointerdown', hwStart);
+  canvas.removeEventListener('pointermove', hwMove);
+  canvas.removeEventListener('pointerup', hwEnd);
+  canvas.addEventListener('pointerdown', hwStart);
+  canvas.addEventListener('pointermove', hwMove);
+  canvas.addEventListener('pointerup', hwEnd);
+  canvas.addEventListener('pointercancel', hwEnd);
+  hwRedraw();
+}
+
+function hwGetPos(e) {
+  var canvas = document.getElementById('hw-canvas');
+  var rect = canvas.getBoundingClientRect();
+  return {x: e.clientX - rect.left, y: e.clientY - rect.top, pressure: e.pressure || 0.5};
+}
+
+function hwStart(e) {
+  e.preventDefault();
+  hwDrawing = true;
+  var pos = hwGetPos(e);
+  hwCurrentStroke = {tool: hwTool, points: [pos]};
+}
+
+function hwMove(e) {
+  if (!hwDrawing || !hwCurrentStroke) return;
+  e.preventDefault();
+  hwCurrentStroke.points.push(hwGetPos(e));
+  hwRenderStroke(hwCurrentStroke, true);
+}
+
+function hwEnd(e) {
+  if (!hwDrawing || !hwCurrentStroke) return;
+  hwDrawing = false;
+  if (hwCurrentStroke.points.length > 1) hwStrokes.push(hwCurrentStroke);
+  hwCurrentStroke = null;
+}
+
+function hwRenderStroke(stroke, incremental) {
+  var canvas = document.getElementById('hw-canvas');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  if (!incremental) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (stroke.points.length < 2) return;
+  ctx.save();
+  if (stroke.tool === 'erase') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.strokeStyle = 'rgba(0,0,0,1)';
+    ctx.lineWidth = 20;
+  } else if (stroke.tool === 'hi') {
+    ctx.strokeStyle = 'rgba(255,220,0,0.4)';
+    ctx.lineWidth = 16;
+  } else {
+    ctx.strokeStyle = '#1a2332';
+    ctx.lineWidth = 2;
+  }
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+  for (var i = 1; i < stroke.points.length; i++) ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function hwRedraw() {
+  var canvas = document.getElementById('hw-canvas');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  hwStrokes.forEach(function(s) { hwRenderStroke(s, false); });
+}
+
+function hwSetTool(tool) { hwTool = tool; }
+function hwClear() { hwStrokes = []; hwRedraw(); }
+
+function hwOCR() {
+  var canvas = document.getElementById('hw-canvas');
+  if (!canvas) return;
+  var b64 = canvas.toDataURL('image/png').split(',')[1];
+  fetch('https://prism-api.identitypartners.workers.dev/api/ocr', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({image:b64, mime_type:'image/png'})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    var text = d.text || d.content || '';
+    if (text) {
+      document.getElementById('hw-ocr-result') && (document.getElementById('hw-ocr-result').textContent = text);
+      window._hwOCRText = text;
+      alert('OCR: ' + text.substring(0,100) + (text.length>100?'...':'') + '\n\nClick Insert to add to editor.');
+    } else {
+      alert('No text detected.');
+    }
+  })
+  .catch(function(e){alert('OCR error: '+e.message);});
+}
+
+function hwInsert() {
+  var text = window._hwOCRText || '';
+  if (!text) { alert('Run OCR first.'); return; }
+  if (editor && editor.chain) {
+    editor.chain().focus().insertContent('<p>' + text + '</p>').run();
+  } else {
+    var el = document.getElementById('quill-editor');
+    if (el) el.innerHTML += '<p>' + text + '</p>';
+  }
+  window._hwOCRText = '';
 }
 </script>
 </body>
