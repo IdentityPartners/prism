@@ -772,6 +772,49 @@ input, textarea, select { font-family: var(--font-ui); }
 .nav-group.open > .nav-group-header .nav-group-toggle {
   transform: rotate(90deg);
 }
+/* nav-group-arrow is the actual class used in JS */
+.nav-group-arrow {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--fg-muted);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.nav-group.open > .nav-group-header .nav-group-arrow {
+  transform: rotate(90deg);
+}
+/* nav-group-header hover and active states */
+.nav-group-header {
+  cursor: pointer;
+  border-radius: var(--radius, 6px);
+  transition: background 0.15s;
+}
+.nav-group-header:hover {
+  background: var(--bg-sunken);
+}
+.nav-group-header.active {
+  color: var(--accent);
+}
+/* nav-group-children child links */
+.nav-group-children a {
+  display: flex;
+  align-items: center;
+  padding: 5px 10px 5px 32px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  text-decoration: none;
+  border-radius: var(--radius, 6px);
+  transition: background 0.1s, color 0.1s;
+}
+.nav-group-children a:hover {
+  background: var(--bg-sunken);
+  color: var(--fg-primary);
+}
+.nav-group-children a.active {
+  background: var(--accent-light, #e8f0f8);
+  color: var(--accent);
+  font-weight: 600;
+}
 .nav-group-header {
   display: flex;
   align-items: center;
