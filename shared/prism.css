@@ -1,3 +1,12 @@
+/* GLOBAL FONT SIZE OVERRIDE */
+html { font-size: 20px !important; }
+body { font-size: 20px !important; line-height: 1.65 !important; }
+.nav-item, .nav-item-label { font-size: 15px !important; }
+.nav-group-header { font-size: 15px !important; }
+.nav-group-children a { font-size: 14px !important; }
+input, select, textarea { font-size: 16px !important; }
+.btn { font-size: 15px !important; }
+
 /* Prism Design System — Identity Partners */
 /* @import Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Merriweather:wght@400;700&family=DM+Sans:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600&family=Lora:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap');
