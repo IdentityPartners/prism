@@ -8,10 +8,31 @@
 <link href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E" rel="icon" type="image/svg+xml"/>
 <link href="/shared/prism.css" rel="stylesheet"/>
 <link href="/shared/themes.css" rel="stylesheet"/>
-<!-- Quill rich text editor (reliable CDN, no module issues) -->
+<!-- TipTap (primary editor) - correct UMD bundle -->
+<script>
+// Load TipTap UMD bundles
+(function() {
+  var scripts = [
+    'https://cdn.jsdelivr.net/npm/@tiptap/pm@2.10.3/dist/index.umd.min.js',
+    'https://cdn.jsdelivr.net/npm/@tiptap/core@2.10.3/dist/index.umd.min.js',
+    'https://cdn.jsdelivr.net/npm/@tiptap/starter-kit@2.10.3/dist/index.umd.min.js',
+  ];
+  var loaded = 0;
+  function loadNext(i) {
+    if (i >= scripts.length) { window._tiptapLoaded = true; return; }
+    var s = document.createElement('script');
+    s.src = scripts[i];
+    s.onload = function() { loaded++; loadNext(i+1); };
+    s.onerror = function() { window._tiptapFailed = true; loadQuill(); };
+    document.head.appendChild(s);
+  }
+  loadNext(0);
+})();
+</script>
+<!-- Quill (fallback editor) -->
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-<!-- Iconify for toolbar icons -->
+<!-- Iconify -->
 <script src="https://cdn.jsdelivr.net/npm/@iconify/iconify@3/dist/iconify.min.js" async></script>
 <style>
 .draft-shell { display:flex; height:100vh; overflow:hidden; }
@@ -230,23 +251,42 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initTipTap() {
-  // Use Quill as the primary editor (reliable, no module issues)
-  if (typeof Quill !== 'undefined') {
-    initQuillEditor();
-  } else {
-    // Wait for Quill to load
-    var attempts = 0;
-    var checkQuill = setInterval(function() {
-      attempts++;
-      if (typeof Quill !== 'undefined') {
-        clearInterval(checkQuill);
-        initQuillEditor();
-      } else if (attempts > 20) {
-        clearInterval(checkQuill);
-        initFallbackEditor();
+  // Try TipTap first (best editor), fall back to Quill, then contenteditable
+  var attempts = 0;
+  var checkEditors = setInterval(function() {
+    attempts++;
+    // TipTap: needs @tiptap/core and @tiptap/starter-kit
+    var hasTipTap = (typeof window.tiptap !== 'undefined' && window.tiptap.Editor) ||
+                    (typeof Editor !== 'undefined' && typeof StarterKit !== 'undefined');
+    var hasQuill = typeof Quill !== 'undefined';
+    
+    if (hasTipTap && !window._tiptapFailed) {
+      clearInterval(checkEditors);
+      try {
+        var EditorClass = (typeof Editor !== 'undefined') ? Editor : window.tiptap.Editor;
+        var StarterKitExt = (typeof StarterKit !== 'undefined') ? StarterKit : window.tiptap.StarterKit;
+        editor = new EditorClass({
+          element: document.getElementById('quill-editor'),
+          extensions: [StarterKitExt.configure({heading:{levels:[1,2,3]}})],
+          content: '',
+          onUpdate: function() { updateCounts(); scheduleSave(); updateToolbarState(); },
+          onSelectionUpdate: function() { updateToolbarState(); }
+        });
+        editor._type = 'tiptap';
+        console.log('TipTap initialised');
+      } catch(e) {
+        console.warn('TipTap failed:', e);
+        if (hasQuill) initQuillEditor();
+        else initFallbackEditor();
       }
-    }, 200);
-  }
+    } else if (hasQuill && (attempts > 15 || window._tiptapFailed)) {
+      clearInterval(checkEditors);
+      initQuillEditor();
+    } else if (attempts > 25) {
+      clearInterval(checkEditors);
+      initFallbackEditor();
+    }
+  }, 200);
 }
 
 function initQuillEditor() {
