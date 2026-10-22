@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Study Hub — Argentica</title>
+<link href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E" rel="icon" type="image/svg+xml"/>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+<style>
+/* ── Layout ── */
+.hub-shell { display:flex; height:100vh; overflow:hidden; }
+.hub-tree { width:260px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-surface); overflow:hidden; }
+.hub-main { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+.hub-right { width:320px; flex-shrink:0; border-left:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-surface); overflow:hidden; }
+@media(max-width:1200px){.hub-right{display:none;}}
+@media(max-width:900px){.hub-tree{display:none;}}
+
+/* ── Tree panel ── */
+.tree-hdr { padding:10px 12px 8px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.tree-hdr h3 { font-size:13px; font-weight:700; margin:0; }
+.tree-search { padding:6px 10px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.tree-search input { width:100%; padding:5px 9px; border:1px solid var(--border); border-radius:6px; font-size:12px; background:var(--bg); color:var(--fg); box-sizing:border-box; }
+.tree-body { flex:1; overflow-y:auto; padding:6px; }
+
+/* Tree nodes */
+.tree-module { margin-bottom:4px; }
+.tree-module-hdr { display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600; color:var(--fg); transition:background 0.1s; }
+.tree-module-hdr:hover { background:var(--bg-sunken); }
+.tree-module-hdr.active { background:var(--accent-light,#e8f0f8); color:var(--accent); }
+.tree-module-icon { font-size:14px; flex-shrink:0; }
+.tree-module-toggle { margin-left:auto; font-size:10px; color:var(--fg-muted); }
+.tree-weeks { padding-left:16px; display:none; }
+.tree-weeks.open { display:block; }
+.tree-week { display:flex; align-items:center; gap:6px; padding:4px 8px; border-radius:5px; cursor:pointer; font-size:12px; color:var(--fg-muted); transition:background 0.1s; }
+.tree-week:hover { background:var(--bg-sunken); }
+.tree-week.active { background:var(--accent); color:#fff; }
+.tree-week-badge { margin-left:auto; font-size:9px; padding:1px 5px; border-radius:8px; background:var(--bg-sunken); color:var(--fg-muted); }
+.tree-week.active .tree-week-badge { background:rgba(255,255,255,0.2); color:#fff; }
+
+/* ── Main content ── */
+.hub-hdr { padding:10px 16px; border-bottom:1px solid var(--border); background:var(--bg-elevated); display:flex; align-items:center; gap:10px; flex-shrink:0; }
+.hub-hdr h2 { font-size:16px; font-weight:700; margin:0; flex:1; }
+.hub-tabs { display:flex; border-bottom:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; overflow-x:auto; }
+.hub-tab { padding:8px 14px; font-size:12px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; color:var(--fg-muted); white-space:nowrap; flex-shrink:0; }
+.hub-tab.active { border-bottom-color:var(--accent); color:var(--accent); }
+.hub-body { flex:1; overflow-y:auto; padding:16px; }
+
+/* ── Week view ── */
+.week-section { margin-bottom:20px; }
+.week-section-hdr { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--fg-muted); margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+.week-section-hdr::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* Resource cards */
+.resource-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:8px; display:flex; gap:10px; align-items:flex-start; cursor:pointer; transition:border-color 0.15s; }
+.resource-card:hover { border-color:var(--accent); }
+.resource-card.selected { border-color:var(--accent); background:var(--accent-light,#e8f0f8); }
+.resource-icon { font-size:20px; flex-shrink:0; margin-top:2px; }
+.resource-info { flex:1; min-width:0; }
+.resource-title { font-size:13.5px; font-weight:600; color:var(--fg); margin-bottom:3px; }
+.resource-meta { font-size:11px; color:var(--fg-muted); display:flex; gap:8px; flex-wrap:wrap; }
+.resource-type { padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; }
+.type-ppt { background:rgba(220,38,38,0.1); color:#dc2626; }
+.type-pdf { background:rgba(220,38,38,0.1); color:#dc2626; }
+.type-reading { background:rgba(45,106,159,0.1); color:var(--accent); }
+.type-news { background:rgba(245,158,11,0.1); color:#f59e0b; }
+.type-paper { background:rgba(22,163,74,0.1); color:#16a34a; }
+.type-note { background:rgba(124,58,237,0.1); color:#7c3aed; }
+.type-link { background:rgba(15,59,58,0.1); color:#0f3b3a; }
+.resource-actions { display:flex; gap:4px; flex-shrink:0; }
+.res-btn { padding:3px 8px; border:1px solid var(--border); border-radius:5px; cursor:pointer; font-size:10px; background:var(--bg); color:var(--fg-muted); font-family:inherit; }
+.res-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+/* Add resource form */
+.add-resource-form { background:var(--bg-elevated); border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:12px; }
+.add-resource-form h4 { font-size:12px; font-weight:700; margin:0 0 10px; text-transform:uppercase; letter-spacing:0.4px; color:var(--fg-muted); }
+.form-row { display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+.form-input { flex:1; min-width:140px; padding:6px 9px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; background:var(--bg); color:var(--fg); }
+.form-select { padding:6px 9px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; background:var(--bg); color:var(--fg); cursor:pointer; }
+.form-btn { padding:6px 14px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-family:inherit; font-weight:600; }
+
+/* ── Search results ── */
+.search-result { padding:10px 12px; border:1px solid var(--border); border-radius:8px; margin-bottom:6px; background:var(--bg-elevated); }
+.search-result-title { font-size:13px; font-weight:600; margin-bottom:3px; }
+.search-result-excerpt { font-size:12px; color:var(--fg-muted); line-height:1.5; }
+.search-result-meta { font-size:10px; color:var(--fg-muted); margin-top:4px; display:flex; gap:8px; }
+.search-source-badge { padding:1px 6px; border-radius:6px; font-size:9px; font-weight:700; text-transform:uppercase; }
+.src-course { background:rgba(45,106,159,0.15); color:var(--accent); }
+.src-web { background:rgba(245,158,11,0.15); color:#f59e0b; }
+.src-paper { background:rgba(22,163,74,0.15); color:#16a34a; }
+.src-note { background:rgba(124,58,237,0.15); color:#7c3aed; }
+
+/* ── Right panel: AI chat ── */
+.ai-hdr { padding:10px 12px; border-bottom:1px solid var(--border); font-size:12px; font-weight:700; display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.ai-messages { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:8px; }
+.ai-msg { padding:8px 10px; border-radius:8px; font-size:12.5px; line-height:1.5; }
+.ai-msg.user { background:var(--accent); color:#fff; align-self:flex-end; max-width:85%; border-radius:10px 4px 10px 10px; }
+.ai-msg.assistant { background:var(--bg-elevated); border:1px solid var(--border); color:var(--fg); align-self:flex-start; max-width:95%; border-radius:4px 10px 10px 10px; }
+.ai-msg.system { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:var(--fg); font-size:11px; font-style:italic; }
+.ai-input-area { border-top:1px solid var(--border); padding:8px 10px; flex-shrink:0; }
+.ai-quick { display:flex; gap:3px; flex-wrap:wrap; margin-bottom:6px; }
+.ai-quick-btn { padding:2px 8px; border:1px solid var(--border); border-radius:8px; font-size:10px; cursor:pointer; background:var(--bg); color:var(--fg-muted); font-family:inherit; }
+.ai-quick-btn:hover { border-color:var(--accent); color:var(--accent); }
+.ai-textarea { width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:7px; font-size:12.5px; font-family:inherit; resize:none; min-height:50px; max-height:100px; background:var(--bg); color:var(--fg); box-sizing:border-box; }
+.ai-send { width:100%; padding:6px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-family:inherit; font-weight:600; margin-top:5px; }
+.ai-provider { font-size:10px; color:var(--fg-muted); text-align:right; margin-top:3px; }
+
+/* ── Notes editor ── */
+.notes-editor { width:100%; min-height:200px; padding:12px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; resize:vertical; background:var(--bg); color:var(--fg); line-height:1.7; box-sizing:border-box; }
+
+/* ── Upload zone ── */
+.upload-zone { border:2px dashed var(--border); border-radius:10px; padding:24px; text-align:center; cursor:pointer; transition:all 0.15s; }
+.upload-zone:hover { border-color:var(--accent); background:var(--accent-light,#e8f0f8); }
+.upload-zone.drag { border-color:var(--accent); background:var(--accent-light,#e8f0f8); }
+
+/* ── Global search bar ── */
+.global-search { padding:10px 16px; border-bottom:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; }
+.global-search-row { display:flex; gap:8px; }
+.global-search-input { flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; background:var(--bg); color:var(--fg); }
+.global-search-input:focus { outline:none; border-color:var(--accent); }
+.search-scope { padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:12px; background:var(--bg); color:var(--fg); cursor:pointer; }
+.search-btn { padding:8px 16px; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-family:inherit; font-weight:600; }
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="hub-shell">
+<!-- ── Left: Module/Week tree ── -->
+<div class="hub-tree">
+<div class="tree-hdr">
+<h3>📚 Study Hub</h3>
+<button onclick="openAddModule()" style="padding:3px 8px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">+ Module</button>
+</div>
+<div class="tree-search">
+<input id="tree-search" oninput="filterTree(this.value)" placeholder="Filter modules..." type="text"/>
+</div>
+<div class="tree-body" id="tree-body"></div>
+</div>
+<!-- ── Main: Content area ── -->
+<div class="hub-main">
+<!-- Global search -->
+<div class="global-search">
+<div class="global-search-row">
+<input class="global-search-input" id="global-search" onkeydown="if(event.key==='Enter')runGlobalSearch()" placeholder="Search across everything: course material, notes, papers, web..." type="text"/>
+<select class="search-scope" id="search-scope">
+<option value="all">All sources</option>
+<option value="course">Course material only</option>
+<option value="notes">My notes only</option>
+<option value="papers">Research papers only</option>
+<option value="web">Web search only</option>
+</select>
+<button class="search-btn" onclick="runGlobalSearch()">🔍 Search</button>
+</div>
+</div>
+<!-- Header -->
+<div class="hub-hdr">
+<div>
+<h2 id="hub-title">Select a module and week</h2>
+<div id="hub-subtitle" style="font-size:11px;color:var(--fg-muted);"></div>
+</div>
+<div style="display:flex;gap:6px;">
+<button onclick="addResource()" style="padding:5px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">+ Add Resource</button>
+<button onclick="exportWeek()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:var(--bg);">⬇ Export</button>
+</div>
+</div>
+<!-- Tabs -->
+<div class="hub-tabs">
+<div class="hub-tab active" onclick="switchTab('resources',this)">📋 Resources</div>
+<div class="hub-tab" onclick="switchTab('notes',this)">✍ My Notes</div>
+<div class="hub-tab" onclick="switchTab('search',this)">🔍 Search Results</div>
+<div class="hub-tab" onclick="switchTab('upload',this)">⬆ Upload</div>
+<div class="hub-tab" onclick="switchTab('concepts',this)">🧠 Concepts</div>
+</div>
+<!-- Tab bodies -->
+<div class="hub-body" id="hub-body">
+<div style="text-align:center;padding:60px 20px;color:var(--fg-muted);">
+<div style="font-size:48px;margin-bottom:12px;">📚</div>
+<div style="font-size:16px;font-weight:600;margin-bottom:8px;">Select a module and week from the left</div>
+<div style="font-size:13px;">Or use the search bar above to find anything across all your material.</div>
+</div>
+</div>
+</div>
+<!-- ── Right: AI assistant ── -->
+<div class="hub-right">
+<div class="ai-hdr">
+<span>💬</span>
+<span>Study Assistant</span>
+<span id="ai-provider-badge" style="margin-left:auto;font-size:10px;color:var(--fg-muted);"></span>
+</div>
+<div class="ai-messages" id="ai-messages">
+<div class="ai-msg system">Study Assistant ready. Ask me about any of your reading, or use the quick buttons below.</div>
+</div>
+<div class="ai-input-area">
+<div class="ai-quick">
+<button class="ai-quick-btn" onclick="aiQuick('What are the key themes in this week\'s reading?')">Key themes</button>
+<button class="ai-quick-btn" onclick="aiQuick('Find connections between this week and previous weeks')">Connections</button>
+<button class="ai-quick-btn" onclick="aiQuick('What arguments could I build from this material?')">Arguments</button>
+<button class="ai-quick-btn" onclick="aiQuick('Find related research papers on this topic')">Find papers</button>
+<button class="ai-quick-btn" onclick="aiQuick('Summarise the essential reading for this week')">Summarise</button>
+<button class="ai-quick-btn" onclick="aiQuick('What are the key thinkers and concepts here?')">Thinkers</button>
+</div>
+<textarea class="ai-textarea" id="ai-input" onkeydown="if(event.key==='Enter'&amp;&amp;!event.shiftKey){event.preventDefault();sendAI();}" placeholder="Ask about your reading, search for concepts, build arguments..."></textarea>
+<button class="ai-send" onclick="sendAI()">Send</button>
+<div class="ai-provider" id="ai-provider-info"></div>
+</div>
+</div>
+</div>
+</div>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+
+// ── Data model ────────────────────────────────────────────────────────────────
+// Modules stored in KV as study:modules
+// Each module has: id, name, icon, colour, weeks[]
+// Each week has: id, name, vle_url, resources[]
+// Each resource has: id, type, title, url, notes, tags, added
+
+var modules = [];
+var currentModule = null;
+var currentWeek = null;
+var currentTab = 'resources';
+var aiHistory = [];
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/study-hub/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  loadModules();
+});
+
+// ── Load/save ─────────────────────────────────────────────────────────────────
+function loadModules() {
+  // Try KV first, fall back to localStorage
+  fetch(WORKER + '/api/kv/get?key=study:modules')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if (d.value) {
+        try { modules = JSON.parse(d.value); } catch(e) {}
+      }
+      if (!modules.length) {
+        // Default modules
+        modules = [
+          { id:'qrm', name:'Quant Research Methods', icon:'&#x1F4CA;', colour:'#2d6a9f', weeks:[] },
+          { id:'mn', name:'Methodology Now', icon:'&#x1F52C;', colour:'#0f3b3a', weeks:[] },
+          { id:'rp', name:'Research Project', icon:'&#x1F4DD;', colour:'#5c2d3f', weeks:[] },
+          { id:'diss', name:'Dissertation', icon:'&#x1F393;', colour:'#16a34a', weeks:[] },
+          { id:'concepts', name:'Concepts & Thinkers', icon:'&#x1F9E0;', colour:'#7c3aed', weeks:[] },
+          { id:'phd', name:'PhD Material', icon:'&#x1F4D6;', colour:'#f59e0b', weeks:[] },
+        ];
+        saveModules();
+      }
+      renderTree();
+    })
+    .catch(function(){
+      try { modules = JSON.parse(localStorage.getItem('study:modules') || '[]'); } catch(e) { modules = []; }
+      if (!modules.length) {
+        modules = [
+          { id:'qrm', name:'Quant Research Methods', icon:'&#x1F4CA;', colour:'#2d6a9f', weeks:[] },
+          { id:'mn', name:'Methodology Now', icon:'&#x1F52C;', colour:'#0f3b3a', weeks:[] },
+          { id:'rp', name:'Research Project', icon:'&#x1F4DD;', colour:'#5c2d3f', weeks:[] },
+          { id:'diss', name:'Dissertation', icon:'&#x1F393;', colour:'#16a34a', weeks:[] },
+          { id:'concepts', name:'Concepts & Thinkers', icon:'&#x1F9E0;', colour:'#7c3aed', weeks:[] },
+          { id:'phd', name:'PhD Material', icon:'&#x1F4D6;', colour:'#f59e0b', weeks:[] },
+        ];
+      }
+      renderTree();
+    });
+}
+
+function saveModules() {
+  var json = JSON.stringify(modules);
+  try { localStorage.setItem('study:modules', json); } catch(e) {}
+  fetch(WORKER + '/api/kv/set', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({key:'study:modules', value:json})
+  }).catch(function(){});
+}
+
+// ── Tree rendering ────────────────────────────────────────────────────────────
+function renderTree() {
+  var body = document.getElementById('tree-body');
+  body.innerHTML = '';
+  modules.forEach(function(mod) {
+    var modDiv = document.createElement('div');
+    modDiv.className = 'tree-module';
+    modDiv.id = 'mod-' + mod.id;
+
+    var hdr = document.createElement('div');
+    hdr.className = 'tree-module-hdr' + (currentModule && currentModule.id === mod.id ? ' active' : '');
+    hdr.innerHTML = '<span class="tree-module-icon">' + mod.icon + '</span><span style="flex:1;">' + mod.name + '</span><span class="tree-module-toggle">&#x25B8;</span>';
+    hdr.onclick = function() { toggleModule(mod.id); };
+    modDiv.appendChild(hdr);
+
+    var weeks = document.createElement('div');
+    weeks.className = 'tree-weeks' + (currentModule && currentModule.id === mod.id ? ' open' : '');
+    weeks.id = 'weeks-' + mod.id;
+
+    (mod.weeks || []).forEach(function(week) {
+      var weekDiv = document.createElement('div');
+      weekDiv.className = 'tree-week' + (currentWeek && currentWeek.id === week.id ? ' active' : '');
+      var resCount = (week.resources || []).length;
+      weekDiv.innerHTML = '<span>&#x1F4C5;</span><span style="flex:1;">' + week.name + '</span><span class="tree-week-badge">' + resCount + '</span>';
+      weekDiv.onclick = function() { selectWeek(mod.id, week.id); };
+      weeks.appendChild(weekDiv);
+    });
+
+    // Add week button
+    var addWeek = document.createElement('div');
+    addWeek.style.cssText = 'padding:3px 8px;font-size:11px;color:var(--fg-muted);cursor:pointer;';
+    addWeek.textContent = '+ Add week';
+    addWeek.onclick = function(e) { e.stopPropagation(); addWeekToModule(mod.id); };
+    weeks.appendChild(addWeek);
+
+    modDiv.appendChild(weeks);
+    body.appendChild(modDiv);
+  });
+}
+
+function toggleModule(modId) {
+  var mod = modules.find(function(m){return m.id===modId;});
+  if (!mod) return;
+  currentModule = mod;
+  var weeksEl = document.getElementById('weeks-' + modId);
+  var isOpen = weeksEl.classList.contains('open');
+  // Close all
+  document.querySelectorAll('.tree-weeks').forEach(function(el){el.classList.remove('open');});
+  document.querySelectorAll('.tree-module-hdr').forEach(function(el){el.classList.remove('active');});
+  if (!isOpen) {
+    weeksEl.classList.add('open');
+    document.querySelector('#mod-' + modId + ' .tree-module-hdr').classList.add('active');
+  }
+}
+
+function selectWeek(modId, weekId) {
+  var mod = modules.find(function(m){return m.id===modId;});
+  if (!mod) return;
+  var week = (mod.weeks||[]).find(function(w){return w.id===weekId;});
+  if (!week) return;
+  currentModule = mod;
+  currentWeek = week;
+  renderTree();
+  document.getElementById('hub-title').textContent = mod.name + ' — ' + week.name;
+  document.getElementById('hub-subtitle').textContent = (week.vle_url ? 'VLE: ' + week.vle_url : '') + ' · ' + (week.resources||[]).length + ' resources';
+  switchTab(currentTab);
+}
+
+function addWeekToModule(modId) {
+  var name = prompt('Week name (e.g. "Week 1: Introduction to Quantitative Methods"):');
+  if (!name) return;
+  var vle = prompt('VLE link (optional):') || '';
+  var mod = modules.find(function(m){return m.id===modId;});
+  if (!mod) return;
+  if (!mod.weeks) mod.weeks = [];
+  var week = { id:'w-'+Date.now(), name:name, vle_url:vle, resources:[], notes:'', created:new Date().toISOString() };
+  mod.weeks.push(week);
+  saveModules();
+  renderTree();
+  selectWeek(modId, week.id);
+}
+
+function openAddModule() {
+  var name = prompt('Module name:');
+  if (!name) return;
+  var icons = ['&#x1F4CA;','&#x1F52C;','&#x1F4DD;','&#x1F393;','&#x1F9E0;','&#x1F4D6;'];
+  var colours = ['#2d6a9f','#0f3b3a','#5c2d3f','#16a34a','#7c3aed','#f59e0b'];
+  var idx = modules.length % icons.length;
+  modules.push({ id:'mod-'+Date.now(), name:name, icon:icons[idx], colour:colours[idx], weeks:[] });
+  saveModules();
+  renderTree();
+}
+
+function filterTree(q) {
+  var ql = q.toLowerCase();
+  document.querySelectorAll('.tree-module').forEach(function(el) {
+    var name = el.querySelector('.tree-module-hdr span:nth-child(2)').textContent.toLowerCase();
+    el.style.display = !q || name.includes(ql) ? '' : 'none';
+  });
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab, btn) {
+  currentTab = tab;
+  document.querySelectorAll('.hub-tab').forEach(function(t){t.classList.remove('active');});
+  if (btn) btn.classList.add('active');
+  else {
+    document.querySelectorAll('.hub-tab').forEach(function(t){
+      if (t.textContent.toLowerCase().includes(tab)) t.classList.add('active');
+    });
+  }
+  var body = document.getElementById('hub-body');
+  if (!currentWeek && tab !== 'search') {
+    body.innerHTML = '<div style="text-align:center;padding:60px;color:var(--fg-muted);"><div style="font-size:48px;margin-bottom:12px;">&#x1F4DA;</div><div style="font-size:16px;font-weight:600;">Select a module and week from the left</div></div>';
+    return;
+  }
+  if (tab === 'resources') renderResources(body);
+  else if (tab === 'notes') renderNotes(body);
+  else if (tab === 'search') renderSearchResults(body);
+  else if (tab === 'upload') renderUpload(body);
+  else if (tab === 'concepts') renderConcepts(body);
+}
+
+// ── Resources tab ─────────────────────────────────────────────────────────────
+function renderResources(body) {
+  var resources = currentWeek ? (currentWeek.resources || []) : [];
+  body.innerHTML = '';
+
+  // Group by type
+  var groups = {
+    ppt: { label:'Slides / Presentations', icon:'&#x1F4CA;', items:[] },
+    reading: { label:'Essential Reading', icon:'&#x1F4D6;', items:[] },
+    recommended: { label:'Recommended Reading', icon:'&#x1F4D5;', items:[] },
+    paper: { label:'Research Papers', icon:'&#x1F4C4;', items:[] },
+    news: { label:'News & Current Affairs', icon:'&#x1F4F0;', items:[] },
+    note: { label:'My Notes', icon:'&#x270D;', items:[] },
+    link: { label:'Links & Other', icon:'&#x1F517;', items:[] },
+  };
+
+  resources.forEach(function(r) {
+    var g = groups[r.type] || groups.link;
+    g.items.push(r);
+  });
+
+  // VLE link if present
+  if (currentWeek && currentWeek.vle_url) {
+    var vleDiv = document.createElement('div');
+    vleDiv.style.cssText = 'padding:8px 12px;background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:8px;margin-bottom:12px;font-size:12px;display:flex;align-items:center;gap:8px;';
+    vleDiv.innerHTML = '<span>&#x1F517;</span><span>VLE: </span><a href="' + currentWeek.vle_url + '" target="_blank" style="color:var(--accent);">' + currentWeek.vle_url + '</a>';
+    body.appendChild(vleDiv);
+  }
+
+  var hasAny = false;
+  Object.keys(groups).forEach(function(key) {
+    var g = groups[key];
+    if (!g.items.length) return;
+    hasAny = true;
+    var section = document.createElement('div');
+    section.className = 'week-section';
+    var hdr = document.createElement('div');
+    hdr.className = 'week-section-hdr';
+    hdr.innerHTML = g.icon + ' ' + g.label + ' (' + g.items.length + ')';
+    section.appendChild(hdr);
+    g.items.forEach(function(r) {
+      section.appendChild(makeResourceCard(r));
+    });
+    body.appendChild(section);
+  });
+
+  if (!hasAny) {
+    var empty = document.createElement('div');
+    empty.style.cssText = 'text-align:center;padding:40px;color:var(--fg-muted);';
+    empty.innerHTML = '<div style="font-size:32px;margin-bottom:8px;">&#x1F4C2;</div><div style="font-size:14px;font-weight:600;margin-bottom:6px;">No resources yet</div><div style="font-size:12px;">Click "+ Add Resource" to add slides, readings, papers, or links.</div>';
+    body.appendChild(empty);
+  }
+}
+
+function makeResourceCard(r) {
+  var icons = {ppt:'&#x1F4CA;',pdf:'&#x1F4C4;',reading:'&#x1F4D6;',recommended:'&#x1F4D5;',paper:'&#x1F4C4;',news:'&#x1F4F0;',note:'&#x270D;',link:'&#x1F517;'};
+  var card = document.createElement('div');
+  card.className = 'resource-card';
+  card.onclick = function() { openResource(r); };
+  card.innerHTML = '<div class="resource-icon">' + (icons[r.type]||'&#x1F4C4;') + '</div>' +
+    '<div class="resource-info">' +
+      '<div class="resource-title">' + r.title.replace(/</g,'&lt;') + '</div>' +
+      '<div class="resource-meta">' +
+        '<span class="resource-type type-' + r.type + '">' + r.type + '</span>' +
+        (r.url ? '<a href="' + r.url + '" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent);font-size:11px;">Open &#x2197;</a>' : '') +
+        (r.tags && r.tags.length ? '<span>' + r.tags.join(', ') + '</span>' : '') +
+      '</div>' +
+    '</div>' +
+    '<div class="resource-actions">' +
+      '<button class="res-btn" onclick="event.stopPropagation();askAbout(\'' + r.id + '\')" title="Ask AI about this">&#x1F4AC;</button>' +
+      '<button class="res-btn" onclick="event.stopPropagation();annotate(\'' + r.id + '\')" title="Annotate">&#x270F;</button>' +
+      '<button class="res-btn" onclick="event.stopPropagation();deleteResource(\'' + r.id + '\')" title="Delete" style="color:#dc2626;">&#x2715;</button>' +
+    '</div>';
+  return card;
+}
+
+// ── Notes tab ─────────────────────────────────────────────────────────────────
+function renderNotes(body) {
+  body.innerHTML = '';
+  var notes = currentWeek ? (currentWeek.notes || '') : '';
+  var label = document.createElement('div');
+  label.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);margin-bottom:8px;';
+  label.textContent = 'My notes for ' + (currentWeek ? currentWeek.name : 'this week');
+  var ta = document.createElement('textarea');
+  ta.className = 'notes-editor';
+  ta.value = notes;
+  ta.placeholder = 'Write your notes here... Markdown supported. Auto-saves.';
+  ta.oninput = function() {
+    if (currentWeek) {
+      currentWeek.notes = ta.value;
+      clearTimeout(ta._saveTimer);
+      ta._saveTimer = setTimeout(function() { saveModules(); }, 1500);
+    }
+  };
+  var aiBtn = document.createElement('button');
+  aiBtn.style.cssText = 'margin-top:8px;padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;';
+  aiBtn.textContent = '&#x2728; Ask AI to improve these notes';
+  aiBtn.onclick = function() {
+    var text = ta.value.trim();
+    if (!text) { alert('Write some notes first.'); return; }
+    aiQuick('Please review and improve these notes, maintaining my voice and adding any missing key points:\n\n' + text.substring(0, 2000));
+  };
+  body.appendChild(label);
+  body.appendChild(ta);
+  body.appendChild(aiBtn);
+}
+
+// ── Upload tab ────────────────────────────────────────────────────────────────
+function renderUpload(body) {
+  body.innerHTML = '';
+  var zone = document.createElement('div');
+  zone.className = 'upload-zone';
+  zone.innerHTML = '<div style="font-size:40px;margin-bottom:10px;">&#x1F4CE;</div><div style="font-size:15px;font-weight:600;margin-bottom:6px;">Drop files here or click to upload</div><div style="font-size:12px;color:var(--fg-muted);">PDF, PPTX, DOCX, MD, TXT — files are indexed for search and AI retrieval</div>';
+  var fileInput = document.createElement('input');
+  fileInput.type = 'file'; fileInput.multiple = true; fileInput.style.display = 'none';
+  fileInput.accept = '.pdf,.pptx,.ppt,.docx,.doc,.md,.txt,.csv';
+  fileInput.onchange = function() { handleUpload(this.files); };
+  zone.onclick = function() { fileInput.click(); };
+  zone.ondragover = function(e) { e.preventDefault(); zone.classList.add('drag'); };
+  zone.ondragleave = function() { zone.classList.remove('drag'); };
+  zone.ondrop = function(e) { e.preventDefault(); zone.classList.remove('drag'); handleUpload(e.dataTransfer.files); };
+  body.appendChild(zone);
+  body.appendChild(fileInput);
+
+  // Add URL form
+  var urlForm = document.createElement('div');
+  urlForm.style.cssText = 'margin-top:16px;padding:14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;';
+  urlForm.innerHTML = '<div style="font-size:12px;font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);">Add by URL (VLE link, paper, news article)</div>' +
+    '<div class="form-row">' +
+      '<input class="form-input" id="url-input" type="url" placeholder="https://...">' +
+      '<input class="form-input" id="url-title" type="text" placeholder="Title">' +
+      '<select class="form-select" id="url-type"><option value="link">Link</option><option value="reading">Essential Reading</option><option value="recommended">Recommended</option><option value="paper">Research Paper</option><option value="news">News</option><option value="ppt">Slides/PPT</option></select>' +
+      '<button class="form-btn" onclick="addUrlResource()">Add</button>' +
+    '</div>';
+  body.appendChild(urlForm);
+}
+
+function handleUpload(files) {
+  if (!currentWeek) { alert('Select a week first.'); return; }
+  Array.from(files).forEach(function(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var content = e.target.result;
+      var ext = file.name.split('.').pop().toLowerCase();
+      var type = ext === 'pptx' || ext === 'ppt' ? 'ppt' : ext === 'pdf' ? 'pdf' : 'reading';
+      var resource = {
+        id: 'r-' + Date.now() + '-' + Math.random().toString(36).slice(2,6),
+        type: type, title: file.name, url: null,
+        content: content.substring(0, 50000), // Store first 50K chars
+        size: file.size, tags: [], added: new Date().toISOString()
+      };
+      if (!currentWeek.resources) currentWeek.resources = [];
+      currentWeek.resources.push(resource);
+      saveModules();
+      // Index for RAG
+      indexResource(resource);
+      renderTree();
+      switchTab('resources');
+    };
+    reader.readAsText(file);
+  });
+}
+
+function addUrlResource() {
+  if (!currentWeek) { alert('Select a week first.'); return; }
+  var url = document.getElementById('url-input').value.trim();
+  var title = document.getElementById('url-title').value.trim() || url;
+  var type = document.getElementById('url-type').value;
+  if (!url) { alert('Enter a URL.'); return; }
+  var resource = { id:'r-'+Date.now(), type:type, title:title, url:url, tags:[], added:new Date().toISOString() };
+  if (!currentWeek.resources) currentWeek.resources = [];
+  currentWeek.resources.push(resource);
+  saveModules();
+  renderTree();
+  switchTab('resources');
+}
+
+function addResource() {
+  if (!currentWeek) { switchTab('upload'); return; }
+  switchTab('upload');
+}
+
+function deleteResource(id) {
+  if (!currentWeek || !confirm('Delete this resource?')) return;
+  currentWeek.resources = (currentWeek.resources||[]).filter(function(r){return r.id!==id;});
+  saveModules();
+  renderTree();
+  switchTab('resources');
+}
+
+function indexResource(resource) {
+  if (!resource.content) return;
+  fetch(WORKER + '/api/rag/index', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      text: resource.content,
+      name: resource.title,
+      doc_id: resource.id,
+      workspace_id: currentModule ? currentModule.id : 'study',
+      tags: [currentModule ? currentModule.name : '', currentWeek ? currentWeek.name : '', resource.type]
+    })
+  }).catch(function(){});
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+function runGlobalSearch() {
+  var q = document.getElementById('global-search').value.trim();
+  var scope = document.getElementById('search-scope').value;
+  if (!q) return;
+  switchTab('search');
+  var body = document.getElementById('hub-body');
+  body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);">Searching...</div>';
+
+  var results = [];
+
+  // Search local resources
+  if (scope === 'all' || scope === 'course' || scope === 'notes') {
+    var ql = q.toLowerCase();
+    modules.forEach(function(mod) {
+      (mod.weeks||[]).forEach(function(week) {
+        // Search resources
+        (week.resources||[]).forEach(function(r) {
+          var text = (r.title + ' ' + (r.content||'') + ' ' + (r.tags||[]).join(' ')).toLowerCase();
+          if (text.includes(ql)) {
+            var excerpt = r.content ? r.content.substring(Math.max(0, r.content.toLowerCase().indexOf(ql)-100), r.content.toLowerCase().indexOf(ql)+200) : '';
+            results.push({source:'course', type:r.type, title:r.title, excerpt:excerpt, location:mod.name+' > '+week.name, url:r.url});
+          }
+        });
+        // Search notes
+        if (week.notes && week.notes.toLowerCase().includes(ql)) {
+          var ni = week.notes.toLowerCase().indexOf(ql);
+          results.push({source:'note', type:'note', title:'My notes: '+week.name, excerpt:week.notes.substring(Math.max(0,ni-100),ni+200), location:mod.name+' > '+week.name});
+        }
+      });
+    });
+  }
+
+  // RAG search
+  if (scope === 'all' || scope === 'course' || scope === 'papers') {
+    fetch(WORKER + '/api/rag/search', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({query:q, limit:5})
+    }).then(function(r){return r.json();}).then(function(d){
+      (d.results||[]).forEach(function(r) {
+        results.push({source:'rag', type:'paper', title:r.doc_name, excerpt:r.chunk_text.substring(0,200), location:'RAG Index'});
+      });
+      renderSearchResults(body, results, q);
+    }).catch(function(){
+      renderSearchResults(body, results, q);
+    });
+  } else {
+    renderSearchResults(body, results, q);
+  }
+
+  // Web search via AI
+  if (scope === 'all' || scope === 'web') {
+    aiQuick('Search the web for: ' + q + '. Focus on UK-based academic research, news, and policy documents. Summarise the top 3-5 most relevant results with sources.');
+  }
+}
+
+function renderSearchResults(body, results, q) {
+  body.innerHTML = '';
+  if (!results || !results.length) {
+    body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);">No local results found. Check the AI panel for web results.</div>';
+    return;
+  }
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'font-size:12px;color:var(--fg-muted);margin-bottom:12px;';
+  hdr.textContent = results.length + ' results found';
+  body.appendChild(hdr);
+  results.forEach(function(r) {
+    var div = document.createElement('div');
+    div.className = 'search-result';
+    var srcClass = r.source === 'course' ? 'src-course' : r.source === 'note' ? 'src-note' : r.source === 'rag' ? 'src-paper' : 'src-web';
+    var srcLabel = r.source === 'course' ? 'Course Material' : r.source === 'note' ? 'My Notes' : r.source === 'rag' ? 'Indexed Document' : 'Web';
+    div.innerHTML = '<div class="search-result-title">' + r.title.replace(/</g,'&lt;') + '</div>' +
+      '<div class="search-result-excerpt">' + (r.excerpt||'').replace(/</g,'&lt;') + '</div>' +
+      '<div class="search-result-meta"><span class="search-source-badge ' + srcClass + '">' + srcLabel + '</span><span>' + (r.location||'') + '</span>' +
+      (r.url ? '<a href="' + r.url + '" target="_blank" style="color:var(--accent);">Open &#x2197;</a>' : '') + '</div>';
+    body.appendChild(div);
+  });
+}
+
+// ── Concepts tab ──────────────────────────────────────────────────────────────
+function renderConcepts(body) {
+  body.innerHTML = '';
+  var conceptsModule = modules.find(function(m){return m.id==='concepts';});
+  var p = document.createElement('p');
+  p.style.cssText = 'font-size:13px;color:var(--fg-muted);margin-bottom:16px;';
+  p.textContent = 'Key concepts and thinkers extracted from your reading. Ask the AI to identify concepts from any week.';
+  body.appendChild(p);
+  var btn = document.createElement('button');
+  btn.style.cssText = 'padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;margin-bottom:16px;';
+  btn.textContent = '&#x1F9E0; Extract concepts from this week\'s reading';
+  btn.onclick = function() {
+    if (!currentWeek) { alert('Select a week first.'); return; }
+    aiQuick('From the reading for ' + (currentWeek ? currentWeek.name : 'this week') + ', identify and briefly explain: (1) the 5 most important theoretical concepts, (2) the key thinkers referenced, (3) the main methodological approaches discussed. Format as a structured list.');
+  };
+  body.appendChild(btn);
+}
+
+// ── AI assistant ──────────────────────────────────────────────────────────────
+function buildContext() {
+  var ctx = 'You are a study assistant for Simon Johnson, a sociology MSc student at Goldsmiths. ';
+  if (currentModule) ctx += 'Current module: ' + currentModule.name + '. ';
+  if (currentWeek) {
+    ctx += 'Current week: ' + currentWeek.name + '. ';
+    var resources = (currentWeek.resources||[]).map(function(r){return r.title + ' (' + r.type + ')';}).join(', ');
+    if (resources) ctx += 'Resources this week: ' + resources + '. ';
+    if (currentWeek.notes) ctx += 'Simon\'s notes: ' + currentWeek.notes.substring(0,500) + '. ';
+  }
+  ctx += 'British English. Be precise, cite sources where possible, help build arguments and identify themes.';
+  return ctx;
+}
+
+function aiQuick(text) {
+  document.getElementById('ai-input').value = text;
+  sendAI();
+}
+
+function sendAI() {
+  var input = document.getElementById('ai-input');
+  var text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  addAIMsg('user', text);
+  aiHistory.push({role:'user', content:text});
+
+  var messages = [{role:'system', content:buildContext()}].concat(aiHistory);
+
+  addAIMsg('system', 'Thinking...');
+
+  fetch(WORKER + '/api/chat', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({messages:messages, profile:'balanced'})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    // Remove "Thinking..." message
+    var msgs = document.getElementById('ai-messages');
+    var last = msgs.lastChild;
+    if (last && last.classList.contains('system')) last.remove();
+
+    var response = d.content || 'No response.';
+    aiHistory.push({role:'assistant', content:response});
+    addAIMsg('assistant', response);
+    document.getElementById('ai-provider-info').textContent = d.provider ? 'via ' + d.provider + (d.model ? ' / ' + d.model : '') : '';
+    document.getElementById('ai-provider-badge').textContent = d.provider || '';
+  })
+  .catch(function(e){
+    var msgs = document.getElementById('ai-messages');
+    var last = msgs.lastChild;
+    if (last && last.classList.contains('system')) last.remove();
+    addAIMsg('system', 'Error: ' + e.message);
+  });
+}
+
+function addAIMsg(role, text) {
+  var msgs = document.getElementById('ai-messages');
+  var div = document.createElement('div');
+  div.className = 'ai-msg ' + role;
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function askAbout(resourceId) {
+  var resource = null;
+  if (currentWeek) {
+    resource = (currentWeek.resources||[]).find(function(r){return r.id===resourceId;});
+  }
+  if (!resource) return;
+  aiQuick('Tell me about "' + resource.title + '" — what are the key arguments, methods, and findings? How does it relate to the module themes?');
+}
+
+function annotate(resourceId) {
+  var note = prompt('Add annotation:');
+  if (!note || !currentWeek) return;
+  var resource = (currentWeek.resources||[]).find(function(r){return r.id===resourceId;});
+  if (resource) {
+    resource.annotation = (resource.annotation || '') + '\n' + new Date().toLocaleDateString('en-GB') + ': ' + note;
+    saveModules();
+  }
+}
+
+function openResource(r) {
+  if (r.url) window.open(r.url, '_blank');
+  else if (r.content) {
+    aiQuick('Summarise this document and identify the key points:\n\n' + r.content.substring(0, 3000));
+  }
+}
+
+function exportWeek() {
+  if (!currentWeek) return;
+  var lines = ['# ' + (currentModule ? currentModule.name : '') + ' — ' + currentWeek.name, ''];
+  if (currentWeek.vle_url) lines.push('VLE: ' + currentWeek.vle_url, '');
+  (currentWeek.resources||[]).forEach(function(r) {
+    lines.push('## ' + r.title + ' [' + r.type + ']');
+    if (r.url) lines.push('URL: ' + r.url);
+    if (r.annotation) lines.push('Annotation: ' + r.annotation);
+    lines.push('');
+  });
+  if (currentWeek.notes) { lines.push('## My Notes', currentWeek.notes, ''); }
+  var blob = new Blob([lines.join('\n')], {type:'text/markdown'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (currentWeek.name || 'week') + '.md';
+  a.click();
+}
+</script>
+</body>
+</html>
