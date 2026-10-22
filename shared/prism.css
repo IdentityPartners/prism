@@ -1,4 +1,11 @@
-/* GLOBAL FONT SIZE OVERRIDE */
+/* FONT SIZE - viewport scaled for Surface Pro 9 */
+html { font-size: clamp(18px, 1.5vw, 22px) !important; }
+body { font-size: clamp(18px, 1.5vw, 22px) !important; line-height: 1.65 !important; }
+.nav-item, .nav-item-label, .nav-group-header { font-size: clamp(14px, 1.2vw, 17px) !important; }
+input, select, textarea { font-size: clamp(16px, 1.3vw, 19px) !important; }
+.btn { font-size: clamp(14px, 1.2vw, 17px) !important; }
+.msg-bubble { font-size: clamp(16px, 1.4vw, 20px) !important; }
+
 html { font-size: 20px !important; }
 body { font-size: 20px !important; line-height: 1.65 !important; }
 .nav-item, .nav-item-label { font-size: 15px !important; }
