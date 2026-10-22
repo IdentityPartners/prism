@@ -695,10 +695,46 @@ function quickAction(type) {
 // ── OSK ───────────────────────────────────────────────────────────────────────
 function toggleOSK() {
   var strip = document.getElementById('osk-strip');
-  strip.classList.toggle('show');
-  if (strip.classList.contains('show') && !strip.children.length) {
-    if (typeof buildOSK === 'function') buildOSK('chat-input');
+  var isShowing = strip.style.display !== 'none';
+  strip.style.display = isShowing ? 'none' : 'block';
+  if (!isShowing) {
+    var keysDiv = document.getElementById('osk-keys');
+    if (keysDiv && !keysDiv.children.length) buildInlineOSK(keysDiv);
   }
+}
+
+function buildInlineOSK(container) {
+  var rows = [
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l'],
+    ['z','x','c','v','b','n','m',',','.','?'],
+    ['Space','Backspace','Enter']
+  ];
+  var shiftMap = {'1':'!','2':'"','3':'£','4':'$','5':'%','6':'^','7':'&','8':'*','9':'(','0':')','-':'_','=':'+',',':'<','.':'>','?':'/','@':'#'};
+  var shifted = false;
+  
+  rows.forEach(function(row) {
+    var rowDiv = document.createElement('div');
+    rowDiv.style.cssText = 'display:flex;gap:3px;margin-bottom:3px;';
+    row.forEach(function(key) {
+      var btn = document.createElement('button');
+      btn.textContent = key;
+      var isSpecial = key === 'Space' || key === 'Backspace' || key === 'Enter';
+      btn.style.cssText = 'padding:6px ' + (isSpecial ? '12px' : '8px') + ';border:1px solid var(--border);border-radius:5px;background:var(--bg-elevated);color:var(--fg);cursor:pointer;font-size:13px;font-family:inherit;min-width:' + (isSpecial ? '60px' : '32px') + ';';
+      btn.onclick = function() {
+        var inp = document.getElementById('chat-input');
+        if (!inp) return;
+        if (key === 'Space') { inp.value += ' '; }
+        else if (key === 'Backspace') { inp.value = inp.value.slice(0,-1); }
+        else if (key === 'Enter') { sendMessage(); }
+        else { inp.value += key; }
+        inp.focus();
+        autoGrow(inp);
+      };
+      rowDiv.appendChild(btn);
+    });
+    container.appendChild(rowDiv);
+  });
 }
 
 // ── Dictation ─────────────────────────────────────────────────────────────────
