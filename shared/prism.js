@@ -820,7 +820,7 @@ function buildSidebar(activePage) {
     if (item.icon) {
       var icon = document.createElement('span');
       icon.className = 'nav-item-icon';
-      icon.textContent = item.icon;
+      icon.innerHTML = item.icon || "";
       a.appendChild(icon);
     }
     var lbl = document.createElement('span');
