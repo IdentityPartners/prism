@@ -343,12 +343,15 @@ async function orchestrate(env, messages, profile = 'balanced') {
     await new Promise(function(r) { setTimeout(r, 0); });
     const ta = Date.now();
     const isThinking = THINKING_PROVIDERS.includes(entry.m);
-    const timeout = FAST_PROVIDERS.includes(entry.p) ? 20000 : isThinking ? 60000 : 45000;
-    // Fast providers: 20s | Thinking models (GLM, Nemotron, Magistral): 60s | Others: 45s
+    // Response timeout: how long to wait for the full response
+    // Connection timeout is handled by AbortController (5s to connect)
+    // Once connected, we wait as long as needed for thinking models
+    const responseTimeout = FAST_PROVIDERS.includes(entry.p) ? 20000 : isThinking ? 120000 : 60000;
+    // Fast: 20s | Thinking (GLM, Nemotron, Magistral): 120s | Others: 60s
     try {
       const result = await Promise.race([
         callProvider(env, entry.p, entry.key, entry.m, messages),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeout)),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), responseTimeout)),
       ]);
       if (result?.content) {
         const formatted = formatResponse(stripTropes(result.content));
@@ -1622,6 +1625,136 @@ export default {
           }
         }
         return json({success: true, backed_up: results.filter(function(r){return r.ok;}).length, total: results.length, results}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+
+    // ── Streaming chat endpoint ───────────────────────────────────────────────
+    // Returns SSE stream: thinking tokens first, then response tokens
+    if (path === '/api/chat/stream' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        let messages = (body.messages || []).filter(function(m) { return m?.role && m?.content; });
+        const profile = body.profile || 'balanced';
+        const providerOverride = body.providerOverride || null;
+        const modelOverride = body.modelOverride || null;
+        const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
+        const MISTRAL_KEY = k(env, ['mistral_api_key', 'MISTRAL_API_KEY']) || '';
+
+        // Inject system prompt
+        const sysPrompt = await env.PRISM_KV?.get('orchestrator:settings').then(function(s) {
+          try { return JSON.parse(s)?.systemPrompt || ''; } catch { return ''; }
+        }).catch(function() { return ''; });
+        if (sysPrompt && !messages.find(function(m) { return m.role === 'system'; })) {
+          messages = [{ role: 'system', content: sysPrompt + '\n\nToday: ' + new Date().toDateString() }, ...messages];
+        }
+
+        // Determine provider and model
+        let streamProvider = providerOverride || 'mistral';
+        let streamModel = modelOverride || 'mistral-medium-3.5';
+        let streamKey = MISTRAL_KEY;
+
+        if (streamProvider === 'gemini') {
+          streamKey = GKEY;
+        } else if (streamProvider === 'groq') {
+          streamKey = k(env, ['groq_free_1', 'GROQ_FREE_1']) || '';
+        }
+
+        // Create SSE stream
+        const { readable, writable } = new TransformStream();
+        const writer = writable.getWriter();
+        const encoder = new TextEncoder();
+
+        function sendSSE(event, data) {
+          writer.write(encoder.encode('event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n'));
+        }
+
+        // Run in background
+        (async function() {
+          try {
+            sendSSE('status', { status: 'connecting', provider: streamProvider, model: streamModel });
+
+            // Try Mistral streaming first
+            if (streamProvider === 'mistral' && MISTRAL_KEY) {
+              const reqBody = { model: streamModel, messages, stream: true, temperature: 0.7 };
+              if (streamModel.includes('large') || streamModel.includes('medium')) {
+                reqBody.tools = [{ type: 'web_search' }];
+              }
+              const resp = await fetch('https://api.mistral.ai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + MISTRAL_KEY },
+                body: JSON.stringify(reqBody)
+              });
+
+              if (!resp.ok) throw new Error('Mistral ' + resp.status);
+              sendSSE('status', { status: 'connected', provider: 'mistral', model: streamModel });
+
+              const reader = resp.body.getReader();
+              const dec = new TextDecoder();
+              let buffer = '';
+              let fullText = '';
+
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += dec.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                  if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+                  try {
+                    const chunk = JSON.parse(line.slice(6));
+                    const delta = chunk.choices?.[0]?.delta;
+                    if (!delta) continue;
+                    // Handle thinking content
+                    if (delta.content) {
+                      if (Array.isArray(delta.content)) {
+                        for (const part of delta.content) {
+                          if (part.type === 'thinking' && part.thinking) {
+                            sendSSE('thinking', { text: part.thinking });
+                          } else if (part.type === 'text' && part.text) {
+                            fullText += part.text;
+                            sendSSE('token', { text: part.text });
+                          }
+                        }
+                      } else if (typeof delta.content === 'string') {
+                        fullText += delta.content;
+                        sendSSE('token', { text: delta.content });
+                      }
+                    }
+                  } catch(e) { /* skip malformed chunks */ }
+                }
+              }
+              sendSSE('done', { content: fullText, provider: 'mistral', model: streamModel });
+            } else {
+              // Non-streaming fallback for other providers
+              sendSSE('status', { status: 'connecting', provider: streamProvider, model: streamModel });
+              const result = await callProvider(env, streamProvider, streamKey, streamModel, messages);
+              sendSSE('status', { status: 'connected', provider: streamProvider, model: streamModel });
+              // Simulate streaming by sending in chunks
+              const words = result.content.split(' ');
+              for (let i = 0; i < words.length; i += 3) {
+                const chunk = words.slice(i, i+3).join(' ') + ' ';
+                sendSSE('token', { text: chunk });
+                await new Promise(function(r) { setTimeout(r, 20); });
+              }
+              sendSSE('done', { content: result.content, provider: result.provider, model: result.model });
+            }
+          } catch(e) {
+            sendSSE('error', { message: e.message });
+          } finally {
+            writer.close();
+          }
+        })();
+
+        return new Response(readable, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Access-Control-Allow-Origin': origin,
+            'Access-Control-Allow-Headers': 'Content-Type',
+          }
+        });
       } catch(e) { return json({error: e.message}, 500, origin); }
     }
 
