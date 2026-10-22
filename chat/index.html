@@ -360,45 +360,28 @@
     <h4>Model</h4>
     <select class="model-select" id="model-select" onchange="setModelOverride(this.value)">
       <option value="">Auto (Orchestrator decides)</option>
-      <optgroup label="Mistral — Paid Subscription">
-        <option value="mistral:zai-glm-5-3">GLM 5.3 via Mistral (1M ctx · web search · thinking)</option>
-        <option value="mistral:mistral-large-4">Mistral Large 4 (1M ctx · vision · web search)</option>
-        <option value="mistral:magistral-medium-latest">Magistral Medium (262K · thinking · web)</option>
-        <option value="mistral:mistral-medium-3.5">Mistral Medium 3.5 (262K · vision · web)</option>
-        <option value="mistral:mistral-small-latest">Mistral Small (262K · vision · fast)</option>
-        <option value="mistral:mistral-ocr-4">Mistral OCR 4 (document text extraction)</option>
+      <optgroup label="&#x2713; Mistral Paid — Reliable (always works)">
+        <option value="mistral:mistral-medium-3.5">Mistral Medium 3.5 (262K ctx · 32K out · web search · vision · ~416ms)</option>
+        <option value="mistral:mistral-large-latest">Mistral Large Latest (262K ctx · 32K out · web search · vision · ~573ms)</option>
+        <option value="mistral:mistral-small-latest">Mistral Small (262K ctx · 32K out · vision · ~310ms · fast)</option>
+        <option value="mistral:zai-glm-5-2">GLM 5.2 via Mistral (1M ctx · 32K out · web search · ~419ms)</option>
+        <option value="mistral:magistral-medium-latest">Magistral Medium (262K ctx · reasoning · web search · ~890ms)</option>
       </optgroup>
-      <optgroup label="Gemini / Gemma — Free Tier">
-        <option value="gemini:gemini-4-argon">Gemini 4 Argon (1M ctx · vision · search)</option>
-        <option value="gemini:gemini-3.8-flash">Gemini 3.8 Flash (1M ctx · vision · search)</option>
-        <option value="gemini:gemini-3.5-flash">Gemini 3.5 Flash (1M ctx · vision · search)</option>
-        <option value="gemini:gemini-2.5-flash">Gemini 2.5 Flash (1M ctx · thinking · search)</option>
-        <option value="nvidia:google/gemma-4-31b-it">Gemma 4 31B NVIDIA (262K · fastest · free)</option>
-        <option value="gemini:gemma-4-31b-it">Gemma 4 31B Gemini (262K · Google Search)</option>
+      <optgroup label="Gemini / Gemma — Free (usually works)">
+        <option value="gemini:gemini-3.5-flash">Gemini 3.5 Flash (1M ctx · 65K out · vision · Google Search · free)</option>
+        <option value="gemini:gemma-4-31b-it">Gemma 4 31B Gemini (262K ctx · 32K out · Google Search · free)</option>
+        <option value="gemini:gemini-2.5-flash">Gemini 2.5 Flash (1M ctx · 65K out · thinking · free)</option>
       </optgroup>
       <optgroup label="DeepSeek — Paid">
-        <option value="deepseek:deepseek-chat">DeepSeek V4 Flash (1M ctx · web search)</option>
+        <option value="deepseek:deepseek-chat">DeepSeek V4 Flash (1M ctx · 32K out · web search · $0.27/M)</option>
       </optgroup>
-      <optgroup label="xAI / Grok — Paid">
-        <option value="xai:grok-4.7">Grok 4.7 (131K · vision · real-time X data)</option>
+      <optgroup label="Groq — Free (fast)">
+        <option value="groq:openai/gpt-oss-120b">GPT-OSS 120B Groq (131K ctx · 16K out · free · ~300ms)</option>
+        <option value="groq:qwen/qwen3.8-27b">Qwen 3.8 27B Groq (131K ctx · 16K out · free · ~350ms)</option>
       </optgroup>
-      <optgroup label="Cohere — Paid">
-        <option value="cohere:command-a-plus-05-2026">Command A+ (256K · RAG · web search)</option>
-        <option value="cohere:command-r-plus-08-2024">Command R+ (128K · RAG)</option>
-      </optgroup>
-      <optgroup label="Groq — Free">
-        <option value="groq:openai/gpt-oss-120b">GPT-OSS 120B Groq (131K · fast)</option>
-        <option value="groq:qwen/qwen3.8-27b">Qwen 3.8 27B Groq (131K · fast)</option>
-      </optgroup>
-      <optgroup label="OpenRouter — Free Models Only">
-        <option value="openrouter:nvidia/nemotron-3-ultra-550b-a55b:free">Nemotron Ultra 550B (1M · frontier · free)</option>
-        <option value="openrouter:nvidia/nemotron-3.5-super-vl:free">Nemotron 3.5 Super VL (1M · vision · free)</option>
-        <option value="openrouter:nvidia/nemotron-3.5-lightning:free">Nemotron Lightning (1M · fast · free)</option>
-        <option value="openrouter:minimax/minimax-m3.1-flash:free">MiniMax M3.1 Flash (1M · free)</option>
-      </optgroup>
-      <optgroup label="Perplexity — Paid (always searches web)">
-        <option value="perplexity:sonar-pro">Sonar Pro (200K · web search)</option>
-        <option value="perplexity:sonar-reasoning-pro">Sonar Reasoning Pro (200K · thinking + web)</option>
+      <optgroup label="OpenRouter — Free frontier">
+        <option value="openrouter:nvidia/nemotron-3-ultra-550b-a55b:free">Nemotron Ultra 550B (1M ctx · reasoning · free · slow ~20s)</option>
+        <option value="openrouter:minimax/minimax-m3.1-flash:free">MiniMax M3.1 Flash (1M ctx · free)</option>
       </optgroup>
     </select>
   </div>
