@@ -7,6 +7,7 @@
 <title>WriteHandy — Argentica</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<script src="https://cdn.jsdelivr.net/npm/@iconify/iconify@3/dist/iconify.min.js" async></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
 /* ── Layout ── */
@@ -142,11 +143,11 @@
     <div class="wh-tb-sep"></div>
 
     <!-- Ink tools -->
-    <button class="wh-tb-btn active" id="itool-pen" onclick="setTool('pen')" title="Ballpoint pen">✒</button>
-    <button class="wh-tb-btn" id="itool-pencil" onclick="setTool('pencil')" title="Pencil">✏</button>
-    <button class="wh-tb-btn" id="itool-marker" onclick="setTool('marker')" title="Marker">🖊</button>
-    <button class="wh-tb-btn" id="itool-hi" onclick="setTool('hi')" title="Highlighter">🟡</button>
-    <button class="wh-tb-btn" id="itool-erase" onclick="setTool('erase')" title="Eraser">⬜</button>
+    <button class="wh-tb-btn active" id="itool-pen" onclick="setTool('pen')" title="Ballpoint pen"><span class="iconify" data-icon="ph:pen-bold" style="font-size:18px;"></span></button>
+    <button class="wh-tb-btn" id="itool-pencil" onclick="setTool('pencil')" title="Pencil"><span class="iconify" data-icon="ph:pencil-simple-bold" style="font-size:18px;"></span></button>
+    <button class="wh-tb-btn" id="itool-marker" onclick="setTool('marker')" title="Marker"><span class="iconify" data-icon="ph:marker-bold" style="font-size:18px;"></span></button>
+    <button class="wh-tb-btn" id="itool-hi" onclick="setTool('hi')" title="Highlighter"><span class="iconify" data-icon="ph:highlighter-bold" style="font-size:18px;color:#f59e0b;"></span></button>
+    <button class="wh-tb-btn" id="itool-erase" onclick="setTool('erase')" title="Eraser"><span class="iconify" data-icon="ph:eraser-bold" style="font-size:18px;"></span></button>
 
     <!-- Pen size -->
     <input type="range" id="wh-pen-size" min="1" max="20" value="2" style="width:60px;" oninput="penSize=parseInt(this.value)">
@@ -186,10 +187,10 @@
       <option value="tesseract">Tesseract (offline, no API key)</option>
     </select>
     <button class="wh-tb-btn" onclick="runOCR(false)" id="ocr-btn" title="Convert handwriting to text">OCR</button>
-    <button class="wh-tb-btn" onclick="clearInk()" title="Clear ink canvas only">🗑 Ink</button>
+    <button class="wh-tb-btn" onclick="clearInk()" title="Clear ink canvas only"><span class="iconify" data-icon="ph:eraser-bold" style="font-size:15px;"></span> Clear Ink</button>
     <button class="wh-tb-btn" onclick="clearAll()" title="Clear everything — ink and text" style="color:#dc2626;">🗑 All</button>
-    <button class="wh-tb-btn" onclick="exportPage()" title="Export">⬇ Export</button>
-    <button class="wh-tb-btn" onclick="dictate()" id="dictate-btn" title="Voice dictation">🎤</button>
+    <button class="wh-tb-btn" onclick="exportPage()" title="Export"><span class="iconify" data-icon="ph:export-bold" style="font-size:15px;"></span> Export</button>
+    <button class="wh-tb-btn" onclick="dictate()" id="dictate-btn" title="Voice dictation"><span class="iconify" data-icon="ph:microphone-bold" style="font-size:16px;"></span></button>
   </div>
 
   <!-- Surface -->
