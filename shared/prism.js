@@ -702,44 +702,44 @@ var OSK = (function() {
 function buildSidebar(activePage) {
   // Nav structure: flat items and grouped dropdowns
   var navStructure = [
-    {type:'item', label:'Study Hub', icon:'📚', href:'/study-hub/'},
-    {type:'item', label:'Chat', icon:'💬', href:'/chat/'},
-    {type:'item', label:'Research', icon:'🔍', href:'/research/'},
-    {type:'item', label:'Drafting', icon:'✍', href:'/drafting/'},
+    {type:'item', label:'Study Hub', icon:'fluent-emoji:books', href:'/study-hub/'},
+    {type:'item', label:'Chat', icon:'fluent-emoji:speech-balloon', href:'/chat/'},
+    {type:'item', label:'Research', icon:'fluent-emoji:magnifying-glass-tilted-left', href:'/research/'},
+    {type:'item', label:'Drafting', icon:'fluent-emoji:pencil', href:'/drafting/'},
     {type:'section', label:'Create'},
-    {type:'group', label:'Create', icon:'🎨', children:[
-      {label:'Canvas', href:'/creator/canvas/'},
-      {label:'Refract', href:'/atomise/'},
-      {label:'Media Manager', href:'/social-queue/'},
-      {label:'Podcasts', href:'/creator/podcasts/'},
-      {label:'Music', href:'/creator/music/'},
+    {type:'group', label:'Create', icon:'fluent-emoji:artist-palette', children:[
+      {label:'Canvas', icon:'fluent-emoji:framed-picture', href:'/creator/canvas/'},
+      {label:'Refract', icon:'fluent-emoji:gem-stone', href:'/atomise/'},
+      {label:'Media Manager', icon:'fluent-emoji:calendar', href:'/social-queue/'},
+      {label:'Podcasts', icon:'fluent-emoji:microphone', href:'/creator/podcasts/'},
+      {label:'Music', icon:'fluent-emoji:musical-notes', href:'/creator/music/'},
     ]},
     {type:'section', label:'Comms'},
-    {type:'group', label:'Comms', icon:'📧', children:[
-      {label:'Inbox', href:'/inbox/'},
-      {label:'Email', href:'/comms/email/'},
-      {label:'Calendar', href:'/comms/zoho-calendar/'},
-      {label:'Messages', href:'/messages/'},
+    {type:'group', label:'Comms', icon:'fluent-emoji:envelope', children:[
+      {label:'Inbox', icon:'fluent-emoji:inbox-tray', href:'/inbox/'},
+      {label:'Email', icon:'fluent-emoji:e-mail', href:'/comms/email/'},
+      {label:'Calendar', icon:'fluent-emoji:spiral-calendar', href:'/comms/zoho-calendar/'},
+      {label:'Messages', icon:'fluent-emoji:speech-balloon', href:'/messages/'},
     ]},
     {type:'section', label:'Business'},
-    {type:'group', label:'Business', icon:'💼', children:[
-      {label:'CRM', href:'/crm/'},
-      {label:'Monetisation', href:'/monetisation/'},
-      {label:'Platform Manager', href:'/platform-manager/'},
+    {type:'group', label:'Business', icon:'fluent-emoji:briefcase', children:[
+      {label:'CRM', icon:'fluent-emoji:busts-in-silhouette', href:'/crm/'},
+      {label:'Monetisation', icon:'fluent-emoji:money-bag', href:'/monetisation/'},
+      {label:'Platform Manager', icon:'fluent-emoji:link', href:'/platform-manager/'},
     ]},
     {type:'section', label:'Intelligence'},
-    {type:'group', label:'Intelligence', icon:'🧠', children:[
-      {label:'Agents', href:'/agenti/agent-builder/'},
-      {label:'Workflows', href:'/agenti/workflow-wizard/'},
-      {label:'Orchestrator', href:'/orchestrator/'},
+    {type:'group', label:'Intelligence', icon:'fluent-emoji:brain', children:[
+      {label:'Agents', icon:'fluent-emoji:robot', href:'/agenti/agent-builder/'},
+      {label:'Workflows', icon:'fluent-emoji:gear', href:'/agenti/workflow-wizard/'},
+      {label:'Orchestrator', icon:'fluent-emoji:control-knobs', href:'/orchestrator/'},
     ]},
     {type:'section', label:'System'},
-    {type:'group', label:'System', icon:'⚙', children:[
-      {label:'Profile & Memory', href:'/profile/'},
-      {label:'WriteHandy', href:'/writehandy/'},
-      {label:'Dev Team', href:'/dev-team/'},
-      {label:'Settings', href:'/settings/'},
-      {label:'Sitemap', href:'/sitemap/'},
+    {type:'group', label:'System', icon:'fluent-emoji:wrench', children:[
+      {label:'Profile & Memory', icon:'fluent-emoji:bust-in-silhouette', href:'/profile/'},
+      {label:'WriteHandy', icon:'fluent-emoji:writing-hand', href:'/writehandy/'},
+      {label:'Dev Team', icon:'fluent-emoji:hammer-and-wrench', href:'/dev-team/'},
+      {label:'Settings', icon:'fluent-emoji:gear', href:'/settings/'},
+      {label:'Sitemap', icon:'fluent-emoji:world-map', href:'/sitemap/'},
     ]},
   ];
 
@@ -1342,7 +1342,7 @@ var GlobalUI = (function() {
       e.stopPropagation();
       var panel = document.getElementById('theme-picker-panel');
       if (!panel) {
-        if (window.ThemeSystem && ThemeSystem.buildPicker) ThemeSystem.buildPicker();
+        if (typeof buildThemePicker === 'function') buildThemePicker();
         panel = document.getElementById('theme-picker-panel');
       }
       if (panel) {
