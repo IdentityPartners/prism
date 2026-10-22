@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792701284 -->
+<!-- cache-bust-1792702354 -->
+
 
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
@@ -684,6 +685,92 @@ function toggleMultiModel() {
   var btn = document.getElementById('multi-btn');
   btn.classList.toggle('active', multiModelActive);
   btn.textContent = multiModelActive ? '⚡ Multi ON' : '⚡ Multi';
+  if (multiModelActive) showMultiModelPanel();
+  else hideMultiModelPanel();
+}
+
+function showMultiModelPanel() {
+  var existing = document.getElementById('multi-model-panel');
+  if (existing) { existing.style.display = 'block'; return; }
+  var panel = document.createElement('div');
+  panel.id = 'multi-model-panel';
+  panel.style.cssText = 'position:fixed;top:60px;right:14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px;z-index:9000;width:300px;box-shadow:0 4px 20px rgba(0,0,0,0.15);';
+  panel.innerHTML = '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);margin-bottom:10px;">Compare Models</div>' +
+    '<div style="font-size:12px;color:var(--fg-muted);margin-bottom:8px;">Select models to query simultaneously:</div>' +
+    '<div id="multi-model-checks" style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px;">' +
+    ['mistral:mistral-medium-3.5:Mistral Medium 3.5',
+     'mistral:mistral-large-latest:Mistral Large Latest',
+     'mistral:zai-glm-5-2:GLM 5.2 via Mistral',
+     'gemini:gemma-4-31b-it:Gemma 4 31B',
+     'groq:openai/gpt-oss-120b:GPT-OSS 120B Groq',
+     'deepseek:deepseek-chat:DeepSeek V4',
+    ].map(function(m) {
+      var parts = m.split(':');
+      var id = parts[0] + '_' + parts[1].replace(/[^a-z0-9]/gi,'_');
+      return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">' +
+        '<input type="checkbox" id="mc_' + id + '" value="' + parts[0] + ':' + parts[1] + '" checked style="width:14px;height:14px;">' +
+        parts[2] + '</label>';
+    }).join('') +
+    '</div>' +
+    '<button onclick="runMultiModel()" style="width:100%;padding:7px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">Send to all selected</button>' +
+    '<button onclick="hideMultiModelPanel()" style="width:100%;padding:5px;background:var(--bg);color:var(--fg-muted);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;margin-top:5px;">Close</button>';
+  document.body.appendChild(panel);
+}
+
+function hideMultiModelPanel() {
+  var panel = document.getElementById('multi-model-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+function runMultiModel() {
+  var input = document.getElementById('chat-input');
+  var text = input.value.trim();
+  if (!text) { alert('Enter a message first.'); return; }
+  
+  var checks = document.querySelectorAll('#multi-model-checks input:checked');
+  var models = Array.from(checks).map(function(c) {
+    var parts = c.value.split(':');
+    return {provider: parts[0], model: parts.slice(1).join(':')};
+  });
+  if (!models.length) { alert('Select at least one model.'); return; }
+  
+  input.value = '';
+  appendMessage('user', text);
+  chatHistory.push({role:'user',content:text});
+  hideMultiModelPanel();
+  
+  // Show loading for each model
+  var resultsDiv = document.createElement('div');
+  resultsDiv.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:12px;margin:8px 0;';
+  resultsDiv.innerHTML = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);margin-bottom:8px;">Multi-model responses</div>' +
+    models.map(function(m,i) {
+      return '<div id="multi_' + i + '" style="margin-bottom:10px;padding:8px;background:var(--bg-sunken);border-radius:6px;">' +
+        '<div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:4px;">' + m.provider + ' / ' + m.model + '</div>' +
+        '<div id="multi_text_' + i + '" style="font-size:13px;color:var(--fg-muted);">Waiting...</div>' +
+        '</div>';
+    }).join('');
+  document.getElementById('chat-messages').appendChild(resultsDiv);
+  scrollToBottom();
+  
+  fetch(WORKER + '/api/chat/multi', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({messages:chatHistory, models:models})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    (d.responses||[]).forEach(function(resp,i) {
+      var el = document.getElementById('multi_text_' + i);
+      if (el) el.innerHTML = renderMarkdown(resp.content || 'No response');
+      if (el) el.style.color = 'var(--fg)';
+    });
+    scrollToBottom();
+  })
+  .catch(function(e){
+    models.forEach(function(_,i){
+      var el = document.getElementById('multi_text_' + i);
+      if (el) el.textContent = 'Error: ' + e.message;
+    });
+  });
 }
 
 // ── Quick actions ─────────────────────────────────────────────────────────────
