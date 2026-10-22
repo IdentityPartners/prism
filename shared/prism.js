@@ -673,12 +673,12 @@ var OSK = (function() {
 function buildSidebar(activePage) {
   // Nav structure: flat items and grouped dropdowns
   var navStructure = [
-    {type:'item', label:'Study Hub', icon:'&#x1F4DA;', href:'/study-hub/'},
-    {type:'item', label:'Chat', icon:'&#x1F4AC;', href:'/chat/'},
-    {type:'item', label:'Research', icon:'&#x1F50D;', href:'/research/'},
-    {type:'item', label:'Drafting', icon:'&#x270D;', href:'/drafting/'},
+    {type:'item', label:'Study Hub', icon:'📚', href:'/study-hub/'},
+    {type:'item', label:'Chat', icon:'💬', href:'/chat/'},
+    {type:'item', label:'Research', icon:'🔍', href:'/research/'},
+    {type:'item', label:'Drafting', icon:'✍', href:'/drafting/'},
     {type:'section', label:'Create'},
-    {type:'group', label:'Create', icon:'&#x1F3A8;', children:[
+    {type:'group', label:'Create', icon:'🎨', children:[
       {label:'Canvas', href:'/creator/canvas/'},
       {label:'Refract', href:'/atomise/'},
       {label:'Media Manager', href:'/social-queue/'},
@@ -686,26 +686,26 @@ function buildSidebar(activePage) {
       {label:'Music', href:'/creator/music/'},
     ]},
     {type:'section', label:'Comms'},
-    {type:'group', label:'Comms', icon:'&#x1F4E7;', children:[
+    {type:'group', label:'Comms', icon:'📧', children:[
       {label:'Inbox', href:'/inbox/'},
       {label:'Email', href:'/comms/email/'},
       {label:'Calendar', href:'/comms/zoho-calendar/'},
       {label:'Messages', href:'/messages/'},
     ]},
     {type:'section', label:'Business'},
-    {type:'group', label:'Business', icon:'&#x1F4BC;', children:[
+    {type:'group', label:'Business', icon:'💼', children:[
       {label:'CRM', href:'/crm/'},
       {label:'Monetisation', href:'/monetisation/'},
       {label:'Platform Manager', href:'/platform-manager/'},
     ]},
     {type:'section', label:'Intelligence'},
-    {type:'group', label:'Intelligence', icon:'&#x1F9E0;', children:[
+    {type:'group', label:'Intelligence', icon:'🧠', children:[
       {label:'Agents', href:'/agenti/agent-builder/'},
       {label:'Workflows', href:'/agenti/workflow-wizard/'},
       {label:'Orchestrator', href:'/orchestrator/'},
     ]},
     {type:'section', label:'System'},
-    {type:'group', label:'System', icon:'&#x2699;', children:[
+    {type:'group', label:'System', icon:'⚙', children:[
       {label:'Profile & Memory', href:'/profile/'},
       {label:'WriteHandy', href:'/writehandy/'},
       {label:'Dev Team', href:'/dev-team/'},
@@ -762,7 +762,7 @@ function buildSidebar(activePage) {
       header.className = 'nav-group-header' + (anyActive ? ' active' : '');
       var hIcon = document.createElement('span');
       hIcon.className = 'nav-item-icon';
-      hIcon.textContent = item.icon || '';
+      hIcon.innerHTML = item.icon || '';
       var hLabel = document.createElement('span');
       hLabel.className = 'nav-item-label';
       hLabel.textContent = item.label;
