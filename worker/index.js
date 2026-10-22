@@ -227,8 +227,9 @@ async function orchestrate(env, messages, profile = 'balanced') {
     if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-medium-3.5',                   note: 'Mistral Medium 3.5' });
     // 2. Mistral Large Latest — 573ms, reliable, web search, vision
     if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-latest',                 note: 'Mistral Large Latest' });
-    // 3. Gemma 4 31B via Gemini API — reliable, Google Search grounding
-    // Note: NVIDIA endpoint confirmed timing out (20s+) - using Gemini API instead
+    // 3. Llama 3.2 11B Vision NVIDIA — 256ms, confirmed working, vision capable
+    if (KEYS.nvidia)     chain.push({ p: 'nvidia',     key: KEYS.nvidia,     m: 'meta/llama-3.2-11b-vision-instruct',   note: 'Llama 3.2 11B Vision NVIDIA' });
+    // 4. Gemma 4 31B via Gemini API — reliable, Google Search grounding
     // 3. Gemma 4 31B via Gemini API — Google Search grounding
     if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemma-4-31b-it',                       note: 'Gemma 4 Gemini' });
     // 4. Gemini 3.5 Flash — reliable, 1M ctx, no thinking mode issues
@@ -1488,7 +1489,70 @@ export default {
         return json({success: true, action: action, results: results}, 200, origin);
       } catch(e) { return json({error: e.message}, 500, origin); }
     }
-    return json({ error: 'Not found', path }, 404, origin);
+    
+    // ── Firecrawl: scrape URL to markdown for Study Hub ─────────────────────
+    if (path === '/api/firecrawl/scrape' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const url = body.url || '';
+        if (!url) return json({error: 'No URL provided'}, 400, origin);
+        const fcKey = k(env, ['firecrawl', 'FIRECRAWL_API_KEY']) || '';
+        if (!fcKey) return json({error: 'Firecrawl key not configured'}, 400, origin);
+        const fcResp = await fetch('https://api.firecrawl.dev/v1/scrape', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + fcKey},
+          body: JSON.stringify({url, formats: ['markdown'], onlyMainContent: true})
+        });
+        const fcData = await fcResp.json();
+        if (!fcData.success) return json({error: fcData.error || 'Firecrawl failed'}, 500, origin);
+        return json({
+          success: true,
+          markdown: fcData.data?.markdown || '',
+          title: fcData.data?.metadata?.title || url,
+          description: fcData.data?.metadata?.description || ''
+        }, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Cohere RAG: embed + rerank for Study Hub search ──────────────────────
+    if (path === '/api/cohere/embed' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const texts = body.texts || [];
+        const inputType = body.input_type || 'search_document';
+        const cohereKey = k(env, ['cohere_free_key', 'cohere_api_key', 'COHERE_API_KEY']) || '';
+        if (!cohereKey) return json({error: 'Cohere key not configured'}, 400, origin);
+        const resp = await fetch('https://api.cohere.com/v2/embed', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cohereKey},
+          body: JSON.stringify({model: 'embed-v4.0', texts, input_type: inputType, embedding_types: ['float']})
+        });
+        const d = await resp.json();
+        if (!resp.ok) throw new Error('Cohere embed error: ' + JSON.stringify(d).substring(0, 100));
+        return json({embeddings: d.embeddings?.float || []}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    if (path === '/api/cohere/rerank' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const query = body.query || '';
+        const documents = body.documents || [];
+        const topN = body.top_n || 5;
+        const cohereKey = k(env, ['cohere_free_key', 'cohere_api_key', 'COHERE_API_KEY']) || '';
+        if (!cohereKey) return json({error: 'Cohere key not configured'}, 400, origin);
+        const resp = await fetch('https://api.cohere.com/v2/rerank', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cohereKey},
+          body: JSON.stringify({model: 'rerank-v3.5', query, documents, top_n: topN})
+        });
+        const d = await resp.json();
+        if (!resp.ok) throw new Error('Cohere rerank error: ' + JSON.stringify(d).substring(0, 100));
+        return json({results: d.results || []}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+return json({ error: 'Not found', path }, 404, origin);
   },
 
   async scheduled(event, env, ctx) {
