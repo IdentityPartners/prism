@@ -155,14 +155,30 @@ async function callProvider(env, provider, key, model, messages) {
 
   // ── Cohere v2 ───────────────────────────────────────────────────────────────
   if (provider === 'cohere') {
+    // Cohere command-a-plus uses thinking mode — need max_tokens >= 2000 for text output
+    const cohereBody = { model, messages, max_tokens: 4096 };
     const resp = await fetch('https://api.cohere.com/v2/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-      body: JSON.stringify({ model, messages }),
+      body: JSON.stringify(cohereBody),
     });
     const d = await resp.json();
     if (!resp.ok) throw new Error(`Cohere ${resp.status}: ${JSON.stringify(d).substring(0, 100)}`);
-    const text = d.message?.content?.[0]?.text;
+    // Extract text from thinking array (command-a-plus returns [{type:'thinking',...},{type:'text',...}])
+    const cohereContent = d.message?.content;
+    let text = '';
+    if (typeof cohereContent === 'string') {
+      text = cohereContent;
+    } else if (Array.isArray(cohereContent)) {
+      const textParts = cohereContent.filter(function(p) { return p.type === 'text'; }).map(function(p) { return p.text || ''; });
+      text = textParts.join('');
+      if (!text) {
+        const thinkParts = cohereContent.filter(function(p) { return p.type === 'thinking'; }).map(function(p) { return p.thinking || ''; });
+        text = thinkParts.join('').substring(0, 2000);
+      }
+    } else if (cohereContent) {
+      text = String(cohereContent);
+    }
     if (!text) throw new Error('Cohere empty response');
     return { content: text, provider: 'cohere', model };
   }
@@ -241,7 +257,7 @@ async function orchestrate(env, messages, profile = 'balanced') {
     // 5. DeepSeek V4 Flash — 1M ctx, web search
     if (KEYS.deepseek)   chain.push({ p: 'deepseek',   key: KEYS.deepseek,   m: 'deepseek-chat',                        note: 'DeepSeek V4 Flash' });
     // 6. Cohere Command A+ — 256K ctx, RAG, web search
-    if (KEYS.cohere)     chain.push({ p: 'cohere',     key: KEYS.cohere,     m: 'command-a-plus-05-2026',               note: 'Cohere Command A+' });
+    if (KEYS.cohere)     chain.push({ p: 'cohere',     key: k(env, ['cohere_free_key', 'cohere_api_key', 'COHERE_API_KEY']),     m: 'command-a-plus-05-2026',               note: 'Cohere Command A+' });
     // 7. GPT-OSS 120B via Groq — fast, 131K ctx
     if (KEYS.groq)       chain.push({ p: 'groq',       key: KEYS.groq,       m: 'openai/gpt-oss-120b',                  note: 'GPT-OSS 120B Groq' });
     // 8. Nemotron Ultra 550B — frontier-grade, 1M ctx, free
