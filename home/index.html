@@ -46,13 +46,22 @@
 
 /* Hero */
 .home-hero {
-  background: linear-gradient(135deg, #0f3b3a 0%, #1a5c5a 50%, #5c2d3f 100%);
+  background: #0f3b3a;
   border-radius: 10px;
-  padding: 18px;
-  color: #fff;
+  padding: 18px 20px;
+  color: #f7f3e9;
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
+  border-left: 4px solid #5c2d3f;
+}
+.home-hero::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 120px; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(92,45,63,0.3));
+  pointer-events: none;
 }
 .home-hero::before {
   content: '';
