@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792701125 -->
+<!-- cache-bust-1792701424 -->
+
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Assets — Prism</title>
 <link rel="stylesheet" href="/shared/prism.css">
@@ -67,6 +68,17 @@
           <label style="font-size:11px;cursor:pointer;"><input type="checkbox" class="multi-model-check" value="grok-2-image"> Grok-2 (paid)</label>
         </div>
         <div id="gen-result" style="margin-top:12px;"></div>
+<div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:8px;">
+  <button class="btn btn-sm" id="tab-images" onclick="showAssetTab('images',this)" style="background:var(--accent);color:#fff;">🖼 Images</button>
+  <button class="btn btn-sm btn-secondary" id="tab-canvases" onclick="showAssetTab('canvases',this)">🎨 Canvases</button>
+  <button class="btn btn-sm btn-secondary" id="tab-podcasts" onclick="showAssetTab('podcasts',this)">🎙 Podcasts</button>
+  <button class="btn btn-sm btn-secondary" id="tab-music" onclick="showAssetTab('music',this)">🎵 Music</button>
+  <button class="btn btn-sm btn-secondary" id="tab-videos" onclick="showAssetTab('videos',this)">🎬 Videos</button>
+</div>
+<div id="asset-history-panel" style="display:none;margin-bottom:14px;">
+  <div id="asset-history-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;"></div>
+</div>
+
         <div id="multi-gen-result" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:12px;"></div>
       </div>
 
@@ -268,6 +280,63 @@ function generateMultiImage() {
   .catch(function(e) {
     if (result) result.innerHTML = '<div style="color:#dc2626;font-size:12px;">Error: ' + e.message + '</div>';
   });
+}
+
+function showAssetTab(tab, btn) {
+  document.querySelectorAll('[id^="tab-"]').forEach(function(b){b.style.background='var(--bg)';b.style.color='var(--fg)';b.classList.remove('btn-primary');b.classList.add('btn-secondary');});
+  if (btn) {btn.style.background='var(--accent)';btn.style.color='#fff';}
+  var panel = document.getElementById('asset-history-panel');
+  var list = document.getElementById('asset-history-list');
+  if (!panel || !list) return;
+  
+  if (tab === 'images') {
+    panel.style.display = 'none';
+    return;
+  }
+  
+  panel.style.display = 'block';
+  list.innerHTML = '<div style="font-size:13px;color:var(--fg-muted);padding:20px;text-align:center;">Loading ' + tab + ' history...</div>';
+  
+  // Fetch from KV via Worker
+  fetch(WORKER + '/api/kv/list?prefix=' + tab + ':')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var items = d.keys || [];
+      if (!items.length) {
+        list.innerHTML = '<div style="font-size:13px;color:var(--fg-muted);padding:20px;text-align:center;">No ' + tab + ' yet. Create some in the ' + tab + ' section.</div>';
+        return;
+      }
+      list.innerHTML = '';
+      items.slice(0,20).forEach(function(key) {
+        fetch(WORKER + '/api/kv/get?key=' + encodeURIComponent(key.name))
+          .then(function(r){return r.json();})
+          .then(function(item) {
+            if (!item.value) return;
+            try {
+              var data = JSON.parse(item.value);
+              var card = document.createElement('div');
+              card.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;';
+              var url = data.url || data.imageUrl || data.canvasUrl || '';
+              var title = data.title || data.text || key.name;
+              if (url && (url.startsWith('http') || url.startsWith('data:'))) {
+                var img = document.createElement('img');
+                img.src = url;
+                img.style.cssText = 'width:100%;aspect-ratio:1;object-fit:cover;display:block;';
+                img.onerror = function(){img.style.display='none';};
+                card.appendChild(img);
+              }
+              var info = document.createElement('div');
+              info.style.cssText = 'padding:8px;font-size:11px;color:var(--fg-muted);';
+              info.textContent = String(title).substring(0,40);
+              card.appendChild(info);
+              list.appendChild(card);
+            } catch(e) {}
+          });
+      });
+    })
+    .catch(function(){
+      list.innerHTML = '<div style="font-size:13px;color:var(--fg-muted);padding:20px;text-align:center;">Could not load history.</div>';
+    });
 }
 </script>
 </body>
