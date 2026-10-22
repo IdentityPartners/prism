@@ -1318,7 +1318,7 @@ var GlobalUI = (function() {
     }
 
     // Theme button
-    var themeBtn = makeBtn('&#x1F3A8;', 'Change theme', function(e) {
+    var themeBtn = makeBtn('🎨', 'Change theme', function(e) {
       e.stopPropagation();
       var panel = document.getElementById('theme-picker-panel');
       if (!panel) {
@@ -1362,7 +1362,7 @@ var GlobalUI = (function() {
 
     var icon = document.createElement('span');
     icon.style.cssText = 'font-size:15px;';
-    icon.innerHTML = '&#x1F4AC;';
+    icon.innerHTML = '💬';
 
     var label = document.createElement('span');
     label.style.cssText = 'font-size:12px;font-weight:600;color:var(--fg);';
@@ -1536,7 +1536,7 @@ var GlobalUI = (function() {
     }
 
     // Theme button
-    var themeBtn = makeBtn('&#x1F3A8;', 'Change theme', function(e) {
+    var themeBtn = makeBtn('🎨', 'Change theme', function(e) {
       e.stopPropagation();
       var panel = document.getElementById('theme-picker-panel');
       if (!panel) {
@@ -1580,7 +1580,7 @@ var GlobalUI = (function() {
 
     var icon = document.createElement('span');
     icon.style.cssText = 'font-size:15px;';
-    icon.innerHTML = '&#x1F4AC;';
+    icon.innerHTML = '💬';
 
     var label = document.createElement('span');
     label.style.cssText = 'font-size:12px;font-weight:600;color:var(--fg);';
