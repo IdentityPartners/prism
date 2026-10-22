@@ -145,6 +145,7 @@ async function callProvider(env, provider, key, model, messages) {
     kimi: 'https://api.moonshot.cn/v1/chat/completions',
     zhipu: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
     perplexity: 'https://api.perplexity.ai/chat/completions',
+    kimi: 'https://api.moonshot.cn/v1/chat/completions',
     chutes: 'https://llm.chutes.ai/v1/chat/completions',
     nebius: 'https://api.studio.nebius.com/v1/chat/completions',
   };
