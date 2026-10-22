@@ -210,6 +210,8 @@ async function orchestrate(env, messages, profile = 'balanced') {
     perplexity: k(env, ['perplexity', 'perplexity_api_key', 'PERPLEXITY_API_KEY']),
     // Note: Cerebras key is stored as CEREBRAS_FREE_1 in CF secrets
     cerebras:   k(env, ['CEREBRAS_FREE_1', 'cerebras_free_1', 'CEREBRAS_PAID', 'cerebras_paid']),
+    zhipu:      k(env, ['zhipu_api_key', 'ZHIPU_API_KEY', 'glm_api_key']),
+    kimi:       k(env, ['kimi_api_key', 'KIMI_API_KEY']),
     github:     k(env, ['github_token', 'GITHUB_TOKEN']),
     fal:        k(env, ['fal_api_key', 'FAL_API_KEY']),
   };
