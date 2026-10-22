@@ -460,7 +460,8 @@ async function generateCanvasHtml(text, templateId, env) {
     return '<rect x="' + x + '" y="' + y + '" width="46" height="46" rx="6" fill="' + TEAL + '" opacity="0.9"/>' +
            '<rect x="' + (x+52) + '" y="' + y + '" width="46" height="46" rx="6" fill="' + ROSE + '" opacity="0.9"/>' +
            '<rect x="' + x + '" y="' + (y+52) + '" width="46" height="46" rx="6" fill="' + TEAL2 + '" opacity="0.7"/>' +
-           '<rect x="' + (x+52) + '" y="' + (y+52) + '" width="46" height="46" rx="6" fill="' + ROSE2 + '" opacity="0.7"/>';
+           '<rect x="' + (x+52) + '" y="' + (y+52) + '" width="46" height="46" rx="6" fill="' + ROSE2 + '" opacity="0.7"/>' +
+           '<text x="' + (x+48) + '" y="' + (y+68) + '" font-family="Georgia,serif" font-size="11" font-weight="600" fill="' + TEAL_LIGHT + '" text-anchor="middle" opacity="0.9">IP</text>';
   }
 
   function ipWordmark(cx, y, fg) {
@@ -473,7 +474,7 @@ async function generateCanvasHtml(text, templateId, env) {
   }
 
   function ipFooter(cx, y) {
-    return '<text x="' + cx + '" y="' + y + '" font-family="Arial,sans-serif" font-size="16" fill="' + GREY + '" text-anchor="middle" opacity="0.8">www.identitypartners.uk &middot; hello@identitypartners.uk</text>';
+    return '<text x="' + cx + '" y="' + y + '" font-family="Arial,sans-serif" font-size="15" fill="' + GREY + '" text-anchor="middle" opacity="0.8">www.identitypartners.uk &middot; hello@identitypartners.uk &middot; @identitypartners</text>';
   }
 
   function quoteText(lines, startY, lineH, fg, shadow) {
