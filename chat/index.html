@@ -278,6 +278,12 @@
   display: none;
   flex-shrink: 0;
 }
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.thinking-indicator { display:flex; align-items:center; gap:6px; padding:6px 10px; font-size:11px; color:#7c3aed; }
+.thinking-dot { width:6px; height:6px; border-radius:50%; background:#7c3aed; animation:pulse 1.2s infinite; }
+.thinking-dot:nth-child(2) { animation-delay:0.2s; }
+.thinking-dot:nth-child(3) { animation-delay:0.4s; }
 </style>
 </head>
 <body>
@@ -556,12 +562,9 @@ function sendMessage() {
   if (isStreaming) return;
 
   var fullText = text;
-
-  // Add file context
   if (attachments.length > 0) {
     attachments.forEach(function(att) {
       if (att.content) fullText += '\n\n[Attached: ' + att.name + ']\n' + att.content.substring(0, 30000);
-      else fullText += '\n\n[Image attached: ' + att.name + ']';
     });
   }
 
@@ -580,6 +583,7 @@ function sendMessage() {
   document.getElementById('typing-indicator').classList.add('show');
   scrollToBottom();
 
+  // Use streaming endpoint
   var body = {
     messages: chatHistory,
     profile: profile,
@@ -591,42 +595,225 @@ function sendMessage() {
     body.modelOverride = parts.slice(1).join(':');
   }
 
-  fetch(WORKER + '/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(d) {
-    document.getElementById('typing-indicator').classList.remove('show');
+  // Create streaming message bubble
+  var streamDiv = null;
+  var thinkDiv = null;
+  var streamText = '';
+  var thinkText = '';
+  var connectedProvider = '';
+
+  // Status indicator
+  var statusEl = document.createElement('div');
+  statusEl.style.cssText = 'font-size:11px;color:var(--fg-muted);padding:4px 0;display:flex;align-items:center;gap:6px;';
+  statusEl.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;animation:pulse 1s infinite;"></span><span id="stream-status">Connecting...</span>';
+  var msgs = document.getElementById('chat-messages');
+  var welcome = msgs.querySelector('[style*="text-align:center"]');
+  if (welcome) welcome.remove();
+  msgs.appendChild(statusEl);
+  scrollToBottom();
+
+  var eventSource = null;
+  var fallbackTimer = null;
+
+  function cleanup() {
     isStreaming = false;
     document.getElementById('send-btn').disabled = false;
+    document.getElementById('typing-indicator').classList.remove('show');
+    if (statusEl.parentNode) statusEl.remove();
+    if (eventSource) { try { eventSource.close(); } catch(e) {} }
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+  }
 
-    var content = d.content || 'No response.';
-    chatHistory.push({ role: 'assistant', content: content });
-    appendMessage('assistant', content, d.provider, Date.now());
+  function updateStatus(msg, colour) {
+    var dot = statusEl.querySelector('span:first-child');
+    var label = document.getElementById('stream-status');
+    if (dot) dot.style.background = colour || '#f59e0b';
+    if (label) label.textContent = msg;
+  }
 
-    // Update routing log
-    if (d.routingLog) {
-      document.getElementById('routing-log').textContent = d.routingLog.join('\n');
-    } else if (d.provider) {
-      document.getElementById('routing-log').textContent = d.provider + ' / ' + (d.model || '');
+  // Try streaming first
+  try {
+    var streamUrl = WORKER + '/api/chat/stream';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', streamUrl, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.timeout = 120000; // 2 minutes max
+
+    var lastPos = 0;
+
+    xhr.onprogress = function() {
+      var newData = xhr.responseText.substring(lastPos);
+      lastPos = xhr.responseText.length;
+      var lines = newData.split('\n');
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line.startsWith('data:')) continue;
+        try {
+          var data = JSON.parse(line.slice(5).trim());
+          handleStreamEvent(xhr.responseText.substring(lastPos - newData.length).includes('event: ' + 'status') ? 'status' :
+                           xhr.responseText.substring(lastPos - newData.length).includes('event: ' + 'thinking') ? 'thinking' :
+                           xhr.responseText.substring(lastPos - newData.length).includes('event: ' + 'token') ? 'token' :
+                           xhr.responseText.substring(lastPos - newData.length).includes('event: ' + 'done') ? 'done' :
+                           xhr.responseText.substring(lastPos - newData.length).includes('event: ' + 'error') ? 'error' : 'unknown',
+                           data);
+        } catch(e) {}
+      }
+    };
+
+    // Better SSE parsing
+    var buffer = '';
+    var currentEvent = '';
+    xhr.onprogress = function() {
+      var newData = xhr.responseText.substring(lastPos);
+      lastPos = xhr.responseText.length;
+      buffer += newData;
+      var parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+      parts.forEach(function(block) {
+        var eventType = 'message';
+        var dataStr = '';
+        block.split('\n').forEach(function(line) {
+          if (line.startsWith('event: ')) eventType = line.slice(7).trim();
+          else if (line.startsWith('data: ')) dataStr = line.slice(6).trim();
+        });
+        if (dataStr) {
+          try { handleStreamEvent(eventType, JSON.parse(dataStr)); } catch(e) {}
+        }
+      });
+    };
+
+    xhr.onload = function() {
+      if (!streamDiv) {
+        // No streaming happened, fall back to non-streaming
+        useFallback();
+      } else {
+        cleanup();
+        loadConversations();
+      }
+    };
+
+    xhr.onerror = function() { useFallback(); };
+    xhr.ontimeout = function() {
+      if (!streamDiv) useFallback();
+      else cleanup();
+    };
+
+    xhr.send(JSON.stringify(body));
+
+  } catch(e) {
+    useFallback();
+  }
+
+  function handleStreamEvent(eventType, data) {
+    if (eventType === 'status') {
+      if (data.status === 'connecting') {
+        updateStatus('Connecting to ' + data.provider + '...', '#f59e0b');
+      } else if (data.status === 'connected') {
+        connectedProvider = data.provider;
+        updateStatus(data.provider + ' / ' + data.model + ' — responding...', '#16a34a');
+        // Create the response bubble
+        if (!streamDiv) {
+          streamDiv = createStreamBubble();
+        }
+      }
+    } else if (eventType === 'thinking') {
+      // Show thinking process
+      if (!thinkDiv) {
+        thinkDiv = document.createElement('div');
+        thinkDiv.style.cssText = 'font-size:11px;color:var(--fg-muted);font-style:italic;padding:6px 10px;background:rgba(124,58,237,0.06);border-left:2px solid #7c3aed;border-radius:0 6px 6px 0;margin-bottom:4px;max-height:120px;overflow-y:auto;';
+        thinkDiv.innerHTML = '<span style="font-size:10px;font-weight:700;color:#7c3aed;display:block;margin-bottom:3px;">&#x1F9E0; Thinking...</span><span id="think-text"></span>';
+        if (streamDiv) streamDiv.parentNode.insertBefore(thinkDiv, streamDiv);
+        else msgs.appendChild(thinkDiv);
+      }
+      thinkText += data.text || '';
+      var thinkTextEl = document.getElementById('think-text');
+      if (thinkTextEl) thinkTextEl.textContent = thinkText.substring(Math.max(0, thinkText.length - 300));
+      scrollToBottom();
+    } else if (eventType === 'token') {
+      if (!streamDiv) streamDiv = createStreamBubble();
+      streamText += data.text || '';
+      var bubble = streamDiv.querySelector('.msg-bubble');
+      if (bubble) bubble.innerHTML = renderMarkdown(streamText);
+      scrollToBottom();
+    } else if (eventType === 'done') {
+      var finalText = data.content || streamText;
+      chatHistory.push({ role: 'assistant', content: finalText });
+      if (streamDiv) {
+        var bubble = streamDiv.querySelector('.msg-bubble');
+        if (bubble) bubble.innerHTML = renderMarkdown(finalText);
+        var meta = streamDiv.querySelector('.msg-meta');
+        if (meta) meta.textContent = new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'}) + ' · ' + (data.provider || '') + (data.model ? ' / ' + data.model : '');
+      }
+      // Collapse thinking div
+      if (thinkDiv) {
+        thinkDiv.style.maxHeight = '40px';
+        thinkDiv.style.cursor = 'pointer';
+        thinkDiv.title = 'Click to expand thinking';
+        thinkDiv.onclick = function() {
+          thinkDiv.style.maxHeight = thinkDiv.style.maxHeight === '40px' ? '300px' : '40px';
+        };
+        var thinkLabel = thinkDiv.querySelector('span:first-child');
+        if (thinkLabel) thinkLabel.textContent = '&#x1F9E0; Thinking (click to expand)';
+      }
+      document.getElementById('routing-log').textContent = (data.provider || '') + ' / ' + (data.model || '');
+      cleanup();
+      loadConversations();
+    } else if (eventType === 'error') {
+      useFallback();
     }
+  }
 
-    // Update conversation list
-    loadConversations();
+  function createStreamBubble() {
+    var div = document.createElement('div');
+    div.className = 'msg assistant';
+    var avatar = document.createElement('div');
+    avatar.className = 'msg-avatar';
+    avatar.textContent = '&#x1F3A9;';
+    var body2 = document.createElement('div');
+    body2.className = 'msg-body';
+    var bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.innerHTML = '<span style="color:var(--fg-muted);">&#x25CF;&#x25CF;&#x25CF;</span>';
+    var meta = document.createElement('div');
+    meta.className = 'msg-meta';
+    meta.textContent = 'Streaming...';
+    body2.appendChild(bubble);
+    body2.appendChild(meta);
+    div.appendChild(avatar);
+    div.appendChild(body2);
+    msgs.appendChild(div);
     scrollToBottom();
-  })
-  .catch(function(e) {
-    document.getElementById('typing-indicator').classList.remove('show');
-    isStreaming = false;
-    document.getElementById('send-btn').disabled = false;
-    appendMessage('assistant', 'Error: ' + e.message);
-    scrollToBottom();
-  });
+    return div;
+  }
+
+  function useFallback() {
+    // Non-streaming fallback
+    updateStatus('Connecting...', '#f59e0b');
+    fetch(WORKER + '/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      cleanup();
+      var content = d.content || 'No response.';
+      chatHistory.push({ role: 'assistant', content: content });
+      appendMessage('assistant', content, d.provider, Date.now());
+      if (d.routingLog) document.getElementById('routing-log').textContent = d.routingLog.join('\n');
+      else if (d.provider) document.getElementById('routing-log').textContent = d.provider + ' / ' + (d.model || '');
+      scrollToBottom();
+      loadConversations();
+    })
+    .catch(function(e) {
+      cleanup();
+      appendMessage('assistant', 'Error: ' + e.message);
+      scrollToBottom();
+    });
+  }
 }
 
-// ── Render messages ───────────────────────────────────────────────────────────
+
 function appendMessage(role, content, provider, ts) {
   var msgs = document.getElementById('chat-messages');
 
