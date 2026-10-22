@@ -27,7 +27,7 @@
   var style = document.createElement('style');
   style.textContent = [
     // Global font size increase — base 15px (was 13-14px)
-    'html,body{font-size:18px!important;line-height:1.65!important;}',
+    'html,body{font-size:20px!important;line-height:1.65!important;}',
     '.btn{font-size:15px;}',
     'input,select,textarea{font-size:16px;}',
     ':root,[data-theme="parchment"],[data-theme="argentica"]{',
