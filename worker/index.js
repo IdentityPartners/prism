@@ -1939,6 +1939,113 @@ export default {
       } catch(e) { return json({error: e.message, items:[], notifications:[], unread:{total:0}}, 200, origin); }
     }
 
+
+    // ── Zoho WorkDrive backup ─────────────────────────────────────────────────
+    if (path === '/api/backup/workdrive' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const filename = body.filename || ('backup-' + Date.now() + '.md');
+        const content = body.content || '';
+        const folder = body.folder || 'Argentica';
+
+        // Get Zoho access token from KV
+        const tokenData = await env.PRISM_KV?.get('zoho:calendar:token').catch(function(){return null;});
+        if (!tokenData) return json({error: 'Zoho not connected. Connect at /comms/zoho-calendar/'}, 400, origin);
+
+        let tokens;
+        try { tokens = JSON.parse(tokenData); } catch(e) { return json({error: 'Invalid Zoho token'}, 400, origin); }
+
+        // Refresh token if needed
+        let accessToken = tokens.access_token;
+        if (tokens.expires_at && Date.now() > tokens.expires_at - 60000) {
+          const clientId = k(env, ['ZOHO_CLIENT_ID', 'zoho_client_id']) || '';
+          const clientSecret = k(env, ['ZOHO_CLIENT_SECRET', 'zoho_client_secret']) || '';
+          const refreshResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'grant_type=refresh_token&refresh_token=' + tokens.refresh_token + '&client_id=' + clientId + '&client_secret=' + clientSecret
+          }).then(function(r){return r.json();}).catch(function(){return {};});
+          if (refreshResp.access_token) {
+            accessToken = refreshResp.access_token;
+            tokens.access_token = accessToken;
+            tokens.expires_at = Date.now() + (refreshResp.expires_in || 3600) * 1000;
+            await env.PRISM_KV?.put('zoho:calendar:token', JSON.stringify(tokens));
+          }
+        }
+
+        const apiDomain = tokens.api_domain || 'https://www.zohoapis.eu';
+
+        // Get or create Argentica folder in WorkDrive
+        // First, get the user's WorkDrive team folder
+        const teamResp = await fetch(apiDomain + '/workdrive/api/v1/privatespace', {
+          headers: {'Authorization': 'Zoho-oauthtoken ' + accessToken}
+        }).then(function(r){return r.json();}).catch(function(){return {};});
+
+        const teamId = teamResp.data?.id || teamResp.data?.attributes?.id;
+        if (!teamId) return json({error: 'Could not get WorkDrive space', detail: JSON.stringify(teamResp).substring(0,200)}, 500, origin);
+
+        // Upload file
+        const formData = new FormData();
+        const blob = new Blob([content], {type: 'text/markdown'});
+        formData.append('content', blob, filename);
+        formData.append('parent_id', teamId);
+        formData.append('override-name-exist', 'true');
+
+        const uploadResp = await fetch(apiDomain + '/workdrive/api/v1/upload', {
+          method: 'POST',
+          headers: {'Authorization': 'Zoho-oauthtoken ' + accessToken},
+          body: formData
+        }).then(function(r){return r.json();}).catch(function(e){return {error: e.message};});
+
+        if (uploadResp.data) {
+          return json({success: true, file: filename, id: uploadResp.data.id}, 200, origin);
+        }
+        return json({error: 'WorkDrive upload failed', detail: JSON.stringify(uploadResp).substring(0,200)}, 500, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Export all study hub data as markdown zip ─────────────────────────────
+    if (path === '/api/backup/export' && request.method === 'GET') {
+      try {
+        // Export all KV data as a structured JSON for backup
+        const exportData = {
+          exported_at: new Date().toISOString(),
+          modules: null,
+          inbox_items: [],
+          memories: [],
+        };
+
+        if (env.PRISM_KV) {
+          // Get study modules
+          const studyData = await env.PRISM_KV.get('study:modules').catch(function(){return null;});
+          if (studyData) exportData.modules = JSON.parse(studyData);
+
+          // Get inbox items
+          const inboxKeys = await env.PRISM_KV.list({prefix: 'inbox:', limit: 100}).catch(function(){return {keys:[]};});
+          for (const key of (inboxKeys.keys || []).slice(0, 50)) {
+            const val = await env.PRISM_KV.get(key.name).catch(function(){return null;});
+            if (val) { try { exportData.inbox_items.push(JSON.parse(val)); } catch(e) {} }
+          }
+
+          // Get memories
+          const memKeys = await env.PRISM_KV.list({prefix: 'memory:', limit: 50}).catch(function(){return {keys:[]};});
+          for (const key of (memKeys.keys || []).slice(0, 30)) {
+            const val = await env.PRISM_KV.get(key.name).catch(function(){return null;});
+            if (val) { try { exportData.memories.push(JSON.parse(val)); } catch(e) {} }
+          }
+        }
+
+        const exportJson = JSON.stringify(exportData, null, 2);
+        return new Response(exportJson, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Disposition': 'attachment; filename=argentica-backup- + new Date().toISOString().slice(0,10) + .json',
+            'Access-Control-Allow-Origin': origin
+          }
+        });
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
