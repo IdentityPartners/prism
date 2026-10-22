@@ -756,13 +756,29 @@ input, textarea, select { font-family: var(--font-ui); }
 
 /* ── Dropdown Navigation ────────────────────────────────────────────────────── */
 .nav-group { position: relative; }
+.nav-children {
+  display: none;
+  padding-left: 8px;
+}
+.nav-group.open > .nav-children {
+  display: block;
+}
+.nav-group-toggle {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--fg-muted);
+  transition: transform 0.2s;
+}
+.nav-group.open > .nav-group-header .nav-group-toggle {
+  transform: rotate(90deg);
+}
 .nav-group-header {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
   color: var(--fg-secondary);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -802,4 +818,72 @@ input, textarea, select { font-family: var(--font-ui); }
   width: 100%;
   max-width: 100%;
   overflow: hidden;
+}
+
+/* ── Argentica Serif — warm, editorial, elegant ─────────────────────────── */
+[data-theme="serif"],
+[data-theme="argentica-serif"] {
+  --bg-primary:   #faf8f4;   /* warm parchment white */
+  --bg-surface:   #f4f0ea;   /* slightly warmer */
+  --bg-elevated:  #ffffff;
+  --bg-sunken:    #ede8e0;
+  --fg-primary:   #1c1a17;   /* warm near-black */
+  --fg-secondary: #3d3830;
+  --fg-muted:     #7a6f62;
+  --border:       #d4ccc0;
+  --accent:       #8b4513;   /* saddle brown — warm, authoritative */
+  --accent-hover: #6b3410;
+  --accent-light: #f5ede5;
+  --rose:         #9b6b4a;
+  --rose-light:   #f5ede5;
+  --font-ui:      'Georgia', 'Times New Roman', serif;
+  --font-heading: 'Playfair Display', 'Georgia', serif;
+  --radius:       6px;
+  --topbar-h:     48px;
+  --sidebar-w:    220px;
+}
+
+/* ── Argentica Ink — dark serif, like a quality newspaper ───────────────── */
+[data-theme="ink"],
+[data-theme="argentica-ink"] {
+  --bg-primary:   #1a1814;   /* warm dark */
+  --bg-surface:   #141210;
+  --bg-elevated:  #242018;
+  --bg-sunken:    #0e0c0a;
+  --fg-primary:   #f0ebe0;   /* warm cream */
+  --fg-secondary: #d4cfc4;
+  --fg-muted:     #8a8070;
+  --border:       #3a3428;
+  --accent:       #c8956a;   /* warm amber */
+  --accent-hover: #e0a87a;
+  --accent-light: #2a2018;
+  --rose:         #b87a5a;
+  --rose-light:   #2a1e14;
+  --font-ui:      'Georgia', serif;
+  --font-heading: 'Playfair Display', 'Georgia', serif;
+  --radius:       6px;
+  --topbar-h:     48px;
+  --sidebar-w:    220px;
+}
+
+/* ── Slate — cool, modern, professional ─────────────────────────────────── */
+[data-theme="slate"] {
+  --bg-primary:   #f1f3f5;
+  --bg-surface:   #e8eaed;
+  --bg-elevated:  #ffffff;
+  --bg-sunken:    #dde0e4;
+  --fg-primary:   #1a1d21;
+  --fg-secondary: #2d3238;
+  --fg-muted:     #5a6270;
+  --border:       #c8cdd4;
+  --accent:       #3b5bdb;   /* indigo blue */
+  --accent-hover: #2f4ac4;
+  --accent-light: #e8ecff;
+  --rose:         #5c7cfa;
+  --rose-light:   #e8ecff;
+  --font-ui:      'Inter', sans-serif;
+  --font-heading: 'Inter', sans-serif;
+  --radius:       8px;
+  --topbar-h:     48px;
+  --sidebar-w:    220px;
 }
