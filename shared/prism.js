@@ -1501,3 +1501,221 @@ var GlobalUI = (function() {
 document.addEventListener('DOMContentLoaded', function() {
   GlobalUI.init();
 });
+
+// ── Global UI: theme button in top bar, chat pill, notification bell ──────────
+// Appended to prism.js
+
+var GlobalUI = (function() {
+  var WORKER = 'https://prism-api.identitypartners.workers.dev';
+  var chatOpen = false;
+  var chatHistory = [];
+  var unreadCount = 0;
+
+  function init() {
+    buildTopBar();
+    buildChatPill();
+    pollNotifications();
+    setInterval(pollNotifications, 30000);
+  }
+
+  function buildTopBar() {
+    if (document.getElementById('global-top-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'global-top-bar';
+    bar.style.cssText = 'position:fixed;top:0;right:0;height:var(--topbar-h,48px);display:flex;align-items:center;gap:6px;padding:0 12px;z-index:800;pointer-events:none;';
+
+    function makeBtn(icon, title, onclick) {
+      var btn = document.createElement('button');
+      btn.innerHTML = icon;
+      btn.title = title;
+      btn.style.cssText = 'pointer-events:all;width:32px;height:32px;border-radius:8px;background:var(--bg-elevated);border:1px solid var(--border);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;transition:border-color 0.15s;';
+      btn.onmouseenter = function() { btn.style.borderColor = 'var(--accent)'; };
+      btn.onmouseleave = function() { btn.style.borderColor = 'var(--border)'; };
+      btn.onclick = onclick;
+      return btn;
+    }
+
+    // Theme button
+    var themeBtn = makeBtn('&#x1F3A8;', 'Change theme', function(e) {
+      e.stopPropagation();
+      var panel = document.getElementById('theme-picker-panel');
+      if (!panel) {
+        if (window.ThemeSystem && ThemeSystem.buildPicker) ThemeSystem.buildPicker();
+        panel = document.getElementById('theme-picker-panel');
+      }
+      if (panel) {
+        panel.style.bottom = 'auto';
+        panel.style.top = '52px';
+        panel.style.left = 'auto';
+        panel.style.right = '14px';
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+      }
+    });
+
+    // Notification bell
+    var notifBtn = makeBtn('&#x1F514;', 'Inbox & notifications', function() {
+      window.location.href = '/inbox/';
+    });
+    var badge = document.createElement('span');
+    badge.id = 'top-notif-badge';
+    badge.style.cssText = 'position:absolute;top:-3px;right:-3px;background:#dc2626;color:#fff;border-radius:8px;font-size:9px;font-weight:700;padding:1px 4px;display:none;';
+    notifBtn.style.position = 'relative';
+    notifBtn.appendChild(badge);
+
+    bar.appendChild(themeBtn);
+    bar.appendChild(notifBtn);
+    document.body.appendChild(bar);
+  }
+
+  function buildChatPill() {
+    if (document.getElementById('global-chat-strip')) return;
+
+    // Bottom strip
+    var strip = document.createElement('div');
+    strip.id = 'global-chat-strip';
+    strip.style.cssText = 'position:fixed;bottom:0;right:0;height:38px;display:flex;align-items:center;gap:8px;padding:0 14px;z-index:900;background:var(--bg-elevated);border-top:1px solid var(--border);border-left:1px solid var(--border);border-radius:10px 0 0 0;box-shadow:0 -2px 12px rgba(0,0,0,0.08);cursor:pointer;transition:background 0.15s;';
+    strip.onmouseenter = function() { strip.style.background = 'var(--bg-sunken)'; };
+    strip.onmouseleave = function() { strip.style.background = 'var(--bg-elevated)'; };
+    strip.onclick = toggleChat;
+
+    var icon = document.createElement('span');
+    icon.style.cssText = 'font-size:15px;';
+    icon.innerHTML = '&#x1F4AC;';
+
+    var label = document.createElement('span');
+    label.style.cssText = 'font-size:12px;font-weight:600;color:var(--fg);';
+    label.textContent = 'Chat';
+
+    var pillBadge = document.createElement('span');
+    pillBadge.id = 'chat-pill-badge';
+    pillBadge.style.cssText = 'background:var(--accent);color:#fff;border-radius:8px;font-size:9px;font-weight:700;padding:1px 6px;display:none;';
+
+    var providerSpan = document.createElement('span');
+    providerSpan.id = 'chat-pill-provider';
+    providerSpan.style.cssText = 'font-size:10px;color:var(--fg-muted);';
+
+    strip.appendChild(icon);
+    strip.appendChild(label);
+    strip.appendChild(pillBadge);
+    strip.appendChild(providerSpan);
+    document.body.appendChild(strip);
+
+    // Chat panel
+    var panel = document.createElement('div');
+    panel.id = 'global-chat-panel';
+    panel.style.cssText = 'position:fixed;bottom:38px;right:0;width:380px;height:500px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px 0 0 0;box-shadow:0 -4px 24px rgba(0,0,0,0.15);display:none;flex-direction:column;z-index:899;';
+
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;';
+    hdr.innerHTML = '<span style="font-size:14px;">&#x1F3A9;</span><span style="font-size:13px;font-weight:600;flex:1;">Gerald</span><span id="pill-status" style="font-size:10px;color:var(--fg-muted);"></span><a href="/chat/" style="font-size:11px;color:var(--accent);text-decoration:none;">Full &#x2197;</a><button onclick="GlobalUI.toggleChat()" style="background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:16px;margin-left:6px;">&#x2715;</button>';
+
+    var msgs = document.createElement('div');
+    msgs.id = 'pill-msgs';
+    msgs.style.cssText = 'flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;';
+    var welcome = document.createElement('div');
+    welcome.style.cssText = 'font-size:12px;color:var(--fg-muted);font-style:italic;';
+    welcome.textContent = 'Good day, sir. What are we working on?';
+    msgs.appendChild(welcome);
+
+    var inputRow = document.createElement('div');
+    inputRow.style.cssText = 'border-top:1px solid var(--border);padding:8px;flex-shrink:0;display:flex;gap:6px;align-items:flex-end;';
+
+    var ta = document.createElement('textarea');
+    ta.id = 'pill-input';
+    ta.placeholder = 'Ask anything...';
+    ta.rows = 1;
+    ta.style.cssText = 'flex:1;padding:7px 9px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;resize:none;min-height:34px;max-height:80px;background:var(--bg);color:var(--fg);';
+    ta.oninput = function() { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 80) + 'px'; };
+    ta.onkeydown = function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendPillMsg(); } };
+
+    var sendBtn = document.createElement('button');
+    sendBtn.innerHTML = '&#x2191;';
+    sendBtn.style.cssText = 'padding:7px 12px;background:var(--accent);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;';
+    sendBtn.onclick = sendPillMsg;
+
+    inputRow.appendChild(ta);
+    inputRow.appendChild(sendBtn);
+    panel.appendChild(hdr);
+    panel.appendChild(msgs);
+    panel.appendChild(inputRow);
+    document.body.appendChild(panel);
+  }
+
+  function toggleChat() {
+    chatOpen = !chatOpen;
+    var panel = document.getElementById('global-chat-panel');
+    if (panel) panel.style.display = chatOpen ? 'flex' : 'none';
+    if (chatOpen) {
+      var badge = document.getElementById('chat-pill-badge');
+      if (badge) badge.style.display = 'none';
+      unreadCount = 0;
+      var ta = document.getElementById('pill-input');
+      if (ta) setTimeout(function() { ta.focus(); }, 100);
+    }
+  }
+
+  function addPillMsg(role, text) {
+    var msgs = document.getElementById('pill-msgs');
+    if (!msgs) return;
+    var div = document.createElement('div');
+    div.style.cssText = role === 'user'
+      ? 'background:var(--accent);color:#fff;padding:7px 10px;border-radius:10px 4px 10px 10px;font-size:12px;line-height:1.5;align-self:flex-end;max-width:90%;word-wrap:break-word;'
+      : 'background:var(--bg-sunken);border:1px solid var(--border);padding:7px 10px;border-radius:4px 10px 10px 10px;font-size:12px;line-height:1.5;align-self:flex-start;max-width:95%;word-wrap:break-word;';
+    div.textContent = text;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+    if (!chatOpen && role === 'assistant') {
+      unreadCount++;
+      var badge = document.getElementById('chat-pill-badge');
+      if (badge) { badge.textContent = unreadCount; badge.style.display = 'inline'; }
+    }
+  }
+
+  function sendPillMsg() {
+    var ta = document.getElementById('pill-input');
+    if (!ta || !ta.value.trim()) return;
+    var text = ta.value.trim();
+    ta.value = '';
+    ta.style.height = 'auto';
+    addPillMsg('user', text);
+    chatHistory.push({ role: 'user', content: text });
+    var status = document.getElementById('pill-status');
+    if (status) status.textContent = 'Thinking...';
+    var messages = [{ role: 'system', content: "You are Gerald, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English. Never fabricate." }].concat(chatHistory);
+    fetch(WORKER + '/api/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: messages, profile: 'balanced' })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var response = d.content || 'No response.';
+      chatHistory.push({ role: 'assistant', content: response });
+      addPillMsg('assistant', response);
+      if (status) status.textContent = d.provider ? d.provider : '';
+      var pp = document.getElementById('chat-pill-provider');
+      if (pp) pp.textContent = d.provider ? ' \u00b7 ' + d.provider : '';
+    })
+    .catch(function(e) {
+      addPillMsg('assistant', 'Error: ' + e.message);
+      if (status) status.textContent = '';
+    });
+  }
+
+  function pollNotifications() {
+    fetch(WORKER + '/api/inbox')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var u = d.unread || {};
+        var total = (u.total || 0) + (u.mail || 0) + (u.messages || 0);
+        var badge = document.getElementById('top-notif-badge');
+        if (badge) { badge.textContent = total > 99 ? '99+' : total; badge.style.display = total > 0 ? 'inline' : 'none'; }
+      })
+      .catch(function() {});
+  }
+
+  return { init: init, toggleChat: toggleChat };
+})();
+
+document.addEventListener('DOMContentLoaded', function() {
+  GlobalUI.init();
+});
