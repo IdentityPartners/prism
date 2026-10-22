@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792701125 -->
+<!-- cache-bust-1792701284 -->
+
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Study Hub — Argentica</title>
@@ -324,177 +325,148 @@ function renderTree() {
   });
 }
 
-function toggleModule(modId) {
-  var mod = modules.find(function(m){return m.id===modId;});
-  if (!mod) return;
-  currentModule = mod;
-  currentWeek = null;
-  var weeksEl = document.getElementById('weeks-' + modId);
-  var isOpen = weeksEl.classList.contains('open');
-  document.querySelectorAll('.tree-weeks').forEach(function(el){el.classList.remove('open');});
-  document.querySelectorAll('.tree-module-hdr').forEach(function(el){el.classList.remove('active');});
-  if (!isOpen) {
-    weeksEl.classList.add('open');
-    var hdrEl = document.querySelector('#mod-' + modId + ' .tree-module-hdr');
-    if (hdrEl) hdrEl.classList.add('active');
-  }
-  showModuleOverview(mod);
-  // Switch to overview tab
-  currentTab = 'overview';
-  document.querySelectorAll('.hub-tab').forEach(function(t){t.classList.remove('active');});
-  var ovTab = document.getElementById('tab-overview');
-  if (ovTab) ovTab.classList.add('active');
-}
-
 function showModuleOverview(mod) {
   document.getElementById('hub-title').textContent = mod.name;
-  document.getElementById('hub-subtitle').textContent = (mod.weeks||[]).length + ' weeks';
+  document.getElementById('hub-subtitle').textContent = (mod.weeks||[]).length + ' weeks · click a card to open';
   var body = document.getElementById('hub-body');
   body.innerHTML = '';
 
-  // Module details card
-  var infoCard = document.createElement('div');
-  infoCard.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;';
-  var infoHdr = document.createElement('div');
-  infoHdr.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:10px;';
-  infoHdr.textContent = 'Module Details';
-  infoCard.appendChild(infoHdr);
+  // ── Module details strip ──────────────────────────────────────────────────
+  var detailsCard = document.createElement('div');
+  detailsCard.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;';
+  detailsCard.innerHTML = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:10px;">Module Details</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">' +
+    '<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;">Research Question</label>' +
+    '<textarea id="mod-rq" placeholder="Your research question or module focus..." style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;resize:none;min-height:52px;background:var(--bg);color:var(--fg);box-sizing:border-box;">' + (mod.researchQ||'') + '</textarea></div>' +
+    '<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;">Lecturer / Professor</label>' +
+    '<input type="text" id="mod-lec" value="' + (mod.lecturer||'') + '" placeholder="Dr / Prof name..." style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);box-sizing:border-box;margin-bottom:6px;">' +
+    '<label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;">VLE URL</label>' +
+    '<input type="url" id="mod-vle" value="' + (mod.vle||'') + '" placeholder="https://learn.gold.ac.uk/..." style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);box-sizing:border-box;"></div>' +
+    '<div style="display:flex;flex-direction:column;justify-content:flex-end;">' +
+    '<button data-modid="' + mod.id + '" onclick="saveModuleDetails(this.dataset.modid,this)" style="padding:8px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;">Save Details</button>' +
+    '</div></div>';
+  body.appendChild(detailsCard);
+
+  // ── Card grid ─────────────────────────────────────────────────────────────
+  var cardDefs = [
+    { id:'weeks',    icon:'📅', label:'Weeks',          count:(mod.weeks||[]).length,          colour:'#2d6a9f', action:function(){showWeeksGrid(mod);} },
+    { id:'files',    icon:'📎', label:'Files',           count:countResources(mod,'pdf,ppt,docx'), colour:'#dc2626', action:function(){currentTab='upload';switchTab('upload');} },
+    { id:'notes',    icon:'✍️', label:'My Notes',        count:countNotes(mod),                 colour:'#7c3aed', action:function(){currentTab='notes';switchTab('notes');} },
+    { id:'sources',  icon:'📰', label:'Sources',         count:countResources(mod,'news,paper,link'), colour:'#f59e0b', action:function(){currentTab='resources';switchTab('resources');} },
+    { id:'themes',   icon:'🧠', label:'Themes',          count:0,                               colour:'#0f3b3a', action:function(){currentTab='concepts';switchTab('concepts');} },
+    { id:'chats',    icon:'💬', label:'Chats',           count:0,                               colour:'#5c2d3f', action:function(){window.location.href='/chat/';} },
+    { id:'audio',    icon:'🎧', label:'Audio',           count:countResources(mod,'audio'),     colour:'#16a34a', action:function(){window.location.href='/creator/podcasts/';} },
+    { id:'agents',   icon:'🤖', label:'Agents',          count:0,                               colour:'#1a5550', action:function(){window.location.href='/agenti/agent-builder/';} },
+    { id:'research', icon:'🔍', label:'Research Runs',   count:0,                               colour:'#2d6a9f', action:function(){window.location.href='/research/';} },
+    { id:'course',   icon:'🎓', label:'Course Material', count:countResources(mod,'ppt,reading,recommended'), colour:'#7a4254', action:function(){currentTab='resources';switchTab('resources');} },
+  ];
 
   var grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;';
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:14px;';
 
-  // Research question
-  var rqDiv = document.createElement('div');
-  var rqLabel = document.createElement('label');
-  rqLabel.style.cssText = 'font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;';
-  rqLabel.textContent = 'Research Question / Module Focus';
-  var rqTa = document.createElement('textarea');
-  rqTa.id = 'mod-research-q';
-  rqTa.placeholder = 'Enter your research question or module focus here...';
-  rqTa.value = mod.researchQ || '';
-  rqTa.style.cssText = 'width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;min-height:60px;background:var(--bg);color:var(--fg);box-sizing:border-box;';
-  rqDiv.appendChild(rqLabel);
-  rqDiv.appendChild(rqTa);
+  cardDefs.forEach(function(card) {
+    var el = document.createElement('div');
+    el.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all 0.15s;position:relative;overflow:hidden;';
+    el.onmouseenter = function() { el.style.borderColor = card.colour; el.style.transform = 'translateY(-2px)'; el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; };
+    el.onmouseleave = function() { el.style.borderColor = 'var(--border)'; el.style.transform = ''; el.style.boxShadow = ''; };
+    el.onclick = card.action;
+    el.innerHTML = '<div style="font-size:28px;margin-bottom:8px;">' + card.icon + '</div>' +
+      '<div style="font-size:14px;font-weight:700;color:var(--fg);margin-bottom:3px;">' + card.label + '</div>' +
+      '<div style="font-size:20px;font-weight:700;color:' + card.colour + ';">' + card.count + '</div>' +
+      '<div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:' + card.colour + ';opacity:0.4;"></div>';
+    grid.appendChild(el);
+  });
+  body.appendChild(grid);
 
-  // Lecturer + VLE
-  var detDiv = document.createElement('div');
-  var lecLabel = document.createElement('label');
-  lecLabel.style.cssText = 'font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;';
-  lecLabel.textContent = 'Lecturer / Professor';
-  var lecInput = document.createElement('input');
-  lecInput.type = 'text';
-  lecInput.id = 'mod-lecturer';
-  lecInput.placeholder = 'Dr / Prof name, contact...';
-  lecInput.value = mod.lecturer || '';
-  lecInput.style.cssText = 'width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);box-sizing:border-box;margin-bottom:8px;';
-  var vleLabel = document.createElement('label');
-  vleLabel.style.cssText = 'font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;';
-  vleLabel.textContent = 'VLE / Course URL';
-  var vleInput = document.createElement('input');
-  vleInput.type = 'url';
-  vleInput.id = 'mod-vle';
-  vleInput.placeholder = 'https://learn.gold.ac.uk/...';
-  vleInput.value = mod.vle || '';
-  vleInput.style.cssText = 'width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);box-sizing:border-box;';
-  detDiv.appendChild(lecLabel);
-  detDiv.appendChild(lecInput);
-  detDiv.appendChild(vleLabel);
-  detDiv.appendChild(vleInput);
+  // ── Weeks grid ────────────────────────────────────────────────────────────
+  showWeeksGrid(mod, body);
+}
 
-  grid.appendChild(rqDiv);
-  grid.appendChild(detDiv);
-  infoCard.appendChild(grid);
+function countResources(mod, types) {
+  var typeList = types.split(',');
+  var count = 0;
+  (mod.weeks||[]).forEach(function(w) {
+    (w.resources||[]).forEach(function(r) {
+      if (typeList.some(function(t){return r.type && r.type.includes(t.trim());})) count++;
+    });
+  });
+  return count;
+}
 
-  var saveBtn = document.createElement('button');
-  saveBtn.textContent = 'Save Details';
-  saveBtn.dataset.modid = mod.id;
-  saveBtn.style.cssText = 'margin-top:10px;padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;';
-  saveBtn.onclick = function() { saveModuleDetails(saveBtn.dataset.modid, saveBtn); };
-  infoCard.appendChild(saveBtn);
-  body.appendChild(infoCard);
+function countNotes(mod) {
+  var count = 0;
+  (mod.weeks||[]).forEach(function(w) { if (w.notes && w.notes.trim()) count++; });
+  return count;
+}
 
-  // Weeks grid header
-  var weeksHdr = document.createElement('div');
-  weeksHdr.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;';
-  var weeksLabel = document.createElement('span');
-  weeksLabel.textContent = 'Weeks (' + (mod.weeks||[]).length + ')';
-  var addWeekBtn = document.createElement('button');
-  addWeekBtn.textContent = '+ Add Week';
-  addWeekBtn.dataset.modid = mod.id;
-  addWeekBtn.style.cssText = 'padding:3px 10px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;';
-  addWeekBtn.onclick = function() { addWeekToModule(addWeekBtn.dataset.modid); };
-  weeksHdr.appendChild(weeksLabel);
-  weeksHdr.appendChild(addWeekBtn);
-  body.appendChild(weeksHdr);
+function showWeeksGrid(mod, container) {
+  var body = container || document.getElementById('hub-body');
+  var existing = body.querySelector('.weeks-grid-section');
+  if (existing) existing.remove();
 
-  // Weeks cards grid
-  var weeksGrid = document.createElement('div');
-  weeksGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;';
+  var section = document.createElement('div');
+  section.className = 'weeks-grid-section';
 
-  (mod.weeks || []).forEach(function(week) {
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;';
+  var hdrLabel = document.createElement('span');
+  hdrLabel.textContent = 'Weeks (' + (mod.weeks||[]).length + ')';
+  var addBtn = document.createElement('button');
+  addBtn.textContent = '+ Add Week';
+  addBtn.dataset.modid = mod.id;
+  addBtn.style.cssText = 'padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12px;';
+  addBtn.onclick = function() { addWeekToModule(addBtn.dataset.modid); };
+  hdr.appendChild(hdrLabel);
+  hdr.appendChild(addBtn);
+  section.appendChild(hdr);
+
+  var grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;';
+
+  (mod.weeks||[]).forEach(function(week) {
     var card = document.createElement('div');
-    card.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:border-color 0.15s;';
-    card.onmouseenter = function() { card.style.borderColor = 'var(--accent)'; };
-    card.onmouseleave = function() { card.style.borderColor = 'var(--border)'; };
+    card.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all 0.15s;';
+    card.onmouseenter = function() { card.style.borderColor = 'var(--accent)'; card.style.transform = 'translateY(-1px)'; };
+    card.onmouseleave = function() { card.style.borderColor = 'var(--border)'; card.style.transform = ''; };
     card.dataset.modid = mod.id;
     card.dataset.weekid = week.id;
     card.onclick = function() { selectWeek(card.dataset.modid, card.dataset.weekid); };
-    var resCount = (week.resources || []).length;
+    var resCount = (week.resources||[]).length;
     var hasNotes = !!(week.notes && week.notes.trim());
-    var wName = document.createElement('div');
-    wName.style.cssText = 'font-size:14px;font-weight:700;margin-bottom:4px;';
-    wName.textContent = week.name;
-    var wMeta = document.createElement('div');
-    wMeta.style.cssText = 'font-size:11px;color:var(--fg-muted);margin-bottom:8px;';
-    wMeta.textContent = resCount + ' resources' + (hasNotes ? ' · notes' : '');
-    var wTags = document.createElement('div');
-    wTags.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;';
-    if (resCount > 0) {
-      var t1 = document.createElement('span');
-      t1.style.cssText = 'padding:2px 7px;background:rgba(45,106,159,0.1);color:var(--accent);border-radius:8px;font-size:10px;font-weight:600;';
-      t1.textContent = resCount + ' files';
-      wTags.appendChild(t1);
-    }
-    if (hasNotes) {
-      var t2 = document.createElement('span');
-      t2.style.cssText = 'padding:2px 7px;background:rgba(124,58,237,0.1);color:#7c3aed;border-radius:8px;font-size:10px;font-weight:600;';
-      t2.textContent = 'notes';
-      wTags.appendChild(t2);
-    }
-    if (week.vle_url) {
-      var t3 = document.createElement('span');
-      t3.style.cssText = 'padding:2px 7px;background:rgba(22,163,74,0.1);color:#16a34a;border-radius:8px;font-size:10px;font-weight:600;';
-      t3.textContent = 'VLE';
-      wTags.appendChild(t3);
-    }
-    card.appendChild(wName);
-    card.appendChild(wMeta);
-    card.appendChild(wTags);
-    weeksGrid.appendChild(card);
+    card.innerHTML = '<div style="font-size:15px;font-weight:700;margin-bottom:4px;color:var(--fg);">' + week.name + '</div>' +
+      '<div style="font-size:12px;color:var(--fg-muted);margin-bottom:8px;">' + resCount + ' resources' + (hasNotes?' · notes':'') + '</div>' +
+      '<div style="display:flex;gap:4px;flex-wrap:wrap;">' +
+      (resCount>0?'<span style="padding:2px 7px;background:rgba(45,106,159,0.1);color:var(--accent);border-radius:8px;font-size:10px;font-weight:600;">'+resCount+' files</span>':'') +
+      (hasNotes?'<span style="padding:2px 7px;background:rgba(124,58,237,0.1);color:#7c3aed;border-radius:8px;font-size:10px;font-weight:600;">notes</span>':'') +
+      (week.vle_url?'<span style="padding:2px 7px;background:rgba(22,163,74,0.1);color:#16a34a;border-radius:8px;font-size:10px;font-weight:600;">VLE</span>':'') +
+      '</div>';
+    grid.appendChild(card);
   });
 
-  if (!(mod.weeks || []).length) {
+  if (!(mod.weeks||[]).length) {
     var empty = document.createElement('div');
     empty.style.cssText = 'text-align:center;padding:30px;color:var(--fg-muted);font-size:13px;border:2px dashed var(--border);border-radius:10px;grid-column:1/-1;';
     empty.textContent = 'No weeks yet. Click "+ Add Week" to get started.';
-    weeksGrid.appendChild(empty);
+    grid.appendChild(empty);
   }
 
-  body.appendChild(weeksGrid);
+  section.appendChild(grid);
+  body.appendChild(section);
 }
 
 function saveModuleDetails(modId, btn) {
   var mod = modules.find(function(m){return m.id===modId;});
   if (!mod) return;
-  var rqEl = document.getElementById('mod-research-q');
-  var lecEl = document.getElementById('mod-lecturer');
+  var rqEl = document.getElementById('mod-rq');
+  var lecEl = document.getElementById('mod-lec');
   var vleEl = document.getElementById('mod-vle');
   if (rqEl) mod.researchQ = rqEl.value;
   if (lecEl) mod.lecturer = lecEl.value;
   if (vleEl) mod.vle = vleEl.value;
   saveModules();
-  if (btn) { btn.textContent = 'Saved!'; setTimeout(function(){btn.textContent='Save Details';}, 2000); }
+  if (btn) { btn.textContent = 'Saved ✓'; setTimeout(function(){btn.textContent='Save Details';}, 2000); }
 }
+
 
 function selectWeek(modId, weekId) {
   var mod = modules.find(function(m){return m.id===modId;});
