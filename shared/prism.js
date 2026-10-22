@@ -19,9 +19,9 @@
   var style = document.createElement('style');
   style.textContent = [
     // Global font size increase — base 15px (was 13-14px)
-    'html,body{font-size:15px;}',
-    '.btn{font-size:13px;}',
-    'input,select,textarea{font-size:14px;}',
+    'html,body{font-size:17px;}',
+    '.btn{font-size:14px;}',
+    'input,select,textarea{font-size:15px;}',
     ':root,[data-theme="parchment"],[data-theme="argentica"]{',
     '--bg:#f0f4f8;--bg-elevated:#ffffff;--bg-sunken:#e4eaf0;--bg-surface:#f8fafc;',
     '--fg:#1a2332;--fg-muted:#5a6a7e;--border:#c8d4e0;',
@@ -665,48 +665,45 @@ var OSK = (function() {
 function buildSidebar(activePage) {
   // Nav structure: flat items and grouped dropdowns
   var navStructure = [
-    {type:'item', label:'Workspaces', icon:'🗂', href:'/workspaces/'},
-    {type:'item', label:'Home', icon:'⌂', href:'/home/'},
-    {type:'item', label:'Chat', icon:'💬', href:'/chat/'},
-    {type:'item', label:'Research', icon:'🔍', href:'/research/'},
-    {type:'item', label:'Drafting Desk', icon:'✍', href:'/drafting/'},
+    {type:'item', label:'Study Hub', icon:'&#x1F4DA;', href:'/study-hub/'},
+    {type:'item', label:'Chat', icon:'&#x1F4AC;', href:'/chat/'},
+    {type:'item', label:'Research', icon:'&#x1F50D;', href:'/research/'},
+    {type:'item', label:'Drafting', icon:'&#x270D;', href:'/drafting/'},
     {type:'section', label:'Create'},
-    {type:'group', label:'Creator Studio', icon:'🎨', children:[
+    {type:'group', label:'Create', icon:'&#x1F3A8;', children:[
       {label:'Canvas', href:'/creator/canvas/'},
-      {label:'Music', href:'/creator/music/'},
-      {label:'Assets', href:'/creator/assets/'},
+      {label:'Refract', href:'/atomise/'},
+      {label:'Media Manager', href:'/social-queue/'},
       {label:'Podcasts', href:'/creator/podcasts/'},
-      {label:'Worksheets', href:'/creator/worksheets/'},
-      {label:'Social Series', href:'/creator/social-series/'},
-      {label:'Brand Kit', href:'/creator/brand-kit/'},
+      {label:'Music', href:'/creator/music/'},
     ]},
-    {type:'item', label:'Refract', icon:'⚡', href:'/atomise/'},
-    {type:'item', label:'Media Manager', icon:'📋', href:'/social-queue/'},
     {type:'section', label:'Comms'},
-    {type:'item', label:'Inbox', icon:'📥', href:'/inbox/'},
-    {type:'item', label:'Email', icon:'📬', href:'/comms/email/'},
-    {type:'item', label:'Calendar', icon:'📅', href:'/comms/zoho-calendar/'},
-    {type:'item', label:'Messages', icon:'💬', href:'/messages/', badge:'messages-unread'},
-    {type:'section', label:'Business'},
-    {type:'item', label:'CRM', icon:'👥', href:'/crm/'},
-    {type:'item', label:'Monetisation', icon:'💷', href:'/monetisation/'},
-    {type:'item', label:'Platform Manager', icon:'🔗', href:'/platform-manager/'},
-    {type:'section', label:'Intelligence'},
-    {type:'group', label:'Agenti City', icon:'🤖', children:[
-      {label:'Agent Builder', href:'/agenti/agent-builder/'},
-      {label:'Persona Maker', href:'/agenti/persona-maker/'},
-      {label:'Round Table', href:'/agenti/round-table/'},
-      {label:'Workflow Wizard', href:'/agenti/workflow-wizard/'},
+    {type:'group', label:'Comms', icon:'&#x1F4E7;', children:[
+      {label:'Inbox', href:'/inbox/'},
+      {label:'Email', href:'/comms/email/'},
+      {label:'Calendar', href:'/comms/zoho-calendar/'},
+      {label:'Messages', href:'/messages/'},
     ]},
-    {type:'item', label:'Orchestrator', icon:'⚙', href:'/orchestrator/'},
+    {type:'section', label:'Business'},
+    {type:'group', label:'Business', icon:'&#x1F4BC;', children:[
+      {label:'CRM', href:'/crm/'},
+      {label:'Monetisation', href:'/monetisation/'},
+      {label:'Platform Manager', href:'/platform-manager/'},
+    ]},
+    {type:'section', label:'Intelligence'},
+    {type:'group', label:'Intelligence', icon:'&#x1F9E0;', children:[
+      {label:'Agents', href:'/agenti/agent-builder/'},
+      {label:'Workflows', href:'/agenti/workflow-wizard/'},
+      {label:'Orchestrator', href:'/orchestrator/'},
+    ]},
     {type:'section', label:'System'},
-    {type:'item', label:'My Profile', icon:'👤', href:'/profile/'},
-    {type:'item', label:'Memory', icon:'🧠', href:'/memory/'},
-    {type:'item', label:'Whiteboard', icon:'🖊', href:'/whiteboard/'},
-    {type:'item', label:'WriteHandy', icon:'✒', href:'/writehandy/'},
-    {type:'item', label:'Settings', icon:'⚙', href:'/settings/'},
-    {type:'item', label:'Dev Team', icon:'🛠', href:'/dev-team/'},
-    {type:'item', label:'Sitemap', icon:'🗺', href:'/sitemap/'},
+    {type:'group', label:'System', icon:'&#x2699;', children:[
+      {label:'Profile & Memory', href:'/profile/'},
+      {label:'WriteHandy', href:'/writehandy/'},
+      {label:'Dev Team', href:'/dev-team/'},
+      {label:'Settings', href:'/settings/'},
+      {label:'Sitemap', href:'/sitemap/'},
+    ]},
   ];
 
 
