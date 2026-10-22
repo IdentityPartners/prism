@@ -199,6 +199,8 @@ async function callProvider(env, provider, key, model, messages) {
     if (msg2?.reasoning) text = msg2.reasoning.substring(0, 5000);
     else if (msg2?.reasoning_content) text = msg2.reasoning_content.substring(0, 5000);
   }
+    if (!text && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.reasoning) { text = d.choices[0].message.reasoning.substring(0, 5000); }
+  if (!text && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.reasoning_content) { text = d.choices[0].message.reasoning_content.substring(0, 5000); }
   if (!text) throw new Error(`${provider} empty response`);
   return { content: text, provider, model };
 }
