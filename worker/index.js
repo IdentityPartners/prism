@@ -143,6 +143,7 @@ async function callProvider(env, provider, key, model, messages) {
     openrouter: 'https://openrouter.ai/api/v1/chat/completions',
     together: 'https://api.together.xyz/v1/chat/completions',
     kimi: 'https://api.moonshot.cn/v1/chat/completions',
+    zai: 'https://api.z.ai/api/paas/v4/chat/completions',
     zhipu: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
     perplexity: 'https://api.perplexity.ai/chat/completions',
     kimi: 'https://api.moonshot.cn/v1/chat/completions',
@@ -2056,6 +2057,83 @@ export default {
           }
         });
       } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+
+    // ── TTS read-aloud for Study Hub ─────────────────────────────────────────
+    if (path === '/api/tts/read' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = (body.text || '').substring(0, 5000);
+        const voice = body.voice || 'aura-arcas-en';
+        const provider = body.provider || 'deepgram';
+        if (!text) return json({error:'No text'}, 400, origin);
+        
+        if (provider === 'deepgram') {
+          const dgKey = k(env, ['deepgram_api_key','DEEPGRAM_API_KEY']) || '';
+          if (!dgKey) return json({error:'Deepgram key not configured'}, 400, origin);
+          const resp = await fetch('https://api.deepgram.com/v1/speak?model='+voice, {
+            method:'POST', headers:{'Authorization':'Token '+dgKey,'Content-Type':'application/json'},
+            body:JSON.stringify({text})
+          });
+          if (!resp.ok) return json({error:'Deepgram error: '+resp.status}, 500, origin);
+          const audio = await resp.arrayBuffer();
+          return new Response(audio, {headers:{'Content-Type':'audio/mpeg','Access-Control-Allow-Origin':origin}});
+        }
+        
+        if (provider === 'gemini') {
+          const GKEY2 = k(env,['gemini_api_key','GEMINI_API_KEY']) || '';
+          const voiceName = body.gemini_voice || 'Puck';
+          const resp2 = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-tts:generateContent', {
+            method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':GKEY2},
+            body:JSON.stringify({contents:[{parts:[{text}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName}}}}})
+          });
+          const d2 = await resp2.json();
+          const audioData = d2.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+          if (!audioData) return json({error:'Gemini TTS empty response'}, 500, origin);
+          const buf = Uint8Array.from(atob(audioData), c=>c.charCodeAt(0));
+          return new Response(buf, {headers:{'Content-Type':'audio/mpeg','Access-Control-Allow-Origin':origin}});
+        }
+        
+        return json({error:'Unknown TTS provider: '+provider}, 400, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+
+    // ── Multi-model simultaneous call ────────────────────────────────────────
+    if (path === '/api/chat/multi' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const messages = body.messages || [];
+        const models = body.models || [
+          {provider:'mistral',model:'mistral-medium-3.5'},
+          {provider:'mistral',model:'mistral-large-latest'},
+          {provider:'gemini',model:'gemma-4-31b-it'},
+        ];
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        const KEYS2 = {
+          mistral: k(env,['mistral_api_key','MISTRAL_API_KEY']),
+          gemini: GKEY,
+          groq: k(env,['groq_free_1','GROQ_FREE_1']),
+          deepseek: k(env,['deepseek_paid','DEEPSEEK_PAID']),
+          cohere: k(env,['cohere_free_key','cohere_api_key']),
+          zai: k(env,['zai_api_key','ZAI_API_KEY']),
+          kimi: k(env,['kimi_api_key','KIMI_API_KEY']),
+        };
+        const results = await Promise.allSettled(
+          models.map(function(m) {
+            return Promise.race([
+              callProvider(env, m.provider, KEYS2[m.provider] || '', m.model, messages)
+                .then(function(r) { return {provider:m.provider,model:m.model,content:r.content,ok:true}; }),
+              new Promise(function(res){setTimeout(function(){res({provider:m.provider,model:m.model,content:'Timeout',ok:false});},30000);})
+            ]);
+          })
+        );
+        const responses = results.map(function(r) {
+          return r.status === 'fulfilled' ? r.value : {provider:'?',model:'?',content:'Error: '+r.reason,ok:false};
+        });
+        return json({responses:responses}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
 return json({ error: 'Not found', path }, 404, origin);
