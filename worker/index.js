@@ -214,25 +214,27 @@ async function orchestrate(env, messages, profile = 'balanced') {
 
   } else if (profile === 'frontier') {
     // Frontier: GLM 5.3 → Mistral Large 4 → Gemini 3.8 → DeepSeek → Nemotron Ultra
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',                          note: 'GLM 5.3 via Mistral' });
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-4',                      note: 'Mistral Large 4' });
-    if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemini-3.8-flash',                     note: 'Gemini 3.8 Flash' });
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-2',                          note: 'GLM 5.2 via Mistral' });
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-latest',                      note: 'Mistral Large Latest' });
+    if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemini-3.5-flash',                     note: 'Gemini 3.5 Flash' });
     if (KEYS.deepseek)   chain.push({ p: 'deepseek',   key: KEYS.deepseek,   m: 'deepseek-chat',                        note: 'DeepSeek V4 Flash' });
     if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3-ultra-550b-a55b:free', note: 'Nemotron Ultra 550B' });
     if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3.5-super-vl:free', note: 'Nemotron 3.5 Super VL' });
 
   } else {
     // Balanced (default): full chain in Simon's preferred order
-    // 1. Gemma 4 31B via NVIDIA — fastest (269ms), 262K ctx — FIRST for speed
+    // 1. Mistral Medium 3.5 — 416ms, reliable, web search, vision — MOST RELIABLE FIRST
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-medium-3.5',                   note: 'Mistral Medium 3.5' });
+    // 2. Mistral Large Latest — 573ms, reliable, web search, vision
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-latest',                 note: 'Mistral Large Latest' });
+    // 3. Gemma 4 31B via NVIDIA — 269ms when working, 262K ctx
     if (KEYS.nvidia)     chain.push({ p: 'nvidia',     key: KEYS.nvidia,     m: 'google/gemma-4-31b-it',                note: 'Gemma 4 NVIDIA' });
-    // 2. Mistral Large 4 — 1M ctx, vision, web search (thinking mode, extract text parts)
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-4',                      note: 'Mistral Large 4' });
     // 3. Gemma 4 31B via Gemini API — Google Search grounding
     if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemma-4-31b-it',                       note: 'Gemma 4 Gemini' });
     // 4. Gemini 3.5 Flash — reliable, 1M ctx, no thinking mode issues
     if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemini-3.5-flash',                     note: 'Gemini 3.5 Flash' });
     // 5. GLM 5.3 via Mistral — 1M ctx, web search, thinking (slow ~7s, use later in chain)
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',                          note: 'GLM 5.3 via Mistral' });
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-2',                          note: 'GLM 5.2 via Mistral' });
     // 5b. Nemotron Ultra 550B — frontier reasoning, 1M ctx, free (slow ~15-20s)
     if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3-ultra-550b-a55b:free', note: 'Nemotron Ultra 550B' });
     // 5. DeepSeek V4 Flash — 1M ctx, web search
@@ -319,7 +321,7 @@ async function orchestrate(env, messages, profile = 'balanced') {
   const t0 = Date.now();
   const FAST_PROVIDERS = ['cerebras', 'groq', 'pollinations'];
   // Thinking providers get extra time (GLM 5.3 ~7.5s, Nemotron ~15-20s, Magistral ~10s)
-  const THINKING_PROVIDERS = ['zai-glm-5-3', 'magistral-medium-latest', 'nvidia/nemotron-3-ultra-550b-a55b:free', 'nvidia/nemotron-3.5-super-vl:free'];
+  const THINKING_PROVIDERS = ['zai-glm-5-2', 'magistral-medium-latest', 'nvidia/nemotron-3-ultra-550b-a55b:free', 'nvidia/nemotron-3.5-super-vl:free'];
 
   for (const entry of chain) {
     if (!entry.key && entry.p !== 'pollinations') { log.push(`${entry.note}:no key`); continue; }
@@ -1093,7 +1095,7 @@ export default {
             { role: 'system', content: job.system_prompt || `You are ${job.agent_name}. British English. Be thorough and complete.` },
             { role: 'user', content: `Task: ${job.task}\n\nAll ${job.total_chunks} sections processed. Synthesise into a comprehensive final report:\n\n${allResults.substring(0, 60000)}` },
           ];
-          const synth = await callProvider(env, 'mistral', mistralKey, 'mistral-large-4', synthMsgs).catch(() => callProvider(env, 'gemini', GKEY, 'gemma-4-31b-it', synthMsgs)).catch(e => ({ content: `Synthesis failed: ${e.message}` }));
+          const synth = await callProvider(env, 'mistral', mistralKey, 'mistral-large-latest', synthMsgs).catch(() => callProvider(env, 'gemini', GKEY, 'gemma-4-31b-it', synthMsgs)).catch(e => ({ content: `Synthesis failed: ${e.message}` }));
           job.synthesis = synth.content;
           job.status = 'complete';
           job.updated = new Date().toISOString();
@@ -1109,7 +1111,7 @@ export default {
           { role: 'user', content: `Task: ${job.task}\n\nSection ${nextChunk + 1} of ${job.total_chunks} from '${job.document_name}':\n\n${chunkText}` },
         ];
         const chunkResult = await Promise.race([
-          callProvider(env, 'mistral', mistralKey, 'mistral-large-4', chunkMsgs).catch(() => callProvider(env, 'gemini', GKEY, 'gemma-4-31b-it', chunkMsgs)).catch(e => ({ content: `[Error: ${e.message}]` })),
+          callProvider(env, 'mistral', mistralKey, 'mistral-large-latest', chunkMsgs).catch(() => callProvider(env, 'gemini', GKEY, 'gemma-4-31b-it', chunkMsgs)).catch(e => ({ content: `[Error: ${e.message}]` })),
           new Promise(res => setTimeout(() => res({ content: `[Timeout on chunk ${nextChunk + 1}]` }), 25000)),
         ]);
         job.results.push(`=== Section ${nextChunk + 1}/${job.total_chunks} ===\n${chunkResult.content}`);
@@ -1331,8 +1333,8 @@ export default {
       try {
         const testMsg = [{ role: 'user', content: 'Reply with exactly: OK' }];
         const providers = [
-          { name: 'GLM 5.3 via Mistral', p: 'mistral', key: k(env, ['mistral_api_key', 'MISTRAL_API_KEY']), m: 'zai-glm-5-3' },
-          { name: 'Mistral Large 4', p: 'mistral', key: k(env, ['mistral_api_key', 'MISTRAL_API_KEY']), m: 'mistral-large-4' },
+          { name: 'GLM 5.3 via Mistral', p: 'mistral', key: k(env, ['mistral_api_key', 'MISTRAL_API_KEY']), m: 'zai-glm-5-2' },
+          { name: 'Mistral Large 4', p: 'mistral', key: k(env, ['mistral_api_key', 'MISTRAL_API_KEY']), m: 'mistral-large-latest' },
           { name: 'Gemma 4 NVIDIA', p: 'nvidia', key: k(env, ['nvidia_build_api_key', 'NVIDIA_BUILD_API_KEY']), m: 'google/gemma-4-31b-it' },
           { name: 'DeepSeek V4', p: 'deepseek', key: k(env, ['deepseek_paid', 'DEEPSEEK_PAID']), m: 'deepseek-chat' },
           { name: 'Grok 3 Mini', p: 'xai', key: k(env, ['xai_api_key', 'XAI_API_KEY']), m: 'grok-3-mini' },
