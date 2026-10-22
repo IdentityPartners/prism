@@ -14,12 +14,20 @@
 })();
 
 
+// ── Load Playfair Display for serif themes ───────────────────────────────────
+(function() {
+  var link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap';
+  document.head.appendChild(link);
+})();
+
 // ── Argentica theme injection ─────────────────────────────────────────────────
 (function() {
   var style = document.createElement('style');
   style.textContent = [
     // Global font size increase — base 15px (was 13-14px)
-    'html,body{font-size:17px;}',
+    'html,body{font-size:18px;line-height:1.6;}',
     '.btn{font-size:14px;}',
     'input,select,textarea{font-size:15px;}',
     ':root,[data-theme="parchment"],[data-theme="argentica"]{',
@@ -1005,6 +1013,9 @@ document.addEventListener('DOMContentLoaded', function() {
     {id:'stripe',         label:'Stripe',          group:'Brand'},
     {id:'vercel',         label:'Vercel',          group:'Brand'},
     {id:'wordpress',      label:'WordPress',       group:'Brand'},
+    {id:'serif',          label:'Argentica Serif', group:'Editorial'},
+    {id:'ink',            label:'Argentica Ink',   group:'Editorial'},
+    {id:'slate',          label:'Slate',           group:'Editorial'},
   ];
 
   function applyTheme(id) {
