@@ -635,6 +635,31 @@ async function generateCanvasHtml(text, templateId, env) {
   return svg || '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080"><rect width="1080" height="1080" fill="' + TEAL + '"/><text x="540" y="540" fill="white" text-anchor="middle" font-size="40">Canvas Error</text></svg>';
 }
 
+
+// ── Auto-tagging function ─────────────────────────────────────────────────────
+function autoTag(text) {
+  const tags = [];
+  const rules = [
+    {tag: 'mental-health', keywords: ['mental health', 'depression', 'anxiety', 'psychiatric', 'psychological', 'wellbeing', 'therapy', 'counselling']},
+    {tag: 'addiction', keywords: ['addiction', 'substance', 'alcohol', 'drug', 'recovery', 'rehabilitation', 'abstinence']},
+    {tag: 'disability', keywords: ['disability', 'disabled', 'neurodivergent', 'adhd', 'autism', 'chronic illness', 'pip', 'esa']},
+    {tag: 'sociology', keywords: ['sociology', 'social', 'bourdieu', 'habitus', 'goffman', 'foucault', 'intersectionality', 'capital']},
+    {tag: 'research', keywords: ['research', 'study', 'paper', 'journal', 'findings', 'methodology', 'qualitative', 'quantitative']},
+    {tag: 'policy', keywords: ['policy', 'government', 'legislation', 'welfare', 'benefit', 'dwp', 'nhs', 'parliament']},
+    {tag: 'identity-partners', keywords: ['identity partners', 'identitypartners', 'ip ', 'simon johnson']},
+    {tag: 'dissertation', keywords: ['dissertation', 'thesis', 'phd', 'msc', 'goldsmiths', 'methodology now', 'quant research']},
+    {tag: 'news', keywords: ['guardian', 'bbc', 'times', 'telegraph', 'independent', 'news', 'article', 'report']},
+    {tag: 'urgent', keywords: ['urgent', 'asap', 'deadline', 'important', 'critical', 'immediately']},
+    {tag: 'file', keywords: ['.pdf', '.docx', '.pptx', '.xlsx', '.csv', 'attachment', 'attached', 'file']},
+  ];
+  for (const rule of rules) {
+    if (rule.keywords.some(function(kw) { return text.includes(kw); })) {
+      tags.push(rule.tag);
+    }
+  }
+  return tags;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -1756,6 +1781,162 @@ export default {
           }
         });
       } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+
+    // ── Email ingestion via Cloudflare Email Routing ──────────────────────────
+    // Called by CF Email Worker when email arrives at inbox@argentica.identitypartners.uk
+    if (path === '/api/email/ingest' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const from = body.from || '';
+        const subject = body.subject || '(no subject)';
+        const text = body.text || '';
+        const html = body.html || '';
+        const attachments = body.attachments || [];
+        const ts = new Date().toISOString();
+
+        // Auto-tag based on content
+        const content = (subject + ' ' + text).toLowerCase();
+        const tags = autoTag(content);
+
+        // Store in KV as inbox item
+        const itemId = 'inbox:email:' + Date.now();
+        const item = {
+          id: itemId, type: 'email', from, subject,
+          preview: text.substring(0, 200),
+          text: text.substring(0, 10000),
+          attachments: attachments.map(function(a) { return {name: a.filename, size: a.size, type: a.contentType}; }),
+          tags, ts, read: false, source: 'email-ingestion'
+        };
+        if (env.PRISM_KV) await env.PRISM_KV.put(itemId, JSON.stringify(item));
+
+        // Create notification
+        const notifId = 'notif:' + Date.now();
+        const notif = {
+          id: notifId, type: 'email_ingest',
+          title: attachments.length > 0
+            ? attachments.length + ' file(s) awaiting allocation from ' + from
+            : 'Email from ' + from + ': ' + subject,
+          message: attachments.length > 0
+            ? 'Files: ' + attachments.map(function(a){return a.filename;}).join(', ')
+            : text.substring(0, 100),
+          link: '/inbox/', tags, ts, read: false
+        };
+        if (env.PRISM_KV) await env.PRISM_KV.put(notifId, JSON.stringify(notif));
+
+        // Send Telegram notification if configured
+        const tgToken = k(env, ['telegram_token', 'TELEGRAM_TOKEN']);
+        const tgChat = k(env, ['telegram_chat', 'TELEGRAM_CHAT']);
+        if (tgToken && tgChat) {
+          const msg = attachments.length > 0
+            ? '📎 ' + attachments.length + ' file(s) from ' + from + ' awaiting allocation'
+            : '📧 Email from ' + from + ': ' + subject;
+          await fetch('https://api.telegram.org/bot' + tgToken + '/sendMessage', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({chat_id: tgChat, text: msg})
+          }).catch(function(){});
+        }
+
+        return json({success: true, id: itemId, tags}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Telegram webhook ingestion ────────────────────────────────────────────
+    if (path === '/api/telegram/webhook' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const msg = body.message || body.channel_post || {};
+        const from = msg.from ? (msg.from.first_name + ' ' + (msg.from.last_name || '')).trim() : 'Telegram';
+        const text = msg.text || msg.caption || '';
+        const ts = new Date().toISOString();
+        const hasDoc = !!(msg.document || msg.photo || msg.audio || msg.video);
+
+        // Auto-tag
+        const tags = autoTag(text.toLowerCase());
+
+        // Store in KV
+        const itemId = 'inbox:telegram:' + Date.now();
+        const item = {
+          id: itemId, type: 'telegram', from,
+          text, preview: text.substring(0, 200),
+          hasAttachment: hasDoc,
+          attachmentType: msg.document ? 'document' : msg.photo ? 'photo' : msg.audio ? 'audio' : msg.video ? 'video' : null,
+          tags, ts, read: false, source: 'telegram'
+        };
+        if (env.PRISM_KV) await env.PRISM_KV.put(itemId, JSON.stringify(item));
+
+        // Notification
+        const notifId = 'notif:' + Date.now();
+        const notif = {
+          id: notifId, type: 'telegram',
+          title: hasDoc ? 'File from Telegram awaiting allocation' : 'Telegram message from ' + from,
+          message: text.substring(0, 100),
+          link: '/inbox/', tags, ts, read: false
+        };
+        if (env.PRISM_KV) await env.PRISM_KV.put(notifId, JSON.stringify(notif));
+
+        return json({ok: true}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Auto-tag helper exposed as API ────────────────────────────────────────
+    if (path === '/api/autotag' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = (body.text || '').toLowerCase();
+        const tags = autoTag(text);
+        return json({tags}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Inbox: list all items ─────────────────────────────────────────────────
+    if (path === '/api/inbox' && request.method === 'GET') {
+      try {
+        const items = [];
+        const notifs = [];
+        let unreadTotal = 0, unreadMail = 0, unreadTelegram = 0, unreadNotif = 0;
+
+        if (env.PRISM_KV) {
+          // Get inbox items
+          const inboxKeys = await env.PRISM_KV.list({prefix: 'inbox:', limit: 50}).catch(function(){return {keys:[]};});
+          for (const key of (inboxKeys.keys || [])) {
+            const val = await env.PRISM_KV.get(key.name).catch(function(){return null;});
+            if (val) {
+              try {
+                const item = JSON.parse(val);
+                items.push(item);
+                if (!item.read) {
+                  unreadTotal++;
+                  if (item.type === 'email') unreadMail++;
+                  else if (item.type === 'telegram') unreadTelegram++;
+                }
+              } catch(e) {}
+            }
+          }
+          // Get notifications
+          const notifKeys = await env.PRISM_KV.list({prefix: 'notif:', limit: 30}).catch(function(){return {keys:[]};});
+          for (const key of (notifKeys.keys || [])) {
+            const val = await env.PRISM_KV.get(key.name).catch(function(){return null;});
+            if (val) {
+              try {
+                const notif = JSON.parse(val);
+                notifs.push(notif);
+                if (!notif.read) { unreadTotal++; unreadNotif++; }
+              } catch(e) {}
+            }
+          }
+        }
+
+        items.sort(function(a,b){return new Date(b.ts)-new Date(a.ts);});
+        notifs.sort(function(a,b){return new Date(b.ts)-new Date(a.ts);});
+
+        return json({
+          items, notifications: notifs,
+          unread: {total: unreadTotal, mail: unreadMail, telegram: unreadTelegram, notifications: unreadNotif},
+          messages: []
+        }, 200, origin);
+      } catch(e) { return json({error: e.message, items:[], notifications:[], unread:{total:0}}, 200, origin); }
     }
 
 return json({ error: 'Not found', path }, 404, origin);
