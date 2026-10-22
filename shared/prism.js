@@ -54,9 +54,27 @@ var PRISM_VERSION = '1.0.0';
 // ── Theme System ──────────────────────────────────────────────────────────────
 var ThemeSystem = (function() {
   var THEMES = [
-    'parchment','teal-rose','olive','faded-blue','midnight-teal',
-    'midnight-rose','cloudflare','linear','notion','stripe',
-    'vercel','wordpress','therapy','retreat','scholarly','dawn','dusk'
+    {id:'argentica',       label:'Argentica',        group:'Light'},
+    {id:'parchment',       label:'Parchment',         group:'Light'},
+    {id:'teal-rose',       label:'Teal & Rose',       group:'Light'},
+    {id:'olive',           label:'Olive',             group:'Light'},
+    {id:'faded-blue',      label:'Faded Blue',        group:'Light'},
+    {id:'scholarly',       label:'Scholarly',         group:'Light'},
+    {id:'therapy',         label:'Therapy',           group:'Light'},
+    {id:'retreat',         label:'Retreat',           group:'Light'},
+    {id:'dawn',            label:'Dawn',              group:'Light'},
+    {id:'serif',           label:'Argentica Serif',   group:'Editorial'},
+    {id:'slate',           label:'Slate',             group:'Editorial'},
+    {id:'midnight-teal',   label:'Midnight Teal',     group:'Dark'},
+    {id:'ink',             label:'Argentica Ink',     group:'Dark'},
+    {id:'midnight-rose',   label:'Midnight Rose',     group:'Dark'},
+    {id:'dusk',            label:'Dusk',              group:'Dark'},
+    {id:'cloudflare',      label:'Cloudflare',        group:'Brand'},
+    {id:'linear',          label:'Linear',            group:'Brand'},
+    {id:'notion',          label:'Notion',            group:'Brand'},
+    {id:'stripe',          label:'Stripe',            group:'Brand'},
+    {id:'vercel',          label:'Vercel',            group:'Brand'},
+    {id:'wordpress',       label:'WordPress',         group:'Brand'},
   ];
   var THEME_NAMES = [
     'Parchment & Rose','Teal & Rose Reversed','Olive & Cream','Faded Blue & Sand',
