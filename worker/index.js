@@ -193,6 +193,12 @@ async function callProvider(env, provider, key, model, messages) {
       text = thinkParts.join('').substring(0, 5000);
     }
   }
+  // Cerebras: reasoning field; GLM/Zhipu: reasoning_content field
+  if (!text) {
+    const msg2 = d.choices?.[0]?.message;
+    if (msg2?.reasoning) text = msg2.reasoning.substring(0, 5000);
+    else if (msg2?.reasoning_content) text = msg2.reasoning_content.substring(0, 5000);
+  }
   if (!text) throw new Error(`${provider} empty response`);
   return { content: text, provider, model };
 }
