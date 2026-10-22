@@ -756,11 +756,11 @@ input, textarea, select { font-family: var(--font-ui); }
 
 /* ── Dropdown Navigation ────────────────────────────────────────────────────── */
 .nav-group { position: relative; }
-.nav-children {
+.nav-group-children {
   display: none;
   padding-left: 8px;
 }
-.nav-group.open > .nav-children {
+.nav-group.open > .nav-group-children {
   display: block;
 }
 .nav-group-toggle {
