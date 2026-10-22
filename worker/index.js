@@ -74,16 +74,17 @@ async function callProvider(env, provider, key, model, messages) {
 
   // ── Gemini / Gemma ──────────────────────────────────────────────────────────
   if (provider === 'gemini' || provider === 'gemma') {
-    const sysMsg = messages.find(m => m.role === 'system');
+    const sysMsg = messages.find(function(m) { return m.role === 'system'; });
     const contents = messages
-      .filter(m => m.role !== 'system')
-      .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content || '' }] }));
+      .filter(function(m) { return m.role !== 'system'; })
+      .map(function(m) { return { role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content || '' }] }; });
     const body = {
       contents,
-      generationConfig: { maxOutputTokens: 32768, temperature: 0.7 },
+      // No artificial token cap — use provider maximum
+      generationConfig: { temperature: 0.7 },
     };
     if (sysMsg) body.systemInstruction = { parts: [{ text: sysMsg.content }] };
-    // Google Search grounding for Gemini models (not Gemma)
+    // Google Search grounding for Gemini models
     if (model && (model.includes('gemini-') || model.includes('gemma-4'))) {
       body.tools = [{ googleSearch: {} }];
     }
@@ -95,76 +96,24 @@ async function callProvider(env, provider, key, model, messages) {
     if (!resp.ok) throw new Error(`Gemini ${resp.status}: ${JSON.stringify(d).substring(0, 100)}`);
     const candidate = d.candidates?.[0];
     if (!candidate) throw new Error('Gemini no candidates');
-    // Handle thinking models that return empty content (all tokens used for thinking)
     const parts = candidate.content?.parts || [];
     const text = parts.filter(function(p) { return p.text; }).map(function(p) { return p.text; }).join('');
-    if (!text) {
-      if (candidate.finishReason === 'MAX_TOKENS') throw new Error('Gemini MAX_TOKENS - thinking used all budget');
-      throw new Error('Gemini empty response (finishReason: ' + (candidate.finishReason || 'unknown') + ')');
-    }
+    if (!text) throw new Error('Gemini empty response (finishReason: ' + (candidate.finishReason || 'unknown') + ')');
     return { content: text, provider: 'gemini', model };
-  }
-
-  // ── OpenAI-compatible (Mistral, DeepSeek, Cerebras, Groq, xAI, Cohere v2, NVIDIA, OpenRouter) ──
-  const OAI_PROVIDERS = {
-    mistral: 'https://api.mistral.ai/v1/chat/completions',
-    deepseek: 'https://api.deepseek.com/chat/completions',
-    cerebras: 'https://api.cerebras.ai/v1/chat/completions',
-    groq: 'https://api.groq.com/openai/v1/chat/completions',
-    xai: 'https://api.x.ai/v1/chat/completions',
-    nvidia: 'https://integrate.api.nvidia.com/v1/chat/completions',
-    openrouter: 'https://openrouter.ai/api/v1/chat/completions',
-    together: 'https://api.together.xyz/v1/chat/completions',
-    perplexity: 'https://api.perplexity.ai/chat/completions',
-  };
-
-  if (OAI_PROVIDERS[provider]) {
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${key}`,
-    };
-    if (provider === 'openrouter') {
-      headers['HTTP-Referer'] = 'https://prism.identitypartners.uk';
-      headers['X-Title'] = 'Argentica';
-    }
-    const body = { model, messages, max_tokens: 8192, temperature: 0.7 };
-    // Mistral web search
-    if (provider === 'mistral' && model.includes('large')) {
-      body.tools = [{ type: 'function', function: { name: 'web_search', description: 'Search the web', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } } }];
-    }
-    const resp = await fetch(OAI_PROVIDERS[provider], { method: 'POST', headers, body: JSON.stringify(body) });
-    const d = await resp.json();
-    if (!resp.ok) throw new Error(`${provider} ${resp.status}: ${JSON.stringify(d).substring(0, 100)}`);
-    // Handle thinking-mode responses (Mistral Large 4, GLM 5.3) where content is an array
-    const rawContent = d.choices?.[0]?.message?.content;
-    let text = '';
-    if (typeof rawContent === 'string') {
-      text = rawContent;
-    } else if (Array.isArray(rawContent)) {
-      const textParts = rawContent.filter(function(p) { return p.type === 'text'; }).map(function(p) { return p.text || ''; });
-      text = textParts.join('');
-      if (!text) {
-        const thinkParts = rawContent.filter(function(p) { return p.type === 'thinking'; })
-          .flatMap(function(p) { return (p.thinking || []).map(function(t) { return t.text || ''; }); });
-        text = thinkParts.join('').substring(0, 3000);
-      }
-    }
-    if (!text) throw new Error(`${provider} empty response`);
-    return { content: text, provider, model };
   }
 
   // ── Cohere v2 ───────────────────────────────────────────────────────────────
   if (provider === 'cohere') {
-    // Cohere command-a-plus uses thinking mode — need max_tokens >= 2000 for text output
-    const cohereBody = { model, messages, max_tokens: 4096 };
+    // Use free key preferentially, fall back to paid
+    const cohereKey = k(env, ['cohere_free_key', 'cohere_api_key', 'COHERE_API_KEY']) || key;
+    // max_tokens must be high enough for thinking + text (command-a-plus uses thinking mode)
     const resp = await fetch('https://api.cohere.com/v2/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-      body: JSON.stringify(cohereBody),
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cohereKey}` },
+      body: JSON.stringify({ model, messages, max_tokens: 8192 }),
     });
     const d = await resp.json();
     if (!resp.ok) throw new Error(`Cohere ${resp.status}: ${JSON.stringify(d).substring(0, 100)}`);
-    // Extract text from thinking array (command-a-plus returns [{type:'thinking',...},{type:'text',...}])
     const cohereContent = d.message?.content;
     let text = '';
     if (typeof cohereContent === 'string') {
@@ -174,7 +123,7 @@ async function callProvider(env, provider, key, model, messages) {
       text = textParts.join('');
       if (!text) {
         const thinkParts = cohereContent.filter(function(p) { return p.type === 'thinking'; }).map(function(p) { return p.thinking || ''; });
-        text = thinkParts.join('').substring(0, 2000);
+        text = thinkParts.join('').substring(0, 3000);
       }
     } else if (cohereContent) {
       text = String(cohereContent);
@@ -183,23 +132,71 @@ async function callProvider(env, provider, key, model, messages) {
     return { content: text, provider: 'cohere', model };
   }
 
-  // ── Pollinations (unconditional fallback) ───────────────────────────────────
-  if (provider === 'pollinations') {
-    const resp = await fetch('https://text.pollinations.ai/openai', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: model || 'openai', messages, max_tokens: 4096 }),
-    });
-    const d = await resp.json();
-    const text = d.choices?.[0]?.message?.content;
-    if (!text) throw new Error('Pollinations empty');
-    return { content: text, provider: 'pollinations', model };
+  // ── OpenAI-compatible (Mistral, DeepSeek, Cerebras, Groq, xAI, NVIDIA, OpenRouter) ──
+  const OAI_PROVIDERS = {
+    mistral: 'https://api.mistral.ai/v1/chat/completions',
+    deepseek: 'https://api.deepseek.com/chat/completions',
+    cerebras: 'https://api.cerebras.ai/v1/chat/completions',
+    groq: 'https://api.groq.com/openai/v1/chat/completions',
+    xai: 'https://api.x.ai/v1/chat/completions',
+    nvidia: 'https://integrate.api.nvidia.com/v1/chat/completions',
+    openrouter: 'https://openrouter.ai/api/v1/chat/completions',
+    together: 'https://api.together.xyz/v1/chat/completions',
+    kimi: 'https://api.moonshot.cn/v1/chat/completions',
+    zhipu: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+    perplexity: 'https://api.perplexity.ai/chat/completions',
+    chutes: 'https://llm.chutes.ai/v1/chat/completions',
+    nebius: 'https://api.studio.nebius.com/v1/chat/completions',
+  };
+
+  const url = OAI_PROVIDERS[provider];
+  if (!url) throw new Error(`Unknown provider: ${provider}`);
+
+  const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` };
+  if (provider === 'openrouter') {
+    headers['HTTP-Referer'] = 'https://prism.identitypartners.uk';
+    headers['X-Title'] = 'Argentica';
   }
 
-  throw new Error(`Unknown provider: ${provider}`);
+  // Build request body — NO artificial token limits
+  // Let the provider's own limits apply
+  const reqBody = { model, messages, temperature: 0.7 };
+
+  // Add web search tools for models that support it
+  if (provider === 'mistral' && (model.includes('large') || model.includes('medium') || model.includes('magistral') || model.includes('glm'))) {
+    reqBody.tools = [{ type: 'web_search' }];
+  }
+  if (provider === 'deepseek') {
+    // DeepSeek has built-in web search, no tool needed
+  }
+  if (provider === 'perplexity') {
+    // Perplexity always searches, no tool needed
+  }
+
+  const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(reqBody) });
+  const d = await resp.json();
+  if (!resp.ok) throw new Error(`${provider} ${resp.status}: ${JSON.stringify(d).substring(0, 100)}`);
+
+  // Extract content — handle thinking-mode array responses (Mistral Large, GLM 5.3, etc.)
+  const rawContent = d.choices?.[0]?.message?.content;
+  let text = '';
+  if (typeof rawContent === 'string') {
+    text = rawContent;
+  } else if (Array.isArray(rawContent)) {
+    // Thinking mode: extract text parts, fall back to thinking parts
+    const textParts = rawContent.filter(function(p) { return p.type === 'text'; }).map(function(p) { return p.text || ''; });
+    text = textParts.join('');
+    if (!text) {
+      const thinkParts = rawContent.filter(function(p) { return p.type === 'thinking'; })
+        .flatMap(function(p) { return (p.thinking || []).map(function(t) { return t.text || ''; }); });
+      text = thinkParts.join('').substring(0, 5000);
+    }
+  }
+  if (!text) throw new Error(`${provider} empty response`);
+  return { content: text, provider, model };
 }
 
-// ── ORCHESTRATE ───────────────────────────────────────────────────────────────
+
 async function orchestrate(env, messages, profile = 'balanced') {
   const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
   const KEYS = {
@@ -1565,6 +1562,66 @@ export default {
         const d = await resp.json();
         if (!resp.ok) throw new Error('Cohere rerank error: ' + JSON.stringify(d).substring(0, 100));
         return json({results: d.results || []}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+
+    // ── Proton Drive backup via WebDAV ────────────────────────────────────────
+    if (path === '/api/backup/proton' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const filename = body.filename || 'backup-' + Date.now() + '.md';
+        const content = body.content || '';
+        const protonUser = k(env, ['proton_username', 'PROTON_USERNAME']) || '';
+        const protonPass = k(env, ['proton_password', 'PROTON_PASSWORD']) || '';
+        if (!protonUser || !protonPass) return json({error: 'Proton credentials not configured'}, 400, origin);
+        const webdavUrl = 'https://dav.proton.me/dav/' + protonUser + '/Argentica/' + filename;
+        const auth = btoa(protonUser + ':' + protonPass);
+        const putResp = await fetch(webdavUrl, {
+          method: 'PUT',
+          headers: {'Authorization': 'Basic ' + auth, 'Content-Type': 'text/markdown'},
+          body: content
+        });
+        if (putResp.ok || putResp.status === 201) {
+          return json({success: true, url: webdavUrl, status: putResp.status}, 200, origin);
+        }
+        return json({error: 'Proton WebDAV error: ' + putResp.status}, 500, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Auto-backup study hub to Proton Drive ─────────────────────────────────
+    if (path === '/api/backup/study-hub' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const modules = body.modules || [];
+        const protonUser = k(env, ['proton_username', 'PROTON_USERNAME']) || '';
+        const protonPass = k(env, ['proton_password', 'PROTON_PASSWORD']) || '';
+        if (!protonUser || !protonPass) return json({error: 'Proton credentials not configured'}, 400, origin);
+        const auth = btoa(protonUser + ':' + protonPass);
+        const results = [];
+        for (const mod of modules) {
+          for (const week of (mod.weeks || [])) {
+            const lines = ['# ' + mod.name + ' — ' + week.name, ''];
+            if (week.vle_url) lines.push('VLE: ' + week.vle_url, '');
+            (week.resources || []).forEach(function(r) {
+              lines.push('## ' + r.title + ' [' + r.type + ']');
+              if (r.url) lines.push('URL: ' + r.url);
+              if (r.annotation) lines.push('Annotation: ' + r.annotation);
+              lines.push('');
+            });
+            if (week.notes) lines.push('## My Notes', week.notes, '');
+            const content = lines.join('\n');
+            const filename = mod.name.replace(/[^a-z0-9]/gi, '-') + '/' + week.name.replace(/[^a-z0-9]/gi, '-') + '.md';
+            const url = 'https://dav.proton.me/dav/' + protonUser + '/Argentica/' + filename;
+            const putResp = await fetch(url, {
+              method: 'PUT',
+              headers: {'Authorization': 'Basic ' + auth, 'Content-Type': 'text/markdown'},
+              body: content
+            }).catch(function(e) { return {ok: false, status: 0, statusText: e.message}; });
+            results.push({file: filename, status: putResp.status || 0, ok: putResp.ok});
+          }
+        }
+        return json({success: true, backed_up: results.filter(function(r){return r.ok;}).length, total: results.length, results}, 200, origin);
       } catch(e) { return json({error: e.message}, 500, origin); }
     }
 
