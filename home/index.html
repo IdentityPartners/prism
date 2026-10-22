@@ -46,23 +46,29 @@
 
 /* Hero */
 .home-hero {
-  background: #0f3b3a;
   border-radius: 10px;
-  padding: 18px 20px;
+  padding: 20px;
   color: #f7f3e9;
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
-  border-left: 4px solid #5c2d3f;
+  min-height: 120px;
+  background: #0f3b3a;
 }
-.home-hero::after {
-  content: '';
+.home-hero-bg {
   position: absolute;
-  top: 0; right: 0;
-  width: 120px; height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(92,45,63,0.3));
-  pointer-events: none;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.45;
+  transition: opacity 0.5s;
 }
+.home-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(15,59,58,0.85) 0%, rgba(15,59,58,0.6) 60%, rgba(92,45,63,0.7) 100%);
+}
+.home-hero-content { position: relative; z-index: 1; }
 .home-hero::before {
   content: '';
   position: absolute;
@@ -355,6 +361,32 @@ function quickSend() {
 }
 
 // ── Calendar ──────────────────────────────────────────────────────────────────
+// Hero image rotation - landscapes, vistas, natural world
+var HERO_IMAGES = [
+  'https://images.pexels.com/photos/1287145/pexels-photo-1287145.jpeg?w=1400',
+  'https://images.pexels.com/photos/1261728/pexels-photo-1261728.jpeg?w=1400',
+  'https://images.pexels.com/photos/1624496/pexels-photo-1624496.jpeg?w=1400',
+  'https://images.pexels.com/photos/1366919/pexels-photo-1366919.jpeg?w=1400',
+  'https://images.pexels.com/photos/1591382/pexels-photo-1591382.jpeg?w=1400',
+  'https://images.pexels.com/photos/1770809/pexels-photo-1770809.jpeg?w=1400',
+  'https://images.pexels.com/photos/1032650/pexels-photo-1032650.jpeg?w=1400',
+  'https://images.pexels.com/photos/1671325/pexels-photo-1671325.jpeg?w=1400',
+  'https://images.pexels.com/photos/1559825/pexels-photo-1559825.jpeg?w=1400',
+  'https://images.pexels.com/photos/1366630/pexels-photo-1366630.jpeg?w=1400',
+  'https://images.pexels.com/photos/1906658/pexels-photo-1906658.jpeg?w=1400',
+  'https://images.pexels.com/photos/1323550/pexels-photo-1323550.jpeg?w=1400',
+];
+var heroIdx = Math.floor(Math.random() * HERO_IMAGES.length);
+function setHeroImage() {
+  var bg = document.getElementById('hero-bg');
+  if (!bg) return;
+  bg.style.backgroundImage = 'url(' + HERO_IMAGES[heroIdx] + ')';
+}
+function cycleHero() {
+  heroIdx = (heroIdx + 1) % HERO_IMAGES.length;
+  setHeroImage();
+}
+
 function loadCalendar() {
   fetch(WORKER + '/api/calendar/events')
     .then(function(r){return r.json();})
