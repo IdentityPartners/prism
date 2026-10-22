@@ -338,6 +338,11 @@ function toggleModule(modId) {
     if (hdrEl) hdrEl.classList.add('active');
   }
   showModuleOverview(mod);
+  // Switch to overview tab
+  currentTab = 'overview';
+  document.querySelectorAll('.hub-tab').forEach(function(t){t.classList.remove('active');});
+  var ovTab = document.getElementById('tab-overview');
+  if (ovTab) ovTab.classList.add('active');
 }
 
 function showModuleOverview(mod) {
@@ -551,7 +556,11 @@ function switchTab(tab, btn) {
     body.innerHTML = '<div style="text-align:center;padding:60px;color:var(--fg-muted);"><div style="font-size:48px;margin-bottom:12px;">&#x1F4DA;</div><div style="font-size:16px;font-weight:600;">Select a module and week from the left</div></div>';
     return;
   }
-  if (tab === 'resources') renderResources(body);
+  if (tab === 'overview') {
+    if (currentModule) showModuleOverview(currentModule);
+    else { body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--fg-muted);">Select a module from the left to see its overview.</div>'; }
+  }
+  else if (tab === 'resources') renderResources(body);
   else if (tab === 'notes') renderNotes(body);
   else if (tab === 'search') renderSearchResults(body);
   else if (tab === 'upload') renderUpload(body);
