@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792737372 -->
+<!-- cache-bust-1792737433 -->
+
 
 
 
@@ -293,9 +294,35 @@ document.addEventListener('DOMContentLoaded', function() {
   loadConversations();
   try { profile = localStorage.getItem('chat-profile') || 'balanced'; } catch(e) {}
   document.getElementById('chat-input').focus();
+  loadMemory();
 });
 
 // ── Conversations ─────────────────────────────────────────────────────────────
+function loadMemory() {
+  var list = document.getElementById('memory-list');
+  if (!list) return;
+  fetch(WORKER + '/api/memory/about-me')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var memories = d.memories || d.facts || [];
+      if (!memories.length) { list.textContent = 'No memories yet.'; return; }
+      list.innerHTML = memories.slice(0,10).map(function(m) {
+        var text = typeof m === 'string' ? m : (m.content || m.fact || m.text || JSON.stringify(m));
+        return '<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;line-height:1.4;">' + text.substring(0,80).replace(/</g,'&lt;') + '</div>';
+      }).join('');
+    })
+    .catch(function(){ list.textContent = 'Memory unavailable.'; });
+}
+
+function addMemory() {
+  var fact = prompt('What should Gerald remember?');
+  if (!fact) return;
+  fetch(WORKER + '/api/memory/about-me', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({fact:fact})
+  }).then(function(){loadMemory();});
+}
+
 function loadConversations() {
   fetch(WORKER + '/api/threads')
     .then(function(r){return r.json();})
