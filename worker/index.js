@@ -233,13 +233,13 @@ async function orchestrate(env, messages, profile = 'balanced') {
     if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3.5-super-vl:free', note: 'Nemotron 3.5 Super VL' });
 
   } else {
-    // Balanced (default): full chain in Simon's preferred order
-    // 1. GLM 5.3 via Mistral — FREE, 1M ctx, thinking+text, web search (confirmed working 492ms)
+    // Balanced (default): quality first, speed as fallback
+    // 1. GLM 5.3 via Mistral — FREE, 1M ctx, thinking, web search
     if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',                          note: 'GLM 5.3 via Mistral (free)' });
-    // 2. Mistral Medium 3.5 — 416ms, reliable, web search, vision
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-medium-3.5',                   note: 'Mistral Medium 3.5' });
-    // 3. Mistral Large Latest — 573ms, reliable, web search, vision
+    // 2. Mistral Large Latest — better quality than Medium, vision, web search
     if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-latest',                 note: 'Mistral Large Latest' });
+    // 3. Mistral Medium 3.5 — faster fallback, still good quality
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-medium-3.5',                   note: 'Mistral Medium 3.5' });
     // 3. Llama 3.2 11B Vision NVIDIA — 256ms, confirmed working, vision capable
     if (KEYS.nvidia)     chain.push({ p: 'nvidia',     key: KEYS.nvidia,     m: 'meta/llama-3.2-11b-vision-instruct',   note: 'Llama 3.2 11B Vision NVIDIA' });
     // 4. Gemma 4 31B via Gemini API — reliable, Google Search grounding
