@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792767815554 -->
+<!-- cache-bust-1792783780 -->
+
 
 
 
@@ -273,6 +274,23 @@ function loadDocument(doc) {
 
   var ext = (doc.name||'').split('.').pop().toLowerCase();
   var type = doc.type || ext;
+  var content = doc.content || '';
+
+  // Detect binary content regardless of type
+  var isBinaryContent = content.length > 100 && content.split('').filter(function(c) {
+    var code = c.charCodeAt(0);
+    return code < 32 && code !== 10 && code !== 13 && code !== 9;
+  }).length > content.length * 0.03;
+
+  // Binary office files — always show viewer options
+  if (isBinaryContent || content.startsWith('PK') || content.startsWith('%PDF')) {
+    if (content.startsWith('%PDF') || ext === 'pdf' || type === 'pdf') {
+      renderPDF(doc);
+    } else {
+      showOfficeViewerOptions(doc, ext.toUpperCase() + ' File');
+    }
+    return;
+  }
 
   if (type === 'pdf' || ext === 'pdf') {
     renderPDF(doc);
@@ -288,7 +306,7 @@ function loadDocument(doc) {
     renderText(doc);
   } else if (doc.url) {
     renderURL(doc);
-  } else if (doc.content) {
+  } else if (content.trim()) {
     renderText(doc);
   } else {
     renderEmpty(doc);
