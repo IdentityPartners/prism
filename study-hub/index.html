@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792767815554 -->
+<!-- cache-bust-1792769108 -->
+
 
 
 
@@ -308,7 +309,26 @@ function renderTree() {
 
     var hdr = document.createElement('div');
     hdr.className = 'tree-module-hdr' + (currentModule && currentModule.id === mod.id ? ' active' : '');
-    hdr.innerHTML = '<span class="tree-module-icon">' + mod.icon + '</span><span style="flex:1;">' + mod.name + '</span><span class="tree-module-toggle">&#x25B8;</span>';
+        var modIcon = document.createElement('span');
+    modIcon.className = 'tree-module-icon';
+    modIcon.innerHTML = mod.icon || '&#x1F4D3;';
+    var modLabel = document.createElement('span');
+    modLabel.style.flex = '1';
+    modLabel.textContent = mod.name;
+    var modEditBtn = document.createElement('button');
+    modEditBtn.innerHTML = '&#x270F;';
+    modEditBtn.title = 'Edit module';
+    modEditBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:13px;padding:2px 5px;border-radius:4px;';
+    modEditBtn.onmouseenter = function() { modEditBtn.style.color = 'var(--accent)'; };
+    modEditBtn.onmouseleave = function() { modEditBtn.style.color = 'var(--fg-muted)'; };
+    modEditBtn.onclick = (function(mId) { return function(e) { e.stopPropagation(); openEditModule(mId); }; })(mod.id);
+    var modToggle = document.createElement('span');
+    modToggle.className = 'tree-module-toggle';
+    modToggle.innerHTML = '&#x25B8;';
+    hdr.appendChild(modIcon);
+    hdr.appendChild(modLabel);
+    hdr.appendChild(modEditBtn);
+    hdr.appendChild(modToggle);
     hdr.onclick = function() { toggleModule(mod.id); };
     modDiv.appendChild(hdr);
 
@@ -328,15 +348,19 @@ function renderTree() {
       wLabel.className = 'week-name-label';
       wLabel.style.flex = '1';
       wLabel.textContent = week.name;
-      wLabel.title = 'Double-click to rename';
-      wLabel.ondblclick = (function(mId, wId) {
-        return function(e) { e.stopPropagation(); renameWeek(e, mId, wId); };
-      })(mod.id, week.id);
+      var wEditBtn = document.createElement('button');
+      wEditBtn.innerHTML = '&#x270F;';
+      wEditBtn.title = 'Edit week';
+      wEditBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:12px;padding:1px 4px;border-radius:3px;flex-shrink:0;';
+      wEditBtn.onmouseenter = function() { wEditBtn.style.color = 'var(--accent)'; };
+      wEditBtn.onmouseleave = function() { wEditBtn.style.color = 'var(--fg-muted)'; };
+      wEditBtn.onclick = (function(mId, wId) { return function(e) { e.stopPropagation(); openEditWeek(mId, wId); }; })(mod.id, week.id);
       var wBadge = document.createElement('span');
       wBadge.className = 'tree-week-badge';
       wBadge.textContent = resCount;
       weekDiv.appendChild(wIcon);
       weekDiv.appendChild(wLabel);
+      weekDiv.appendChild(wEditBtn);
       weekDiv.appendChild(wBadge);
       // Use data attributes to avoid closure issues
       weekDiv.setAttribute('data-mod-id', mod.id);
@@ -1119,5 +1143,42 @@ function exportWeek() {
   a.click();
 }
 </script>
+
+<!-- Edit Module Modal -->
+<div id="edit-module-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--bg-elevated);border-radius:12px;padding:24px;width:480px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <h3 style="margin:0 0 16px;font-size:16px;">Edit Module</h3>
+    <div style="margin-bottom:12px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">Module Name</label>
+    <input id="em-name" type="text" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;"></div>
+    <div style="margin-bottom:12px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">Research Question / Focus</label>
+    <textarea id="em-rq" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;min-height:70px;resize:vertical;font-family:inherit;"></textarea></div>
+    <div style="margin-bottom:12px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">Lecturer / Professor</label>
+    <input id="em-lec" type="text" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;"></div>
+    <div style="margin-bottom:16px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">VLE URL</label>
+    <input id="em-vle" type="url" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="closeEditModule()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);font-size:13px;">Cancel</button>
+      <button onclick="saveEditModule()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Week Modal -->
+<div id="edit-week-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--bg-elevated);border-radius:12px;padding:24px;width:480px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <h3 style="margin:0 0 16px;font-size:16px;">Edit Week</h3>
+    <div style="margin-bottom:12px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">Week Name</label>
+    <input id="ew-name" type="text" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;"></div>
+    <div style="margin-bottom:12px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">Topic / Description</label>
+    <textarea id="ew-topic" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;min-height:60px;resize:vertical;font-family:inherit;"></textarea></div>
+    <div style="margin-bottom:16px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">VLE Link</label>
+    <input id="ew-vle" type="url" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="closeEditWeek()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);font-size:13px;">Cancel</button>
+      <button onclick="saveEditWeek()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">Save</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
