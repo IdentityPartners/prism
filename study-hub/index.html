@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792739656 -->
+<!-- cache-bust-1792741433 -->
+
 
 
 
@@ -1029,9 +1030,29 @@ function annotate(resourceId) {
 }
 
 function openResource(r) {
-  if (r.url) window.open(r.url, '_blank');
-  else if (r.content) {
-    aiQuick('Summarise this document and identify the key points:\n\n' + r.content.substring(0, 3000));
+  // Open in the document viewer
+  var params = new URLSearchParams({
+    id: r.id || '',
+    name: r.name || r.title || 'Document',
+    type: r.type || '',
+    url: r.url || ''
+  });
+  var viewerUrl = '/doc-viewer/?'  + params.toString();
+  
+  // Pass content via postMessage (avoids URL length limits)
+  var win = window.open(viewerUrl, 'doc-viewer-' + (r.id||'doc'), 'width=1200,height=800');
+  if (win && r.content) {
+    // Wait for viewer to load then send content
+    var attempts = 0;
+    var send = setInterval(function() {
+      attempts++;
+      try {
+        win.postMessage({type: 'load-document', doc: r}, '*');
+        clearInterval(send);
+      } catch(e) {
+        if (attempts > 20) clearInterval(send);
+      }
+    }, 300);
   }
 }
 
