@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792755442 -->
+<!-- cache-bust-1792758196 -->
+
 
 
 
@@ -442,26 +443,124 @@ function renderDOCX(doc) {
 }
 
 // ── PPT rendering ─────────────────────────────────────────────────────────────
+
 function renderPPT(doc) {
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane';
-  // PPT/PPTX requires server-side conversion — show content as text or link
+  pane.innerHTML = '';
+
+  var wrap = document.createElement('div');
+  wrap.className = 'doc-content';
+
+  var card = document.createElement('div');
+  card.style.cssText = 'background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:10px;padding:16px;margin-bottom:16px;';
+
+  var titleEl = document.createElement('div');
+  titleEl.style.cssText = 'font-size:16px;font-weight:700;margin-bottom:8px;';
+  titleEl.textContent = '\uD83D\uDCCA ' + (doc.name || 'Presentation');
+
+  var descEl = document.createElement('div');
+  descEl.style.cssText = 'font-size:13px;color:var(--fg-muted);margin-bottom:12px;';
+  descEl.textContent = 'Open in a viewer for full rendering:';
+
+  var btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
+
   if (doc.url) {
-    pane.innerHTML = '<div class="doc-content">' +
-      '<div style="background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:8px;padding:16px;margin-bottom:16px;">' +
-      '<div style="font-size:14px;font-weight:600;margin-bottom:6px;">📊 PowerPoint Presentation</div>' +
-      '<div style="font-size:13px;color:var(--fg-muted);margin-bottom:10px;">PPT/PPTX files require conversion for in-browser viewing.</div>' +
-      '<a href="' + doc.url + '" target="_blank" style="padding:7px 14px;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:13px;">Open in new tab ↗</a>' +
-      '</div>' +
-      (doc.content ? '<div style="font-size:13px;color:var(--fg-muted);margin-bottom:8px;">Extracted text:</div><pre style="white-space:pre-wrap;font-size:13px;">' + doc.content.substring(0,5000).replace(/</g,'&lt;') + '</pre>' : '') +
-      '</div>';
-  } else if (doc.content) {
-    pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;">' + doc.content.replace(/</g,'&lt;') + '</pre></div>';
-    setupAnnotationLayer();
+    var gdBtn = document.createElement('button');
+    gdBtn.textContent = '\uD83D\uDCC4 Google Docs Viewer';
+    gdBtn.style.cssText = 'padding:8px 14px;background:#4285f4;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;';
+    gdBtn.onclick = (function(u) { return function() { loadInFrame('https://docs.google.com/viewer?url=' + encodeURIComponent(u) + '&embedded=true'); }; })(doc.url);
+    btnRow.appendChild(gdBtn);
+
+    var offBtn = document.createElement('button');
+    offBtn.textContent = '\uD83D\uDCC4 Office Online';
+    offBtn.style.cssText = 'padding:8px 14px;background:#d83b01;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;';
+    offBtn.onclick = (function(u) { return function() { loadInFrame('https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(u)); }; })(doc.url);
+    btnRow.appendChild(offBtn);
+
+    var directLink = document.createElement('a');
+    directLink.href = doc.url;
+    directLink.target = '_blank';
+    directLink.textContent = '\u2197 Open directly';
+    directLink.style.cssText = 'padding:8px 14px;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:13px;display:inline-block;';
+    btnRow.appendChild(directLink);
   }
+
+  card.appendChild(titleEl);
+  card.appendChild(descEl);
+  card.appendChild(btnRow);
+  wrap.appendChild(card);
+
+  var content = doc.content || '';
+  var isBinary = content.length > 50 && content.split('').filter(function(c) {
+    var code = c.charCodeAt(0);
+    return code < 32 && code !== 10 && code !== 13 && code !== 9;
+  }).length > content.length * 0.05;
+
+  if (!isBinary && content.trim()) {
+    var textHdr = document.createElement('div');
+    textHdr.style.cssText = 'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);margin-bottom:8px;';
+    textHdr.textContent = 'Extracted text:';
+    var pre = document.createElement('pre');
+    pre.style.cssText = 'white-space:pre-wrap;font-size:15px;line-height:1.7;';
+    pre.textContent = content.substring(0, 10000);
+    wrap.appendChild(textHdr);
+    wrap.appendChild(pre);
+  } else if (doc.url) {
+    var extractDiv = document.createElement('div');
+    extractDiv.id = 'extract-status';
+    extractDiv.style.cssText = 'margin-top:10px;';
+    var extractBtn = document.createElement('button');
+    extractBtn.textContent = '\uD83D\uDCDD Extract text via AI';
+    extractBtn.style.cssText = 'padding:6px 14px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;background:var(--bg);';
+    extractBtn.onclick = extractText;
+    extractDiv.appendChild(extractBtn);
+    wrap.appendChild(extractDiv);
+  }
+
+  pane.appendChild(wrap);
 }
 
-// ── Spreadsheet rendering ─────────────────────────────────────────────────────
+function loadInFrame(url) {
+  var pane = document.getElementById('doc-pane');
+  pane.innerHTML = '';
+  var iframe = document.createElement('iframe');
+  iframe.src = url;
+  iframe.style.cssText = 'width:100%;height:100%;border:none;';
+  iframe.allowFullscreen = true;
+  pane.appendChild(iframe);
+}
+
+function extractText() {
+  if (!docData || !docData.url) return;
+  var statusEl = document.getElementById('extract-status');
+  if (statusEl) statusEl.textContent = 'Extracting text...';
+  fetch('https://prism-api.identitypartners.workers.dev/api/firecrawl/scrape', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({url: docData.url, formats: ['markdown']})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    var text = d.markdown || d.content || d.text || '';
+    if (text && statusEl) {
+      statusEl.innerHTML = '';
+      var pre = document.createElement('pre');
+      pre.style.cssText = 'white-space:pre-wrap;font-size:15px;line-height:1.7;';
+      pre.textContent = text.substring(0, 10000);
+      statusEl.appendChild(pre);
+    } else if (statusEl) {
+      statusEl.textContent = 'Could not extract text. Try Google Docs or Office Online above.';
+      statusEl.style.color = '#dc2626';
+    }
+  })
+  .catch(function(e) {
+    if (statusEl) { statusEl.textContent = 'Error: ' + e.message; statusEl.style.color = '#dc2626'; }
+  });
+}
+
+
 function renderSpreadsheet(doc) {
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane';
