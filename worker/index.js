@@ -104,32 +104,7 @@ async function callProvider(env, provider, key, model, messages) {
 
   // ── Cohere v2 ───────────────────────────────────────────────────────────────
   if (provider === 'cohere') {
-    // Use free key preferentially, fall back to paid
-    const cohereKey = k(env, ['cohere_free_key', 'cohere_api_key', 'COHERE_API_KEY']) || key;
-    // max_tokens must be high enough for thinking + text (command-a-plus uses thinking mode)
-    const resp = await fetch('https://api.cohere.com/v2/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cohereKey}` },
-      body: JSON.stringify({ model, messages, max_tokens: 8192 }),
-    });
-    const d = await resp.json();
-    if (!resp.ok) throw new Error(`Cohere ${resp.status}: ${JSON.stringify(d).substring(0, 100)}`);
-    const cohereContent = d.message?.content;
-    let text = '';
-    if (typeof cohereContent === 'string') {
-      text = cohereContent;
-    } else if (Array.isArray(cohereContent)) {
-      const textParts = cohereContent.filter(function(p) { return p.type === 'text'; }).map(function(p) { return p.text || ''; });
-      text = textParts.join('');
-      if (!text) {
-        const thinkParts = cohereContent.filter(function(p) { return p.type === 'thinking'; }).map(function(p) { return p.thinking || ''; });
-        text = thinkParts.join('').substring(0, 3000);
-      }
-    } else if (cohereContent) {
-      text = String(cohereContent);
-    }
-    if (!text) throw new Error('Cohere empty response');
-    return { content: text, provider: 'cohere', model };
+    throw new Error('Cohere disabled - billing issue');
   }
 
   // ── OpenAI-compatible (Mistral, DeepSeek, Cerebras, Groq, xAI, NVIDIA, OpenRouter) ──
@@ -265,8 +240,7 @@ async function orchestrate(env, messages, profile = 'balanced') {
     if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3-ultra-550b-a55b:free', note: 'Nemotron Ultra 550B' });
     // 5. DeepSeek V4 Flash — 1M ctx, web search
     if (KEYS.deepseek)   chain.push({ p: 'deepseek',   key: KEYS.deepseek,   m: 'deepseek-chat',                        note: 'DeepSeek V4 Flash' });
-    // 6. Cohere Command A+ — 256K ctx, RAG, web search
-    if (KEYS.cohere)     chain.push({ p: 'cohere',     key: k(env, ['cohere_free_key', 'cohere_api_key', 'COHERE_API_KEY']),     m: 'command-a-plus-05-2026',               note: 'Cohere Command A+' });
+    // Cohere REMOVED - billing issue
     // 7. GPT-OSS 120B via Groq — fast, 131K ctx
     if (KEYS.groq)       chain.push({ p: 'groq',       key: KEYS.groq,       m: 'openai/gpt-oss-120b',                  note: 'GPT-OSS 120B Groq' });
     // 8. Nemotron Ultra 550B — frontier-grade, 1M ctx, free
@@ -1569,23 +1543,7 @@ export default {
     }
 
     // ── Cohere RAG: embed + rerank for Study Hub search ──────────────────────
-    if (path === '/api/cohere/embed' && request.method === 'POST') {
-      try {
-        const body = await request.json();
-        const texts = body.texts || [];
-        const inputType = body.input_type || 'search_document';
-        const cohereKey = k(env, ['cohere_free_key', 'cohere_api_key', 'COHERE_API_KEY']) || '';
-        if (!cohereKey) return json({error: 'Cohere key not configured'}, 400, origin);
-        const resp = await fetch('https://api.cohere.com/v2/embed', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cohereKey},
-          body: JSON.stringify({model: 'embed-v4.0', texts, input_type: inputType, embedding_types: ['float']})
-        });
-        const d = await resp.json();
-        if (!resp.ok) throw new Error('Cohere embed error: ' + JSON.stringify(d).substring(0, 100));
-        return json({embeddings: d.embeddings?.float || []}, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
-    }
+    // Cohere embed DISABLED - use Gemini embeddings instead
 
     if (path === '/api/cohere/rerank' && request.method === 'POST') {
       try {
