@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792702354 -->
+<!-- cache-bust-1792737433 -->
+
 
 
 
@@ -766,6 +767,26 @@ function indexResource(resource) {
 
 // ── Search ────────────────────────────────────────────────────────────────────
 function runGlobalSearch() {
+  var q = document.getElementById('global-search').value.trim();
+  if (!q) return;
+  
+  // Detect special search types
+  var authorMatch = q.match(/^(?:by|author|thinker|fonagy|bourdieu|goffman|foucault|said|crenshaw|hooks|freire|bauman|parsons|cohen|hillyard|putnam|hochschild)\b/i);
+  var themeMatch = q.match(/^(?:theme|concept|about|re|regarding):\s*/i);
+  
+  if (authorMatch || themeMatch) {
+    // Search specifically for author/thinker references
+    var searchTerm = q.replace(/^(?:by|author|thinker|theme|concept|about|re|regarding):\s*/i, '').trim();
+    document.getElementById('global-search').value = searchTerm;
+    q = searchTerm;
+  }
+  
+  // Also search AI for related concepts
+  if (q.length > 3) {
+    aiQuick('Search all my reading and notes for references to "' + q + '". Include: direct mentions, related concepts, and any arguments that connect to this. Label each result by source type (course material, self-sourced, my notes).');
+  }
+
+
   var q = document.getElementById('global-search').value.trim();
   var scope = document.getElementById('search-scope').value;
   if (!q) return;
