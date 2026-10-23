@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792743544 -->
+<!-- cache-bust-1792746783 -->
+
 
 
 
@@ -313,9 +314,17 @@ function renderTree() {
     (mod.weeks || []).forEach(function(week) {
       var weekDiv = document.createElement('div');
       weekDiv.className = 'tree-week' + (currentWeek && currentWeek.id === week.id ? ' active' : '');
+      weekDiv.id = 'tw-' + week.id;
       var resCount = (week.resources || []).length;
       weekDiv.innerHTML = '<span>&#x1F4C5;</span><span style="flex:1;">' + week.name + '</span><span class="tree-week-badge">' + resCount + '</span>';
-      weekDiv.onclick = function() { selectWeek(mod.id, week.id); };
+      // Use data attributes to avoid closure issues
+      weekDiv.setAttribute('data-mod-id', mod.id);
+      weekDiv.setAttribute('data-week-id', week.id);
+      weekDiv.onclick = function(e) {
+        var mId = e.currentTarget.getAttribute('data-mod-id');
+        var wId = e.currentTarget.getAttribute('data-week-id');
+        selectWeek(mId, wId);
+      };
       weeks.appendChild(weekDiv);
     });
 
@@ -466,7 +475,9 @@ function showWeeksGrid(mod, container) {
     card.onmouseleave = function() { card.style.borderColor = 'var(--border)'; card.style.transform = ''; };
     card.dataset.modid = mod.id;
     card.dataset.weekid = week.id;
-    card.onclick = function() { selectWeek(card.dataset.modid, card.dataset.weekid); };
+    card.onclick = (function(mId, wId) {
+      return function() { selectWeek(mId, wId); };
+    })(mod.id, week.id);
     var resCount = (week.resources||[]).length;
     var hasNotes = !!(week.notes && week.notes.trim());
     card.innerHTML = '<div style="font-size:15px;font-weight:700;margin-bottom:4px;color:var(--fg);">' + week.name + '</div>' +
@@ -505,10 +516,12 @@ function saveModuleDetails(modId, btn) {
 
 
 function selectWeek(modId, weekId) {
+  console.log('selectWeek called:', modId, weekId, 'modules:', modules.length);
   var mod = modules.find(function(m){return m.id===modId;});
-  if (!mod) return;
+  if (!mod) { console.error('Module not found:', modId); return; }
   var week = (mod.weeks||[]).find(function(w){return w.id===weekId;});
-  if (!week) return;
+  if (!week) { console.error('Week not found:', weekId, 'in', mod.weeks); return; }
+  console.log('Opening week:', week.name);
   currentModule = mod;
   currentWeek = week;
   renderTree();
