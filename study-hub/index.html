@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792737433 -->
+<!-- cache-bust-1792739656 -->
+
 
 
 
@@ -326,6 +327,36 @@ function renderTree() {
     modDiv.appendChild(weeks);
     body.appendChild(modDiv);
   });
+}
+
+function toggleModule(modId) {
+  var mod = modules.find(function(m){return m.id===modId;});
+  if (!mod) return;
+  currentModule = mod;
+  currentWeek = null;
+
+  // Toggle weeks panel open/closed in tree
+  var weeksEl = document.getElementById('weeks-' + modId);
+  var isOpen = weeksEl && weeksEl.classList.contains('open');
+  document.querySelectorAll('.tree-weeks').forEach(function(el){el.classList.remove('open');});
+  document.querySelectorAll('.tree-module-hdr').forEach(function(el){el.classList.remove('active');});
+  if (!isOpen && weeksEl) {
+    weeksEl.classList.add('open');
+    var hdrEl = document.querySelector('#mod-' + modId + ' .tree-module-hdr');
+    if (hdrEl) hdrEl.classList.add('active');
+  }
+
+  // Show module overview in main area
+  document.getElementById('hub-title').textContent = mod.name;
+  document.getElementById('hub-subtitle').textContent = (mod.weeks||[]).length + ' weeks';
+
+  // Switch to overview tab
+  currentTab = 'overview';
+  document.querySelectorAll('.hub-tab').forEach(function(t){t.classList.remove('active');});
+  var ovTab = document.getElementById('tab-overview');
+  if (ovTab) ovTab.classList.add('active');
+
+  showModuleOverview(mod);
 }
 
 function showModuleOverview(mod) {
