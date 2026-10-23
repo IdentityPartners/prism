@@ -141,7 +141,18 @@ async function callProvider(env, provider, key, model, messages) {
 
   // Add web search tools for models that support it
   if (provider === 'mistral' && (model.includes('large') || model.includes('medium') || model.includes('magistral') || model.includes('glm'))) {
-    reqBody.tools = [{ type: 'web_search' }];
+    reqBody.tools = [{
+        type: 'function',
+        function: {
+          name: 'web_search',
+          description: 'Search the web for current information',
+          parameters: {
+            type: 'object',
+            properties: { query: { type: 'string', description: 'Search query' } },
+            required: ['query']
+          }
+        }
+      }];
   }
   if (provider === 'deepseek') {
     // DeepSeek has built-in web search, no tool needed
@@ -1674,7 +1685,18 @@ export default {
             if (streamProvider === 'mistral' && MISTRAL_KEY) {
               const reqBody = { model: streamModel, messages, stream: true, temperature: 0.7 };
               if (streamModel.includes('large') || streamModel.includes('medium')) {
-                reqBody.tools = [{ type: 'web_search' }];
+                reqBody.tools = [{
+        type: 'function',
+        function: {
+          name: 'web_search',
+          description: 'Search the web for current information',
+          parameters: {
+            type: 'object',
+            properties: { query: { type: 'string', description: 'Search query' } },
+            required: ['query']
+          }
+        }
+      }];
               }
               const resp = await fetch('https://api.mistral.ai/v1/chat/completions', {
                 method: 'POST',
