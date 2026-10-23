@@ -234,9 +234,11 @@ async function orchestrate(env, messages, profile = 'balanced') {
 
   } else {
     // Balanced (default): full chain in Simon's preferred order
-    // 1. Mistral Medium 3.5 — 416ms, reliable, web search, vision — MOST RELIABLE FIRST
+    // 1. GLM 5.3 via Mistral — FREE, 1M ctx, thinking+text, web search (confirmed working 492ms)
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',                          note: 'GLM 5.3 via Mistral (free)' });
+    // 2. Mistral Medium 3.5 — 416ms, reliable, web search, vision
     if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-medium-3.5',                   note: 'Mistral Medium 3.5' });
-    // 2. Mistral Large Latest — 573ms, reliable, web search, vision
+    // 3. Mistral Large Latest — 573ms, reliable, web search, vision
     if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-latest',                 note: 'Mistral Large Latest' });
     // 3. Llama 3.2 11B Vision NVIDIA — 256ms, confirmed working, vision capable
     if (KEYS.nvidia)     chain.push({ p: 'nvidia',     key: KEYS.nvidia,     m: 'meta/llama-3.2-11b-vision-instruct',   note: 'Llama 3.2 11B Vision NVIDIA' });
