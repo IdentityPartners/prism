@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792740211 -->
+<!-- cache-bust-1792741189 -->
+
 
 
 <meta charset="utf-8"/>
@@ -327,112 +328,209 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initTipTap() {
-  // Try Quill first (reliable CDN), fall back to contenteditable
   var container = document.getElementById('editor-container');
-  if (!container) { console.error('Editor container not found'); return; }
+  if (!container) { console.error('No editor-container'); return; }
 
-  if (typeof Quill !== 'undefined') {
-    initQuillEditor(container);
-  } else {
-    // Wait up to 3 seconds for Quill to load
-    var attempts = 0;
-    var checkQuill = setInterval(function() {
-      attempts++;
-      if (typeof Quill !== 'undefined') {
-        clearInterval(checkQuill);
-        initQuillEditor(container);
-      } else if (attempts > 15) {
-        clearInterval(checkQuill);
-        console.warn('Quill not loaded after 3s, using fallback');
-        initFallbackEditor(container);
-      }
-    }, 200);
+  // Try ProseMirror/TipTap first
+  if (typeof prosemirrorState !== 'undefined' && typeof prosemirrorView !== 'undefined') {
+    try {
+      initProseMirror(container);
+      return;
+    } catch(e) {
+      console.warn('ProseMirror failed:', e.message);
+    }
   }
+
+  // Quill fallback
+  if (typeof Quill !== 'undefined') {
+    try {
+      initQuillEditor(container);
+      return;
+    } catch(e) {
+      console.warn('Quill failed:', e.message);
+    }
+  }
+
+  // Wait for either to load (up to 4s)
+  var attempts = 0;
+  var check = setInterval(function() {
+    attempts++;
+    if (typeof prosemirrorState !== 'undefined' && typeof prosemirrorView !== 'undefined') {
+      clearInterval(check);
+      try { initProseMirror(container); } catch(e) { initQuillEditor(container); }
+    } else if (typeof Quill !== 'undefined') {
+      clearInterval(check);
+      try { initQuillEditor(container); } catch(e) { initFallbackEditor(container); }
+    } else if (attempts > 20) {
+      clearInterval(check);
+      initFallbackEditor(container);
+    }
+  }, 200);
 }
 
-function initQuillEditor(container) {
-  try {
-    // Remove Quill's default toolbar (we use our own)
-    var quill = new Quill(container, {
-      theme: 'snow',
-      placeholder: 'Start writing... or use the AI assistant on the right.',
-      modules: {
-        toolbar: false,
-        history: { delay: 1000, maxStack: 200 }
-      }
-    });
+function initProseMirror(container) {
+  // Build a ProseMirror editor (TipTap-compatible schema)
+  var schema = prosemirrorSchemaBasic.schema;
+  var plugins = [
+    prosemirrorHistory.history(),
+    prosemirrorKeymap.keymap(prosemirrorCommands.baseKeymap),
+    prosemirrorKeymap.keymap({
+      'Mod-z': prosemirrorHistory.undo,
+      'Mod-y': prosemirrorHistory.redo,
+      'Mod-b': prosemirrorCommands.toggleMark(schema.marks.strong),
+      'Mod-i': prosemirrorCommands.toggleMark(schema.marks.em),
+    }),
+    prosemirrorInputrules.inputRules({rules: prosemirrorInputrules.allInputRules}),
+  ];
 
-    // Style the editor
-    var qlEditor = container.querySelector('.ql-editor');
-    if (qlEditor) {
-      qlEditor.style.cssText = 'min-height:calc(100vh - 200px);padding:20px 0;font-size:17px;line-height:1.75;color:var(--fg);font-family:var(--font-ui,Inter,sans-serif);outline:none;';
-    }
-    var qlContainer = container.querySelector('.ql-container');
-    if (qlContainer) {
-      qlContainer.style.cssText = 'border:none;font-size:17px;';
-    }
+  var state = prosemirrorState.EditorState.create({
+    schema: schema,
+    plugins: plugins
+  });
 
-    // Create editor shim
-    editor = {
-      _quill: quill,
-      _type: 'quill',
-      chain: function() {
-        var q = quill;
-        return {
-          focus: function() { q.focus(); return this; },
-          toggleBold: function() { var f=q.getFormat(); q.format('bold',!f.bold); return this; },
-          toggleItalic: function() { var f=q.getFormat(); q.format('italic',!f.italic); return this; },
-          toggleStrike: function() { var f=q.getFormat(); q.format('strike',!f.strike); return this; },
-          toggleHighlight: function() { var f=q.getFormat(); q.format('background',f.background?false:'#ffff00'); return this; },
-          toggleBulletList: function() { var f=q.getFormat(); q.format('list',f.list==='bullet'?false:'bullet'); return this; },
-          toggleOrderedList: function() { var f=q.getFormat(); q.format('list',f.list==='ordered'?false:'ordered'); return this; },
-          toggleTaskList: function() { return this; },
-          toggleBlockquote: function() { var f=q.getFormat(); q.format('blockquote',!f.blockquote); return this; },
-          toggleCodeBlock: function() { var f=q.getFormat(); q.format('code-block',!f['code-block']); return this; },
-          setHorizontalRule: function() { var r=q.getSelection(true); q.insertText(r?r.index:q.getLength(),'\n---\n'); return this; },
-          undo: function() { q.history.undo(); return this; },
-          redo: function() { q.history.redo(); return this; },
-          setHeading: function(opts) { q.format('header',opts&&opts.level?opts.level:false); return this; },
-          setParagraph: function() { q.format('header',false); return this; },
-          insertContent: function(html) { var r=q.getSelection(true); q.clipboard.dangerouslyPasteHTML(r?r.index:q.getLength(),html); return this; },
-          setContent: function(html) { q.setContents([]); q.clipboard.dangerouslyPasteHTML(0,html); return this; },
-          run: function() {}
-        };
-      },
-      getText: function() { return quill.getText(); },
-      getHTML: function() { return quill.root.innerHTML; },
-      isActive: function(type, opts) {
-        var f = quill.getFormat();
-        if (type==='bold') return !!f.bold;
-        if (type==='italic') return !!f.italic;
-        if (type==='bulletList') return f.list==='bullet';
-        if (type==='orderedList') return f.list==='ordered';
-        if (type==='blockquote') return !!f.blockquote;
-        if (type==='heading'&&opts) return f.header===opts.level;
-        return false;
-      },
-      commands: {
-        focus: function() { quill.focus(); },
-        setContent: function(html) { quill.setContents([]); quill.clipboard.dangerouslyPasteHTML(0,html); }
-      }
-    };
-
-    quill.on('text-change', function() {
+  var view = new prosemirrorView.EditorView(container, {
+    state: state,
+    dispatchTransaction: function(tr) {
+      var newState = view.state.apply(tr);
+      view.updateState(newState);
       updateCounts();
       scheduleSave();
       updateToolbarState();
-    });
-    quill.on('selection-change', function() {
-      updateToolbarState();
-    });
+    }
+  });
 
-    // Load saved content
-    loadSavedDoc();
-    console.log('Quill editor ready');
-  } catch(e) {
-    console.error('Quill init failed:', e.message);
-    initFallbackEditor(container);
-  }
+  // Style the editor
+  container.querySelector('.ProseMirror').style.cssText = 'min-height:calc(100vh - 200px);padding:20px 0;font-size:17px;line-height:1.75;color:var(--fg);outline:none;';
+
+  editor = {
+    _view: view,
+    _type: 'prosemirror',
+    chain: function() {
+      var v = view;
+      var s = schema;
+      return {
+        focus: function() { v.focus(); return this; },
+        toggleBold: function() { prosemirrorCommands.toggleMark(s.marks.strong)(v.state, v.dispatch); return this; },
+        toggleItalic: function() { prosemirrorCommands.toggleMark(s.marks.em)(v.state, v.dispatch); return this; },
+        toggleStrike: function() { if(s.marks.strikethrough) prosemirrorCommands.toggleMark(s.marks.strikethrough)(v.state, v.dispatch); return this; },
+        toggleHighlight: function() { return this; },
+        toggleBulletList: function() { prosemirrorSchemaList.wrapInList(s.nodes.bullet_list)(v.state, v.dispatch); return this; },
+        toggleOrderedList: function() { prosemirrorSchemaList.wrapInList(s.nodes.ordered_list)(v.state, v.dispatch); return this; },
+        toggleTaskList: function() { return this; },
+        toggleBlockquote: function() { prosemirrorCommands.wrapIn(s.nodes.blockquote)(v.state, v.dispatch); return this; },
+        toggleCodeBlock: function() { prosemirrorCommands.setBlockType(s.nodes.code_block)(v.state, v.dispatch); return this; },
+        setHorizontalRule: function() { return this; },
+        undo: function() { prosemirrorHistory.undo(v.state, v.dispatch); return this; },
+        redo: function() { prosemirrorHistory.redo(v.state, v.dispatch); return this; },
+        setHeading: function(opts) {
+          var lvl = opts && opts.level ? opts.level : 1;
+          prosemirrorCommands.setBlockType(s.nodes.heading, {level: lvl})(v.state, v.dispatch);
+          return this;
+        },
+        setParagraph: function() { prosemirrorCommands.setBlockType(s.nodes.paragraph)(v.state, v.dispatch); return this; },
+        insertContent: function(html) {
+          var div = document.createElement('div');
+          div.innerHTML = html;
+          var slice = prosemirrorView.DOMParser.fromSchema(s).parseSlice(div);
+          var tr = v.state.tr.replaceSelection(slice);
+          v.dispatch(tr);
+          return this;
+        },
+        setContent: function(html) {
+          var div = document.createElement('div');
+          div.innerHTML = html;
+          var doc = prosemirrorView.DOMParser.fromSchema(s).parse(div);
+          v.updateState(prosemirrorState.EditorState.create({schema: s, doc: doc, plugins: v.state.plugins}));
+          return this;
+        },
+        run: function() {}
+      };
+    },
+    getText: function() {
+      var text = '';
+      view.state.doc.forEach(function(node) { text += node.textContent + '\n'; });
+      return text;
+    },
+    getHTML: function() {
+      var div = document.createElement('div');
+      div.appendChild(prosemirrorView.DOMSerializer.fromSchema(schema).serializeFragment(view.state.doc.content));
+      return div.innerHTML;
+    },
+    isActive: function(type) { return false; },
+    commands: {
+      focus: function() { view.focus(); },
+      setContent: function(html) {
+        var div = document.createElement('div');
+        div.innerHTML = html;
+        var doc = prosemirrorView.DOMParser.fromSchema(schema).parse(div);
+        view.updateState(prosemirrorState.EditorState.create({schema: schema, doc: doc, plugins: view.state.plugins}));
+      }
+    }
+  };
+
+  loadSavedDoc();
+  console.log('ProseMirror editor ready');
+}
+
+function initQuillEditor(container) {
+  var quill = new Quill(container, {
+    theme: 'snow',
+    placeholder: 'Start writing... or use the AI assistant.',
+    modules: { toolbar: false, history: { delay: 1000, maxStack: 200 } }
+  });
+
+  var qlEditor = container.querySelector('.ql-editor');
+  if (qlEditor) qlEditor.style.cssText = 'min-height:calc(100vh - 200px);padding:20px 0;font-size:17px;line-height:1.75;color:var(--fg);outline:none;';
+  var qlContainer = container.querySelector('.ql-container');
+  if (qlContainer) qlContainer.style.cssText = 'border:none;font-size:17px;';
+
+  editor = {
+    _quill: quill,
+    _type: 'quill',
+    chain: function() {
+      var q = quill;
+      return {
+        focus: function() { q.focus(); return this; },
+        toggleBold: function() { var f=q.getFormat(); q.format('bold',!f.bold); return this; },
+        toggleItalic: function() { var f=q.getFormat(); q.format('italic',!f.italic); return this; },
+        toggleStrike: function() { var f=q.getFormat(); q.format('strike',!f.strike); return this; },
+        toggleHighlight: function() { var f=q.getFormat(); q.format('background',f.background?false:'#ffff00'); return this; },
+        toggleBulletList: function() { var f=q.getFormat(); q.format('list',f.list==='bullet'?false:'bullet'); return this; },
+        toggleOrderedList: function() { var f=q.getFormat(); q.format('list',f.list==='ordered'?false:'ordered'); return this; },
+        toggleTaskList: function() { return this; },
+        toggleBlockquote: function() { var f=q.getFormat(); q.format('blockquote',!f.blockquote); return this; },
+        toggleCodeBlock: function() { var f=q.getFormat(); q.format('code-block',!f['code-block']); return this; },
+        setHorizontalRule: function() { var r=q.getSelection(true); q.insertText(r?r.index:q.getLength(),'\n---\n'); return this; },
+        undo: function() { q.history.undo(); return this; },
+        redo: function() { q.history.redo(); return this; },
+        setHeading: function(opts) { q.format('header',opts&&opts.level?opts.level:false); return this; },
+        setParagraph: function() { q.format('header',false); return this; },
+        insertContent: function(html) { var r=q.getSelection(true); q.clipboard.dangerouslyPasteHTML(r?r.index:q.getLength(),html); return this; },
+        setContent: function(html) { q.setContents([]); q.clipboard.dangerouslyPasteHTML(0,html); return this; },
+        run: function() {}
+      };
+    },
+    getText: function() { return quill.getText(); },
+    getHTML: function() { return quill.root.innerHTML; },
+    isActive: function(type, opts) {
+      var f = quill.getFormat();
+      if (type==='bold') return !!f.bold;
+      if (type==='italic') return !!f.italic;
+      if (type==='bulletList') return f.list==='bullet';
+      if (type==='orderedList') return f.list==='ordered';
+      if (type==='heading'&&opts) return f.header===opts.level;
+      return false;
+    },
+    commands: {
+      focus: function() { quill.focus(); },
+      setContent: function(html) { quill.setContents([]); quill.clipboard.dangerouslyPasteHTML(0,html); }
+    }
+  };
+
+  quill.on('text-change', function() { updateCounts(); scheduleSave(); updateToolbarState(); });
+  quill.on('selection-change', function() { updateToolbarState(); });
+  loadSavedDoc();
+  console.log('Quill editor ready (fallback)');
 }
 
 function initFallbackEditor(container) {
@@ -440,9 +538,7 @@ function initFallbackEditor(container) {
   if (!container) return;
   container.contentEditable = 'true';
   container.style.cssText = 'min-height:calc(100vh - 200px);padding:20px 0;font-size:17px;line-height:1.75;color:var(--fg);outline:none;';
-  container.setAttribute('data-placeholder', 'Start writing...');
   container.addEventListener('input', function() { updateCounts(); scheduleSave(); });
-
   editor = {
     _type: 'fallback',
     chain: function() {
@@ -475,9 +571,8 @@ function initFallbackEditor(container) {
       setContent: function(html) { container.innerHTML = html; }
     }
   };
-
   loadSavedDoc();
-  console.log('Fallback editor ready');
+  console.log('Fallback contenteditable editor ready');
 }
 
 function updateToolbarState() {
