@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792769108 -->
+<!-- cache-bust-1792777811 -->
+
 
 
 
@@ -183,6 +184,7 @@
 </div>
 <!-- Tabs -->
 <div class="hub-tabs">
+<div class="hub-tab" id="tab-overview" onclick="switchTab('overview',this)">&#x1F3E0; Overview</div>
 <div class="hub-tab active" onclick="switchTab('resources',this)">📋 Resources</div>
 <div class="hub-tab" onclick="switchTab('notes',this)">✍ My Notes</div>
 <div class="hub-tab" onclick="switchTab('search',this)">🔍 Search Results</div>
@@ -440,15 +442,15 @@ function showModuleOverview(mod) {
   // ── Card grid ─────────────────────────────────────────────────────────────
   var cardDefs = [
     { id:'weeks',    icon:'📅', label:'Weeks',          count:(mod.weeks||[]).length,          colour:'#2d6a9f', action:function(){showWeeksGrid(mod);} },
-    { id:'files',    icon:'📎', label:'Files',           count:countResources(mod,'pdf,ppt,docx'), colour:'#dc2626', action:function(){currentTab='upload';switchTab('upload');} },
-    { id:'notes',    icon:'✍️', label:'My Notes',        count:countNotes(mod),                 colour:'#7c3aed', action:function(){currentTab='notes';switchTab('notes');} },
-    { id:'sources',  icon:'📰', label:'Sources',         count:countResources(mod,'news,paper,link'), colour:'#f59e0b', action:function(){currentTab='resources';switchTab('resources');} },
-    { id:'themes',   icon:'🧠', label:'Themes',          count:0,                               colour:'#0f3b3a', action:function(){currentTab='concepts';switchTab('concepts');} },
+    { id:'files',    icon:'📎', label:'Files',           count:countResources(mod,'pdf,ppt,docx'), colour:'#dc2626', action:function(){currentTab='upload';var t=document.querySelector('.hub-tab[onclick*="upload"]');switchTab('upload',t);} },
+    { id:'notes',    icon:'✍️', label:'My Notes',        count:countNotes(mod),                 colour:'#7c3aed', action:function(){currentTab='notes';var t=document.querySelector('.hub-tab[onclick*="notes"]');switchTab('notes',t);} },
+    { id:'sources',  icon:'📰', label:'Sources',         count:countResources(mod,'news,paper,link'), colour:'#f59e0b', action:function(){currentTab='resources';var t=document.querySelector('.hub-tab[onclick*="resources"]');switchTab('resources',t);} },
+    { id:'themes',   icon:'🧠', label:'Themes',          count:0,                               colour:'#0f3b3a', action:function(){currentTab='concepts';var t=document.querySelector('.hub-tab[onclick*="concepts"]');switchTab('concepts',t);} },
     { id:'chats',    icon:'💬', label:'Chats',           count:0,                               colour:'#5c2d3f', action:function(){window.location.href='/chat/';} },
     { id:'audio',    icon:'🎧', label:'Audio',           count:countResources(mod,'audio'),     colour:'#16a34a', action:function(){window.location.href='/creator/podcasts/';} },
     { id:'agents',   icon:'🤖', label:'Agents',          count:0,                               colour:'#1a5550', action:function(){window.location.href='/agenti/agent-builder/';} },
     { id:'research', icon:'🔍', label:'Research Runs',   count:0,                               colour:'#2d6a9f', action:function(){window.location.href='/research/';} },
-    { id:'course',   icon:'🎓', label:'Course Material', count:countResources(mod,'ppt,reading,recommended'), colour:'#7a4254', action:function(){currentTab='resources';switchTab('resources');} },
+    { id:'course',   icon:'🎓', label:'Course Material', count:countResources(mod,'ppt,reading,recommended'), colour:'#7a4254', action:function(){currentTab='resources';var t=document.querySelector('.hub-tab[onclick*="resources"]');switchTab('resources',t);} },
   ];
 
   var grid = document.createElement('div');
@@ -622,8 +624,7 @@ function filterTree(q) {
 function switchTab(tab, btn) {
   currentTab = tab;
   document.querySelectorAll('.hub-tab').forEach(function(t){t.classList.remove('active');});
-  if (btn) btn.classList.add('active');
-  else {
+  if (btn) { btn.classList.add('active'); } else {
     document.querySelectorAll('.hub-tab').forEach(function(t){
       if (t.textContent.toLowerCase().includes(tab)) t.classList.add('active');
     });
