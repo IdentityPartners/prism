@@ -1,55 +1,65 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792766619181 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Drafting Desk &mdash; Argentica</title>
+<title>Drafting Desk — Argentica</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
-
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@iconify/iconify@3/dist/iconify.min.js"></script>
 <style>
-.draft-shell{display:flex;height:100vh;overflow:hidden;}
-.draft-main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
-.draft-toolbar{padding:6px 12px;border-bottom:1px solid var(--border);background:var(--bg-elevated);display:flex;align-items:center;gap:4px;flex-wrap:wrap;flex-shrink:0;}
-.tb{padding:5px 9px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:13px;background:var(--bg);color:var(--fg);font-family:inherit;transition:all 0.15s;min-width:28px;text-align:center;}
-.tb:hover{border-color:var(--accent);color:var(--accent);}
-.tb.on{background:var(--accent);color:#fff;border-color:var(--accent);}
-.tb-sep{width:1px;height:20px;background:var(--border);margin:0 3px;flex-shrink:0;}
-.tb-sel{padding:5px 7px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg);color:var(--fg);cursor:pointer;}
-.draft-body{flex:1;overflow:hidden;display:flex;}
-.draft-editor-wrap{flex:1;overflow-y:auto;padding:32px 60px;max-width:860px;margin:0 auto;width:100%;box-sizing:border-box;}
-.draft-editor{outline:none;font-size:17px;line-height:1.8;color:var(--fg);min-height:calc(100vh - 160px);font-family:var(--font-ui,Inter,sans-serif);}
-.draft-editor:empty::before{content:"Start writing6";color:var(--fg-muted);pointer-events:none;}
-.draft-editor h1{font-size:28px;font-weight:700;margin:20px 0 10px;font-family:var(--font-heading,Georgia,serif);}
-.draft-editor h2{font-size:22px;font-weight:700;margin:16px 0 8px;}
-.draft-editor h3{font-size:18px;font-weight:600;margin:12px 0 6px;}
-.draft-editor p{margin:0 0 10px;}
-.draft-editor ul,.draft-editor ol{padding-left:24px;margin:8px 0;}
-.draft-editor li{margin:4px 0;}
-.draft-editor blockquote{border-left:3px solid var(--accent);padding-left:14px;margin:10px 0;color:var(--fg-muted);font-style:italic;}
-.draft-editor code{background:var(--bg-sunken);padding:2px 5px;border-radius:3px;font-family:monospace;font-size:0.9em;}
-.draft-editor pre{background:var(--bg-sunken);padding:12px;border-radius:6px;overflow-x:auto;margin:10px 0;}
-.draft-editor table{border-collapse:collapse;width:100%;margin:10px 0;}
-.draft-editor td,.draft-editor th{border:1px solid var(--border);padding:6px 10px;}
-.draft-editor th{background:var(--bg-sunken);font-weight:600;}
-.draft-status{padding:4px 12px;border-top:1px solid var(--border);background:var(--bg-elevated);display:flex;gap:14px;font-size:12px;color:var(--fg-muted);flex-shrink:0;}
-.ai-panel{width:260px;flex-shrink:0;border-left:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-surface);overflow:hidden;transition:width 0.2s;}
-.ai-panel.closed{width:0;overflow:hidden;}
-.ai-panel-hdr{padding:9px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-.ai-panel-body{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:7px;}
-.ai-action{padding:7px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);font-family:inherit;text-align:left;transition:all 0.15s;}
-.ai-action:hover{border-color:var(--accent);color:var(--accent);}
-.ai-result{background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;padding:9px;font-size:12px;line-height:1.5;max-height:180px;overflow-y:auto;}
-.ai-input{width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:none;min-height:55px;background:var(--bg);color:var(--fg);box-sizing:border-box;}
-.ai-send{width:100%;padding:6px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;margin-top:4px;}
-.hw-panel{width:0;flex-shrink:0;border-left:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-surface);overflow:hidden;transition:width 0.2s;}
-.hw-panel.open{width:340px;}
-.hw-panel-hdr{padding:9px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-.hw-canvas-wrap{flex:1;overflow:hidden;position:relative;background:#fff;}
-.hw-canvas-wrap canvas{display:block;touch-action:none;cursor:crosshair;}
-.hw-toolbar{padding:6px 8px;border-top:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0;}
+.draft-shell { display:flex; height:100vh; overflow:hidden; flex-direction:column; }
+.draft-toolbar { padding:5px 10px; border-bottom:1px solid var(--border); background:var(--bg-elevated); display:flex; align-items:center; gap:3px; flex-wrap:wrap; flex-shrink:0; }
+.tb { padding:5px 9px; border:1px solid var(--border); border-radius:5px; cursor:pointer; font-size:13px; background:var(--bg); color:var(--fg); font-family:inherit; transition:all 0.15s; display:flex; align-items:center; gap:4px; }
+.tb:hover { border-color:var(--accent); color:var(--accent); }
+.tb.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.tb-sep { width:1px; height:22px; background:var(--border); margin:0 3px; flex-shrink:0; }
+.tb-sel { padding:5px 7px; border:1px solid var(--border); border-radius:5px; font-size:13px; background:var(--bg); color:var(--fg); cursor:pointer; }
+.draft-body { flex:1; overflow:hidden; display:flex; flex-direction:column; }
+
+/* View switcher */
+.view-tabs { display:flex; border-bottom:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; }
+.view-tab { padding:7px 16px; font-size:13px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; color:var(--fg-muted); }
+.view-tab.active { border-bottom-color:var(--accent); color:var(--accent); }
+
+/* Write view (full screen WriteHandy) */
+.write-view { flex:1; display:none; flex-direction:column; overflow:hidden; }
+.write-view.active { display:flex; }
+.write-toolbar { padding:6px 10px; border-bottom:1px solid var(--border); background:var(--bg-elevated); display:flex; gap:5px; flex-wrap:wrap; flex-shrink:0; }
+.write-canvas-wrap { flex:1; overflow:hidden; background:#fff; position:relative; }
+.write-canvas-wrap canvas { display:block; touch-action:none; }
+.write-status { padding:4px 12px; border-top:1px solid var(--border); background:var(--bg-elevated); font-size:12px; color:var(--fg-muted); flex-shrink:0; display:flex; gap:12px; align-items:center; }
+
+/* Type view (Quill) */
+.type-view { flex:1; display:none; flex-direction:column; overflow:hidden; }
+.type-view.active { display:flex; }
+.quill-wrap { flex:1; overflow:hidden; display:flex; flex-direction:column; }
+.ql-container { flex:1; overflow-y:auto; font-size:17px !important; font-family:var(--font-ui,Inter,sans-serif) !important; border:none !important; }
+.ql-editor { min-height:100%; padding:32px 60px !important; max-width:860px; margin:0 auto; color:var(--fg) !important; line-height:1.8 !important; }
+.ql-editor.ql-blank::before { color:var(--fg-muted) !important; font-style:italic; }
+.ql-toolbar { display:none !important; }
+.ql-editor h1 { font-size:28px; font-weight:700; font-family:var(--font-heading,Georgia,serif); }
+.ql-editor h2 { font-size:22px; font-weight:700; }
+.ql-editor h3 { font-size:18px; font-weight:600; }
+.ql-editor blockquote { border-left:3px solid var(--accent); padding-left:14px; color:var(--fg-muted); font-style:italic; }
+.ql-editor code { background:var(--bg-sunken); padding:2px 5px; border-radius:3px; font-family:monospace; }
+.ql-editor pre { background:var(--bg-sunken); padding:12px; border-radius:6px; }
+
+/* AI panel */
+.ai-panel { width:0; flex-shrink:0; border-left:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-surface); overflow:hidden; transition:width 0.2s; }
+.ai-panel.open { width:280px; }
+.ai-panel-hdr { padding:9px 12px; border-bottom:1px solid var(--border); font-size:13px; font-weight:600; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.ai-panel-body { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:6px; }
+.ai-action { padding:8px 10px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:13px; background:var(--bg); color:var(--fg); font-family:inherit; text-align:left; transition:all 0.15s; display:flex; align-items:center; gap:6px; }
+.ai-action:hover { border-color:var(--accent); color:var(--accent); }
+.ai-result { background:var(--bg-elevated); border:1px solid var(--border); border-radius:6px; padding:9px; font-size:13px; line-height:1.5; max-height:200px; overflow-y:auto; }
+.ai-input { width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit; resize:none; min-height:60px; background:var(--bg); color:var(--fg); box-sizing:border-box; }
+.ai-send { width:100%; padding:7px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-family:inherit; margin-top:5px; }
+
+.draft-status { padding:4px 12px; border-top:1px solid var(--border); background:var(--bg-elevated); display:flex; gap:14px; font-size:12px; color:var(--fg-muted); flex-shrink:0; }
 </style>
 </head>
 <body>
@@ -57,8 +67,10 @@
 <div id="sidebar-mount"></div>
 <div id="main-content">
 <div class="draft-shell">
-<div class="draft-main">
+
+  <!-- Main toolbar -->
   <div class="draft-toolbar">
+    <!-- Format (only shown in type view) -->
     <select class="tb-sel" id="fmt-sel" onchange="applyFormat(this.value)">
       <option value="p">Paragraph</option>
       <option value="h1">Heading 1</option>
@@ -66,66 +78,126 @@
       <option value="h3">Heading 3</option>
     </select>
     <div class="tb-sep"></div>
-    <button class="tb" onclick="cmd('bold')" title="Bold"><strong>B</strong></button>
-    <button class="tb" onclick="cmd('italic')" title="Italic"><em>I</em></button>
-    <button class="tb" onclick="cmd('strikeThrough')" title="Strikethrough"><s>S</s></button>
-    <button class="tb" onclick="cmd('hiliteColor','#ffff00')" title="Highlight">&#x1F7E1;</button>
+    <button class="tb" onclick="qcmd('bold')" title="Bold"><span class="iconify" data-icon="ph:text-b-bold" style="font-size:16px;"></span></button>
+    <button class="tb" onclick="qcmd('italic')" title="Italic"><span class="iconify" data-icon="ph:text-italic-bold" style="font-size:16px;"></span></button>
+    <button class="tb" onclick="qcmd('underline')" title="Underline"><span class="iconify" data-icon="ph:text-underline-bold" style="font-size:16px;"></span></button>
+    <button class="tb" onclick="qcmd('strike')" title="Strikethrough"><span class="iconify" data-icon="ph:text-strikethrough-bold" style="font-size:16px;"></span></button>
+    <button class="tb" onclick="qHighlight()" title="Highlight"><span class="iconify" data-icon="ph:highlighter-bold" style="font-size:16px;color:#f59e0b;"></span></button>
     <div class="tb-sep"></div>
-    <button class="tb" onclick="cmd('insertUnorderedList')" title="Bullet list">&#x2022;&#x2014;</button>
-    <button class="tb" onclick="cmd('insertOrderedList')" title="Numbered list">1.</button>
-    <button class="tb" onclick="wrapBlock('blockquote')" title="Blockquote">&ldquo;</button>
-    <button class="tb" onclick="cmd('insertHorizontalRule')" title="Divider">&mdash;</button>
+    <button class="tb" onclick="qcmd('list','bullet')" title="Bullet list"><span class="iconify" data-icon="ph:list-bullets-bold" style="font-size:16px;"></span></button>
+    <button class="tb" onclick="qcmd('list','ordered')" title="Numbered list"><span class="iconify" data-icon="ph:list-numbers-bold" style="font-size:16px;"></span></button>
+    <button class="tb" onclick="qcmd('blockquote',true)" title="Blockquote"><span class="iconify" data-icon="ph:quotes-bold" style="font-size:16px;"></span></button>
+    <button class="tb" onclick="qcmd('code-block',true)" title="Code block"><span class="iconify" data-icon="ph:code-bold" style="font-size:16px;"></span></button>
     <div class="tb-sep"></div>
-    <button class="tb" onclick="cmd('undo')" title="Undo">&#x21B6;</button>
-    <button class="tb" onclick="cmd('redo')" title="Redo">&#x21B7;</button>
+    <button class="tb" onclick="qUndo()" title="Undo"><span class="iconify" data-icon="ph:arrow-counter-clockwise-bold" style="font-size:16px;"></span></button>
+    <button class="tb" onclick="qRedo()" title="Redo"><span class="iconify" data-icon="ph:arrow-clockwise-bold" style="font-size:16px;"></span></button>
     <div class="tb-sep"></div>
-    <button class="tb" onclick="document.getElementById('file-attach').click()" title="Import file">&#x1F4CE; Import</button>
+    <button class="tb" onclick="document.getElementById('file-attach').click()" title="Import file"><span class="iconify" data-icon="ph:upload-simple-bold" style="font-size:16px;"></span> Import</button>
     <input type="file" id="file-attach" style="display:none" accept=".md,.txt,.csv" onchange="importFile(this)">
-    <button class="tb" onclick="exportDoc('md')" title="Export Markdown">&#x2B07; MD</button>
-    <button class="tb" onclick="exportDoc('html')" title="Export HTML">&#x2B07; HTML</button>
-    <button class="tb" onclick="exportDoc('txt')" title="Export text">&#x2B07; TXT</button>
+    <button class="tb" onclick="exportDoc('md')" title="Export Markdown"><span class="iconify" data-icon="ph:export-bold" style="font-size:16px;"></span> MD</button>
+    <button class="tb" onclick="exportDoc('html')" title="Export HTML"><span class="iconify" data-icon="ph:file-html-bold" style="font-size:16px;"></span> HTML</button>
+    <button class="tb" onclick="exportDoc('txt')" title="Export text"><span class="iconify" data-icon="ph:file-text-bold" style="font-size:16px;"></span> TXT</button>
     <div class="tb-sep"></div>
-    <button class="tb" onclick="toggleAI()" id="ai-btn" title="AI assistant">&#x2728; AI</button>
-    <button class="tb" onclick="toggleHW()" id="hw-btn" title="Handwriting panel">&#x2712; Write</button>
-    <button class="tb" onclick="dictate()" id="dictate-btn" title="Voice dictation">&#x1F3A4;</button>
+    <button class="tb" onclick="toggleAI()" id="ai-btn" title="AI assistant"><span class="iconify" data-icon="ph:sparkle-bold" style="font-size:16px;"></span> AI</button>
+    <button class="tb" onclick="dictate()" id="dictate-btn" title="Voice dictation"><span class="iconify" data-icon="ph:microphone-bold" style="font-size:16px;"></span></button>
     <div class="tb-sep"></div>
-    <input id="doc-title" type="text" placeholder="Document title&hellip;" style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:13px;font-weight:600;background:var(--bg);color:var(--fg);width:160px;" oninput="scheduleSave()">
+    <input id="doc-title" type="text" placeholder="Document title…" style="padding:5px 9px;border:1px solid var(--border);border-radius:5px;font-size:13px;font-weight:600;background:var(--bg);color:var(--fg);width:180px;" oninput="scheduleSave()">
   </div>
+
+  <!-- View tabs -->
+  <div class="view-tabs">
+    <div class="view-tab active" id="tab-type" onclick="switchView('type',this)">
+      <span class="iconify" data-icon="ph:keyboard-bold" style="font-size:14px;vertical-align:middle;margin-right:4px;"></span>Type
+    </div>
+    <div class="view-tab" id="tab-write" onclick="switchView('write',this)">
+      <span class="iconify" data-icon="ph:pen-nib-bold" style="font-size:14px;vertical-align:middle;margin-right:4px;"></span>Handwrite
+    </div>
+    <div class="view-tab" id="tab-split" onclick="switchView('split',this)">
+      <span class="iconify" data-icon="ph:columns-bold" style="font-size:14px;vertical-align:middle;margin-right:4px;"></span>Split
+    </div>
+  </div>
+
   <div class="draft-body">
-    <div class="draft-editor-wrap">
-      <div class="draft-editor" id="editor" contenteditable="true"
-           onkeyup="onEdit()" onmouseup="onEdit()" oninput="scheduleSave()"></div>
-    </div>
-    <div class="ai-panel closed" id="ai-panel">
-      <div class="ai-panel-hdr"><span>&#x2728; AI Assistant</span><button onclick="toggleAI()" style="background:none;border:none;cursor:pointer;color:var(--fg-muted);">&#x2715;</button></div>
-      <div class="ai-panel-body">
-        <button class="ai-action" onclick="aiDo('improve')">&#x270F; Improve writing</button>
-        <button class="ai-action" onclick="aiDo('expand')">&#x2B06; Expand selection</button>
-        <button class="ai-action" onclick="aiDo('summarise')">&#x2B07; Summarise</button>
-        <button class="ai-action" onclick="aiDo('academic')">&#x1F393; Academic tone</button>
-        <button class="ai-action" onclick="aiDo('citations')">&#x1F4DA; Suggest citations</button>
-        <button class="ai-action" onclick="aiDo('continue')">&#x27A1; Continue writing</button>
-        <div style="border-top:1px solid var(--border);margin:5px 0;padding-top:5px;">
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);margin-bottom:4px;">Custom</div>
-          <textarea class="ai-input" id="ai-custom" placeholder="Tell AI what to do with selected text&hellip;"></textarea>
-          <button class="ai-send" onclick="aiCustom()">Apply</button>
+
+    <!-- TYPE VIEW: Quill editor -->
+    <div class="type-view active" id="view-type">
+      <div style="display:flex;flex:1;overflow:hidden;">
+        <div class="quill-wrap" id="quill-wrap">
+          <div id="quill-editor"></div>
         </div>
-        <div id="ai-result" class="ai-result" style="display:none;"></div>
+        <!-- AI panel -->
+        <div class="ai-panel" id="ai-panel">
+          <div class="ai-panel-hdr">
+            <span><span class="iconify" data-icon="ph:sparkle-bold" style="font-size:14px;"></span> AI Assistant</span>
+            <button onclick="toggleAI()" style="background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:16px;">✕</button>
+          </div>
+          <div class="ai-panel-body">
+            <button class="ai-action" onclick="aiDo('improve')"><span class="iconify" data-icon="ph:pencil-simple-bold" style="font-size:14px;"></span> Improve writing</button>
+            <button class="ai-action" onclick="aiDo('expand')"><span class="iconify" data-icon="ph:arrows-out-bold" style="font-size:14px;"></span> Expand selection</button>
+            <button class="ai-action" onclick="aiDo('summarise')"><span class="iconify" data-icon="ph:arrows-in-bold" style="font-size:14px;"></span> Summarise</button>
+            <button class="ai-action" onclick="aiDo('academic')"><span class="iconify" data-icon="ph:graduation-cap-bold" style="font-size:14px;"></span> Academic tone</button>
+            <button class="ai-action" onclick="aiDo('citations')"><span class="iconify" data-icon="ph:books-bold" style="font-size:14px;"></span> Suggest citations</button>
+            <button class="ai-action" onclick="aiDo('continue')"><span class="iconify" data-icon="ph:arrow-right-bold" style="font-size:14px;"></span> Continue writing</button>
+            <div style="border-top:1px solid var(--border);margin:5px 0;padding-top:5px;">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);margin-bottom:4px;">Custom</div>
+              <textarea class="ai-input" id="ai-custom" placeholder="Tell AI what to do…"></textarea>
+              <button class="ai-send" onclick="aiCustom()">Apply</button>
+            </div>
+            <div id="ai-result" class="ai-result" style="display:none;"></div>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="hw-panel" id="hw-panel">
-      <div class="hw-panel-hdr"><span>&#x2712; Handwriting</span><button onclick="toggleHW()" style="background:none;border:none;cursor:pointer;color:var(--fg-muted);">&#x2715;</button></div>
-      <div class="hw-canvas-wrap" id="hw-wrap"><canvas id="hw-canvas"></canvas></div>
-      <div class="hw-toolbar">
-        <button class="tb on" id="hw-pen" onclick="hwTool('pen')">&#x2712; Pen</button>
-        <button class="tb" id="hw-hi" onclick="hwTool('hi')">&#x1F7E1; Hi</button>
-        <button class="tb" id="hw-erase" onclick="hwTool('erase')">&#x2B1C; Erase</button>
-        <input type="range" min="1" max="16" value="2" id="hw-size" style="width:60px;" oninput="hwSz=parseInt(this.value)">
-        <button class="tb" onclick="hwClear()">&#x1F5D1;</button>
-        <button class="tb" onclick="hwOCR()">OCR &#x2192; Text</button>
+
+    <!-- WRITE VIEW: Full-screen WriteHandy -->
+    <div class="write-view" id="view-write">
+      <div class="write-toolbar">
+        <button class="tb on" id="hw-pen" onclick="hwTool('pen')"><span class="iconify" data-icon="ph:pen-nib-bold" style="font-size:16px;"></span> Pen</button>
+        <button class="tb" id="hw-pencil" onclick="hwTool('pencil')"><span class="iconify" data-icon="ph:pencil-simple-bold" style="font-size:16px;"></span> Pencil</button>
+        <button class="tb" id="hw-marker" onclick="hwTool('marker')"><span class="iconify" data-icon="ph:marker-bold" style="font-size:16px;"></span> Marker</button>
+        <button class="tb" id="hw-hi" onclick="hwTool('hi')"><span class="iconify" data-icon="ph:highlighter-bold" style="font-size:16px;color:#f59e0b;"></span> Highlight</button>
+        <button class="tb" id="hw-erase" onclick="hwTool('erase')"><span class="iconify" data-icon="ph:eraser-bold" style="font-size:16px;"></span> Erase</button>
+        <div class="tb-sep"></div>
+        <div style="display:flex;gap:3px;">
+          <div onclick="hwColor('#1a2332')" style="width:22px;height:22px;border-radius:4px;background:#1a2332;cursor:pointer;border:2px solid transparent;" title="Black"></div>
+          <div onclick="hwColor('#dc2626')" style="width:22px;height:22px;border-radius:4px;background:#dc2626;cursor:pointer;border:2px solid transparent;" title="Red"></div>
+          <div onclick="hwColor('#2d6a9f')" style="width:22px;height:22px;border-radius:4px;background:#2d6a9f;cursor:pointer;border:2px solid transparent;" title="Blue"></div>
+          <div onclick="hwColor('#16a34a')" style="width:22px;height:22px;border-radius:4px;background:#16a34a;cursor:pointer;border:2px solid transparent;" title="Green"></div>
+          <div onclick="hwColor('#f59e0b')" style="width:22px;height:22px;border-radius:4px;background:#f59e0b;cursor:pointer;border:2px solid transparent;" title="Amber"></div>
+        </div>
+        <div class="tb-sep"></div>
+        <label style="font-size:12px;color:var(--fg-muted);">Size:</label>
+        <input type="range" min="1" max="20" value="2" id="hw-size" style="width:80px;" oninput="hwSz=parseInt(this.value)">
+        <div class="tb-sep"></div>
+        <button class="tb" onclick="hwUndo()"><span class="iconify" data-icon="ph:arrow-counter-clockwise-bold" style="font-size:16px;"></span> Undo</button>
+        <button class="tb" onclick="hwClear()"><span class="iconify" data-icon="ph:trash-bold" style="font-size:16px;"></span> Clear</button>
+        <button class="tb" onclick="hwOCR()"><span class="iconify" data-icon="ph:text-t-bold" style="font-size:16px;"></span> OCR → Text</button>
+        <button class="tb on" onclick="switchView('type')" style="margin-left:auto;"><span class="iconify" data-icon="ph:keyboard-bold" style="font-size:16px;"></span> Switch to Type</button>
+      </div>
+      <div class="write-canvas-wrap" id="hw-wrap">
+        <canvas id="hw-canvas"></canvas>
+      </div>
+      <div class="write-status">
+        <span id="hw-tool-label">Pen · 2px</span>
+        <span id="hw-stroke-count">0 strokes</span>
+        <span id="hw-ocr-status"></span>
       </div>
     </div>
+
+    <!-- SPLIT VIEW: Type left, Write right -->
+    <div class="write-view" id="view-split" style="flex-direction:row;">
+      <div style="flex:1;overflow:hidden;border-right:1px solid var(--border);display:flex;flex-direction:column;">
+        <div style="padding:5px 10px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);background:var(--bg-elevated);">Type</div>
+        <div id="quill-split" style="flex:1;overflow:hidden;"></div>
+      </div>
+      <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+        <div style="padding:5px 10px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);background:var(--bg-elevated);">Handwrite</div>
+        <div class="write-canvas-wrap" id="hw-wrap-split"><canvas id="hw-canvas-split"></canvas></div>
+      </div>
+    </div>
+
   </div>
+
   <div class="draft-status">
     <span id="word-count">0 words</span>
     <span id="char-count">0 chars</span>
@@ -133,13 +205,15 @@
   </div>
 </div>
 </div>
-</div>
-<script>
 
+<script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var quill = null;
 var saveTimer = null;
 var docId = 'draft-' + Date.now();
-var hwStrokes = [], hwCurrent = null, hwDrawing = false, hwToolName = 'pen', hwSz = 2;
+var hwStrokes = [], hwCurrent = null, hwDrawing = false;
+var hwToolName = 'pen', hwSz = 2, hwCol = '#1a2332';
+var currentView = 'type';
 
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
@@ -148,46 +222,93 @@ document.addEventListener('DOMContentLoaded', function() {
     mount.parentNode.insertBefore(sb, mount);
     mount.parentNode.removeChild(mount);
   }
+  initQuill();
   loadSaved();
-  document.getElementById('editor').focus();
 });
 
-function cmd(command, value) {
-  document.getElementById('editor').focus();
-  document.execCommand(command, false, value || null);
-  scheduleSave();
+// ── Quill init ────────────────────────────────────────────────────────────────
+function initQuill() {
+  if (typeof Quill === 'undefined') {
+    setTimeout(initQuill, 100);
+    return;
+  }
+  quill = new Quill('#quill-editor', {
+    theme: 'snow',
+    placeholder: 'Start writing… or switch to Handwrite mode above.',
+    modules: { toolbar: false, history: { delay: 1000, maxStack: 200 } }
+  });
+  var qlEditor = document.querySelector('#quill-editor .ql-editor');
+  if (qlEditor) qlEditor.style.cssText = 'min-height:calc(100vh - 200px);padding:32px 60px;font-size:17px;line-height:1.8;color:var(--fg);outline:none;';
+  var qlContainer = document.querySelector('#quill-editor .ql-container');
+  if (qlContainer) qlContainer.style.cssText = 'border:none;font-size:17px;flex:1;overflow-y:auto;';
+  quill.on('text-change', function() { updateCounts(); scheduleSave(); });
+  console.log('Quill ready');
 }
+
+function qcmd(format, value) {
+  if (!quill) return;
+  var current = quill.getFormat();
+  if (value === undefined) {
+    quill.format(format, !current[format]);
+  } else {
+    quill.format(format, current[format] === value ? false : value);
+  }
+}
+
+function qHighlight() {
+  if (!quill) return;
+  var f = quill.getFormat();
+  quill.format('background', f.background ? false : '#ffff00');
+}
+
+function qUndo() { if (quill) quill.history.undo(); }
+function qRedo() { if (quill) quill.history.redo(); }
 
 function applyFormat(tag) {
-  document.getElementById('editor').focus();
-  document.execCommand('formatBlock', false, tag === 'p' ? 'p' : tag);
-  scheduleSave();
+  if (!quill) return;
+  if (tag === 'p') quill.format('header', false);
+  else quill.format('header', parseInt(tag.replace('h','')));
 }
 
-function wrapBlock(tag) {
-  document.getElementById('editor').focus();
-  document.execCommand('formatBlock', false, tag);
-  scheduleSave();
+// ── View switching ────────────────────────────────────────────────────────────
+function switchView(view, btn) {
+  currentView = view;
+  document.querySelectorAll('.view-tab').forEach(function(t){t.classList.remove('active');});
+  if (btn) btn.classList.add('active');
+  else {
+    var tabEl = document.getElementById('tab-' + view);
+    if (tabEl) tabEl.classList.add('active');
+  }
+  document.getElementById('view-type').classList.toggle('active', view === 'type');
+  document.getElementById('view-write').classList.toggle('active', view === 'write');
+  document.getElementById('view-split').classList.toggle('active', view === 'split');
+  if (view === 'write' || view === 'split') {
+    setTimeout(initHWCanvas, 100);
+  }
+  if (view === 'type' && quill) {
+    setTimeout(function() { quill.focus(); }, 100);
+  }
 }
 
-function onEdit() {
-  var editor = document.getElementById('editor');
-  var text = editor.innerText || '';
+// ── Counts & save ─────────────────────────────────────────────────────────────
+function updateCounts() {
+  if (!quill) return;
+  var text = quill.getText() || '';
   var words = text.trim() ? text.trim().split(/\s+/).length : 0;
   document.getElementById('word-count').textContent = words + ' words';
   document.getElementById('char-count').textContent = text.length + ' chars';
 }
 
 function scheduleSave() {
-  onEdit();
   clearTimeout(saveTimer);
   document.getElementById('save-status').textContent = 'Unsaved';
   saveTimer = setTimeout(autoSave, 1500);
 }
 
 function autoSave() {
+  if (!quill) return;
   var title = document.getElementById('doc-title').value || 'Untitled';
-  var html = document.getElementById('editor').innerHTML;
+  var html = quill.root.innerHTML;
   try { localStorage.setItem('draft:' + docId, JSON.stringify({title:title,html:html,saved:new Date().toISOString()})); } catch(e) {}
   fetch(WORKER + '/api/notes/save', {
     method:'POST', headers:{'Content-Type':'application/json'},
@@ -202,9 +323,8 @@ function autoSave() {
 function loadSaved() {
   var params = new URLSearchParams(window.location.search);
   var q = params.get('q');
-  if (q) {
-    document.getElementById('editor').innerHTML = '<p>' + q.replace(/</g,'&lt;') + '</p>';
-    onEdit();
+  if (q && quill) {
+    setTimeout(function() { quill.setText(q); }, 300);
     return;
   }
   var keys = Object.keys(localStorage).filter(function(k){return k.startsWith('draft:');});
@@ -212,216 +332,284 @@ function loadSaved() {
   var latest = keys.sort().pop();
   try {
     var d = JSON.parse(localStorage.getItem(latest));
-    if (d && d.html) {
+    if (d && d.html && quill) {
       docId = latest.replace('draft:','');
       document.getElementById('doc-title').value = d.title || '';
-      document.getElementById('editor').innerHTML = d.html;
-      onEdit();
+      setTimeout(function() {
+        quill.root.innerHTML = d.html;
+        updateCounts();
+      }, 300);
     }
   } catch(e) {}
 }
 
+// ── Export / import ───────────────────────────────────────────────────────────
 function exportDoc(fmt) {
   var title = document.getElementById('doc-title').value || 'document';
-  var html = document.getElementById('editor').innerHTML;
-  var text = document.getElementById('editor').innerText || '';
+  var html = quill ? quill.root.innerHTML : '';
+  var text = quill ? quill.getText() : '';
   var content, mime, ext;
   if (fmt === 'md') {
     content = html
-      .replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '# $1\n\n')
-      .replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '## $1\n\n')
-      .replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '### $1\n\n')
-      .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**')
-      .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '*$1*')
-      .replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '- $1\n')
-      .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1\n\n')
-      .replace(/<[^>]+>/g, '')
+      .replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi,'# $1\n\n')
+      .replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi,'## $1\n\n')
+      .replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi,'### $1\n\n')
+      .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi,'**$1**')
+      .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi,'*$1*')
+      .replace(/<li[^>]*>([\s\S]*?)<\/li>/gi,'- $1\n')
+      .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi,'$1\n\n')
+      .replace(/<[^>]+>/g,'')
       .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ');
-    mime = 'text/markdown'; ext = '.md';
+    mime='text/markdown'; ext='.md';
   } else if (fmt === 'html') {
-    content = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + title + '</title><style>body{font-family:Georgia,serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.7;font-size:17px;}</style></head><body>' + html + '</body></html>';
-    mime = 'text/html'; ext = '.html';
+    content='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+title+'</title><style>body{font-family:Georgia,serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.7;font-size:17px;}</style></head><body>'+html+'</body></html>';
+    mime='text/html'; ext='.html';
   } else {
-    content = text; mime = 'text/plain'; ext = '.txt';
+    content=text; mime='text/plain'; ext='.txt';
   }
-  var blob = new Blob([content],{type:mime});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = title + ext;
+  var blob=new Blob([content],{type:mime});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=title+ext;
   a.click();
 }
 
 function importFile(input) {
-  var file = input.files[0];
-  if (!file) return;
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    var text = e.target.result;
-    var html = text
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/^# (.+)$/gm,'<h1>$1</h1>')
-      .replace(/^## (.+)$/gm,'<h2>$1</h2>')
-      .replace(/^### (.+)$/gm,'<h3>$1</h3>')
-      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g,'<em>$1</em>')
-      .replace(/\n\n/g,'</p><p>')
-      .replace(/\n/g,'<br>');
-    document.getElementById('editor').innerHTML = '<p>' + html + '</p>';
-    document.getElementById('doc-title').value = file.name.replace(/\.[^.]+$/,'');
-    onEdit(); scheduleSave();
+  var file=input.files[0];
+  if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var text=e.target.result;
+    if(quill) {
+      quill.root.innerHTML='<p>'+text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>')+'</p>';
+      document.getElementById('doc-title').value=file.name.replace(/\.[^.]+$/,'');
+      updateCounts(); scheduleSave();
+    }
   };
   reader.readAsText(file);
-  input.value = '';
+  input.value='';
 }
 
+// ── AI ────────────────────────────────────────────────────────────────────────
 function getSelOrAll() {
-  var sel = window.getSelection();
-  if (sel && sel.toString().trim()) return sel.toString().trim();
-  return (document.getElementById('editor').innerText || '').substring(0,2000);
+  if (quill) {
+    var range=quill.getSelection();
+    if(range&&range.length>0) return quill.getText(range.index,range.length);
+    return quill.getText().substring(0,2000);
+  }
+  return '';
 }
 
 function aiDo(type) {
-  var text = getSelOrAll();
-  var prompts = {
-    improve: 'Improve the writing quality. Keep the same meaning. British English. Return only the improved text:\n\n',
-    expand: 'Expand with more detail. British English. Return only the expanded text:\n\n',
-    summarise: 'Summarise concisely. British English. Return only the summary:\n\n',
-    academic: 'Rewrite in formal academic tone for sociology. British English. Return only the rewritten text:\n\n',
-    citations: 'Suggest 3-5 academic citations that support this. Format: Author (Year). Title. Journal. Return only the list:\n\n',
-    continue: 'Continue writing from where this ends. Match the style. British English. Return only the continuation:\n\n'
+  var text=getSelOrAll();
+  var prompts={
+    improve:'Improve the writing quality. Keep the same meaning. British English. Return only the improved text:\n\n',
+    expand:'Expand with more detail. British English. Return only the expanded text:\n\n',
+    summarise:'Summarise concisely. British English. Return only the summary:\n\n',
+    academic:'Rewrite in formal academic tone for sociology. British English. Return only the rewritten text:\n\n',
+    citations:'Suggest 3-5 academic citations. Format: Author (Year). Title. Journal. Return only the list:\n\n',
+    continue:'Continue writing from where this ends. Match the style. British English. Return only the continuation:\n\n'
   };
-  runAI((prompts[type]||'') + text);
+  runAI((prompts[type]||'')+text);
 }
 
 function aiCustom() {
-  var instruction = document.getElementById('ai-custom').value.trim();
-  var text = getSelOrAll();
-  if (!instruction) return;
-  runAI(instruction + '\n\nText:\n\n' + text);
+  var instruction=document.getElementById('ai-custom').value.trim();
+  var text=getSelOrAll();
+  if(!instruction) return;
+  runAI(instruction+'\n\nText:\n\n'+text);
 }
 
 function runAI(prompt) {
-  var resultEl = document.getElementById('ai-result');
-  resultEl.style.display = 'block';
-  resultEl.textContent = 'Working...';
-  fetch(WORKER + '/api/chat', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({messages:[{role:'user',content:prompt}],profile:'balanced'})
-  })
+  var resultEl=document.getElementById('ai-result');
+  resultEl.style.display='block';
+  resultEl.textContent='Working…';
+  fetch(WORKER+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'user',content:prompt}],profile:'balanced'})})
   .then(function(r){return r.json();})
   .then(function(d){
-    var result = d.content || 'No response.';
-    resultEl.textContent = result;
-    var insertBtn = document.createElement('button');
-    insertBtn.textContent = 'Insert into document';
-    insertBtn.style.cssText = 'display:block;width:100%;margin-top:6px;padding:5px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;';
-    insertBtn.onclick = function() {
-      document.getElementById('editor').focus();
-      document.execCommand('insertHTML', false, '<p>' + result.replace(/\n/g,'<br>') + '</p>');
-      resultEl.style.display = 'none';
+    var result=d.content||'No response.';
+    resultEl.textContent=result;
+    var btn=document.createElement('button');
+    btn.textContent='Insert into document';
+    btn.style.cssText='display:block;width:100%;margin-top:6px;padding:6px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12px;';
+    btn.onclick=function(){
+      if(quill){var range=quill.getSelection(true);quill.insertText(range.index,result+'\n');}
+      resultEl.style.display='none';
       scheduleSave();
     };
-    resultEl.appendChild(insertBtn);
+    resultEl.appendChild(btn);
   })
-  .catch(function(e){ resultEl.textContent = 'Error: ' + e.message; });
+  .catch(function(e){resultEl.textContent='Error: '+e.message;});
 }
 
 function toggleAI() {
-  var panel = document.getElementById('ai-panel');
-  panel.classList.toggle('closed');
-  document.getElementById('ai-btn').classList.toggle('on', !panel.classList.contains('closed'));
-}
-
-function toggleHW() {
-  var panel = document.getElementById('hw-panel');
+  var panel=document.getElementById('ai-panel');
   panel.classList.toggle('open');
-  document.getElementById('hw-btn').classList.toggle('on', panel.classList.contains('open'));
-  if (panel.classList.contains('open')) initHWCanvas();
+  document.getElementById('ai-btn').classList.toggle('on',panel.classList.contains('open'));
 }
 
+// ── Dictation ─────────────────────────────────────────────────────────────────
+function dictate() {
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){alert('Speech recognition not supported.');return;}
+  var rec=new SR();
+  rec.lang='en-GB';
+  rec.onresult=function(e){
+    if(quill){var range=quill.getSelection(true);quill.insertText(range.index,e.results[0][0].transcript+' ');}
+    scheduleSave();
+  };
+  rec.start();
+  var btn=document.getElementById('dictate-btn');
+  btn.innerHTML='<span style="color:#dc2626;">&#x1F534;</span>';
+  rec.onend=function(){btn.innerHTML='<span class="iconify" data-icon="ph:microphone-bold" style="font-size:16px;"></span>';};
+}
+
+// ── Handwriting ───────────────────────────────────────────────────────────────
 function initHWCanvas() {
-  var wrap = document.getElementById('hw-wrap');
-  var canvas = document.getElementById('hw-canvas');
-  canvas.width = wrap.clientWidth || 320;
-  canvas.height = wrap.clientHeight || 400;
-  canvas.style.width = canvas.width + 'px';
-  canvas.style.height = canvas.height + 'px';
-  canvas.removeEventListener('pointerdown', hwStart);
-  canvas.removeEventListener('pointermove', hwMove);
-  canvas.removeEventListener('pointerup', hwEnd);
-  canvas.addEventListener('pointerdown', hwStart);
-  canvas.addEventListener('pointermove', hwMove);
-  canvas.addEventListener('pointerup', hwEnd);
-  canvas.addEventListener('pointercancel', hwEnd);
+  var canvasId = currentView === 'split' ? 'hw-canvas-split' : 'hw-canvas';
+  var wrapId = currentView === 'split' ? 'hw-wrap-split' : 'hw-wrap';
+  var wrap=document.getElementById(wrapId);
+  var canvas=document.getElementById(canvasId);
+  if(!wrap||!canvas) return;
+  var dpr=window.devicePixelRatio||1;
+  canvas.width=Math.floor(wrap.clientWidth*dpr);
+  canvas.height=Math.floor(wrap.clientHeight*dpr);
+  canvas.style.width=wrap.clientWidth+'px';
+  canvas.style.height=wrap.clientHeight+'px';
+  canvas._dpr=dpr;
+  canvas.removeEventListener('pointerdown',hwStart);
+  canvas.removeEventListener('pointermove',hwMove);
+  canvas.removeEventListener('pointerup',hwEnd);
+  canvas.addEventListener('pointerdown',hwStart);
+  canvas.addEventListener('pointermove',hwMove);
+  canvas.addEventListener('pointerup',hwEnd);
+  canvas.addEventListener('pointercancel',hwEnd);
+  hwRedraw();
 }
 
 function hwPos(e) {
-  var c = document.getElementById('hw-canvas');
-  var r = c.getBoundingClientRect();
-  return {x:e.clientX-r.left, y:e.clientY-r.top};
+  var canvasId = currentView === 'split' ? 'hw-canvas-split' : 'hw-canvas';
+  var c=document.getElementById(canvasId);
+  var r=c.getBoundingClientRect();
+  var dpr=c._dpr||1;
+  return {x:(e.clientX-r.left)*dpr,y:(e.clientY-r.top)*dpr,pressure:e.pressure||0.5};
 }
-function hwStart(e) { e.preventDefault(); hwDrawing=true; hwCurrent={tool:hwToolName,sz:hwSz,pts:[hwPos(e)]}; }
-function hwMove(e) { if(!hwDrawing||!hwCurrent) return; e.preventDefault(); hwCurrent.pts.push(hwPos(e)); hwDraw(hwCurrent,true); }
-function hwEnd(e) { if(!hwDrawing||!hwCurrent) return; hwDrawing=false; if(hwCurrent.pts.length>1) hwStrokes.push(hwCurrent); hwCurrent=null; }
 
-function hwDraw(stroke, inc) {
-  var c = document.getElementById('hw-canvas');
-  var ctx = c.getContext('2d');
-  if (!inc) ctx.clearRect(0,0,c.width,c.height);
-  if (!stroke.pts||stroke.pts.length<2) return;
+function hwStart(e){e.preventDefault();hwDrawing=true;hwCurrent={tool:hwToolName,col:hwCol,sz:hwSz,pts:[hwPos(e)]};}
+function hwMove(e){if(!hwDrawing||!hwCurrent)return;e.preventDefault();hwCurrent.pts.push(hwPos(e));hwDrawStroke(hwCurrent,true);}
+function hwEnd(e){
+  if(!hwDrawing||!hwCurrent)return;
+  hwDrawing=false;
+  if(hwCurrent.pts.length>1){hwStrokes.push(hwCurrent);}
+  hwCurrent=null;
+  var sc=document.getElementById('hw-stroke-count');
+  if(sc) sc.textContent=hwStrokes.length+' strokes';
+}
+
+function hwDrawStroke(stroke,inc) {
+  var canvasId = currentView === 'split' ? 'hw-canvas-split' : 'hw-canvas';
+  var c=document.getElementById(canvasId);
+  if(!c) return;
+  var ctx=c.getContext('2d');
+  if(!inc) ctx.clearRect(0,0,c.width,c.height);
+  if(!stroke.pts||stroke.pts.length<2) return;
   ctx.save();
-  if (stroke.tool==='erase') { ctx.globalCompositeOperation='destination-out'; ctx.strokeStyle='rgba(0,0,0,1)'; ctx.lineWidth=stroke.sz*4; }
-  else if (stroke.tool==='hi') { ctx.strokeStyle='rgba(255,220,0,0.4)'; ctx.lineWidth=stroke.sz*6; ctx.lineCap='square'; }
-  else { ctx.strokeStyle='#1a2332'; ctx.lineWidth=stroke.sz; ctx.lineCap='round'; ctx.lineJoin='round'; }
+  var toolProps={
+    pen:{lw:stroke.sz,alpha:1,cap:'round',join:'round'},
+    pencil:{lw:stroke.sz*0.8,alpha:0.7,cap:'round',join:'round'},
+    marker:{lw:stroke.sz*4,alpha:0.9,cap:'square',join:'miter'},
+    hi:{lw:stroke.sz*8,alpha:0.3,cap:'square',join:'miter'},
+    erase:{lw:stroke.sz*5,alpha:1,cap:'round',join:'round'}
+  };
+  var tp=toolProps[stroke.tool]||toolProps.pen;
+  if(stroke.tool==='erase'){ctx.globalCompositeOperation='destination-out';ctx.strokeStyle='rgba(0,0,0,1)';}
+  else{ctx.globalCompositeOperation='source-over';ctx.strokeStyle=stroke.col;ctx.globalAlpha=tp.alpha;}
+  ctx.lineWidth=tp.lw;
+  ctx.lineCap=tp.cap;
+  ctx.lineJoin=tp.join;
   ctx.beginPath();
   ctx.moveTo(stroke.pts[0].x,stroke.pts[0].y);
-  for(var i=1;i<stroke.pts.length;i++) ctx.lineTo(stroke.pts[i].x,stroke.pts[i].y);
+  for(var i=1;i<stroke.pts.length;i++){
+    if(i<stroke.pts.length-1){
+      var mx=(stroke.pts[i].x+stroke.pts[i+1].x)/2;
+      var my=(stroke.pts[i].y+stroke.pts[i+1].y)/2;
+      ctx.quadraticCurveTo(stroke.pts[i].x,stroke.pts[i].y,mx,my);
+    } else {ctx.lineTo(stroke.pts[i].x,stroke.pts[i].y);}
+  }
   ctx.stroke();
   ctx.restore();
 }
 
+function hwRedraw() {
+  var canvasId = currentView === 'split' ? 'hw-canvas-split' : 'hw-canvas';
+  var c=document.getElementById(canvasId);
+  if(!c) return;
+  var ctx=c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  hwStrokes.forEach(function(s){hwDrawStroke(s,false);});
+}
+
 function hwTool(t) {
   hwToolName=t;
-  ['pen','hi','erase'].forEach(function(n){
+  ['pen','pencil','marker','hi','erase'].forEach(function(n){
     var b=document.getElementById('hw-'+n);
     if(b) b.classList.toggle('on',n===t);
   });
+  var lbl=document.getElementById('hw-tool-label');
+  if(lbl) lbl.textContent=t.charAt(0).toUpperCase()+t.slice(1)+' · '+hwSz+'px';
 }
 
-function hwClear() { hwStrokes=[]; var c=document.getElementById('hw-canvas'); c.getContext('2d').clearRect(0,0,c.width,c.height); }
+function hwColor(col) {
+  hwCol=col;
+  document.querySelectorAll('.write-toolbar div[onclick^="hwColor"]').forEach(function(el){
+    el.style.borderColor=el.style.background===col?'var(--fg)':'transparent';
+  });
+}
+
+function hwUndo() {
+  if(hwStrokes.length===0) return;
+  hwStrokes.pop();
+  hwRedraw();
+  var sc=document.getElementById('hw-stroke-count');
+  if(sc) sc.textContent=hwStrokes.length+' strokes';
+}
+
+function hwClear() {
+  if(!confirm('Clear all handwriting?')) return;
+  hwStrokes=[];
+  hwRedraw();
+  var sc=document.getElementById('hw-stroke-count');
+  if(sc) sc.textContent='0 strokes';
+}
 
 function hwOCR() {
-  var c = document.getElementById('hw-canvas');
-  var b64 = c.toDataURL('image/png').split(',')[1];
+  var canvasId = currentView === 'split' ? 'hw-canvas-split' : 'hw-canvas';
+  var c=document.getElementById(canvasId);
+  if(!c) return;
+  var ocrCanvas=document.createElement('canvas');
+  var dpr=c._dpr||1;
+  ocrCanvas.width=Math.floor(c.width/dpr);
+  ocrCanvas.height=Math.floor(c.height/dpr);
+  ocrCanvas.getContext('2d').drawImage(c,0,0,ocrCanvas.width,ocrCanvas.height);
+  var b64=ocrCanvas.toDataURL('image/png').split(',')[1];
+  var status=document.getElementById('hw-ocr-status');
+  if(status) status.textContent='Running OCR…';
   fetch(WORKER+'/api/ocr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:b64,mime_type:'image/png'})})
   .then(function(r){return r.json();})
   .then(function(d){
-    var text = d.text||d.content||'';
-    if (text) {
-      document.getElementById('editor').focus();
-      document.execCommand('insertHTML',false,'<p>'+text.replace(/\n/g,'<br>')+'</p>');
+    var text=d.text||d.content||'';
+    if(status) status.textContent=text?'OCR done':'No text detected';
+    if(text&&quill){
+      var range=quill.getSelection(true);
+      quill.insertText(range.index,text+'\n');
       scheduleSave();
-    } else { alert('No text detected.'); }
+      if(currentView==='split'||currentView==='write') switchView('type');
+    } else if(text) {
+      alert('OCR result: '+text+'\n\nSwitch to Type view to insert.');
+    }
   })
-  .catch(function(e){alert('OCR error: '+e.message);});
+  .catch(function(e){if(status) status.textContent='OCR error: '+e.message;});
 }
-
-function dictate() {
-  var SR = window.SpeechRecognition||window.webkitSpeechRecognition;
-  if (!SR) { alert('Speech recognition not supported.'); return; }
-  var rec = new SR();
-  rec.lang = 'en-GB';
-  rec.onresult = function(e) {
-    document.getElementById('editor').focus();
-    document.execCommand('insertText',false,e.results[0][0].transcript+' ');
-    scheduleSave();
-  };
-  rec.start();
-  var btn = document.getElementById('dictate-btn');
-  btn.innerHTML = '&#x1F534;';
-  rec.onend = function() { btn.innerHTML = '&#x1F3A4;'; };
-}
-
 </script>
 </body>
 </html>
