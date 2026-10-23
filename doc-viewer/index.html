@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792758196 -->
+<!-- cache-bust-1792766619181 -->
+
 
 
 
@@ -412,37 +413,85 @@ function setPdfZoom(pct) {
 function renderDOCX(doc) {
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane';
-
-  if (typeof mammoth === 'undefined') {
-    pane.innerHTML = '<div class="doc-content"><p style="color:var(--fg-muted);">Loading DOCX renderer...</p></div>';
-    var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js';
-    script.onload = function() { renderDOCX(doc); };
-    document.head.appendChild(script);
+  pane.innerHTML = '';
+  var content = doc.content || '';
+  var isBinary = content.length > 50 && content.split('').filter(function(c) {
+    var code = c.charCodeAt(0);
+    return code < 32 && code !== 10 && code !== 13 && code !== 9;
+  }).length > content.length * 0.05;
+  if (isBinary || content.startsWith('PK')) {
+    showOfficeViewerOptions(doc, 'DOCX / Word Document');
     return;
   }
-
-  if (doc.content && doc.content.startsWith('data:')) {
-    var b64 = doc.content.split(',')[1];
-    var binary = atob(b64);
-    var bytes = new Uint8Array(binary.length);
-    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    mammoth.convertToHtml({arrayBuffer: bytes.buffer}).then(function(result) {
-      pane.innerHTML = '<div class="doc-content">' + result.value + '</div>';
-      setupAnnotationLayer();
-    }).catch(function(e) {
-      pane.innerHTML = '<div class="doc-content"><p style="color:#dc2626;">DOCX error: ' + e.message + '</p></div>';
-    });
-  } else if (doc.content) {
-    // Plain text fallback
-    pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;">' + doc.content.replace(/</g,'&lt;') + '</pre></div>';
-    setupAnnotationLayer();
-  } else {
-    pane.innerHTML = '<div class="doc-content"><p style="color:var(--fg-muted);">No content available. Upload the file to view it.</p></div>';
+  if (content.startsWith('data:')) {
+    var doMammoth = function() {
+      try {
+        var b64 = content.split(',')[1];
+        var binary = atob(b64);
+        var bytes = new Uint8Array(binary.length);
+        for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        mammoth.convertToHtml({arrayBuffer: bytes.buffer}).then(function(result) {
+          pane.innerHTML = '<div class="doc-content">' + result.value + '</div>';
+          setupAnnotationLayer();
+        }).catch(function() { showOfficeViewerOptions(doc, 'DOCX'); });
+      } catch(e) { showOfficeViewerOptions(doc, 'DOCX'); }
+    };
+    if (typeof mammoth !== 'undefined') { doMammoth(); }
+    else {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js';
+      s.onload = doMammoth;
+      s.onerror = function() { showOfficeViewerOptions(doc, 'DOCX'); };
+      document.head.appendChild(s);
+    }
+    return;
   }
+  if (content.trim()) {
+    pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;font-size:15px;line-height:1.7;">' + content.substring(0,20000).replace(/</g,'&lt;') + '</pre></div>';
+    setupAnnotationLayer();
+  } else { showOfficeViewerOptions(doc, 'DOCX'); }
 }
 
-// ── PPT rendering ─────────────────────────────────────────────────────────────
+function showOfficeViewerOptions(doc, label) {
+  var pane = document.getElementById('doc-pane');
+  pane.innerHTML = '';
+  var wrap = document.createElement('div');
+  wrap.className = 'doc-content';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:10px;padding:16px;margin-bottom:16px;';
+  var titleEl = document.createElement('div');
+  titleEl.style.cssText = 'font-size:16px;font-weight:700;margin-bottom:6px;';
+  titleEl.textContent = (doc.name || label);
+  var descEl = document.createElement('div');
+  descEl.style.cssText = 'font-size:13px;color:var(--fg-muted);margin-bottom:12px;';
+  descEl.textContent = 'This file format requires an external viewer:';
+  var btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;';
+  if (doc.url) {
+    var gdBtn = document.createElement('button');
+    gdBtn.textContent = 'Google Docs Viewer';
+    gdBtn.style.cssText = 'padding:8px 14px;background:#4285f4;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;';
+    gdBtn.onclick = (function(u) { return function() { loadInFrame('https://docs.google.com/viewer?url=' + encodeURIComponent(u) + '&embedded=true'); }; })(doc.url);
+    btnRow.appendChild(gdBtn);
+    var offBtn = document.createElement('button');
+    offBtn.textContent = 'Office Online';
+    offBtn.style.cssText = 'padding:8px 14px;background:#d83b01;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;';
+    offBtn.onclick = (function(u) { return function() { loadInFrame('https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(u)); }; })(doc.url);
+    btnRow.appendChild(offBtn);
+    var directLink = document.createElement('a');
+    directLink.href = doc.url;
+    directLink.target = '_blank';
+    directLink.textContent = 'Open in new tab';
+    directLink.style.cssText = 'padding:8px 14px;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:13px;display:inline-block;';
+    btnRow.appendChild(directLink);
+  }
+  card.appendChild(titleEl);
+  card.appendChild(descEl);
+  card.appendChild(btnRow);
+  wrap.appendChild(card);
+  pane.appendChild(wrap);
+}
+
 
 function renderPPT(doc) {
   var pane = document.getElementById('doc-pane');
