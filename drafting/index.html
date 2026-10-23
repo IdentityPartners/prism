@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792741189 -->
+<!-- cache-bust-1792748492 -->
+
 
 
 
@@ -331,36 +332,19 @@ function initTipTap() {
   var container = document.getElementById('editor-container');
   if (!container) { console.error('No editor-container'); return; }
 
-  // Try ProseMirror/TipTap first
-  if (typeof prosemirrorState !== 'undefined' && typeof prosemirrorView !== 'undefined') {
-    try {
-      initProseMirror(container);
-      return;
-    } catch(e) {
-      console.warn('ProseMirror failed:', e.message);
-    }
-  }
-
-  // Quill fallback
+  // Use Quill directly — ProseMirror UMD bundles don't expose globals reliably
   if (typeof Quill !== 'undefined') {
-    try {
-      initQuillEditor(container);
-      return;
-    } catch(e) {
-      console.warn('Quill failed:', e.message);
-    }
+    initQuillEditor(container);
+    return;
   }
 
-  // Wait for either to load (up to 4s)
+  // Wait for Quill to load (up to 4s)
   var attempts = 0;
   var check = setInterval(function() {
     attempts++;
-    if (typeof prosemirrorState !== 'undefined' && typeof prosemirrorView !== 'undefined') {
+    if (typeof Quill !== 'undefined') {
       clearInterval(check);
-      try { initProseMirror(container); } catch(e) { initQuillEditor(container); }
-    } else if (typeof Quill !== 'undefined') {
-      clearInterval(check);
-      try { initQuillEditor(container); } catch(e) { initFallbackEditor(container); }
+      initQuillEditor(container);
     } else if (attempts > 20) {
       clearInterval(check);
       initFallbackEditor(container);
