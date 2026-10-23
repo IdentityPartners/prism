@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<!-- cache-bust-1792741433 -->
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Document Viewer — Argentica</title>
+<link href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E" rel="icon" type="image/svg+xml"/>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+<!-- PDF.js for PDF rendering -->
+<script id="pdfjs-script" src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs" type="module"></script>
+<!-- Mammoth for DOCX -->
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<!-- SheetJS for Excel/CSV -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- Marked for Markdown -->
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+<!-- Quill for annotations -->
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<style>
+.viewer-shell { display:flex; height:100vh; overflow:hidden; }
+.viewer-main { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+.viewer-hdr { padding:8px 14px; border-bottom:1px solid var(--border); background:var(--bg-elevated); display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; }
+.viewer-hdr h2 { font-size:14px; font-weight:700; margin:0; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.viewer-toolbar { display:flex; gap:4px; flex-wrap:wrap; }
+.vt-btn { padding:4px 10px; border:1px solid var(--border); border-radius:5px; cursor:pointer; font-size:12px; background:var(--bg); color:var(--fg); font-family:inherit; transition:all 0.15s; }
+.vt-btn:hover { border-color:var(--accent); color:var(--accent); }
+.vt-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.viewer-body { flex:1; overflow:hidden; display:flex; }
+
+/* Document pane */
+.doc-pane { flex:1; overflow-y:auto; padding:20px 40px; background:var(--bg); position:relative; }
+.doc-pane.pdf-mode { padding:10px; background:#525659; }
+
+/* PDF canvas */
+.pdf-page { display:block; margin:0 auto 10px; box-shadow:0 2px 8px rgba(0,0,0,0.3); }
+.pdf-controls { display:flex; align-items:center; gap:8px; padding:6px 14px; background:var(--bg-elevated); border-bottom:1px solid var(--border); flex-shrink:0; }
+.pdf-controls input[type=number] { width:50px; padding:3px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px; text-align:center; background:var(--bg); color:var(--fg); }
+
+/* Rendered content */
+.doc-content { max-width:800px; margin:0 auto; font-size:16px; line-height:1.75; color:var(--fg); }
+.doc-content h1 { font-size:26px; font-weight:700; margin:20px 0 10px; font-family:var(--font-heading,Georgia,serif); }
+.doc-content h2 { font-size:20px; font-weight:700; margin:16px 0 8px; }
+.doc-content h3 { font-size:16px; font-weight:600; margin:12px 0 6px; }
+.doc-content p { margin:0 0 10px; }
+.doc-content ul, .doc-content ol { padding-left:24px; margin:8px 0; }
+.doc-content li { margin:4px 0; }
+.doc-content table { border-collapse:collapse; width:100%; margin:12px 0; font-size:14px; }
+.doc-content th, .doc-content td { border:1px solid var(--border); padding:6px 10px; text-align:left; }
+.doc-content th { background:var(--bg-sunken); font-weight:600; }
+.doc-content code { background:var(--bg-sunken); padding:2px 5px; border-radius:3px; font-family:monospace; font-size:0.9em; }
+.doc-content pre { background:var(--bg-sunken); padding:12px; border-radius:6px; overflow-x:auto; margin:10px 0; }
+.doc-content blockquote { border-left:3px solid var(--accent); padding-left:14px; margin:10px 0; color:var(--fg-muted); font-style:italic; }
+.doc-content img { max-width:100%; border-radius:6px; }
+
+/* Highlight / annotation */
+.doc-content .highlight-yellow { background:rgba(255,220,0,0.35); border-radius:2px; cursor:pointer; }
+.doc-content .highlight-blue { background:rgba(45,106,159,0.2); border-radius:2px; cursor:pointer; }
+.doc-content .highlight-green { background:rgba(22,163,74,0.2); border-radius:2px; cursor:pointer; }
+.doc-content .highlight-red { background:rgba(220,38,38,0.2); border-radius:2px; cursor:pointer; }
+.doc-content .annotation-marker { display:inline-block; width:14px; height:14px; border-radius:50%; background:var(--accent); color:#fff; font-size:9px; font-weight:700; text-align:center; line-height:14px; cursor:pointer; vertical-align:super; margin-left:2px; }
+
+/* Selection toolbar (appears on text select) */
+.selection-toolbar { position:fixed; background:var(--bg-elevated); border:1px solid var(--border); border-radius:8px; padding:4px 6px; display:none; gap:4px; z-index:9000; box-shadow:0 4px 16px rgba(0,0,0,0.15); }
+.selection-toolbar.show { display:flex; }
+.sel-btn { padding:4px 8px; border:none; border-radius:5px; cursor:pointer; font-size:11px; background:var(--bg-sunken); color:var(--fg); font-family:inherit; }
+.sel-btn:hover { background:var(--accent); color:#fff; }
+.sel-btn.hl-y { background:rgba(255,220,0,0.5); }
+.sel-btn.hl-b { background:rgba(45,106,159,0.2); color:var(--accent); }
+.sel-btn.hl-g { background:rgba(22,163,74,0.2); color:#16a34a; }
+.sel-btn.hl-r { background:rgba(220,38,38,0.2); color:#dc2626; }
+
+/* Annotation panel */
+.annot-panel { width:280px; flex-shrink:0; border-left:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-surface); overflow:hidden; }
+.annot-hdr { padding:10px 12px; border-bottom:1px solid var(--border); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.annot-tabs { display:flex; border-bottom:1px solid var(--border); flex-shrink:0; }
+.annot-tab { flex:1; padding:7px; font-size:11px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; color:var(--fg-muted); text-align:center; }
+.annot-tab.active { border-bottom-color:var(--accent); color:var(--accent); }
+.annot-body { flex:1; overflow-y:auto; padding:10px; }
+.annot-item { padding:8px 10px; border:1px solid var(--border); border-radius:7px; margin-bottom:6px; background:var(--bg-elevated); cursor:pointer; }
+.annot-item:hover { border-color:var(--accent); }
+.annot-item-text { font-size:12px; color:var(--fg-muted); font-style:italic; margin-bottom:4px; }
+.annot-item-note { font-size:12.5px; color:var(--fg); }
+.annot-item-meta { font-size:10px; color:var(--fg-muted); margin-top:4px; }
+.annot-add { border-top:1px solid var(--border); padding:10px; flex-shrink:0; }
+.annot-textarea { width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; resize:none; min-height:60px; background:var(--bg); color:var(--fg); box-sizing:border-box; }
+.annot-send { width:100%; padding:6px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-family:inherit; margin-top:5px; }
+
+/* AI chat in annotation panel */
+.ai-msg { padding:7px 9px; border-radius:8px; font-size:12px; line-height:1.5; margin-bottom:6px; }
+.ai-msg.user { background:var(--accent); color:#fff; }
+.ai-msg.assistant { background:var(--bg-elevated); border:1px solid var(--border); color:var(--fg); }
+
+/* Empty state */
+.empty-state { text-align:center; padding:60px 20px; color:var(--fg-muted); }
+.empty-state .icon { font-size:48px; margin-bottom:12px; }
+
+/* TTS controls */
+.tts-bar { padding:6px 14px; border-top:1px solid var(--border); background:var(--bg-elevated); display:flex; align-items:center; gap:8px; flex-shrink:0; font-size:12px; }
+.tts-bar select { padding:4px 7px; border:1px solid var(--border); border-radius:5px; font-size:11px; background:var(--bg); color:var(--fg); }
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="viewer-shell">
+<div class="viewer-main">
+<!-- Header -->
+<div class="viewer-hdr">
+<h2 id="doc-title">Document Viewer</h2>
+<div class="viewer-toolbar">
+<button class="vt-btn" onclick="zoomIn()" title="Zoom in">🔍+</button>
+<button class="vt-btn" onclick="zoomOut()" title="Zoom out">🔍-</button>
+<button class="vt-btn" onclick="zoomReset()" title="Reset zoom">100%</button>
+<div style="width:1px;height:20px;background:var(--border);margin:0 2px;"></div>
+<button class="vt-btn" onclick="readAloudDoc()" title="Read aloud">🔊 Read</button>
+<button class="vt-btn" id="stop-btn" onclick="stopReading()" style="display:none;" title="Stop reading">⏹ Stop</button>
+<div style="width:1px;height:20px;background:var(--border);margin:0 2px;"></div>
+<button class="vt-btn" onclick="exportAnnotations()" title="Export annotations">⬇ Annotations</button>
+<button class="vt-btn" onclick="window.close()" title="Close">✕ Close</button>
+</div>
+</div>
+<!-- PDF page controls (shown only for PDFs) -->
+<div class="pdf-controls" id="pdf-controls" style="display:none;">
+<button class="vt-btn" onclick="prevPage()">‹ Prev</button>
+<span style="font-size:12px;">Page</span>
+<input id="page-num" min="1" onchange="goToPage(parseInt(this.value))" type="number" value="1"/>
+<span id="page-total" style="font-size:12px;">of ?</span>
+<button class="vt-btn" onclick="nextPage()">Next ›</button>
+<div style="flex:1;"></div>
+<label style="font-size:11px;color:var(--fg-muted);">Zoom:</label>
+<input id="pdf-zoom" max="200" min="50" oninput="setPdfZoom(parseInt(this.value))" style="width:80px;" type="range" value="100"/>
+<span id="pdf-zoom-label" style="font-size:11px;color:var(--fg-muted);">100%</span>
+</div>
+<!-- Document content -->
+<div class="doc-pane" id="doc-pane">
+<div class="empty-state">
+<div class="icon">📄</div>
+<div style="font-size:15px;font-weight:600;margin-bottom:8px;">No document loaded</div>
+<div style="font-size:13px;">Open this viewer from Study Hub by clicking a resource.</div>
+</div>
+</div>
+<!-- TTS bar -->
+<div class="tts-bar" id="tts-bar" style="display:none;">
+<span>🔊 Reading:</span>
+<span id="tts-status" style="flex:1;color:var(--fg-muted);">Ready</span>
+<select id="tts-voice">
+<option value="aura-arcas-en">Arcas (British Male)</option>
+<option value="aura-asteria-en">Asteria (Female)</option>
+<option value="aura-luna-en">Luna (Female, warm)</option>
+<option value="aura-zeus-en">Zeus (Male, deep)</option>
+</select>
+<button class="vt-btn" onclick="stopReading()">⏹ Stop</button>
+</div>
+</div>
+<!-- Annotation panel -->
+<div class="annot-panel">
+<div class="annot-hdr">
+<span>📝 Annotations</span>
+<span id="annot-count" style="font-size:10px;color:var(--fg-muted);">0</span>
+</div>
+<div class="annot-tabs">
+<div class="annot-tab active" onclick="switchAnnotTab('notes',this)">Notes</div>
+<div class="annot-tab" onclick="switchAnnotTab('highlights',this)">Highlights</div>
+<div class="annot-tab" onclick="switchAnnotTab('ai',this)">Ask AI</div>
+</div>
+<div class="annot-body" id="annot-body">
+<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No annotations yet. Select text to highlight or annotate.</div>
+</div>
+<div class="annot-add" id="annot-add">
+<textarea class="annot-textarea" id="annot-input" placeholder="Add a note about this document..."></textarea>
+<button class="annot-send" onclick="addNote()">Add Note</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Selection toolbar (floating) -->
+<div class="selection-toolbar" id="sel-toolbar">
+<button class="sel-btn hl-y" onclick="highlight('yellow')" title="Highlight yellow">🟡</button>
+<button class="sel-btn hl-b" onclick="highlight('blue')" title="Highlight blue">🔵</button>
+<button class="sel-btn hl-g" onclick="highlight('green')" title="Highlight green">🟢</button>
+<button class="sel-btn hl-r" onclick="highlight('red')" title="Highlight red">🔴</button>
+<button class="sel-btn" onclick="annotateSelection()" title="Add note">📝</button>
+<button class="sel-btn" onclick="askAIAboutSelection()" title="Ask AI">💬</button>
+<button class="sel-btn" onclick="readSelection()" title="Read aloud">🔊</button>
+<button class="sel-btn" onclick="hideSelToolbar()" title="Close">✕</button>
+</div>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var docData = null; // {id, name, type, content, url}
+var annotations = [];
+var currentAnnotTab = 'notes';
+var pdfDoc = null;
+var pdfPage = 1;
+var pdfZoom = 1.0;
+var ttsAudio = null;
+var zoom = 1.0;
+var selectedText = '';
+var selectedRange = null;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/study-hub/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+
+  // Load document from URL params or postMessage
+  var params = new URLSearchParams(window.location.search);
+  var docId = params.get('id');
+  var docName = params.get('name');
+  var docType = params.get('type');
+  var docUrl = params.get('url');
+
+  if (docId || docUrl) {
+    loadDocumentFromParams(docId, docName, docType, docUrl);
+  }
+
+  // Listen for postMessage from Study Hub
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'load-document') {
+      loadDocument(e.data.doc);
+    }
+  });
+
+  // Selection detection
+  document.addEventListener('mouseup', onMouseUp);
+  document.addEventListener('touchend', onMouseUp);
+  document.addEventListener('mousedown', function(e) {
+    if (!e.target.closest('#sel-toolbar')) hideSelToolbar();
+  });
+});
+
+// ── Load document ─────────────────────────────────────────────────────────────
+function loadDocumentFromParams(id, name, type, url) {
+  // Try to get from Study Hub localStorage
+  try {
+    var modules = JSON.parse(localStorage.getItem('study:modules') || '[]');
+    for (var m of modules) {
+      for (var w of (m.weeks||[])) {
+        for (var r of (w.resources||[])) {
+          if (r.id === id) {
+            loadDocument(r);
+            return;
+          }
+        }
+      }
+    }
+  } catch(e) {}
+
+  // Fallback: load from URL
+  if (url) {
+    loadDocument({id: id||'doc', name: name||'Document', type: type||'link', url: url, content: ''});
+  }
+}
+
+function loadDocument(doc) {
+  docData = doc;
+  document.getElementById('doc-title').textContent = doc.name || 'Document';
+  loadAnnotations(doc.id);
+
+  var ext = (doc.name||'').split('.').pop().toLowerCase();
+  var type = doc.type || ext;
+
+  if (type === 'pdf' || ext === 'pdf') {
+    renderPDF(doc);
+  } else if (type === 'ppt' || type === 'pptx' || ext === 'ppt' || ext === 'pptx') {
+    renderPPT(doc);
+  } else if (type === 'docx' || type === 'doc' || ext === 'docx' || ext === 'doc') {
+    renderDOCX(doc);
+  } else if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
+    renderSpreadsheet(doc);
+  } else if (ext === 'md' || type === 'md') {
+    renderMarkdown(doc);
+  } else if (ext === 'txt' || type === 'txt' || type === 'note') {
+    renderText(doc);
+  } else if (doc.url) {
+    renderURL(doc);
+  } else if (doc.content) {
+    renderText(doc);
+  } else {
+    renderEmpty(doc);
+  }
+}
+
+// ── PDF rendering ─────────────────────────────────────────────────────────────
+function renderPDF(doc) {
+  var pane = document.getElementById('doc-pane');
+  pane.className = 'doc-pane pdf-mode';
+  pane.innerHTML = '<div style="text-align:center;padding:20px;color:#fff;font-size:13px;">Loading PDF...</div>';
+  document.getElementById('pdf-controls').style.display = 'flex';
+
+  // Use PDF.js
+  var loadPDF = function(src) {
+    if (typeof pdfjsLib === 'undefined') {
+      // Try loading via script tag
+      pane.innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:13px;">PDF.js loading... please wait.</div>';
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.js';
+      script.onload = function() {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js';
+        loadPDFWithLib(src);
+      };
+      document.head.appendChild(script);
+    } else {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js';
+      loadPDFWithLib(src);
+    }
+  };
+
+  if (doc.content && doc.content.startsWith('data:')) {
+    // Base64 data URL
+    var b64 = doc.content.split(',')[1];
+    var binary = atob(b64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    loadPDF({data: bytes});
+  } else if (doc.url) {
+    loadPDF(doc.url);
+  } else if (doc.content) {
+    // Try as text
+    renderText(doc);
+  }
+}
+
+function loadPDFWithLib(src) {
+  pdfjsLib.getDocument(src).promise.then(function(pdf) {
+    pdfDoc = pdf;
+    var total = pdf.numPages;
+    document.getElementById('page-total').textContent = 'of ' + total;
+    renderPDFPage(1);
+  }).catch(function(e) {
+    document.getElementById('doc-pane').innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:13px;">PDF load error: ' + e.message + '</div>';
+  });
+}
+
+function renderPDFPage(num) {
+  if (!pdfDoc) return;
+  pdfPage = Math.max(1, Math.min(num, pdfDoc.numPages));
+  document.getElementById('page-num').value = pdfPage;
+  pdfDoc.getPage(pdfPage).then(function(page) {
+    var viewport = page.getViewport({scale: pdfZoom});
+    var canvas = document.createElement('canvas');
+    canvas.className = 'pdf-page';
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    var ctx = canvas.getContext('2d');
+    var pane = document.getElementById('doc-pane');
+    pane.innerHTML = '';
+    pane.appendChild(canvas);
+    page.render({canvasContext: ctx, viewport: viewport});
+  });
+}
+
+function prevPage() { renderPDFPage(pdfPage - 1); }
+function nextPage() { renderPDFPage(pdfPage + 1); }
+function goToPage(n) { renderPDFPage(n); }
+function setPdfZoom(pct) {
+  pdfZoom = pct / 100;
+  document.getElementById('pdf-zoom-label').textContent = pct + '%';
+  renderPDFPage(pdfPage);
+}
+
+// ── DOCX rendering ────────────────────────────────────────────────────────────
+function renderDOCX(doc) {
+  var pane = document.getElementById('doc-pane');
+  pane.className = 'doc-pane';
+
+  if (typeof mammoth === 'undefined') {
+    pane.innerHTML = '<div class="doc-content"><p style="color:var(--fg-muted);">Loading DOCX renderer...</p></div>';
+    var script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js';
+    script.onload = function() { renderDOCX(doc); };
+    document.head.appendChild(script);
+    return;
+  }
+
+  if (doc.content && doc.content.startsWith('data:')) {
+    var b64 = doc.content.split(',')[1];
+    var binary = atob(b64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    mammoth.convertToHtml({arrayBuffer: bytes.buffer}).then(function(result) {
+      pane.innerHTML = '<div class="doc-content">' + result.value + '</div>';
+      setupAnnotationLayer();
+    }).catch(function(e) {
+      pane.innerHTML = '<div class="doc-content"><p style="color:#dc2626;">DOCX error: ' + e.message + '</p></div>';
+    });
+  } else if (doc.content) {
+    // Plain text fallback
+    pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;">' + doc.content.replace(/</g,'&lt;') + '</pre></div>';
+    setupAnnotationLayer();
+  } else {
+    pane.innerHTML = '<div class="doc-content"><p style="color:var(--fg-muted);">No content available. Upload the file to view it.</p></div>';
+  }
+}
+
+// ── PPT rendering ─────────────────────────────────────────────────────────────
+function renderPPT(doc) {
+  var pane = document.getElementById('doc-pane');
+  pane.className = 'doc-pane';
+  // PPT/PPTX requires server-side conversion — show content as text or link
+  if (doc.url) {
+    pane.innerHTML = '<div class="doc-content">' +
+      '<div style="background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:8px;padding:16px;margin-bottom:16px;">' +
+      '<div style="font-size:14px;font-weight:600;margin-bottom:6px;">📊 PowerPoint Presentation</div>' +
+      '<div style="font-size:13px;color:var(--fg-muted);margin-bottom:10px;">PPT/PPTX files require conversion for in-browser viewing.</div>' +
+      '<a href="' + doc.url + '" target="_blank" style="padding:7px 14px;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:13px;">Open in new tab ↗</a>' +
+      '</div>' +
+      (doc.content ? '<div style="font-size:13px;color:var(--fg-muted);margin-bottom:8px;">Extracted text:</div><pre style="white-space:pre-wrap;font-size:13px;">' + doc.content.substring(0,5000).replace(/</g,'&lt;') + '</pre>' : '') +
+      '</div>';
+  } else if (doc.content) {
+    pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;">' + doc.content.replace(/</g,'&lt;') + '</pre></div>';
+    setupAnnotationLayer();
+  }
+}
+
+// ── Spreadsheet rendering ─────────────────────────────────────────────────────
+function renderSpreadsheet(doc) {
+  var pane = document.getElementById('doc-pane');
+  pane.className = 'doc-pane';
+
+  var renderFromContent = function(content) {
+    try {
+      var wb;
+      if (content.startsWith('data:')) {
+        var b64 = content.split(',')[1];
+        wb = XLSX.read(b64, {type:'base64'});
+      } else {
+        wb = XLSX.read(content, {type:'string'});
+      }
+      var html = '<div class="doc-content">';
+      wb.SheetNames.forEach(function(name) {
+        html += '<h3 style="margin:16px 0 8px;">' + name + '</h3>';
+        html += XLSX.utils.sheet_to_html(wb.Sheets[name], {editable:false});
+      });
+      html += '</div>';
+      pane.innerHTML = html;
+      // Style the generated table
+      pane.querySelectorAll('table').forEach(function(t) {
+        t.style.cssText = 'border-collapse:collapse;width:100%;margin-bottom:16px;font-size:13px;';
+        t.querySelectorAll('td,th').forEach(function(c) {
+          c.style.cssText = 'border:1px solid var(--border);padding:5px 8px;';
+        });
+      });
+      setupAnnotationLayer();
+    } catch(e) {
+      pane.innerHTML = '<div class="doc-content"><p style="color:#dc2626;">Spreadsheet error: ' + e.message + '</p></div>';
+    }
+  };
+
+  if (typeof XLSX === 'undefined') {
+    pane.innerHTML = '<div class="doc-content"><p>Loading spreadsheet renderer...</p></div>';
+    var script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    script.onload = function() { renderSpreadsheet(doc); };
+    document.head.appendChild(script);
+    return;
+  }
+
+  if (doc.content) {
+    renderFromContent(doc.content);
+  } else {
+    pane.innerHTML = '<div class="doc-content"><p style="color:var(--fg-muted);">No spreadsheet content. Upload the file.</p></div>';
+  }
+}
+
+// ── Markdown rendering ────────────────────────────────────────────────────────
+function renderMarkdown(doc) {
+  var pane = document.getElementById('doc-pane');
+  pane.className = 'doc-pane';
+  var content = doc.content || '';
+  if (typeof marked !== 'undefined') {
+    pane.innerHTML = '<div class="doc-content">' + marked.parse(content) + '</div>';
+  } else {
+    // Simple fallback
+    var html = content
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+      .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+      .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g,'<em>$1</em>')
+      .replace(/\n\n/g,'</p><p>')
+      .replace(/\n/g,'<br>');
+    pane.innerHTML = '<div class="doc-content"><p>' + html + '</p></div>';
+  }
+  setupAnnotationLayer();
+}
+
+// ── Text rendering ────────────────────────────────────────────────────────────
+function renderText(doc) {
+  var pane = document.getElementById('doc-pane');
+  pane.className = 'doc-pane';
+  var content = doc.content || '';
+  pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;font-size:15px;line-height:1.7;">' + content.replace(/</g,'&lt;') + '</pre></div>';
+  setupAnnotationLayer();
+}
+
+// ── URL rendering ─────────────────────────────────────────────────────────────
+function renderURL(doc) {
+  var pane = document.getElementById('doc-pane');
+  pane.className = 'doc-pane';
+  pane.innerHTML = '<div class="doc-content">' +
+    '<div style="background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:8px;padding:16px;margin-bottom:16px;">' +
+    '<div style="font-size:14px;font-weight:600;margin-bottom:6px;">🔗 ' + (doc.name||'Link') + '</div>' +
+    '<a href="' + doc.url + '" target="_blank" style="color:var(--accent);font-size:13px;">' + doc.url + ' ↗</a>' +
+    '</div>' +
+    (doc.content ? '<div class="doc-content"><p>' + doc.content.replace(/</g,'&lt;').replace(/\n/g,'<br>') + '</p></div>' : '') +
+    '</div>';
+}
+
+function renderEmpty(doc) {
+  document.getElementById('doc-pane').innerHTML = '<div class="empty-state"><div class="icon">📄</div><div style="font-size:15px;font-weight:600;">' + (doc.name||'Document') + '</div><div style="font-size:13px;margin-top:6px;">No content available. Upload the file to view it.</div></div>';
+}
+
+// ── Annotation layer ──────────────────────────────────────────────────────────
+function setupAnnotationLayer() {
+  // Re-apply saved highlights
+  annotations.filter(function(a){return a.type==='highlight';}).forEach(function(a) {
+    // Highlights are stored as text ranges — re-apply on render
+    // (simplified: just show in panel)
+  });
+}
+
+// ── Text selection ────────────────────────────────────────────────────────────
+function onMouseUp(e) {
+  setTimeout(function() {
+    var sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+      hideSelToolbar();
+      return;
+    }
+    selectedText = sel.toString().trim();
+    selectedRange = sel.getRangeAt(0).cloneRange();
+    var rect = sel.getRangeAt(0).getBoundingClientRect();
+    var toolbar = document.getElementById('sel-toolbar');
+    toolbar.style.left = Math.min(rect.left, window.innerWidth - 280) + 'px';
+    toolbar.style.top = (rect.top + window.scrollY - 44) + 'px';
+    toolbar.classList.add('show');
+  }, 10);
+}
+
+function hideSelToolbar() {
+  document.getElementById('sel-toolbar').classList.remove('show');
+}
+
+function highlight(colour) {
+  if (!selectedRange) return;
+  var span = document.createElement('span');
+  span.className = 'highlight-' + colour;
+  span.title = 'Click to annotate';
+  span.onclick = function() { annotateHighlight(span); };
+  try {
+    selectedRange.surroundContents(span);
+  } catch(e) {
+    // Range spans multiple elements — wrap each text node
+    var frag = selectedRange.extractContents();
+    span.appendChild(frag);
+    selectedRange.insertNode(span);
+  }
+  var annot = {
+    id: 'h-' + Date.now(),
+    type: 'highlight',
+    colour: colour,
+    text: selectedText.substring(0, 200),
+    note: '',
+    created: new Date().toISOString()
+  };
+  annotations.push(annot);
+  saveAnnotations();
+  renderAnnotations();
+  hideSelToolbar();
+}
+
+function annotateSelection() {
+  hideSelToolbar();
+  var note = prompt('Add annotation for: "' + selectedText.substring(0,80) + '"');
+  if (!note) return;
+  var annot = {
+    id: 'n-' + Date.now(),
+    type: 'note',
+    text: selectedText.substring(0, 200),
+    note: note,
+    created: new Date().toISOString()
+  };
+  annotations.push(annot);
+  saveAnnotations();
+  renderAnnotations();
+}
+
+function annotateHighlight(span) {
+  var note = prompt('Add note to highlight:');
+  if (!note) return;
+  var id = span.dataset.annotId;
+  var annot = annotations.find(function(a){return a.id===id;});
+  if (annot) { annot.note = note; saveAnnotations(); renderAnnotations(); }
+}
+
+function askAIAboutSelection() {
+  hideSelToolbar();
+  switchAnnotTab('ai');
+  var input = document.getElementById('annot-input');
+  if (input) input.value = 'Explain this passage: "' + selectedText.substring(0,300) + '"';
+  sendAI();
+}
+
+function readSelection() {
+  hideSelToolbar();
+  if (!selectedText) return;
+  readTextAloud(selectedText);
+}
+
+// ── Annotations ───────────────────────────────────────────────────────────────
+function loadAnnotations(docId) {
+  try {
+    annotations = JSON.parse(localStorage.getItem('annot:' + docId) || '[]');
+  } catch(e) { annotations = []; }
+  renderAnnotations();
+}
+
+function saveAnnotations() {
+  if (!docData) return;
+  try { localStorage.setItem('annot:' + docData.id, JSON.stringify(annotations)); } catch(e) {}
+}
+
+function addNote() {
+  var input = document.getElementById('annot-input');
+  var note = input ? input.value.trim() : '';
+  if (!note) return;
+  annotations.push({
+    id: 'n-' + Date.now(),
+    type: 'note',
+    text: '',
+    note: note,
+    created: new Date().toISOString()
+  });
+  if (input) input.value = '';
+  saveAnnotations();
+  renderAnnotations();
+}
+
+function renderAnnotations() {
+  var body = document.getElementById('annot-body');
+  var count = document.getElementById('annot-count');
+  if (count) count.textContent = annotations.length;
+
+  var filtered = annotations.filter(function(a) {
+    if (currentAnnotTab === 'notes') return a.type === 'note';
+    if (currentAnnotTab === 'highlights') return a.type === 'highlight';
+    return false;
+  });
+
+  if (!filtered.length) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">' +
+      (currentAnnotTab === 'notes' ? 'No notes yet. Select text and click 📝, or type below.' :
+       currentAnnotTab === 'highlights' ? 'No highlights yet. Select text and click a colour.' :
+       '') + '</div>';
+    return;
+  }
+
+  body.innerHTML = '';
+  filtered.slice().reverse().forEach(function(a) {
+    var div = document.createElement('div');
+    div.className = 'annot-item';
+    var colourDot = a.colour ? '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + {yellow:'#ffdd00',blue:'#2d6a9f',green:'#16a34a',red:'#dc2626'}[a.colour] + ';margin-right:4px;"></span>' : '';
+    div.innerHTML = (a.text ? '<div class="annot-item-text">' + colourDot + '"' + a.text.substring(0,80) + (a.text.length>80?'...':'"') + '</div>' : '') +
+      (a.note ? '<div class="annot-item-note">' + a.note.replace(/</g,'&lt;') + '</div>' : '') +
+      '<div class="annot-item-meta">' + new Date(a.created).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) +
+      ' <button onclick="deleteAnnotation(\'' + a.id + '\')" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:10px;margin-left:6px;">✕</button></div>';
+    body.appendChild(div);
+  });
+}
+
+function deleteAnnotation(id) {
+  annotations = annotations.filter(function(a){return a.id!==id;});
+  saveAnnotations();
+  renderAnnotations();
+}
+
+function exportAnnotations() {
+  var lines = ['# Annotations: ' + (docData ? docData.name : 'Document'), ''];
+  annotations.forEach(function(a) {
+    lines.push('## ' + (a.type==='highlight'?'Highlight':'Note') + ' — ' + new Date(a.created).toLocaleString('en-GB'));
+    if (a.text) lines.push('> ' + a.text);
+    if (a.note) lines.push(a.note);
+    lines.push('');
+  });
+  var blob = new Blob([lines.join('\n')], {type:'text/markdown'});
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = (docData ? docData.name : 'document') + '-annotations.md';
+  link.click();
+}
+
+// ── AI chat ───────────────────────────────────────────────────────────────────
+var aiHistory = [];
+
+function switchAnnotTab(tab, btn) {
+  currentAnnotTab = tab;
+  document.querySelectorAll('.annot-tab').forEach(function(t){t.classList.remove('active');});
+  if (btn) btn.classList.add('active');
+  else document.querySelectorAll('.annot-tab').forEach(function(t){if(t.textContent.toLowerCase()===tab)t.classList.add('active');});
+
+  var addArea = document.getElementById('annot-add');
+  if (tab === 'ai') {
+    if (addArea) {
+      addArea.innerHTML = '<textarea class="annot-textarea" id="annot-input" placeholder="Ask about this document..."></textarea><button class="annot-send" onclick="sendAI()">Ask</button>';
+    }
+    renderAIChat();
+  } else {
+    if (addArea) {
+      addArea.innerHTML = '<textarea class="annot-textarea" id="annot-input" placeholder="Add a note about this document..."></textarea><button class="annot-send" onclick="addNote()">Add Note</button>';
+    }
+    renderAnnotations();
+  }
+}
+
+function renderAIChat() {
+  var body = document.getElementById('annot-body');
+  if (!aiHistory.length) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">Ask anything about this document. Select text first to ask about a specific passage.</div>';
+    return;
+  }
+  body.innerHTML = '';
+  aiHistory.forEach(function(m) {
+    var div = document.createElement('div');
+    div.className = 'ai-msg ' + m.role;
+    div.textContent = m.content;
+    body.appendChild(div);
+  });
+  body.scrollTop = body.scrollHeight;
+}
+
+function sendAI() {
+  var input = document.getElementById('annot-input');
+  var text = input ? input.value.trim() : '';
+  if (!text) return;
+  if (input) input.value = '';
+
+  var docContext = docData ? 'Document: ' + docData.name + '. ' : '';
+  if (docData && docData.content) docContext += 'Content excerpt: ' + docData.content.substring(0, 3000) + '. ';
+
+  aiHistory.push({role:'user', content:text});
+  renderAIChat();
+
+  var messages = [
+    {role:'system', content:'You are a study assistant helping Simon analyse academic documents. ' + docContext + 'British English. Be precise and cite specific passages when possible.'}
+  ].concat(aiHistory);
+
+  fetch(WORKER + '/api/chat', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({messages:messages, profile:'balanced'})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    var response = d.content || 'No response.';
+    aiHistory.push({role:'assistant', content:response});
+    renderAIChat();
+  })
+  .catch(function(e){
+    aiHistory.push({role:'assistant', content:'Error: ' + e.message});
+    renderAIChat();
+  });
+}
+
+// ── TTS ───────────────────────────────────────────────────────────────────────
+function readAloudDoc() {
+  var pane = document.getElementById('doc-pane');
+  var text = pane.innerText || pane.textContent || '';
+  readTextAloud(text.substring(0, 5000));
+}
+
+function readTextAloud(text) {
+  if (!text) return;
+  var voice = document.getElementById('tts-voice') ? document.getElementById('tts-voice').value : 'aura-arcas-en';
+  document.getElementById('tts-bar').style.display = 'flex';
+  document.getElementById('tts-status').textContent = 'Generating audio...';
+  document.getElementById('stop-btn').style.display = 'inline-block';
+
+  fetch(WORKER + '/api/tts/read', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({text:text, voice:voice, provider:'deepgram'})
+  })
+  .then(function(r){
+    if (!r.ok) throw new Error('TTS failed: ' + r.status);
+    return r.blob();
+  })
+  .then(function(blob){
+    if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; }
+    var url = URL.createObjectURL(blob);
+    ttsAudio = new Audio(url);
+    ttsAudio.play();
+    document.getElementById('tts-status').textContent = 'Playing...';
+    ttsAudio.onended = function() {
+      document.getElementById('tts-status').textContent = 'Done';
+      document.getElementById('stop-btn').style.display = 'none';
+    };
+  })
+  .catch(function(e){
+    document.getElementById('tts-status').textContent = 'Error: ' + e.message;
+    document.getElementById('stop-btn').style.display = 'none';
+  });
+}
+
+function stopReading() {
+  if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; }
+  document.getElementById('tts-status').textContent = 'Stopped';
+  document.getElementById('stop-btn').style.display = 'none';
+}
+
+// ── Zoom ──────────────────────────────────────────────────────────────────────
+function zoomIn() { zoom = Math.min(zoom + 0.1, 2.0); applyZoom(); }
+function zoomOut() { zoom = Math.max(zoom - 0.1, 0.5); applyZoom(); }
+function zoomReset() { zoom = 1.0; applyZoom(); }
+function applyZoom() {
+  var content = document.querySelector('.doc-content');
+  if (content) content.style.fontSize = Math.round(16 * zoom) + 'px';
+}
+</script>
+</body>
+</html>
