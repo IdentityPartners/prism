@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792737433 -->
+<!-- cache-bust-1792746783 -->
+
 
 
 
@@ -105,7 +106,7 @@
 .toolbar-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
 
 /* OSK strip */
-.osk-strip { border-top:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; display:none; }
+.osk-strip { border-top:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; display:block; }
 .osk-strip.show { display:block; }
 
 /* Right panel */
@@ -151,7 +152,7 @@
 <div class="chat-status" id="persona-status">Argentica · ready</div>
 </div>
 <div class="chat-hdr-actions">
-<button class="toolbar-btn" onclick="toggleOSK()" title="On-screen keyboard">⌨</button>
+<button class="toolbar-btn" id="osk-toggle-btn" onclick="toggleOSK()" title="Hide/show keyboard">⌨ KB</button>
 <button class="toolbar-btn" onclick="clearChat()" title="Clear">✕ Clear</button>
 <button class="toolbar-btn" onclick="exportChat()" title="Export">⬇ Export</button>
 </div>
@@ -169,7 +170,7 @@
 <span id="status-text"></span>
 </div>
 <div class="chat-input-area">
-<div class="attach-strip" id="attach-strip"></div>
+<div class="attach-strip" id="attach-strip"><span style="font-size:11px;color:var(--fg-muted);padding:2px 0;">📎 Click Attach to add files (PDF, DOCX, MD, TXT, CSV, images)</span></div>
 <div class="input-row">
 <input accept=".md,.txt,.pdf,.csv,.json,.docx,.png,.jpg,.jpeg" id="file-input" multiple="" onchange="handleFiles(this)" style="display:none" type="file"/>
 <textarea class="chat-textarea" id="chat-input" oninput="autoGrow(this)" onkeydown="handleKey(event)" placeholder="What are we working on? (Enter to send, Shift+Enter for new line)" rows="1"></textarea>
@@ -182,10 +183,10 @@
 <button class="toolbar-btn" onclick="quickAction('atomise')">⚡ Atomise</button>
 <button class="toolbar-btn" onclick="quickAction('image')">🎨 Image</button>
 <button class="toolbar-btn" id="dictate-btn" onclick="startDictation()">🎤 Dictate</button>
-<button class="toolbar-btn" id="multi-btn" onclick="toggleMultiModel()" title="Compare multiple models">⚡ Multi</button>
+<button class="toolbar-btn active" id="multi-btn" onclick="toggleMultiModel()" title="Send to multiple models simultaneously" style="background:rgba(124,58,237,0.1);color:#7c3aed;border-color:#7c3aed;">⚡ Multi-model</button>
 </div>
 </div>
-<div class="osk-strip" id="osk-strip"></div>
+<div class="osk-strip show" id="osk-strip"></div>
 </div>
 <!-- Right panel -->
 <div class="chat-right">
@@ -689,7 +690,10 @@ function handleFiles(input) {
 
 function updateAttachStrip() {
   var strip = document.getElementById('attach-strip');
-  if (!attachments.length) { strip.innerHTML = ''; return; }
+  if (!attachments.length) {
+    strip.innerHTML = '<span style="font-size:11px;color:var(--fg-muted);padding:2px 0;">📎 Click Attach to add files (PDF, DOCX, MD, TXT, CSV, images)</span>';
+    return;
+  }
   strip.innerHTML = attachments.map(function(att,i){
     return '<div class="attach-badge">📎 '+att.name+' ('+Math.round(att.size/1024)+'KB)<button onclick="attachments.splice('+i+',1);updateAttachStrip()">✕</button></div>';
   }).join('');
@@ -812,8 +816,17 @@ function quickAction(type) {
 // ── OSK ───────────────────────────────────────────────────────────────────────
 function toggleOSK() {
   var strip = document.getElementById('osk-strip');
-  var isShowing = strip.style.display !== 'none';
-  strip.style.display = isShowing ? 'none' : 'block';
+  var btn = document.getElementById('osk-toggle-btn');
+  var isShowing = strip.classList.contains('show');
+  if (isShowing) {
+    strip.classList.remove('show');
+    strip.style.display = 'none';
+    if (btn) btn.textContent = '⌨ KB';
+  } else {
+    strip.classList.add('show');
+    strip.style.display = 'block';
+    if (btn) btn.textContent = '⌨ Hide';
+  }
   if (!isShowing) {
     var keysDiv = document.getElementById('osk-keys');
     if (keysDiv && !keysDiv.children.length) buildInlineOSK(keysDiv);
