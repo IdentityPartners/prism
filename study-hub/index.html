@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792779244 -->
+<!-- cache-bust-1792783374 -->
+
 
 
 
@@ -316,10 +317,10 @@ function renderTree() {
     modIcon.className = 'tree-module-icon';
     modIcon.innerHTML = mod.icon || '&#x1F4D3;';
     var modLabel = document.createElement('span');
-    modLabel.style.flex = '1';
+    modLabel.style.cssText = 'flex:1;outline:none;border-radius:3px;padding:1px 3px;';
     modLabel.textContent = mod.name;
     var modEditBtn = document.createElement('button');
-    modEditBtn.innerHTML = '&#x270F;';
+    modEditBtn.innerHTML = '✏';
     modEditBtn.title = 'Edit module';
     modEditBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:13px;padding:2px 5px;border-radius:4px;';
     modEditBtn.onmouseenter = function() { modEditBtn.style.color = 'var(--accent)'; };
@@ -327,7 +328,7 @@ function renderTree() {
     modEditBtn.onclick = (function(mId) { return function(e) { e.stopPropagation(); openEditModule(mId); }; })(mod.id);
     var modToggle = document.createElement('span');
     modToggle.className = 'tree-module-toggle';
-    modToggle.innerHTML = '&#x25B8;';
+    modToggle.innerHTML = '▸';
     hdr.appendChild(modIcon);
     hdr.appendChild(modLabel);
     hdr.appendChild(modEditBtn);
@@ -346,13 +347,14 @@ function renderTree() {
       var resCount = (week.resources || []).length;
             // Build week item with DOM (avoids nested quote issues)
       var wIcon = document.createElement('span');
-      wIcon.innerHTML = '&#x1F4C5;';
+      wIcon.innerHTML = '📅';
       var wLabel = document.createElement('span');
       wLabel.className = 'week-name-label';
-      wLabel.style.flex = '1';
+      wLabel.style.cssText = 'flex:1;outline:none;border-radius:3px;padding:1px 3px;';
       wLabel.textContent = week.name;
+      wLabel.title = 'Click to select week. Click again to edit name.';
       var wEditBtn = document.createElement('button');
-      wEditBtn.innerHTML = '&#x270F;';
+      wEditBtn.innerHTML = '✏';
       wEditBtn.title = 'Edit week';
       wEditBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:12px;padding:1px 4px;border-radius:3px;flex-shrink:0;';
       wEditBtn.onmouseenter = function() { wEditBtn.style.color = 'var(--accent)'; };
@@ -643,7 +645,7 @@ function addWeekToModule(modId) {
 function openAddModule() {
   var name = prompt('Module name:');
   if (!name) return;
-  var icons = ['&#x1F4CA;','&#x1F52C;','&#x1F4DD;','&#x1F393;','&#x1F9E0;','&#x1F4D6;'];
+  var icons = ['📊','&#x1F52C;','&#x1F4DD;','&#x1F393;','🧠','📖'];
   var colours = ['#2d6a9f','#0f3b3a','#5c2d3f','#16a34a','#7c3aed','#f59e0b'];
   var idx = modules.length % icons.length;
   modules.push({ id:'mod-'+Date.now(), name:name, icon:icons[idx], colour:colours[idx], weeks:[] });
@@ -693,10 +695,10 @@ function renderResources(body) {
   var groups = {
     ppt: { label:'Slides / Presentations', icon:'📊', items:[] },
     reading: { label:'Essential Reading', icon:'📖', items:[] },
-    recommended: { label:'Recommended Reading', icon:'&#x1F4D5;', items:[] },
-    paper: { label:'Research Papers', icon:'&#x1F4C4;', items:[] },
-    news: { label:'News & Current Affairs', icon:'&#x1F4F0;', items:[] },
-    note: { label:'My Notes', icon:'&#x270D;', items:[] },
+    recommended: { label:'Recommended Reading', icon:'📕', items:[] },
+    paper: { label:'Research Papers', icon:'📄', items:[] },
+    news: { label:'News & Current Affairs', icon:'📰', items:[] },
+    note: { label:'My Notes', icon:'✍', items:[] },
     link: { label:'Links & Other', icon:'&#x1F517;', items:[] },
   };
 
@@ -739,11 +741,11 @@ function renderResources(body) {
 }
 
 function makeResourceCard(r) {
-  var icons = {ppt:'&#x1F4CA;',pdf:'&#x1F4C4;',reading:'&#x1F4D6;',recommended:'&#x1F4D5;',paper:'&#x1F4C4;',news:'&#x1F4F0;',note:'&#x270D;',link:'&#x1F517;'};
+  var icons = {ppt:'📊',pdf:'📄',reading:'📖',recommended:'📕',paper:'📄',news:'📰',note:'✍',link:'&#x1F517;'};
   var card = document.createElement('div');
   card.className = 'resource-card';
   card.onclick = function() { openResource(r); };
-  card.innerHTML = '<div class="resource-icon">' + (icons[r.type]||'&#x1F4C4;') + '</div>' +
+  card.innerHTML = '<div class="resource-icon">' + (icons[r.type]||'📄') + '</div>' +
     '<div class="resource-info">' +
       '<div class="resource-title">' + r.title.replace(/</g,'&lt;') + '</div>' +
       '<div class="resource-meta">' +
