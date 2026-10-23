@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792788084 -->
+<!-- cache-bust-1792795932748 -->
+
 
 
 
@@ -676,9 +677,14 @@ function switchTab(tab, btn) {
     body.innerHTML = '<div style="text-align:center;padding:60px;color:var(--fg-muted);"><div style="font-size:48px;margin-bottom:12px;">&#x1F4DA;</div><div style="font-size:16px;font-weight:600;">Select a module and week from the left</div></div>';
     return;
   }
-  if (tab === 'overview') {
-    if (currentModule) showModuleOverview(currentModule);
-    else { body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--fg-muted);">Select a module from the left to see its overview.</div>'; }
+    if (tab === 'overview') {
+    if (currentWeek && currentModule) {
+      showWeekOverview(currentWeek, currentModule);
+    } else if (currentModule) {
+      showModuleOverview(currentModule);
+    } else {
+      body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--fg-muted);">Select a module from the left.</div>';
+    }
   }
   else if (tab === 'resources') renderResources(body);
   else if (tab === 'notes') renderNotes(body);
@@ -1185,6 +1191,105 @@ function exportWeek() {
   a.download = (currentWeek.name || 'week') + '.md';
   a.click();
 }
+
+
+function showWeekOverview(week, mod) {
+  var body = document.getElementById('hub-body');
+  body.innerHTML = '';
+  var editCard = document.createElement('div');
+  editCard.style.cssText = 'background:var(--bg-elevated);border:2px solid var(--accent);border-radius:10px;padding:18px;margin-bottom:16px;';
+  var editTitle = document.createElement('div');
+  editTitle.style.cssText = 'font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--accent);margin-bottom:14px;';
+  editTitle.textContent = 'Edit Week Details';
+  editCard.appendChild(editTitle);
+  var grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;';
+  function makeField(labelText, inputId, inputType, value, placeholder) {
+    var col = document.createElement('div');
+    var lbl = document.createElement('label');
+    lbl.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:5px;';
+    lbl.textContent = labelText;
+    var inp = document.createElement('input');
+    inp.type = inputType; inp.id = inputId; inp.value = value || ''; inp.placeholder = placeholder || '';
+    inp.style.cssText = 'width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:15px;background:var(--bg);color:var(--fg);box-sizing:border-box;';
+    inp.onfocus = function() { inp.style.borderColor='var(--accent)'; inp.style.outline='none'; };
+    inp.onblur = function() { inp.style.borderColor='var(--border)'; };
+    inp.onkeydown = function(e) { if (e.key==='Enter') { e.preventDefault(); saveWeekDetails(); } };
+    col.appendChild(lbl); col.appendChild(inp); return col;
+  }
+  grid.appendChild(makeField('Week Name', 'week-name-input', 'text', week.name, 'e.g. Week 4: Qualitative Methods'));
+  grid.appendChild(makeField('Topic / Description', 'week-topic-input', 'text', week.topic||'', 'What this week covers'));
+  var vleCol = document.createElement('div');
+  vleCol.style.gridColumn = '1 / -1';
+  var vleLbl = document.createElement('label');
+  vleLbl.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:5px;';
+  vleLbl.textContent = 'VLE Link';
+  var vleInp = document.createElement('input');
+  vleInp.type='url'; vleInp.id='week-vle-input'; vleInp.value=week.vle_url||''; vleInp.placeholder='https://learn.gold.ac.uk/...';
+  vleInp.style.cssText='width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:15px;background:var(--bg);color:var(--fg);box-sizing:border-box;';
+  vleInp.onfocus=function(){vleInp.style.borderColor='var(--accent)';vleInp.style.outline='none';};
+  vleInp.onblur=function(){vleInp.style.borderColor='var(--border)';};
+  vleCol.appendChild(vleLbl); vleCol.appendChild(vleInp); grid.appendChild(vleCol);
+  editCard.appendChild(grid);
+  var saveBtn = document.createElement('button');
+  saveBtn.id='week-save-btn'; saveBtn.textContent='Save Week Details';
+  saveBtn.style.cssText='padding:9px 20px;background:var(--accent);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:600;';
+  saveBtn.onclick=saveWeekDetails;
+  editCard.appendChild(saveBtn);
+  body.appendChild(editCard);
+  var resources = week.resources || [];
+  var cardDefs = [
+    {label:'All Resources',count:resources.length,colour:'#2d6a9f',tab:'resources'},
+    {label:'Slides / PPT',count:resources.filter(function(r){return r.type==='ppt'||r.type==='pptx';}).length,colour:'#dc2626',tab:'resources'},
+    {label:'Essential Reading',count:resources.filter(function(r){return r.type==='reading';}).length,colour:'#0f3b3a',tab:'resources'},
+    {label:'Research Papers',count:resources.filter(function(r){return r.type==='paper';}).length,colour:'#16a34a',tab:'resources'},
+    {label:'News & Sources',count:resources.filter(function(r){return r.type==='news'||r.type==='link';}).length,colour:'#f59e0b',tab:'resources'},
+    {label:'My Notes',count:week.notes&&week.notes.trim()?1:0,colour:'#7c3aed',tab:'notes'},
+    {label:'Upload',count:0,colour:'#6b7280',tab:'upload'},
+  ];
+  var cardsHdr = document.createElement('div');
+  cardsHdr.style.cssText='font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:10px;margin-top:4px;';
+  cardsHdr.textContent='Resources by Type';
+  body.appendChild(cardsHdr);
+  var cardGrid = document.createElement('div');
+  cardGrid.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px;';
+  cardDefs.forEach(function(card) {
+    var el = document.createElement('div');
+    el.style.cssText='background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all 0.15s;';
+    el.onmouseenter=function(){el.style.borderColor=card.colour;el.style.transform='translateY(-2px)';};
+    el.onmouseleave=function(){el.style.borderColor='var(--border)';el.style.transform='';};
+    el.onclick=(function(t){return function(){currentTab=t;switchTab(t,null);};})(card.tab);
+    var labelEl=document.createElement('div');
+    labelEl.style.cssText='font-size:12px;font-weight:600;color:var(--fg);margin-bottom:4px;';
+    labelEl.textContent=card.label;
+    var countEl=document.createElement('div');
+    countEl.style.cssText='font-size:22px;font-weight:700;color:'+card.colour+';';
+    countEl.textContent=card.count;
+    el.appendChild(labelEl); el.appendChild(countEl);
+    cardGrid.appendChild(el);
+  });
+  body.appendChild(cardGrid);
+  if (resources.length > 0) {
+    var resHdr=document.createElement('div');
+    resHdr.style.cssText='font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:8px;';
+    resHdr.textContent='Recent Resources';
+    body.appendChild(resHdr);
+    resources.slice(0,4).forEach(function(r) {
+      var item=document.createElement('div');
+      item.style.cssText='display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg-elevated);cursor:pointer;';
+      item.onclick=function(){openResource(r);};
+      var nameEl=document.createElement('div');
+      nameEl.style.cssText='flex:1;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      nameEl.textContent=r.title||r.name||'';
+      var typeEl=document.createElement('div');
+      typeEl.style.cssText='font-size:11px;color:var(--fg-muted);flex-shrink:0;';
+      typeEl.textContent=r.type;
+      item.appendChild(nameEl); item.appendChild(typeEl);
+      body.appendChild(item);
+    });
+  }
+}
+
 </script>
 
 <!-- Edit Module Modal -->
