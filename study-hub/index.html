@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792748492 -->
+<!-- cache-bust-1792758134 -->
+
 
 
 
@@ -317,7 +318,23 @@ function renderTree() {
       weekDiv.className = 'tree-week' + (currentWeek && currentWeek.id === week.id ? ' active' : '');
       weekDiv.id = 'tw-' + week.id;
       var resCount = (week.resources || []).length;
-      weekDiv.innerHTML = '<span>&#x1F4C5;</span><span style="flex:1;">' + week.name + '</span><span class="tree-week-badge">' + resCount + '</span>';
+            // Build week item with DOM (avoids nested quote issues)
+      var wIcon = document.createElement('span');
+      wIcon.innerHTML = '&#x1F4C5;';
+      var wLabel = document.createElement('span');
+      wLabel.className = 'week-name-label';
+      wLabel.style.flex = '1';
+      wLabel.textContent = week.name;
+      wLabel.title = 'Double-click to rename';
+      wLabel.ondblclick = (function(mId, wId) {
+        return function(e) { e.stopPropagation(); renameWeek(e, mId, wId); };
+      })(mod.id, week.id);
+      var wBadge = document.createElement('span');
+      wBadge.className = 'tree-week-badge';
+      wBadge.textContent = resCount;
+      weekDiv.appendChild(wIcon);
+      weekDiv.appendChild(wLabel);
+      weekDiv.appendChild(wBadge);
       // Use data attributes to avoid closure issues
       weekDiv.setAttribute('data-mod-id', mod.id);
       weekDiv.setAttribute('data-week-id', week.id);
