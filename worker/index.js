@@ -2118,6 +2118,37 @@ export default {
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── Upload file to R2 and return public URL ───────────────────────────────
+    if (path === '/api/r2/upload' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const content = body.content || '';
+        const filename = body.filename || ('file-' + Date.now());
+        const mimeType = body.mimeType || 'application/octet-stream';
+        if (!content) return json({error:'No content'}, 400, origin);
+        if (!env.PRISM_ASSETS) return json({error:'R2 not configured'}, 500, origin);
+        // Decode base64 if needed
+        let fileData;
+        if (content.startsWith('data:')) {
+          const b64 = content.split(',')[1];
+          const binary = atob(b64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          fileData = bytes;
+        } else {
+          fileData = new TextEncoder().encode(content);
+        }
+        const key = 'study-hub/' + Date.now() + '-' + filename.replace(/[^a-zA-Z0-9._-]/g,'_');
+        await env.PRISM_ASSETS.put(key, fileData, {
+          httpMetadata: { contentType: mimeType },
+          expirationTtl: 86400 * 365 // 1 year
+        });
+        const publicUrl = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + key;
+        return json({ success: true, url: publicUrl, key }, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
