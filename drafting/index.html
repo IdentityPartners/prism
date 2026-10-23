@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792702450 -->
+<!-- cache-bust-1792740211 -->
+
 
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
@@ -255,7 +256,7 @@
 <!-- Editor -->
 <div class="draft-body">
 <div class="draft-editor-wrap">
-<div class="tiptap-editor" id="tiptap-editor"></div>
+<div id="editor-container" style="min-height:calc(100vh - 200px);"></div>
 </div>
 <!-- AI panel -->
 <div class="draft-ai-panel collapsed" id="ai-panel">
@@ -326,86 +327,75 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initTipTap() {
-  // Try TipTap first (best editor), fall back to Quill, then contenteditable
-  var attempts = 0;
-  var checkEditors = setInterval(function() {
-    attempts++;
-    // TipTap: needs @tiptap/core and @tiptap/starter-kit
-    var hasTipTap = (typeof window.tiptap !== 'undefined' && window.tiptap.Editor) ||
-                    (typeof Editor !== 'undefined' && typeof StarterKit !== 'undefined');
-    var hasQuill = typeof Quill !== 'undefined';
-    
-    if (hasTipTap && !window._tiptapFailed) {
-      clearInterval(checkEditors);
-      try {
-        var EditorClass = (typeof Editor !== 'undefined') ? Editor : window.tiptap.Editor;
-        var StarterKitExt = (typeof StarterKit !== 'undefined') ? StarterKit : window.tiptap.StarterKit;
-        editor = new EditorClass({
-          element: document.getElementById('quill-editor'),
-          extensions: [StarterKitExt.configure({heading:{levels:[1,2,3]}})],
-          content: '',
-          onUpdate: function() { updateCounts(); scheduleSave(); updateToolbarState(); },
-          onSelectionUpdate: function() { updateToolbarState(); }
-        });
-        editor._type = 'tiptap';
-        console.log('TipTap initialised');
-      } catch(e) {
-        console.warn('TipTap failed:', e);
-        if (hasQuill) initQuillEditor();
-        else initFallbackEditor();
+  // Try Quill first (reliable CDN), fall back to contenteditable
+  var container = document.getElementById('editor-container');
+  if (!container) { console.error('Editor container not found'); return; }
+
+  if (typeof Quill !== 'undefined') {
+    initQuillEditor(container);
+  } else {
+    // Wait up to 3 seconds for Quill to load
+    var attempts = 0;
+    var checkQuill = setInterval(function() {
+      attempts++;
+      if (typeof Quill !== 'undefined') {
+        clearInterval(checkQuill);
+        initQuillEditor(container);
+      } else if (attempts > 15) {
+        clearInterval(checkQuill);
+        console.warn('Quill not loaded after 3s, using fallback');
+        initFallbackEditor(container);
       }
-    } else if (hasQuill && (attempts > 15 || window._tiptapFailed)) {
-      clearInterval(checkEditors);
-      initQuillEditor();
-    } else if (attempts > 25) {
-      clearInterval(checkEditors);
-      initFallbackEditor();
-    }
-  }, 200);
+    }, 200);
+  }
 }
 
-function initQuillEditor() {
+function initQuillEditor(container) {
   try {
-    var quill = new Quill('#quill-editor', {
+    // Remove Quill's default toolbar (we use our own)
+    var quill = new Quill(container, {
       theme: 'snow',
-      placeholder: 'Start writing... or use the AI assistant to help.',
+      placeholder: 'Start writing... or use the AI assistant on the right.',
       modules: {
-        toolbar: false, // We use our own toolbar
-        history: { delay: 1000, maxStack: 100 }
+        toolbar: false,
+        history: { delay: 1000, maxStack: 200 }
       }
     });
 
-    // Create editor shim compatible with existing code
+    // Style the editor
+    var qlEditor = container.querySelector('.ql-editor');
+    if (qlEditor) {
+      qlEditor.style.cssText = 'min-height:calc(100vh - 200px);padding:20px 0;font-size:17px;line-height:1.75;color:var(--fg);font-family:var(--font-ui,Inter,sans-serif);outline:none;';
+    }
+    var qlContainer = container.querySelector('.ql-container');
+    if (qlContainer) {
+      qlContainer.style.cssText = 'border:none;font-size:17px;';
+    }
+
+    // Create editor shim
     editor = {
       _quill: quill,
+      _type: 'quill',
       chain: function() {
         var q = quill;
         return {
           focus: function() { q.focus(); return this; },
-          toggleBold: function() { var f = q.getFormat(); q.format('bold', !f.bold); return this; },
-          toggleItalic: function() { var f = q.getFormat(); q.format('italic', !f.italic); return this; },
-          toggleStrike: function() { var f = q.getFormat(); q.format('strike', !f.strike); return this; },
-          toggleHighlight: function() { var f = q.getFormat(); q.format('background', f.background ? false : '#ffff00'); return this; },
-          toggleBulletList: function() { var f = q.getFormat(); q.format('list', f.list === 'bullet' ? false : 'bullet'); return this; },
-          toggleOrderedList: function() { var f = q.getFormat(); q.format('list', f.list === 'ordered' ? false : 'ordered'); return this; },
+          toggleBold: function() { var f=q.getFormat(); q.format('bold',!f.bold); return this; },
+          toggleItalic: function() { var f=q.getFormat(); q.format('italic',!f.italic); return this; },
+          toggleStrike: function() { var f=q.getFormat(); q.format('strike',!f.strike); return this; },
+          toggleHighlight: function() { var f=q.getFormat(); q.format('background',f.background?false:'#ffff00'); return this; },
+          toggleBulletList: function() { var f=q.getFormat(); q.format('list',f.list==='bullet'?false:'bullet'); return this; },
+          toggleOrderedList: function() { var f=q.getFormat(); q.format('list',f.list==='ordered'?false:'ordered'); return this; },
           toggleTaskList: function() { return this; },
-          toggleBlockquote: function() { var f = q.getFormat(); q.format('blockquote', !f.blockquote); return this; },
-          toggleCodeBlock: function() { var f = q.getFormat(); q.format('code-block', !f.code-block); return this; },
-          setHorizontalRule: function() { var range = q.getSelection(true); q.insertText(range.index, '\n---\n'); return this; },
+          toggleBlockquote: function() { var f=q.getFormat(); q.format('blockquote',!f.blockquote); return this; },
+          toggleCodeBlock: function() { var f=q.getFormat(); q.format('code-block',!f['code-block']); return this; },
+          setHorizontalRule: function() { var r=q.getSelection(true); q.insertText(r?r.index:q.getLength(),'\n---\n'); return this; },
           undo: function() { q.history.undo(); return this; },
           redo: function() { q.history.redo(); return this; },
-          setHeading: function(opts) {
-            var lvl = opts && opts.level ? opts.level : 0;
-            q.format('header', lvl || false);
-            return this;
-          },
-          setParagraph: function() { q.format('header', false); return this; },
-          insertContent: function(html) {
-            var range = q.getSelection(true);
-            q.clipboard.dangerouslyPasteHTML(range ? range.index : q.getLength(), html);
-            return this;
-          },
-          setContent: function(html) { q.clipboard.dangerouslyPasteHTML(0, html); return this; },
+          setHeading: function(opts) { q.format('header',opts&&opts.level?opts.level:false); return this; },
+          setParagraph: function() { q.format('header',false); return this; },
+          insertContent: function(html) { var r=q.getSelection(true); q.clipboard.dangerouslyPasteHTML(r?r.index:q.getLength(),html); return this; },
+          setContent: function(html) { q.setContents([]); q.clipboard.dangerouslyPasteHTML(0,html); return this; },
           run: function() {}
         };
       },
@@ -413,17 +403,17 @@ function initQuillEditor() {
       getHTML: function() { return quill.root.innerHTML; },
       isActive: function(type, opts) {
         var f = quill.getFormat();
-        if (type === 'bold') return !!f.bold;
-        if (type === 'italic') return !!f.italic;
-        if (type === 'bulletList') return f.list === 'bullet';
-        if (type === 'orderedList') return f.list === 'ordered';
-        if (type === 'blockquote') return !!f.blockquote;
-        if (type === 'heading' && opts) return f.header === opts.level;
+        if (type==='bold') return !!f.bold;
+        if (type==='italic') return !!f.italic;
+        if (type==='bulletList') return f.list==='bullet';
+        if (type==='orderedList') return f.list==='ordered';
+        if (type==='blockquote') return !!f.blockquote;
+        if (type==='heading'&&opts) return f.header===opts.level;
         return false;
       },
       commands: {
         focus: function() { quill.focus(); },
-        setContent: function(html) { quill.clipboard.dangerouslyPasteHTML(0, html); }
+        setContent: function(html) { quill.setContents([]); quill.clipboard.dangerouslyPasteHTML(0,html); }
       }
     };
 
@@ -432,36 +422,36 @@ function initQuillEditor() {
       scheduleSave();
       updateToolbarState();
     });
-
     quill.on('selection-change', function() {
       updateToolbarState();
     });
 
-    console.log('Quill editor initialised');
+    // Load saved content
+    loadSavedDoc();
+    console.log('Quill editor ready');
   } catch(e) {
-    console.error('Quill init failed:', e);
-    initFallbackEditor();
+    console.error('Quill init failed:', e.message);
+    initFallbackEditor(container);
   }
 }
 
-function initFallbackEditor() {
-  // Fallback contenteditable editor
-  var el = document.getElementById('tiptap-editor');
-  el.contentEditable = 'true';
-  el.setAttribute('data-placeholder', 'Start writing...');
-  el.style.outline = 'none';
-  el.style.minHeight = 'calc(100vh - 200px)';
-  el.addEventListener('input', function() { updateCounts(); scheduleSave(); });
+function initFallbackEditor(container) {
+  if (!container) container = document.getElementById('editor-container');
+  if (!container) return;
+  container.contentEditable = 'true';
+  container.style.cssText = 'min-height:calc(100vh - 200px);padding:20px 0;font-size:17px;line-height:1.75;color:var(--fg);outline:none;';
+  container.setAttribute('data-placeholder', 'Start writing...');
+  container.addEventListener('input', function() { updateCounts(); scheduleSave(); });
 
-  // Create a minimal editor shim
   editor = {
+    _type: 'fallback',
     chain: function() {
       return {
-        focus: function() { return this; },
+        focus: function() { container.focus(); return this; },
         toggleBold: function() { document.execCommand('bold'); return this; },
         toggleItalic: function() { document.execCommand('italic'); return this; },
         toggleStrike: function() { document.execCommand('strikeThrough'); return this; },
-        toggleHighlight: function() { document.execCommand('backColor', false, 'yellow'); return this; },
+        toggleHighlight: function() { document.execCommand('backColor',false,'#ffff00'); return this; },
         toggleBulletList: function() { document.execCommand('insertUnorderedList'); return this; },
         toggleOrderedList: function() { document.execCommand('insertOrderedList'); return this; },
         toggleTaskList: function() { return this; },
@@ -471,14 +461,23 @@ function initFallbackEditor() {
         undo: function() { document.execCommand('undo'); return this; },
         redo: function() { document.execCommand('redo'); return this; },
         setHeading: function() { return this; },
+        setParagraph: function() { return this; },
+        insertContent: function(html) { document.execCommand('insertHTML',false,html); return this; },
+        setContent: function(html) { container.innerHTML = html; return this; },
         run: function() {}
       };
     },
-    getText: function() { return document.getElementById('tiptap-editor').innerText || ''; },
-    getHTML: function() { return document.getElementById('tiptap-editor').innerHTML || ''; },
-    commands: { focus: function() { document.getElementById('tiptap-editor').focus(); } }
+    getText: function() { return container.innerText || ''; },
+    getHTML: function() { return container.innerHTML || ''; },
+    isActive: function() { return false; },
+    commands: {
+      focus: function() { container.focus(); },
+      setContent: function(html) { container.innerHTML = html; }
+    }
   };
-  console.log('Fallback editor initialised');
+
+  loadSavedDoc();
+  console.log('Fallback editor ready');
 }
 
 function updateToolbarState() {
@@ -515,6 +514,7 @@ function setHeading(level) {
   } else {
     editor.chain().focus().setHeading({level: lvl}).run();
   }
+  updateToolbarState();
 }
 
 function updateCounts() {
@@ -575,11 +575,19 @@ function loadSavedDoc() {
 // ── AI actions ────────────────────────────────────────────────────────────────
 function getSelectedOrAll() {
   if (!editor) return '';
+  // For Quill: check Quill selection first
+  if (editor._quill) {
+    var range = editor._quill.getSelection();
+    if (range && range.length > 0) {
+      return editor._quill.getText(range.index, range.length);
+    }
+  }
+  // Browser selection
   try {
     var sel = window.getSelection();
     if (sel && sel.toString().trim()) return sel.toString().trim();
   } catch(e) {}
-  return editor.getText ? editor.getText().substring(0, 2000) : '';
+  return editor.getText ? editor.getText().substring(0, 3000) : '';
 }
 
 function aiAction(type) {
