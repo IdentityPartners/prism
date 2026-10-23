@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792777811 -->
+<!-- cache-bust-1792779244 -->
+
 
 
 
@@ -576,6 +577,8 @@ function selectWeek(modId, weekId) {
   currentTab = 'resources';
   renderTree();
   document.getElementById('hub-title').textContent = mod.name + ' — ' + week.name;
+  var editBtn = document.getElementById('hub-edit-btn');
+  if (editBtn) editBtn.style.display = 'inline-block';
   document.getElementById('hub-subtitle').textContent = (week.vle_url ? 'VLE: ' + week.vle_url : '') + ' · ' + (week.resources||[]).length + ' resources';
   // Activate the Resources tab visually
   document.querySelectorAll('.hub-tab').forEach(function(t){t.classList.remove('active');});
@@ -585,6 +588,42 @@ function selectWeek(modId, weekId) {
   // Render resources directly — don't go through switchTab which checks currentTab
   var body = document.getElementById('hub-body');
   renderResources(body);
+}
+
+
+var _hubEditOpen = false;
+function toggleHubEdit() {
+  _hubEditOpen = !_hubEditOpen;
+  var fields = document.getElementById('hub-edit-fields');
+  var btn = document.getElementById('hub-edit-btn');
+  if (!fields) return;
+  fields.style.display = _hubEditOpen ? 'block' : 'none';
+  if (btn) btn.textContent = _hubEditOpen ? '✕ Cancel' : '✏ Edit';
+  if (_hubEditOpen && currentWeek) {
+    document.getElementById('hub-edit-name').value = currentWeek.name || '';
+    document.getElementById('hub-edit-topic').value = currentWeek.topic || '';
+    document.getElementById('hub-edit-vle').value = currentWeek.vle_url || '';
+    document.getElementById('hub-edit-name').focus();
+  }
+}
+
+function saveHubEdit() {
+  if (!currentWeek || !currentModule) return;
+  var name = document.getElementById('hub-edit-name').value.trim();
+  var topic = document.getElementById('hub-edit-topic').value;
+  var vle = document.getElementById('hub-edit-vle').value;
+  if (name) currentWeek.name = name;
+  currentWeek.topic = topic;
+  currentWeek.vle_url = vle;
+  saveModules();
+  renderTree();
+  document.getElementById('hub-title').textContent = currentModule.name + ' — ' + currentWeek.name;
+  document.getElementById('hub-subtitle').textContent = (vle ? 'VLE: ' + vle : '') + ' · ' + (currentWeek.resources||[]).length + ' resources';
+  _hubEditOpen = false;
+  var fields = document.getElementById('hub-edit-fields');
+  if (fields) fields.style.display = 'none';
+  var btn = document.getElementById('hub-edit-btn');
+  if (btn) btn.textContent = '\u270F Edit';
 }
 
 function addWeekToModule(modId) {
