@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792742059 -->
+<!-- cache-bust-1792744302 -->
+
 
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
@@ -294,68 +295,105 @@ function loadDocument(doc) {
 function renderPDF(doc) {
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane pdf-mode';
-  pane.innerHTML = '<div style="text-align:center;padding:20px;color:#fff;font-size:13px;">Loading PDF...</div>';
+  pane.innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:14px;">Loading PDF...</div>';
   document.getElementById('pdf-controls').style.display = 'flex';
 
-  // Use PDF.js
-  var loadPDF = function(src) {
-    if (typeof pdfjsLib === 'undefined') {
-      // Try loading via script tag
-      pane.innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:13px;">PDF.js loading... please wait.</div>';
-      var script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.js';
-      script.onload = function() {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js';
-        loadPDFWithLib(src);
-      };
-      document.head.appendChild(script);
-    } else {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js';
-      loadPDFWithLib(src);
-    }
-  };
+  function doLoad() {
+    // Set worker — must match the library version
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
-  if (doc.content && doc.content.startsWith('data:')) {
-    // Base64 data URL
-    var b64 = doc.content.split(',')[1];
-    var binary = atob(b64);
-    var bytes = new Uint8Array(binary.length);
-    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    loadPDF({data: bytes});
-  } else if (doc.url) {
-    loadPDF(doc.url);
-  } else if (doc.content) {
-    // Try as text
-    renderText(doc);
+    var loadingTask;
+    if (doc.content && doc.content.startsWith('data:')) {
+      // Convert base64 data URL to Uint8Array
+      var b64 = doc.content.split(',')[1];
+      var binary = atob(b64);
+      var bytes = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      loadingTask = pdfjsLib.getDocument({data: bytes});
+    } else if (doc.content && !doc.url) {
+      // Raw binary string stored as content — try as text fallback
+      renderText(doc);
+      return;
+    } else if (doc.url) {
+      loadingTask = pdfjsLib.getDocument(doc.url);
+    } else {
+      pane.innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:14px;">No PDF source available. Upload the file to view it.</div>';
+      return;
+    }
+
+    loadingTask.promise.then(function(pdf) {
+      pdfDoc = pdf;
+      document.getElementById('page-total').textContent = 'of ' + pdf.numPages;
+      renderPDFPage(1);
+    }).catch(function(e) {
+      pane.innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:14px;">PDF error: ' + e.message + '<br><br><a href="' + (doc.url||'#') + '" target="_blank" style="color:#7ecfcd;">Open in new tab ↗</a></div>';
+    });
+  }
+
+  if (typeof pdfjsLib !== 'undefined') {
+    doLoad();
+  } else {
+    // Load PDF.js dynamically if not yet loaded
+    pane.innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:14px;">Loading PDF renderer...</div>';
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+    s.onload = doLoad;
+    s.onerror = function() {
+      pane.innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:14px;">Could not load PDF renderer.<br><a href="' + (doc.url||'#') + '" target="_blank" style="color:#7ecfcd;">Open PDF in new tab ↗</a></div>';
+    };
+    document.head.appendChild(s);
   }
 }
 
 function loadPDFWithLib(src) {
+  // Legacy alias — calls renderPDF internally now
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
   pdfjsLib.getDocument(src).promise.then(function(pdf) {
     pdfDoc = pdf;
-    var total = pdf.numPages;
-    document.getElementById('page-total').textContent = 'of ' + total;
+    document.getElementById('page-total').textContent = 'of ' + pdf.numPages;
     renderPDFPage(1);
   }).catch(function(e) {
-    document.getElementById('doc-pane').innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:13px;">PDF load error: ' + e.message + '</div>';
+    document.getElementById('doc-pane').innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:14px;">PDF error: ' + e.message + '</div>';
   });
 }
 
 function renderPDFPage(num) {
   if (!pdfDoc) return;
   pdfPage = Math.max(1, Math.min(num, pdfDoc.numPages));
-  document.getElementById('page-num').value = pdfPage;
+  var pageNumEl = document.getElementById('page-num');
+  if (pageNumEl) pageNumEl.value = pdfPage;
+
   pdfDoc.getPage(pdfPage).then(function(page) {
-    var viewport = page.getViewport({scale: pdfZoom});
+    var dpr = window.devicePixelRatio || 1;
+    // Scale to fit pane width, respecting zoom
+    var pane = document.getElementById('doc-pane');
+    var paneWidth = pane.clientWidth - 20;
+    var baseViewport = page.getViewport({scale: 1});
+    var fitScale = paneWidth / baseViewport.width;
+    var scale = fitScale * pdfZoom;
+    var viewport = page.getViewport({scale: scale});
+
     var canvas = document.createElement('canvas');
     canvas.className = 'pdf-page';
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+    canvas.width = Math.floor(viewport.width * dpr);
+    canvas.height = Math.floor(viewport.height * dpr);
+    canvas.style.width = viewport.width + 'px';
+    canvas.style.height = viewport.height + 'px';
+
     var ctx = canvas.getContext('2d');
-    var pane = document.getElementById('doc-pane');
+    ctx.scale(dpr, dpr);
+
     pane.innerHTML = '';
     pane.appendChild(canvas);
-    page.render({canvasContext: ctx, viewport: viewport});
+
+    // Create ink canvas overlay after PDF renders
+    page.render({canvasContext: ctx, viewport: viewport}).promise.then(function() {
+      if (typeof createInkCanvas === 'function') {
+        setTimeout(createInkCanvas, 100);
+      }
+    });
+  }).catch(function(e) {
+    console.error('Page render error:', e);
   });
 }
 
