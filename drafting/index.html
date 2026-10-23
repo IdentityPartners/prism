@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792777832 -->
+<!-- cache-bust-1792779244 -->
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Drafting Desk — Argentica</title>
@@ -173,6 +174,8 @@
         <button class="tb" onclick="hwUndo()"><span class="iconify" data-icon="ph:arrow-counter-clockwise-bold" style="font-size:16px;"></span> Undo</button>
         <button class="tb" onclick="hwClear()"><span class="iconify" data-icon="ph:trash-bold" style="font-size:16px;"></span> Clear</button>
         <button class="tb" onclick="hwOCR()"><span class="iconify" data-icon="ph:text-t-bold" style="font-size:16px;"></span> OCR → Text</button>
+        <div class="tb-sep"></div>
+        <button class="tb" id="hw-lines-btn" onclick="toggleRuledLines()" title="Toggle ruled lines"><span class="iconify" data-icon="ph:lines-bold" style="font-size:16px;"></span> Lines</button>
         <button class="tb on" onclick="switchView('type')" style="margin-left:auto;"><span class="iconify" data-icon="ph:keyboard-bold" style="font-size:16px;"></span> Switch to Type</button>
       </div>
       <div class="write-canvas-wrap" id="hw-wrap">
@@ -485,7 +488,7 @@ function initHWCanvas() {
   canvas.addEventListener('pointermove',hwMove);
   canvas.addEventListener('pointerup',hwEnd);
   canvas.addEventListener('pointercancel',hwEnd);
-  hwRedraw();
+  hwRedraw(); // draws ruled lines + existing strokes
 }
 
 function hwPos(e) {
@@ -541,12 +544,47 @@ function hwDrawStroke(stroke,inc) {
   ctx.restore();
 }
 
+var hwShowLines = true;
+var hwLineSpacing = 40; // px between lines
+
+function drawRuledLines(canvas) {
+  if (!hwShowLines) return;
+  var ctx = canvas.getContext('2d');
+  var dpr = canvas._dpr || 1;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(180,200,220,0.5)';
+  ctx.lineWidth = 1;
+  // Horizontal ruled lines
+  for (var y = hwLineSpacing * dpr; y < canvas.height; y += hwLineSpacing * dpr) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+  // Left margin line
+  ctx.strokeStyle = 'rgba(220,150,150,0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(60 * dpr, 0);
+  ctx.lineTo(60 * dpr, canvas.height);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function toggleRuledLines() {
+  hwShowLines = !hwShowLines;
+  var btn = document.getElementById('hw-lines-btn');
+  if (btn) btn.classList.toggle('on', hwShowLines);
+  hwRedraw();
+}
+
 function hwRedraw() {
   var canvasId = currentView === 'split' ? 'hw-canvas-split' : 'hw-canvas';
   var c=document.getElementById(canvasId);
   if(!c) return;
   var ctx=c.getContext('2d');
   ctx.clearRect(0,0,c.width,c.height);
+  drawRuledLines(c);
   hwStrokes.forEach(function(s){hwDrawStroke(s,false);});
 }
 
