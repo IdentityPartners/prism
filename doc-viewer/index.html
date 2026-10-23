@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792783780 -->
+<!-- cache-bust-1792788084 -->
+
 
 
 
@@ -476,119 +477,64 @@ function showOfficeViewerOptions(doc, label) {
   pane.innerHTML = '';
   var wrap = document.createElement('div');
   wrap.className = 'doc-content';
-  var card = document.createElement('div');
-  card.style.cssText = 'background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:10px;padding:16px;margin-bottom:16px;';
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:10px;padding:18px;margin-bottom:16px;';
   var titleEl = document.createElement('div');
-  titleEl.style.cssText = 'font-size:16px;font-weight:700;margin-bottom:6px;';
-  titleEl.textContent = (doc.name || label);
+  titleEl.style.cssText = 'font-size:17px;font-weight:700;margin-bottom:8px;';
+  titleEl.textContent = (doc.name || label || 'Document');
   var descEl = document.createElement('div');
-  descEl.style.cssText = 'font-size:13px;color:var(--fg-muted);margin-bottom:12px;';
-  descEl.textContent = 'This file format requires an external viewer:';
+  descEl.style.cssText = 'font-size:14px;color:var(--fg-muted);margin-bottom:14px;';
+  descEl.textContent = 'Open in an external viewer:';
   var btnRow = document.createElement('div');
-  btnRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;';
+  btnRow.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;';
+  var gdBtn = document.createElement('button');
+  gdBtn.style.cssText = 'padding:10px 18px;background:#4285f4;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:600;';
+  gdBtn.textContent = 'Google Docs Viewer';
+  var offBtn = document.createElement('button');
+  offBtn.style.cssText = 'padding:10px 18px;background:#d83b01;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:600;';
+  offBtn.textContent = 'Office Online';
   if (doc.url) {
-    var gdBtn = document.createElement('button');
-    gdBtn.textContent = 'Google Docs Viewer';
-    gdBtn.style.cssText = 'padding:8px 14px;background:#4285f4;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;';
-    gdBtn.onclick = (function(u) { return function() { loadInFrame('https://docs.google.com/viewer?url=' + encodeURIComponent(u) + '&embedded=true'); }; })(doc.url);
-    btnRow.appendChild(gdBtn);
-    var offBtn = document.createElement('button');
-    offBtn.textContent = 'Office Online';
-    offBtn.style.cssText = 'padding:8px 14px;background:#d83b01;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;';
-    offBtn.onclick = (function(u) { return function() { loadInFrame('https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(u)); }; })(doc.url);
-    btnRow.appendChild(offBtn);
+    gdBtn.onclick = (function(u){return function(){loadInFrame('https://docs.google.com/viewer?url='+encodeURIComponent(u)+'&embedded=true');};})(doc.url);
+    offBtn.onclick = (function(u){return function(){loadInFrame('https://view.officeapps.live.com/op/embed.aspx?src='+encodeURIComponent(u));};})(doc.url);
     var directLink = document.createElement('a');
-    directLink.href = doc.url;
-    directLink.target = '_blank';
-    directLink.textContent = 'Open in new tab';
-    directLink.style.cssText = 'padding:8px 14px;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:13px;display:inline-block;';
-    btnRow.appendChild(directLink);
+    directLink.href = doc.url; directLink.target = '_blank';
+    directLink.textContent = 'Open directly';
+    directLink.style.cssText = 'padding:10px 18px;background:var(--accent);color:#fff;border-radius:7px;text-decoration:none;font-size:14px;font-weight:600;display:inline-block;';
+    btnRow.appendChild(gdBtn); btnRow.appendChild(offBtn); btnRow.appendChild(directLink);
+  } else {
+    var noteEl = document.createElement('div');
+    noteEl.style.cssText = 'font-size:13px;color:var(--fg-muted);margin-bottom:10px;';
+    noteEl.textContent = 'Clicking will upload this file to get a public URL, then open it:';
+    hdr.appendChild(noteEl);
+    gdBtn.onclick = function(){uploadToR2AndOpen('google',doc);};
+    offBtn.onclick = function(){uploadToR2AndOpen('office',doc);};
+    btnRow.appendChild(gdBtn); btnRow.appendChild(offBtn);
   }
-  card.appendChild(titleEl);
-  card.appendChild(descEl);
-  card.appendChild(btnRow);
-  wrap.appendChild(card);
-  pane.appendChild(wrap);
+  hdr.appendChild(titleEl); hdr.appendChild(descEl); hdr.appendChild(btnRow);
+  wrap.appendChild(hdr); pane.appendChild(wrap);
 }
 
-
-function renderPPT(doc) {
+function uploadToR2AndOpen(viewer, doc) {
   var pane = document.getElementById('doc-pane');
-  pane.className = 'doc-pane';
-  pane.innerHTML = '';
-
-  var wrap = document.createElement('div');
-  wrap.className = 'doc-content';
-
-  var card = document.createElement('div');
-  card.style.cssText = 'background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:10px;padding:16px;margin-bottom:16px;';
-
-  var titleEl = document.createElement('div');
-  titleEl.style.cssText = 'font-size:16px;font-weight:700;margin-bottom:8px;';
-  titleEl.textContent = '\uD83D\uDCCA ' + (doc.name || 'Presentation');
-
-  var descEl = document.createElement('div');
-  descEl.style.cssText = 'font-size:13px;color:var(--fg-muted);margin-bottom:12px;';
-  descEl.textContent = 'Open in a viewer for full rendering:';
-
-  var btnRow = document.createElement('div');
-  btnRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
-
-  if (doc.url) {
-    var gdBtn = document.createElement('button');
-    gdBtn.textContent = '\uD83D\uDCC4 Google Docs Viewer';
-    gdBtn.style.cssText = 'padding:8px 14px;background:#4285f4;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;';
-    gdBtn.onclick = (function(u) { return function() { loadInFrame('https://docs.google.com/viewer?url=' + encodeURIComponent(u) + '&embedded=true'); }; })(doc.url);
-    btnRow.appendChild(gdBtn);
-
-    var offBtn = document.createElement('button');
-    offBtn.textContent = '\uD83D\uDCC4 Office Online';
-    offBtn.style.cssText = 'padding:8px 14px;background:#d83b01;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;';
-    offBtn.onclick = (function(u) { return function() { loadInFrame('https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(u)); }; })(doc.url);
-    btnRow.appendChild(offBtn);
-
-    var directLink = document.createElement('a');
-    directLink.href = doc.url;
-    directLink.target = '_blank';
-    directLink.textContent = '\u2197 Open directly';
-    directLink.style.cssText = 'padding:8px 14px;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:13px;display:inline-block;';
-    btnRow.appendChild(directLink);
-  }
-
-  card.appendChild(titleEl);
-  card.appendChild(descEl);
-  card.appendChild(btnRow);
-  wrap.appendChild(card);
-
-  var content = doc.content || '';
-  var isBinary = content.length > 50 && content.split('').filter(function(c) {
-    var code = c.charCodeAt(0);
-    return code < 32 && code !== 10 && code !== 13 && code !== 9;
-  }).length > content.length * 0.05;
-
-  if (!isBinary && content.trim()) {
-    var textHdr = document.createElement('div');
-    textHdr.style.cssText = 'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);margin-bottom:8px;';
-    textHdr.textContent = 'Extracted text:';
-    var pre = document.createElement('pre');
-    pre.style.cssText = 'white-space:pre-wrap;font-size:15px;line-height:1.7;';
-    pre.textContent = content.substring(0, 10000);
-    wrap.appendChild(textHdr);
-    wrap.appendChild(pre);
-  } else if (doc.url) {
-    var extractDiv = document.createElement('div');
-    extractDiv.id = 'extract-status';
-    extractDiv.style.cssText = 'margin-top:10px;';
-    var extractBtn = document.createElement('button');
-    extractBtn.textContent = '\uD83D\uDCDD Extract text via AI';
-    extractBtn.style.cssText = 'padding:6px 14px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;background:var(--bg);';
-    extractBtn.onclick = extractText;
-    extractDiv.appendChild(extractBtn);
-    wrap.appendChild(extractDiv);
-  }
-
-  pane.appendChild(wrap);
+  var status = document.createElement('div');
+  status.style.cssText = 'padding:12px;color:var(--fg-muted);font-size:14px;';
+  status.textContent = 'Uploading file to get public URL...';
+  pane.appendChild(status);
+  var mimeType = (doc.name||'').endsWith('.docx') ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' :
+                 (doc.name||'').endsWith('.pptx') ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation' :
+                 'application/octet-stream';
+  fetch('https://prism-api.identitypartners.workers.dev/api/r2/upload', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({content:doc.content||'',filename:doc.name||'document',mimeType:mimeType})
+  }).then(function(r){return r.json();}).then(function(d){
+    if (d.url) {
+      doc.url = d.url;
+      if (viewer==='google') loadInFrame('https://docs.google.com/viewer?url='+encodeURIComponent(d.url)+'&embedded=true');
+      else loadInFrame('https://view.officeapps.live.com/op/embed.aspx?src='+encodeURIComponent(d.url));
+    } else { status.textContent='Upload failed: '+(d.error||'unknown'); status.style.color='#dc2626'; }
+  }).catch(function(e){status.textContent='Error: '+e.message;status.style.color='#dc2626';});
 }
+
 
 function loadInFrame(url) {
   var pane = document.getElementById('doc-pane');
