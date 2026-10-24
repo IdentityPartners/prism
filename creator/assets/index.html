@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792701424 -->
+<!-- cache-bust-1792810632 -->
+
 
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Assets — Prism</title>
@@ -337,6 +338,169 @@ function showAssetTab(tab, btn) {
     .catch(function(){
       list.innerHTML = '<div style="font-size:13px;color:var(--fg-muted);padding:20px;text-align:center;">Could not load history.</div>';
     });
+}
+
+
+var openverseResults = [];
+var openversePage = 1;
+var openverseQuery = '';
+
+function showOpenverseSearch() {
+  var panel = document.getElementById('asset-history-panel');
+  var list = document.getElementById('asset-history-list');
+  if (!panel || !list) return;
+  panel.style.display = 'block';
+  list.innerHTML = '';
+
+  // Search bar
+  var searchRow = document.createElement('div');
+  searchRow.style.cssText = 'display:flex;gap:8px;margin-bottom:12px;';
+
+  var searchInput = document.createElement('input');
+  searchInput.id = 'ov-search';
+  searchInput.type = 'text';
+  searchInput.placeholder = 'Search open-licence images (CC0, CC BY)...';
+  searchInput.style.cssText = 'flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--fg);';
+  searchInput.onkeydown = function(e) { if (e.key === 'Enter') searchOpenverse(); };
+
+  var licenseSelect = document.createElement('select');
+  licenseSelect.id = 'ov-license';
+  licenseSelect.style.cssText = 'padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--fg);';
+  [['cc0','CC0 (Public Domain)'],['by','CC BY'],['by-sa','CC BY-SA'],['','All open']].forEach(function(opt) {
+    var o = document.createElement('option');
+    o.value = opt[0]; o.textContent = opt[1];
+    licenseSelect.appendChild(o);
+  });
+
+  var searchBtn = document.createElement('button');
+  searchBtn.textContent = 'Search';
+  searchBtn.style.cssText = 'padding:8px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;';
+  searchBtn.onclick = searchOpenverse;
+
+  searchRow.appendChild(searchInput);
+  searchRow.appendChild(licenseSelect);
+  searchRow.appendChild(searchBtn);
+  list.appendChild(searchRow);
+
+  var resultsGrid = document.createElement('div');
+  resultsGrid.id = 'ov-results';
+  resultsGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;';
+  list.appendChild(resultsGrid);
+
+  var loadMoreDiv = document.createElement('div');
+  loadMoreDiv.id = 'ov-load-more';
+  loadMoreDiv.style.cssText = 'display:none;text-align:center;margin-top:10px;';
+  var loadMoreBtn = document.createElement('button');
+  loadMoreBtn.textContent = 'Load more';
+  loadMoreBtn.style.cssText = 'padding:7px 16px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);';
+  loadMoreBtn.onclick = loadMoreOpenverse;
+  loadMoreDiv.appendChild(loadMoreBtn);
+  list.appendChild(loadMoreDiv);
+}
+
+function searchOpenverse() {
+  var q = document.getElementById('ov-search').value.trim();
+  var license = document.getElementById('ov-license').value;
+  if (!q) return;
+  openverseQuery = q;
+  openversePage = 1;
+  var results = document.getElementById('ov-results');
+  if (results) results.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);">Searching Openverse...</div>';
+
+  fetch(WORKER + '/api/openverse/search', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({query: q, page: 1, license: license || 'cc0'})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    openverseResults = d.results || [];
+    renderOpenverseResults(openverseResults);
+    var lm = document.getElementById('ov-load-more');
+    if (lm) lm.style.display = d.count > 20 ? 'block' : 'none';
+  })
+  .catch(function(e) {
+    var results2 = document.getElementById('ov-results');
+    if (results2) results2.innerHTML = '<div style="padding:20px;color:#dc2626;">Error: ' + e.message + '</div>';
+  });
+}
+
+function loadMoreOpenverse() {
+  openversePage++;
+  var license = document.getElementById('ov-license').value;
+  fetch(WORKER + '/api/openverse/search', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({query: openverseQuery, page: openversePage, license: license || 'cc0'})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    openverseResults = openverseResults.concat(d.results || []);
+    renderOpenverseResults(openverseResults);
+  });
+}
+
+function renderOpenverseResults(results) {
+  var container = document.getElementById('ov-results');
+  if (!container) return;
+  container.innerHTML = '';
+  if (!results.length) {
+    container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);">No results. Try different search terms.</div>';
+    return;
+  }
+  results.forEach(function(img) {
+    var card = document.createElement('div');
+    card.style.cssText = 'border:1px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:all 0.15s;';
+    card.onmouseenter = function() { card.style.borderColor = 'var(--accent)'; };
+    card.onmouseleave = function() { card.style.borderColor = 'var(--border)'; };
+
+    var imgEl = document.createElement('img');
+    imgEl.src = img.thumbnail || img.url;
+    imgEl.alt = img.title || '';
+    imgEl.style.cssText = 'width:100%;aspect-ratio:1;object-fit:cover;display:block;';
+    imgEl.onerror = function() { imgEl.style.display = 'none'; };
+
+    var info = document.createElement('div');
+    info.style.cssText = 'padding:6px 8px;';
+    var title = document.createElement('div');
+    title.style.cssText = 'font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--fg);';
+    title.textContent = img.title || 'Untitled';
+    var meta = document.createElement('div');
+    meta.style.cssText = 'font-size:10px;color:var(--fg-muted);';
+    meta.textContent = (img.license || '').toUpperCase() + (img.creator ? ' · ' + img.creator : '');
+
+    var actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:4px;padding:4px 8px 6px;';
+
+    var useBtn = document.createElement('button');
+    useBtn.textContent = 'Use';
+    useBtn.style.cssText = 'flex:1;padding:4px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;';
+    useBtn.onclick = (function(url, t, attr) {
+      return function() {
+        var saved = JSON.parse(localStorage.getItem('prism-assets') || '[]');
+        saved.unshift({id:'ov-'+Date.now(), url:url, title:t, attribution:attr, type:'image', source:'openverse', created:new Date().toISOString()});
+        localStorage.setItem('prism-assets', JSON.stringify(saved.slice(0, 200)));
+        if (typeof loadAssets === 'function') loadAssets();
+        if (typeof Toast !== 'undefined') Toast.success('Image saved to Assets');
+        else alert('Saved: ' + t);
+      };
+    })(img.url, img.title, img.attribution);
+
+    var viewLink = document.createElement('a');
+    viewLink.href = img.url;
+    viewLink.target = '_blank';
+    viewLink.textContent = '↗';
+    viewLink.style.cssText = 'padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;color:var(--fg-muted);text-decoration:none;';
+
+    actions.appendChild(useBtn);
+    actions.appendChild(viewLink);
+    info.appendChild(title);
+    info.appendChild(meta);
+    card.appendChild(imgEl);
+    card.appendChild(info);
+    card.appendChild(actions);
+    container.appendChild(card);
+  });
 }
 </script>
 </body>
