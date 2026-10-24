@@ -2149,6 +2149,149 @@ export default {
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── OneDrive upload for doc viewer ────────────────────────────────────────
+    if (path === '/api/onedrive/upload' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const content = body.content || '';
+        const filename = body.filename || ('file-' + Date.now());
+        const mimeType = body.mimeType || 'application/octet-stream';
+        
+        // Get MSGraph token
+        const tenant = k(env, ['msgraph_tenant', 'MSGRAPH_TENANT']) || '';
+        const clientId = k(env, ['msgraph_client', 'MSGRAPH_CLIENT']) || '';
+        const clientSecret = k(env, ['msgraph_secret', 'MSGRAPH_SECRET']) || '';
+        
+        if (!tenant || !clientId || !clientSecret) {
+          // Fall back to R2
+          return json({error:'OneDrive not configured, use R2'}, 400, origin);
+        }
+        
+        // Get access token
+        const tokenResp = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: `client_id=${clientId}&client_secret=${encodeURIComponent(clientSecret)}&scope=https://graph.microsoft.com/.default&grant_type=client_credentials`
+        });
+        const tokenData = await tokenResp.json();
+        if (!tokenData.access_token) return json({error:'OneDrive auth failed: '+JSON.stringify(tokenData)}, 500, origin);
+        
+        // Upload to OneDrive (app folder)
+        let fileData;
+        if (content.startsWith('data:')) {
+          const b64 = content.split(',')[1];
+          const binary = atob(b64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          fileData = bytes;
+        } else {
+          fileData = new TextEncoder().encode(content);
+        }
+        
+        const uploadResp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/argentica-docs/${filename}:/content`, {
+          method: 'PUT',
+          headers: {'Authorization': 'Bearer ' + tokenData.access_token, 'Content-Type': mimeType},
+          body: fileData
+        });
+        const uploadData = await uploadResp.json();
+        if (!uploadData.id) return json({error:'Upload failed: '+JSON.stringify(uploadData)}, 500, origin);
+        
+        // Create sharing link
+        const shareResp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${uploadData.id}/createLink`, {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + tokenData.access_token, 'Content-Type': 'application/json'},
+          body: JSON.stringify({type:'view', scope:'anonymous'})
+        });
+        const shareData = await shareResp.json();
+        const shareUrl = shareData.link?.webUrl || '';
+        
+        return json({success:true, url:shareUrl, itemId:uploadData.id}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Canvas templates list ─────────────────────────────────────────────────
+    if (path === '/api/canvas/templates' && request.method === 'GET') {
+      const templates = [
+        // Block colour
+        {id:'block-teal',name:'Teal Block',group:'Block Colour',preview:'#0f3b3a'},
+        {id:'block-rose',name:'Rose Block',group:'Block Colour',preview:'#5c2d3f'},
+        {id:'block-ivory',name:'Ivory Block',group:'Block Colour',preview:'#f7f3e9'},
+        {id:'block-navy',name:'Navy Block',group:'Block Colour',preview:'#1a2332'},
+        {id:'block-slate',name:'Slate Block',group:'Block Colour',preview:'#2d3748'},
+        // Image backgrounds
+        {id:'img-sunrise',name:'Sunrise',group:'Image Background',preview:'#ff9a3c'},
+        {id:'img-sunset',name:'Sunset',group:'Image Background',preview:'#ff6b6b'},
+        {id:'img-landscape',name:'Landscape',group:'Image Background',preview:'#4a7c59'},
+        {id:'img-seascape',name:'Seascape',group:'Image Background',preview:'#2d6a9f'},
+        {id:'img-cityscape',name:'Cityscape',group:'Image Background',preview:'#4a5568'},
+        {id:'img-aurora',name:'Aurora Borealis',group:'Image Background',preview:'#6b46c1'},
+        {id:'img-forest',name:'Forest',group:'Image Background',preview:'#276749'},
+        {id:'img-mountains',name:'Mountains',group:'Image Background',preview:'#718096'},
+        {id:'img-ocean',name:'Ocean',group:'Image Background',preview:'#2b6cb0'},
+        {id:'img-desert',name:'Desert',group:'Image Background',preview:'#c05621'},
+        {id:'img-stars',name:'Night Sky',group:'Image Background',preview:'#1a202c'},
+        // Quote styles
+        {id:'quote-minimal',name:'Minimal Quote',group:'Quote Style',preview:'#f7f3e9'},
+        {id:'quote-bold',name:'Bold Quote',group:'Quote Style',preview:'#0f3b3a'},
+        {id:'quote-editorial',name:'Editorial',group:'Quote Style',preview:'#1a2332'},
+        // Post types
+        {id:'post-research',name:'Research Finding',group:'Post Type',preview:'#2d6a9f'},
+        {id:'post-news',name:'News Reaction',group:'Post Type',preview:'#c05621'},
+        {id:'post-question',name:'Question',group:'Post Type',preview:'#6b46c1'},
+        {id:'post-stat',name:'Statistic',group:'Post Type',preview:'#276749'},
+        {id:'post-quote-person',name:'Person Quote',group:'Post Type',preview:'#5c2d3f'},
+        // Testimonial
+        {id:'testimonial-light',name:'Testimonial Light',group:'Testimonial',preview:'#f7f3e9'},
+        {id:'testimonial-dark',name:'Testimonial Dark',group:'Testimonial',preview:'#1a2332'},
+        // Carousel
+        {id:'carousel-1',name:'Carousel Slide 1',group:'Carousel',preview:'#0f3b3a'},
+        {id:'carousel-2',name:'Carousel Slide 2',group:'Carousel',preview:'#5c2d3f'},
+        {id:'carousel-3',name:'Carousel Slide 3',group:'Carousel',preview:'#2d6a9f'},
+        // Split
+        {id:'split-teal-rose',name:'Split Teal/Rose',group:'Split',preview:'linear-gradient(90deg,#0f3b3a 50%,#5c2d3f 50%)'},
+        {id:'split-light-dark',name:'Split Light/Dark',group:'Split',preview:'linear-gradient(90deg,#f7f3e9 50%,#1a2332 50%)'},
+        // Infographic
+        {id:'infographic-stats',name:'Stats Infographic',group:'Infographic',preview:'#2d6a9f'},
+        {id:'infographic-list',name:'List Infographic',group:'Infographic',preview:'#0f3b3a'},
+        {id:'infographic-timeline',name:'Timeline',group:'Infographic',preview:'#5c2d3f'},
+      ];
+      return json({templates, total:templates.length}, 200, origin);
+    }
+
+    // ── Openverse image search ────────────────────────────────────────────────
+    if (path === '/api/openverse/search' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const q = body.query || '';
+        const page = body.page || 1;
+        const license = body.license || 'cc0'; // cc0 = public domain
+        if (!q) return json({error:'No query'}, 400, origin);
+        
+        const resp = await fetch(
+          `https://api.openverse.org/v1/images/?q=${encodeURIComponent(q)}&page=${page}&license=${license}&page_size=20`,
+          {headers: {'User-Agent': 'Argentica/1.0 (hello@identitypartners.uk)'}}
+        );
+        const data = await resp.json();
+        return json({
+          results: (data.results||[]).map(function(img) {
+            return {
+              id: img.id,
+              title: img.title,
+              url: img.url,
+              thumbnail: img.thumbnail,
+              creator: img.creator,
+              license: img.license,
+              source: img.source,
+              attribution: img.attribution
+            };
+          }),
+          count: data.count,
+          page: page
+        }, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
