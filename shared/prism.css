@@ -1,3 +1,9 @@
+/* GLOBAL FONT OVERRIDE */
+html, body { font-size: 18px !important; line-height: 1.65 !important; }
+.nav-item, .nav-item-label { font-size: 15px !important; }
+.btn, button { font-size: 14px !important; }
+input, select, textarea { font-size: 15px !important; }
+
 /* v1792701125 */
 /* FONT SIZE - viewport scaled for Surface Pro 9 */
 html { font-size: clamp(18px, 1.5vw, 22px) !important; }
