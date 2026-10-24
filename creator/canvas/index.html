@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792701424 -->
+<!-- cache-bust-1792808613 -->
+
 
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Canvas — Argentica</title>
@@ -619,31 +620,48 @@ var CANVAS_TEMPLATES = [
 function showTemplateGallery() {
   var grid = document.getElementById('template-grid');
   if (!grid) return;
-  grid.innerHTML = '';
-  var groups = {};
-  CANVAS_TEMPLATES.forEach(function(t) {
-    if (!groups[t.group]) groups[t.group] = [];
-    groups[t.group].push(t);
-  });
-  Object.keys(groups).forEach(function(group) {
-    var hdr = document.createElement('div');
-    hdr.style.cssText = 'grid-column:1/-1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px;';
-    hdr.textContent = group;
-    grid.appendChild(hdr);
-    groups[group].forEach(function(t) {
-      var card = document.createElement('div');
-      card.style.cssText = 'background:var(--bg-sunken);border:1px solid var(--border);border-radius:8px;padding:10px;cursor:pointer;text-align:center;transition:all 0.15s;';
-      card.onmouseenter = function(){card.style.borderColor='var(--accent)';};
-      card.onmouseleave = function(){card.style.borderColor='var(--border)';};
-      card.onclick = function() {
-        generateCanvasPreview(t.id, t.label);
-        document.getElementById('template-gallery').style.display = 'none';
-      };
-      card.innerHTML = '<div style="font-size:11px;font-weight:600;color:var(--fg);">' + t.label + '</div>';
-      grid.appendChild(card);
-    });
-  });
+  grid.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);">Loading templates...</div>';
   document.getElementById('template-gallery').style.display = 'block';
+  
+  fetch('https://prism-api.identitypartners.workers.dev/api/canvas/templates')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var templates = d.templates || [];
+      grid.innerHTML = '';
+      var groups = {};
+      templates.forEach(function(t) {
+        if (!groups[t.group]) groups[t.group] = [];
+        groups[t.group].push(t);
+      });
+      Object.keys(groups).forEach(function(group) {
+        var hdr = document.createElement('div');
+        hdr.style.cssText = 'grid-column:1/-1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px;';
+        hdr.textContent = group;
+        grid.appendChild(hdr);
+        groups[group].forEach(function(t) {
+          var card = document.createElement('div');
+          card.style.cssText = 'border:1px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:all 0.15s;';
+          card.onmouseenter = function(){card.style.borderColor='var(--accent)';card.style.transform='translateY(-2px)';};
+          card.onmouseleave = function(){card.style.borderColor='var(--border)';card.style.transform='';};
+          card.onclick = function() {
+            generateCanvasPreview(t.id, t.name);
+            document.getElementById('template-gallery').style.display = 'none';
+          };
+          // Colour preview
+          var preview = document.createElement('div');
+          preview.style.cssText = 'height:60px;background:'+t.preview+';';
+          var label = document.createElement('div');
+          label.style.cssText = 'padding:6px 8px;font-size:11px;font-weight:600;color:var(--fg);';
+          label.textContent = t.name;
+          card.appendChild(preview);
+          card.appendChild(label);
+          grid.appendChild(card);
+        });
+      });
+    })
+    .catch(function(e){
+      grid.innerHTML = '<div style="padding:20px;color:#dc2626;">Error loading templates: '+e.message+'</div>';
+    });
 }
 
 function generateCanvasPreview(templateId, label) {
