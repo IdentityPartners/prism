@@ -2529,6 +2529,95 @@ export default {
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── OneDrive upload via MSGraph ───────────────────────────────────────────
+    if (path === '/api/onedrive/upload' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const content = body.content || '';
+        const filename = body.filename || ('file-' + Date.now());
+        const mimeType = body.mimeType || 'application/octet-stream';
+        const tenant = k(env, ['msgraph_tenant','MSGRAPH_TENANT']) || '';
+        const clientId = k(env, ['msgraph_client','MSGRAPH_CLIENT']) || '';
+        const clientSecret = k(env, ['msgraph_secret','MSGRAPH_SECRET']) || '';
+        if (!tenant || !clientId || !clientSecret) return json({error:'OneDrive not configured'}, 400, origin);
+        // Get token
+        const tokenResp = await fetch('https://login.microsoftonline.com/'+tenant+'/oauth2/v2.0/token', {
+          method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+          body:'client_id='+encodeURIComponent(clientId)+'&client_secret='+encodeURIComponent(clientSecret)+'&scope=https://graph.microsoft.com/.default&grant_type=client_credentials'
+        });
+        const tokenData = await tokenResp.json();
+        if (!tokenData.access_token) return json({error:'MSGraph auth failed'}, 500, origin);
+        // Decode content
+        let fileData;
+        if (content.startsWith('data:')) {
+          const b64 = content.split(',')[1];
+          const binary = atob(b64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+          fileData = bytes;
+        } else { fileData = new TextEncoder().encode(content); }
+        // Upload to OneDrive
+        const uploadResp = await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/argentica-docs/'+encodeURIComponent(filename)+':/content', {
+          method:'PUT', headers:{'Authorization':'Bearer '+tokenData.access_token,'Content-Type':mimeType}, body:fileData
+        });
+        const uploadData = await uploadResp.json();
+        if (!uploadData.id) return json({error:'Upload failed: '+JSON.stringify(uploadData).substring(0,100)}, 500, origin);
+        // Create sharing link
+        const shareResp = await fetch('https://graph.microsoft.com/v1.0/me/drive/items/'+uploadData.id+'/createLink', {
+          method:'POST', headers:{'Authorization':'Bearer '+tokenData.access_token,'Content-Type':'application/json'},
+          body:JSON.stringify({type:'view',scope:'anonymous'})
+        });
+        const shareData = await shareResp.json();
+        return json({success:true, url:shareData.link?.webUrl||'', itemId:uploadData.id}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── PDF/DOCX text extraction via Nutrient API ─────────────────────────────
+    if (path === '/api/extract/text' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const fileUrl = body.url || '';
+        const content = body.content || '';
+        const filename = body.filename || 'document.pdf';
+        if (!fileUrl && !content) return json({error:'No file URL or content'}, 400, origin);
+        
+        // Try Nutrient PDF-to-Markdown (free tier: 100 pages/month)
+        // Nutrient API: POST to https://api.nutrient.io/build with file
+        // For now use a simpler approach: fetch the file and extract text
+        
+        if (fileUrl) {
+          // Fetch the file and try to extract text
+          const fileResp = await fetch(fileUrl);
+          if (!fileResp.ok) return json({error:'Could not fetch file'}, 400, origin);
+          const fileBuffer = await fileResp.arrayBuffer();
+          const fileBytes = new Uint8Array(fileBuffer);
+          
+          // Check if it's a PDF
+          const header = String.fromCharCode(...fileBytes.slice(0,4));
+          if (header === '%PDF') {
+            // Use Gemini vision to extract text from PDF
+            const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+            if (GKEY) {
+              const b64 = btoa(String.fromCharCode(...fileBytes));
+              const gemResp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key='+GKEY, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({contents:[{parts:[
+                  {text:'Extract all text from this PDF document. Return the text in Markdown format, preserving headings and structure. Include all content.'},
+                  {inline_data:{mime_type:'application/pdf',data:b64.substring(0,500000)}}
+                ]}]})
+              });
+              const gemData = await gemResp.json();
+              const text = gemData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+              if (text) return json({success:true, text, format:'markdown', method:'gemini-vision'}, 200, origin);
+            }
+          }
+        }
+        
+        return json({error:'Could not extract text from this file type'}, 400, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
