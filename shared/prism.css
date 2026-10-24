@@ -1,3 +1,4 @@
+/* v1792819871 */
 /* Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap');
 
@@ -7,7 +8,7 @@ html, body { font-size: 18px !important; line-height: 1.65 !important; }
 .btn, button { font-size: 14px !important; }
 input, select, textarea { font-size: 15px !important; }
 
-/* v1792701125 */
+
 /* FONT SIZE - viewport scaled for Surface Pro 9 */
 html { font-size: clamp(18px, 1.5vw, 22px) !important; }
 body { font-size: clamp(18px, 1.5vw, 22px) !important; line-height: 1.65 !important; }
