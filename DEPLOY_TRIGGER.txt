@@ -1,1 +1,1 @@
-v1792830443 - chat rewrite, music sidebar, assets tabs
+v1792830502 - chat fix, music fix
