@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792813784 -->
+<!-- cache-bust-1792834038 -->
+
 
 
 
@@ -251,11 +252,14 @@ function loadDocumentFromParams(id, name, type, url) {
   // Try to get from Study Hub localStorage
   try {
     var modules = JSON.parse(localStorage.getItem('study:modules') || '[]');
-    for (var m of modules) {
-      for (var w of (m.weeks||[])) {
-        for (var r of (w.resources||[])) {
-          if (r.id === id) {
-            loadDocument(r);
+    for (var i = 0; i < modules.length; i++) {
+      var m = modules[i];
+      for (var j = 0; j < (m.weeks||[]).length; j++) {
+        var w = m.weeks[j];
+        for (var k = 0; k < (w.resources||[]).length; k++) {
+          var res = w.resources[k];
+          if (res.id === id || res.name === name) {
+            loadDocument(res);
             return;
           }
         }
@@ -263,9 +267,21 @@ function loadDocumentFromParams(id, name, type, url) {
     }
   } catch(e) {}
 
-  // Fallback: load from URL
+  // Load from URL directly
   if (url) {
-    loadDocument({id: id||'doc', name: name||'Document', type: type||'link', url: url, content: ''});
+    var doc = {id: id||'doc', name: decodeURIComponent(name||'Document'), type: type||'link', url: decodeURIComponent(url), content: ''};
+    document.getElementById('doc-title').textContent = doc.name;
+    // For PDFs and office docs, show viewer options immediately
+    var ext = doc.name.split('.').pop().toLowerCase();
+    if (ext === 'pdf' || ext === 'docx' || ext === 'doc' || ext === 'pptx' || ext === 'ppt' || ext === 'xlsx') {
+      showOfficeViewerOptions(doc, doc.name);
+    } else {
+      loadDocument(doc);
+    }
+  } else if (name) {
+    // No URL but have name — show empty state with name
+    document.getElementById('doc-title').textContent = decodeURIComponent(name);
+    document.getElementById('doc-pane').innerHTML = '<div class="empty-state"><div class="icon">📄</div><div style="font-size:15px;font-weight:600;">' + decodeURIComponent(name) + '</div><div style="font-size:13px;margin-top:6px;">This file was uploaded locally. To view it, open it from Study Hub.</div></div>';
   }
 }
 
