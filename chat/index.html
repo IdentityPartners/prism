@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792808449 -->
+<!-- cache-bust-1792810574 -->
+
 
 
 
@@ -111,7 +112,15 @@
 .toolbar-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
 
 /* OSK strip */
-.osk-strip { background:var(--bg-elevated); flex-shrink:0; display:block; }
+.osk-strip {
+  background:var(--bg-elevated);
+  border-right:1px solid var(--border);
+  flex-shrink:0;
+  display:none;
+  width:180px;
+  overflow-y:auto;
+  max-height:200px;
+}
 .osk-strip.show { display:block; }
 .osk-strip.show { display:block; }
 
