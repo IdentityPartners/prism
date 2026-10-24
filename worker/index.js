@@ -2372,6 +2372,112 @@ export default {
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── Zoho mail debug ───────────────────────────────────────────────────────
+    if (path === '/api/zoho/debug' && request.method === 'GET') {
+      try {
+        const token = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
+        const tokenData = token ? JSON.parse(token) : null;
+        return json({
+          has_token: !!tokenData,
+          token_keys: tokenData ? Object.keys(tokenData) : [],
+          api_domain: tokenData ? tokenData.api_domain : null,
+          expires_at: tokenData ? tokenData.expires_at : null,
+          now: new Date().toISOString(),
+          is_expired: tokenData && tokenData.expires_at ? new Date(tokenData.expires_at) < new Date() : null,
+        }, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+
+    // ── Media Manager routes (stub if not present) ────────────────────────────
+    if (path === '/api/mm/queue' && request.method === 'GET') {
+      try {
+        if (!env.PRISM_KV) return json({queue:[], counts:{pending:0,scheduled:0,posted:0}}, 200, origin);
+        const list = await env.PRISM_KV.list({prefix:'mm:queue:'});
+        const queue = [];
+        for (const key of list.keys.slice(0,50)) {
+          const item = await env.PRISM_KV.get(key.name, 'json');
+          if (item) queue.push(item);
+        }
+        const counts = {
+          pending: queue.filter(function(i){return i.status==='pending';}).length,
+          scheduled: queue.filter(function(i){return i.status==='scheduled';}).length,
+          posted: queue.filter(function(i){return i.status==='posted';}).length,
+        };
+        return json({queue, counts}, 200, origin);
+      } catch(e) { return json({queue:[], counts:{}, error:e.message}, 200, origin); }
+    }
+
+    if (path === '/api/mm/log' && request.method === 'GET') {
+      try {
+        if (!env.PRISM_KV) return json({log:[]}, 200, origin);
+        const logRaw = await env.PRISM_KV.get('mm:activity:log');
+        const log = logRaw ? JSON.parse(logRaw) : [];
+        return json({log}, 200, origin);
+      } catch(e) { return json({log:[]}, 200, origin); }
+    }
+
+    if (path === '/api/mm/approve' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const itemId = body.itemId || '';
+        if (!itemId || !env.PRISM_KV) return json({error:'No item ID or KV'}, 400, origin);
+        const item = await env.PRISM_KV.get(itemId, 'json');
+        if (!item) return json({error:'Item not found'}, 404, origin);
+        item.status = 'posted';
+        item.postedAt = new Date().toISOString();
+        await env.PRISM_KV.put(itemId, JSON.stringify(item));
+        // Post to platforms
+        const results = {};
+        const errors = {};
+        if (item.platforms && item.platforms.includes('bluesky')) {
+          try {
+            const bsHandle = k(env, ['bluesky_handle','BLUESKY_HANDLE']);
+            const bsPass = k(env, ['bluesky_app_password','BLUESKY_APP_PASSWORD']);
+            if (bsHandle && bsPass) {
+              const authResp = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({identifier:bsHandle,password:bsPass})});
+              const auth = await authResp.json();
+              if (auth.accessJwt) {
+                const postResp = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {method:'POST',headers:{'Authorization':'Bearer '+auth.accessJwt,'Content-Type':'application/json'},body:JSON.stringify({repo:auth.did,collection:'app.bsky.feed.post',record:{text:item.text||'',createdAt:new Date().toISOString()}})});
+                const postData = await postResp.json();
+                results.bluesky = {success:!!postData.uri, uri:postData.uri};
+              }
+            }
+          } catch(e) { errors.bluesky = e.message; }
+        }
+        return json({success:true, results, errors}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    if (path === '/api/mm/chat' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const message = body.message || '';
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        const sysPrompt = 'You are the Media Manager for Identity Partners. You manage the social media queue, approve posts, and coordinate content publication. British English. Be direct and action-oriented.';
+        const result = await callProvider(env, 'gemini', GKEY, 'gemma-4-31b-it', [
+          {role:'system', content:sysPrompt},
+          {role:'user', content:message}
+        ]);
+        return json({reply:result.content, provider:result.provider}, 200, origin);
+      } catch(e) { return json({reply:'Error: '+e.message}, 500, origin); }
+    }
+
+    if (path === '/api/mm/update' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const {itemId, action, reason, scheduledFor} = body;
+        if (!itemId || !env.PRISM_KV) return json({error:'Missing fields'}, 400, origin);
+        const item = await env.PRISM_KV.get(itemId, 'json');
+        if (!item) return json({error:'Not found'}, 404, origin);
+        if (action === 'reject') { item.status = 'rejected'; item.reason = reason; }
+        if (action === 'schedule') { item.status = 'scheduled'; item.scheduledFor = scheduledFor; }
+        await env.PRISM_KV.put(itemId, JSON.stringify(item));
+        return json({success:true}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
