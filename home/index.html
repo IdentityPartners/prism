@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792701125 -->
+<!-- cache-bust-1792810126 -->
+
 <meta charset="UTF-8">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -527,11 +528,18 @@ function renderThinker() {
     '<div class="thinker-concept">' + t.concept + '</div>' +
     '<div class="thinker-name">' + t.thinker + '</div>' +
     '<div class="thinker-def">' + t.def + '</div>' +
-    '<div class="thinker-actions">' +
-      '<a class="thinker-btn" href="/research/?q=' + encodeURIComponent(t.concept) + '">🔍 Research</a>' +
-      '<a class="thinker-btn" href="/agenti/round-table/?topic=' + encodeURIComponent(t.concept) + '">💬 Debate</a>' +
-      '<a class="thinker-btn" href="https://en.wikipedia.org/wiki/' + encodeURIComponent(t.concept) + '" target="_blank">📖 Wiki</a>' +
-    '</div></div>';
+    '<div class="thinker-actions" id="thinker-act"></div></div>';
+    setTimeout(function() {
+      var el = document.getElementById('thinker-act');
+      if (!el) return;
+      [['🔍 Research','/research/?q='+encodeURIComponent(t.concept)],
+       ['💬 Debate','/agenti/round-table/?topic='+encodeURIComponent(t.concept)],
+       ['📖 Wiki','https://en.wikipedia.org/wiki/'+encodeURIComponent(t.concept)]
+      ].forEach(function(l){var a=document.createElement('a');a.className='thinker-btn';a.href=l[1];a.textContent=l[0];el.appendChild(a);});
+      var sb=document.createElement('button');sb.className='thinker-btn';sb.textContent='📚 Save';sb.style.cursor='pointer';sb.style.fontFamily='inherit';
+      sb.onclick=(function(c,th,d){return function(){saveToStudyHub({title:c+' — '+th,type:'reading',content:d,tags:['thinker']});};})(t.concept,t.thinker,t.def);
+      el.appendChild(sb);
+    },50);
   document.getElementById('thinker-progress').textContent = (thinkerIdx % THINKERS.length + 1) + '/' + THINKERS.length;
   document.getElementById('pin-btn').textContent = thinkerPinned ? '📌' : '📍';
 }
