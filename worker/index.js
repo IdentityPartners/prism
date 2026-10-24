@@ -2823,6 +2823,190 @@ export default {
       } catch(e) { return json({context:'', error:e.message}, 200, origin); }
     }
 
+
+    // ── PDF to Markdown via Gemini Vision ─────────────────────────────────────
+    if (path === '/api/pdf/to-markdown' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const b64 = body.content || ''; // base64 PDF
+        const fileUrl = body.url || '';
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        if (!GKEY) return json({error:'Gemini key not configured'}, 400, origin);
+
+        let pdfB64 = b64;
+        if (fileUrl && !pdfB64) {
+          const resp = await fetch(fileUrl);
+          if (!resp.ok) return json({error:'Could not fetch PDF: '+resp.status}, 400, origin);
+          const buf = await resp.arrayBuffer();
+          pdfB64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+        }
+        if (!pdfB64) return json({error:'No PDF content provided'}, 400, origin);
+
+        // Use Gemini to extract text from PDF
+        const gemResp = await fetch(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key='+GKEY,
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              contents: [{parts: [
+                {text: 'Extract ALL text from this PDF. Return clean Markdown. Preserve headings (# ## ###), lists, tables, paragraphs. Include every word — do not summarise or skip content.'},
+                {inline_data: {mime_type: 'application/pdf', data: pdfB64.substring(0, 1000000)}}
+              ]}],
+              generationConfig: {maxOutputTokens: 8192, temperature: 0.1}
+            })
+          }
+        );
+        const gemData = await gemResp.json();
+        const markdown = gemData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!markdown) return json({error:'No text extracted', raw: JSON.stringify(gemData).substring(0,200)}, 500, origin);
+        return json({success:true, markdown, wordCount: markdown.split(/\s+/).length}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── OneDrive upload via MSGraph ────────────────────────────────────────────
+    if (path === '/api/onedrive/upload' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const fileName = body.fileName || ('file-'+Date.now()+'.bin');
+        const content = body.content || ''; // base64
+        const folder = body.folder || 'Argentica';
+        const tenantId = k(env, ['msgraph_tenant','MSGRAPH_TENANT']) || '';
+        const clientId = k(env, ['msgraph_client','MSGRAPH_CLIENT']) || '';
+        const clientSecret = k(env, ['msgraph_secret','MSGRAPH_SECRET']) || '';
+        if (!tenantId || !clientId || !clientSecret) return json({error:'MSGraph credentials not configured'}, 400, origin);
+
+        // Get access token
+        const tokenResp = await fetch(
+          'https://login.microsoftonline.com/'+tenantId+'/oauth2/v2.0/token',
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'grant_type=client_credentials&client_id='+clientId+'&client_secret='+encodeURIComponent(clientSecret)+'&scope=https://graph.microsoft.com/.default'
+          }
+        );
+        const tokenData = await tokenResp.json();
+        const accessToken = tokenData.access_token;
+        if (!accessToken) return json({error:'Could not get MSGraph token: '+JSON.stringify(tokenData).substring(0,100)}, 500, origin);
+
+        // Upload to OneDrive (me/drive/root:/Argentica/filename:/content)
+        const fileBytes = Uint8Array.from(atob(content), c => c.charCodeAt(0));
+        const uploadResp = await fetch(
+          'https://graph.microsoft.com/v1.0/me/drive/root:/'+folder+'/'+encodeURIComponent(fileName)+':/content',
+          {
+            method: 'PUT',
+            headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': 'application/octet-stream'},
+            body: fileBytes
+          }
+        );
+        const uploadData = await uploadResp.json();
+        if (!uploadResp.ok) return json({error:'OneDrive upload failed: '+JSON.stringify(uploadData).substring(0,100)}, 500, origin);
+
+        // Create sharing link
+        const shareResp = await fetch(
+          'https://graph.microsoft.com/v1.0/me/drive/items/'+uploadData.id+'/createLink',
+          {
+            method: 'POST',
+            headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': 'application/json'},
+            body: JSON.stringify({type:'view', scope:'anonymous'})
+          }
+        );
+        const shareData = await shareResp.json();
+        const shareUrl = shareData.link?.webUrl || uploadData.webUrl || '';
+
+        return json({
+          success: true,
+          fileId: uploadData.id,
+          fileName: uploadData.name,
+          shareUrl,
+          viewUrl: shareUrl ? 'https://view.officeapps.live.com/op/embed.aspx?src='+encodeURIComponent(shareUrl) : '',
+          googleDocsUrl: shareUrl ? 'https://docs.google.com/viewer?url='+encodeURIComponent(shareUrl)+'&embedded=true' : '',
+        }, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Email ingestion: docs@identitypartners.uk ─────────────────────────────
+    // Cloudflare Email Routing webhook — receives forwarded emails
+    if (path === '/api/email/ingest' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const from = body.from || body.sender || '';
+        const subject = body.subject || 'No subject';
+        const text = body.text || body.body || '';
+        const attachments = body.attachments || [];
+
+        // Store as inbox notification
+        const entry = {
+          id: 'email-'+Date.now(),
+          type: 'email',
+          from,
+          subject,
+          preview: text.substring(0, 200),
+          attachments: attachments.map(a => ({name:a.filename||a.name, size:a.size})),
+          received: new Date().toISOString(),
+          read: false,
+          source: 'docs@identitypartners.uk'
+        };
+
+        if (env.PRISM_KV) {
+          const raw = await env.PRISM_KV.get('inbox:emails');
+          const emails = raw ? JSON.parse(raw) : [];
+          emails.unshift(entry);
+          await env.PRISM_KV.put('inbox:emails', JSON.stringify(emails.slice(0, 100)));
+
+          // Also add to notifications
+          const notifRaw = await env.PRISM_KV.get('inbox:notifications');
+          const notifs = notifRaw ? JSON.parse(notifRaw) : [];
+          notifs.unshift({id:'notif-'+Date.now(), type:'email', title:'Email from '+from, message:subject, link:'/comms/email/', ts:new Date().toISOString(), read:false});
+          await env.PRISM_KV.put('inbox:notifications', JSON.stringify(notifs.slice(0, 200)));
+        }
+
+        return json({success:true, id:entry.id}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Inbox: get all notifications ──────────────────────────────────────────
+    if (path === '/api/inbox' && request.method === 'GET') {
+      try {
+        const notifRaw = env.PRISM_KV ? await env.PRISM_KV.get('inbox:notifications') : null;
+        const emailRaw = env.PRISM_KV ? await env.PRISM_KV.get('inbox:emails') : null;
+        const msgRaw = env.PRISM_KV ? await env.PRISM_KV.get('messages:simon-olivia') : null;
+
+        const notifications = notifRaw ? JSON.parse(notifRaw) : [];
+        const emails = emailRaw ? JSON.parse(emailRaw) : [];
+        const messages = msgRaw ? JSON.parse(msgRaw) : [];
+
+        const unreadNotifs = notifications.filter(n => !n.read).length;
+        const unreadEmails = emails.filter(e => !e.read).length;
+        const unreadMsgs = messages.filter(m => !m.read && m.from !== 'simon').length;
+
+        return json({
+          notifications: notifications.slice(0, 20),
+          messages: messages.slice(0, 20),
+          unread: {
+            total: unreadNotifs + unreadEmails + unreadMsgs,
+            notifications: unreadNotifs,
+            mail: unreadEmails,
+            messages: unreadMsgs
+          }
+        }, 200, origin);
+      } catch(e) { return json({notifications:[], messages:[], unread:{total:0}}, 200, origin); }
+    }
+
+    // ── Mark notifications read ───────────────────────────────────────────────
+    if (path === '/api/notifications/read' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        if (env.PRISM_KV) {
+          const raw = await env.PRISM_KV.get('inbox:notifications');
+          const notifs = raw ? JSON.parse(raw) : [];
+          const updated = body.all ? notifs.map(n => ({...n, read:true})) : notifs.map(n => n.id === body.id ? {...n, read:true} : n);
+          await env.PRISM_KV.put('inbox:notifications', JSON.stringify(updated));
+        }
+        return json({success:true}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
