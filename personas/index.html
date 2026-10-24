@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Personas — Argentica</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<style>
+.personas-shell{display:flex;height:100vh;overflow:hidden;}
+.personas-list{width:280px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-surface);overflow:hidden;}
+.personas-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.persona-item{padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.1s;}
+.persona-item:hover{background:var(--bg-sunken);}
+.persona-item.active{background:var(--accent-light,#e8f0f8);border-left:3px solid var(--accent);}
+.persona-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.persona-form{padding:20px;overflow-y:auto;flex:1;}
+.form-field{margin-bottom:14px;}
+.form-label{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:5px;}
+.form-input{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:15px;background:var(--bg);color:var(--fg);box-sizing:border-box;font-family:inherit;}
+.form-textarea{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:15px;background:var(--bg);color:var(--fg);box-sizing:border-box;font-family:inherit;resize:vertical;min-height:100px;}
+.form-input:focus,.form-textarea:focus{outline:none;border-color:var(--accent);}
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="personas-shell">
+
+<div class="personas-list">
+  <div style="padding:10px 12px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+    <h3 style="margin:0;font-size:14px;font-weight:700;">🎭 Personas</h3>
+    <button onclick="newPersona()" style="padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12px;">+ New</button>
+  </div>
+  <div style="flex:1;overflow-y:auto;" id="persona-list"></div>
+</div>
+
+<div class="personas-main">
+  <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg-elevated);display:flex;align-items:center;gap:10px;flex-shrink:0;">
+    <h2 id="persona-title" style="margin:0;font-size:16px;font-weight:700;">Select or create a persona</h2>
+    <div style="margin-left:auto;display:flex;gap:6px;">
+      <button onclick="savePersona()" style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">Save</button>
+      <button onclick="usePersonaInChat()" style="padding:6px 14px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;background:var(--bg);">Use in Chat →</button>
+      <button onclick="deletePersona()" style="padding:6px 14px;border:1px solid #dc2626;border-radius:6px;cursor:pointer;font-size:13px;color:#dc2626;background:var(--bg);">Delete</button>
+    </div>
+  </div>
+  <div class="persona-form" id="persona-form" style="display:none;">
+    <div class="form-field">
+      <label class="form-label">Name</label>
+      <input class="form-input" id="p-name" type="text" placeholder="e.g. Research Assistant, Devil's Advocate">
+    </div>
+    <div class="form-field">
+      <label class="form-label">Avatar (emoji)</label>
+      <input class="form-input" id="p-avatar" type="text" placeholder="🤖" style="width:80px;">
+    </div>
+    <div class="form-field">
+      <label class="form-label">Role / Description</label>
+      <input class="form-input" id="p-role" type="text" placeholder="e.g. Academic research assistant specialising in sociology">
+    </div>
+    <div class="form-field">
+      <label class="form-label">System Prompt (full persona definition)</label>
+      <textarea class="form-textarea" id="p-prompt" placeholder="You are [name]. [Detailed description of personality, expertise, communication style, constraints]. British English. Never break character."></textarea>
+    </div>
+    <div class="form-field">
+      <label class="form-label">Routing Profile</label>
+      <select class="form-input" id="p-profile">
+        <option value="balanced">Balanced (default)</option>
+        <option value="frontier">Frontier (best quality)</option>
+        <option value="fast">Fast (low latency)</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label class="form-label">Memory / Context (what this persona knows about you)</label>
+      <textarea class="form-textarea" id="p-memory" placeholder="Simon is a sociology MSc student at Goldsmiths. He is researching ADHD and social harm..."></textarea>
+    </div>
+    <div class="form-field">
+      <label class="form-label">Tags (comma-separated)</label>
+      <input class="form-input" id="p-tags" type="text" placeholder="research, academic, sociology">
+    </div>
+  </div>
+  <div id="persona-empty" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--fg-muted);">
+    <div style="text-align:center;">
+      <div style="font-size:48px;margin-bottom:12px;">🎭</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:6px;">Personas</div>
+      <div style="font-size:14px;">Create reusable AI personas with custom system prompts, memory, and routing profiles. Use them in Chat, Debate Society, or Agents.</div>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var personas = [];
+var currentPersonaId = null;
+
+var BUILTIN_PERSONAS = [
+  {id:'gerald',name:'Gerald',avatar:'🎩',role:'Sardonic butler, default assistant',prompt:"You are Gerald, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English. Never fabricate.",profile:'balanced',memory:'',tags:['default','assistant'],builtIn:true},
+  {id:'researcher',name:'Research Assistant',avatar:'🔍',role:'Academic research specialist',prompt:"You are a meticulous academic research assistant. You find, synthesise, and structure information from multiple sources. You cite sources, flag uncertainty, and never fabricate. British English. Specialise in sociology, psychology, and social policy.",profile:'balanced',memory:'',tags:['research','academic'],builtIn:true},
+  {id:'devils-advocate',name:"Devil's Advocate",avatar:'😈',role:'Challenges every assumption',prompt:"You are the Devil's Advocate. Your role is to challenge every assumption, find weaknesses in arguments, and present the strongest possible counterargument to whatever position is presented. You do not hold personal views — you argue the opposite of whatever is said. British English.",profile:'balanced',memory:'',tags:['debate','critical'],builtIn:true},
+  {id:'sociologist',name:'Sociologist',avatar:'🧠',role:'Applies sociological theory',prompt:"You are a sociologist with expertise in critical theory, Bourdieu, Goffman, Foucault, and contemporary social harm frameworks. You analyse situations through a sociological lens, applying relevant theory and citing key thinkers. British English. Academic but accessible.",profile:'frontier',memory:'',tags:['sociology','theory','academic'],builtIn:true},
+];
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/personas/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  loadPersonas();
+});
+
+function loadPersonas() {
+  fetch(WORKER + '/api/personas')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var custom = (d.personas||[]).filter(function(p){return !p.builtIn;});
+      personas = [...BUILTIN_PERSONAS, ...custom];
+      renderPersonaList();
+    })
+    .catch(function(){
+      personas = [...BUILTIN_PERSONAS];
+      renderPersonaList();
+    });
+}
+
+function renderPersonaList() {
+  var list = document.getElementById('persona-list');
+  list.innerHTML = '';
+  personas.forEach(function(p) {
+    var item = document.createElement('div');
+    item.className = 'persona-item' + (p.id === currentPersonaId ? ' active' : '');
+    item.style.display = 'flex';
+    item.style.alignItems = 'center';
+    item.style.gap = '10px';
+    var avatar = document.createElement('div');
+    avatar.className = 'persona-avatar';
+    avatar.style.background = 'linear-gradient(135deg,#0f3b3a,#5c2d3f)';
+    avatar.textContent = p.avatar || '🤖';
+    var info = document.createElement('div');
+    info.style.flex = '1';
+    info.style.minWidth = '0';
+    var name = document.createElement('div');
+    name.style.cssText = 'font-size:13px;font-weight:600;color:var(--fg);';
+    name.textContent = p.name;
+    var role = document.createElement('div');
+    role.style.cssText = 'font-size:11px;color:var(--fg-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    role.textContent = p.role || '';
+    info.appendChild(name);
+    info.appendChild(role);
+    item.appendChild(avatar);
+    item.appendChild(info);
+    if (p.builtIn) {
+      var badge = document.createElement('span');
+      badge.style.cssText = 'font-size:9px;color:var(--fg-muted);flex-shrink:0;';
+      badge.textContent = 'built-in';
+      item.appendChild(badge);
+    }
+    item.onclick = function() { selectPersona(p.id); };
+    list.appendChild(item);
+  });
+}
+
+function selectPersona(id) {
+  currentPersonaId = id;
+  var p = personas.find(function(p){return p.id===id;});
+  if (!p) return;
+  document.getElementById('persona-title').textContent = p.avatar + ' ' + p.name;
+  document.getElementById('p-name').value = p.name || '';
+  document.getElementById('p-avatar').value = p.avatar || '';
+  document.getElementById('p-role').value = p.role || '';
+  document.getElementById('p-prompt').value = p.prompt || '';
+  document.getElementById('p-profile').value = p.profile || 'balanced';
+  document.getElementById('p-memory').value = p.memory || '';
+  document.getElementById('p-tags').value = (p.tags||[]).join(', ');
+  document.getElementById('persona-form').style.display = 'block';
+  document.getElementById('persona-empty').style.display = 'none';
+  renderPersonaList();
+}
+
+function newPersona() {
+  currentPersonaId = 'new-' + Date.now();
+  document.getElementById('persona-title').textContent = 'New Persona';
+  document.getElementById('p-name').value = '';
+  document.getElementById('p-avatar').value = '🤖';
+  document.getElementById('p-role').value = '';
+  document.getElementById('p-prompt').value = '';
+  document.getElementById('p-profile').value = 'balanced';
+  document.getElementById('p-memory').value = '';
+  document.getElementById('p-tags').value = '';
+  document.getElementById('persona-form').style.display = 'block';
+  document.getElementById('persona-empty').style.display = 'none';
+  document.getElementById('p-name').focus();
+}
+
+function savePersona() {
+  var name = document.getElementById('p-name').value.trim();
+  if (!name) { alert('Enter a name.'); return; }
+  var persona = {
+    id: currentPersonaId || ('p-'+Date.now()),
+    name: name,
+    avatar: document.getElementById('p-avatar').value || '🤖',
+    role: document.getElementById('p-role').value,
+    prompt: document.getElementById('p-prompt').value,
+    profile: document.getElementById('p-profile').value,
+    memory: document.getElementById('p-memory').value,
+    tags: document.getElementById('p-tags').value.split(',').map(function(t){return t.trim();}).filter(Boolean),
+    created: new Date().toISOString(),
+    builtIn: false,
+  };
+  fetch(WORKER + '/api/personas', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(persona)
+  }).then(function(){
+    var existing = personas.findIndex(function(p){return p.id===persona.id;});
+    if (existing !== -1) personas[existing] = persona;
+    else personas.push(persona);
+    currentPersonaId = persona.id;
+    renderPersonaList();
+    alert('Persona saved: ' + name);
+  }).catch(function(e){alert('Error: '+e.message);});
+}
+
+function deletePersona() {
+  if (!currentPersonaId) return;
+  var p = personas.find(function(p){return p.id===currentPersonaId;});
+  if (p && p.builtIn) { alert('Cannot delete built-in personas.'); return; }
+  if (!confirm('Delete this persona?')) return;
+  fetch(WORKER + '/api/personas/' + currentPersonaId, {method:'DELETE'}).catch(function(){});
+  personas = personas.filter(function(p){return p.id!==currentPersonaId;});
+  currentPersonaId = null;
+  document.getElementById('persona-form').style.display = 'none';
+  document.getElementById('persona-empty').style.display = 'flex';
+  renderPersonaList();
+}
+
+function usePersonaInChat() {
+  var p = personas.find(function(p){return p.id===currentPersonaId;});
+  if (!p) return;
+  try { localStorage.setItem('active-persona', JSON.stringify(p)); } catch(e) {}
+  window.location.href = '/chat/?persona=' + encodeURIComponent(p.id);
+}
+</script>
+</body>
+</html>
