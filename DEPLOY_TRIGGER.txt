@@ -1,1 +1,1 @@
-v1792819871 - personas, debate, memory, canvas tabs
+v1792830443 - chat rewrite, music sidebar, assets tabs
