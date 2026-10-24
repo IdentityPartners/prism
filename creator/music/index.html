@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
+<!-- cache-bust-1792830502 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Music Creator — Argentica</title>
@@ -240,15 +241,49 @@ function addTrackToOutput(blob, prompt, model) {
   var card = document.createElement('div');
   card.className = 'track-card';
   card.id = trackId;
-  card.innerHTML =
-    '<div class="track-title">🎵 ' + shortPrompt + '</div>' +
-    '<div class="track-meta">' + model + ' · ' + new Date().toLocaleTimeString('en-GB') + ' · ' + Math.round(blob.size/1024) + ' KB</div>' +
-    '<audio class="track-audio" controls src="' + url + '"></audio>' +
-    '<div class="track-actions">' +
-      '<a href="' + url + '" download="lyria-track-' + Date.now() + '.mp3" class="music-btn music-btn-secondary" style="font-size:11px;padding:4px 12px;text-decoration:none;">⬇ Download</a>' +
-      '<button class="music-btn music-btn-secondary" style="font-size:11px;padding:4px 12px;" onclick="saveToAssets('' + trackId + '','' + url + '','' + shortPrompt.replace(/'/g,"\'") + '')">💾 Save to Assets</button>' +
-      '<button class="music-btn music-btn-secondary" style="font-size:11px;padding:4px 12px;color:#dc2626;" onclick="document.getElementById('' + trackId + '').remove()">✕ Remove</button>' +
-    '</div>';
+
+  var titleEl = document.createElement('div');
+  titleEl.className = 'track-title';
+  titleEl.textContent = '🎵 ' + shortPrompt;
+
+  var metaEl = document.createElement('div');
+  metaEl.className = 'track-meta';
+  metaEl.textContent = model + ' · ' + new Date().toLocaleTimeString('en-GB') + ' · ' + Math.round(blob.size/1024) + ' KB';
+
+  var audioEl = document.createElement('audio');
+  audioEl.className = 'track-audio';
+  audioEl.controls = true;
+  audioEl.src = url;
+
+  var actionsEl = document.createElement('div');
+  actionsEl.className = 'track-actions';
+
+  var dlLink = document.createElement('a');
+  dlLink.href = url;
+  dlLink.download = 'lyria-track-' + Date.now() + '.mp3';
+  dlLink.className = 'music-btn music-btn-secondary';
+  dlLink.style.cssText = 'font-size:11px;padding:4px 12px;text-decoration:none;';
+  dlLink.textContent = '⬇ Download';
+
+  var saveBtn = document.createElement('button');
+  saveBtn.className = 'music-btn music-btn-secondary';
+  saveBtn.style.cssText = 'font-size:11px;padding:4px 12px;';
+  saveBtn.textContent = '💾 Save to Assets';
+  saveBtn.onclick = (function(tid, u, sp) { return function() { saveToAssets(tid, u, sp); }; })(trackId, url, shortPrompt);
+
+  var removeBtn = document.createElement('button');
+  removeBtn.className = 'music-btn music-btn-secondary';
+  removeBtn.style.cssText = 'font-size:11px;padding:4px 12px;color:#dc2626;';
+  removeBtn.textContent = '✕ Remove';
+  removeBtn.onclick = (function(tid) { return function() { var el = document.getElementById(tid); if(el) el.remove(); }; })(trackId);
+
+  actionsEl.appendChild(dlLink);
+  actionsEl.appendChild(saveBtn);
+  actionsEl.appendChild(removeBtn);
+  card.appendChild(titleEl);
+  card.appendChild(metaEl);
+  card.appendChild(audioEl);
+  card.appendChild(actionsEl);
 
   output.insertBefore(card, output.firstChild);
   tracks.push({id: trackId, url, prompt, model, blob});
