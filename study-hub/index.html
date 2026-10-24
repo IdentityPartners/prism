@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792795932748 -->
+<!-- cache-bust-1792801732053 -->
+
 
 
 
@@ -681,7 +682,7 @@ function switchTab(tab, btn) {
     if (currentWeek && currentModule) {
       showWeekOverview(currentWeek, currentModule);
     } else if (currentModule) {
-      showModuleOverview(currentModule);
+  if (currentWeek && currentModule) { showWeekOverview(currentWeek, currentModule); } else { showModuleOverview(currentModule); };
     } else {
       body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--fg-muted);">Select a module from the left.</div>';
     }
