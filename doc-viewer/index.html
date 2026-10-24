@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792788084 -->
+<!-- cache-bust-1792813784 -->
+
 
 
 
@@ -283,10 +284,16 @@ function loadDocument(doc) {
     return code < 32 && code !== 10 && code !== 13 && code !== 9;
   }).length > content.length * 0.03;
 
-  // Binary office files — always show viewer options
+  // Binary office files
   if (isBinaryContent || content.startsWith('PK') || content.startsWith('%PDF')) {
     if (content.startsWith('%PDF') || ext === 'pdf' || type === 'pdf') {
       renderPDF(doc);
+    } else if (doc.url) {
+      // Has URL — show viewer options immediately
+      showOfficeViewerOptions(doc, ext.toUpperCase() + ' File');
+    } else if (content.startsWith('data:') || content.startsWith('PK')) {
+      // Binary content without URL — upload to R2 first, then show viewers
+      uploadAndView(doc, ext);
     } else {
       showOfficeViewerOptions(doc, ext.toUpperCase() + ' File');
     }
@@ -315,11 +322,46 @@ function loadDocument(doc) {
 }
 
 // ── PDF rendering ─────────────────────────────────────────────────────────────
+var currentPDFDoc = null;
+var currentPDFRenderer = 'pdfjs';
+
+function setPDFRenderer(renderer) {
+  currentPDFRenderer = renderer;
+  document.querySelectorAll('[id^="renderer-"]').forEach(function(b) {
+    b.style.background = 'var(--bg)';
+    b.style.color = 'var(--fg)';
+  });
+  var btn = document.getElementById('renderer-' + renderer);
+  if (btn) { btn.style.background = 'var(--accent)'; btn.style.color = '#fff'; }
+  if (currentPDFDoc) renderPDF(currentPDFDoc);
+}
+
 function renderPDF(doc) {
+  currentPDFDoc = doc;
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane pdf-mode';
-  pane.innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:14px;">Loading PDF...</div>';
   document.getElementById('pdf-controls').style.display = 'flex';
+  var optionsEl = document.getElementById('pdf-viewer-options');
+  if (optionsEl) optionsEl.style.display = 'flex';
+
+  // Nutrient renderer (free, high quality)
+  if (currentPDFRenderer === 'nutrient' && doc.url) {
+    pane.innerHTML = '';
+    var iframe = document.createElement('iframe');
+    iframe.src = 'https://pspdfkit.com/api/viewer/?url=' + encodeURIComponent(doc.url);
+    iframe.style.cssText = 'width:100%;height:100%;border:none;';
+    pane.appendChild(iframe);
+    return;
+  }
+
+  // Google Docs renderer
+  if (currentPDFRenderer === 'google' && doc.url) {
+    loadInFrame('https://docs.google.com/viewer?url=' + encodeURIComponent(doc.url) + '&embedded=true');
+    return;
+  }
+
+  // PDF.js renderer (default)
+  pane.innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:14px;">Loading PDF...</div>';
 
   function doLoad() {
     // Set worker — must match the library version
