@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Debate Society — Argentica</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<style>
+.debate-shell{display:flex;height:100vh;overflow:hidden;}
+.debate-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.debate-hdr{padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg-elevated);display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.debate-hdr h2{font-size:16px;font-weight:700;margin:0;flex:1;}
+.debate-setup{padding:16px;border-bottom:1px solid var(--border);background:var(--bg-elevated);flex-shrink:0;}
+.debate-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;}
+.debate-msg{padding:12px 16px;border-radius:10px;font-size:15px;line-height:1.6;max-width:85%;}
+.debate-msg.moderator{background:rgba(45,106,159,0.1);border:1px solid rgba(45,106,159,0.3);align-self:center;max-width:95%;text-align:center;font-style:italic;}
+.debate-msg.persona-a{background:rgba(15,59,58,0.1);border:1px solid rgba(15,59,58,0.3);align-self:flex-start;}
+.debate-msg.persona-b{background:rgba(92,45,63,0.1);border:1px solid rgba(92,45,63,0.3);align-self:flex-end;}
+.debate-msg.persona-c{background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.3);align-self:flex-start;}
+.persona-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;}
+.debate-input-area{border-top:1px solid var(--border);padding:10px 14px;background:var(--bg-elevated);flex-shrink:0;}
+.debate-controls{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+.debate-btn{padding:7px 14px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;background:var(--bg);color:var(--fg);font-family:inherit;transition:all 0.15s;}
+.debate-btn:hover{border-color:var(--accent);color:var(--accent);}
+.debate-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.persona-card{padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg-elevated);}
+.persona-card h4{margin:0 0 4px;font-size:13px;}
+.persona-card p{margin:0;font-size:12px;color:var(--fg-muted);}
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="debate-shell">
+<div class="debate-main">
+  <div class="debate-hdr">
+    <span style="font-size:20px;">🎭</span>
+    <h2>Debate Society</h2>
+    <button class="debate-btn" onclick="clearDebate()">Clear</button>
+    <button class="debate-btn" onclick="exportDebate()">⬇ Export</button>
+  </div>
+
+  <div class="debate-setup">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+      <div style="flex:2;min-width:200px;">
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">Debate Topic</label>
+        <input id="debate-topic" type="text" placeholder="e.g. Should ADHD be classified as a disability?" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;">
+      </div>
+      <div style="flex:1;min-width:140px;">
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">Format</label>
+        <select id="debate-format" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--fg);">
+          <option value="2">2 Personas + Moderator</option>
+          <option value="3">3 Personas + Moderator</option>
+          <option value="socratic">Socratic Dialogue</option>
+          <option value="panel">Panel Discussion</option>
+        </select>
+      </div>
+      <button class="debate-btn primary" onclick="startDebate()">▶ Start Debate</button>
+      <button class="debate-btn" onclick="nextRound()" id="next-btn" style="display:none;">Next Round →</button>
+    </div>
+    <div id="persona-setup" style="margin-top:10px;display:none;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);margin-bottom:6px;">Personas</div>
+      <div id="persona-cards" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+    </div>
+  </div>
+
+  <div class="debate-messages" id="debate-messages">
+    <div style="text-align:center;padding:40px;color:var(--fg-muted);">
+      <div style="font-size:40px;margin-bottom:12px;">🎭</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:6px;">Debate Society</div>
+      <div style="font-size:14px;">Enter a topic and click Start Debate. Multiple AI personas will argue different positions, with a Moderator synthesising the discussion.</div>
+    </div>
+  </div>
+
+  <div class="debate-input-area">
+    <div class="debate-controls">
+      <button class="debate-btn" onclick="addUserContribution()">💬 Add your view</button>
+      <button class="debate-btn" onclick="requestSynthesis()">🧠 Synthesise</button>
+      <button class="debate-btn" onclick="challengePoint()">⚡ Challenge last point</button>
+      <button class="debate-btn" onclick="requestEvidence()">📚 Request evidence</button>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <textarea id="debate-input" placeholder="Add your own contribution to the debate..." style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;min-height:44px;background:var(--bg);color:var(--fg);" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();addUserContribution();}"></textarea>
+      <button onclick="addUserContribution()" style="padding:8px 14px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;">↑</button>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var debateHistory = [];
+var debateRound = 0;
+var debatePersonas = [];
+var debateTopic = '';
+
+var DEFAULT_PERSONAS = {
+  '2': [
+    {name:'Advocate', role:'Argues strongly FOR the proposition', colour:'#0f3b3a', class:'persona-a'},
+    {name:'Critic', role:'Argues strongly AGAINST the proposition', colour:'#5c2d3f', class:'persona-b'},
+    {name:'Moderator', role:'Synthesises both positions and identifies common ground', colour:'#2d6a9f', class:'moderator'},
+  ],
+  '3': [
+    {name:'Advocate', role:'Argues strongly FOR the proposition', colour:'#0f3b3a', class:'persona-a'},
+    {name:'Critic', role:'Argues strongly AGAINST the proposition', colour:'#5c2d3f', class:'persona-b'},
+    {name:'Pragmatist', role:'Offers a nuanced middle-ground perspective', colour:'#16a34a', class:'persona-c'},
+    {name:'Moderator', role:'Synthesises all positions', colour:'#2d6a9f', class:'moderator'},
+  ],
+  'socratic': [
+    {name:'Questioner', role:'Asks probing Socratic questions to expose assumptions', colour:'#0f3b3a', class:'persona-a'},
+    {name:'Respondent', role:'Answers questions and defends their position', colour:'#5c2d3f', class:'persona-b'},
+    {name:'Moderator', role:'Guides the dialogue and summarises insights', colour:'#2d6a9f', class:'moderator'},
+  ],
+  'panel': [
+    {name:'Academic', role:'Provides scholarly, evidence-based perspective', colour:'#0f3b3a', class:'persona-a'},
+    {name:'Practitioner', role:'Provides real-world, practical perspective', colour:'#5c2d3f', class:'persona-b'},
+    {name:'Advocate', role:'Represents the lived experience of those affected', colour:'#16a34a', class:'persona-c'},
+    {name:'Moderator', role:'Chairs the panel and synthesises', colour:'#2d6a9f', class:'moderator'},
+  ],
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/debate/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+});
+
+function startDebate() {
+  debateTopic = document.getElementById('debate-topic').value.trim();
+  if (!debateTopic) { alert('Enter a debate topic.'); return; }
+  var format = document.getElementById('debate-format').value;
+  debatePersonas = DEFAULT_PERSONAS[format] || DEFAULT_PERSONAS['2'];
+  debateHistory = [];
+  debateRound = 0;
+  
+  // Show persona cards
+  var cards = document.getElementById('persona-cards');
+  cards.innerHTML = '';
+  debatePersonas.forEach(function(p) {
+    var card = document.createElement('div');
+    card.className = 'persona-card';
+    card.style.borderLeft = '3px solid ' + p.colour;
+    card.innerHTML = '<h4>' + p.name + '</h4><p>' + p.role + '</p>';
+    cards.appendChild(card);
+  });
+  document.getElementById('persona-setup').style.display = 'block';
+  document.getElementById('next-btn').style.display = 'inline-block';
+  
+  var msgs = document.getElementById('debate-messages');
+  msgs.innerHTML = '';
+  addDebateMsg('moderator', 'Moderator', 'Welcome to the Debate Society. Today's topic: "' + debateTopic + '". Let us begin with opening statements.');
+  
+  // Get opening statements from all non-moderator personas
+  runDebateRound('opening statement');
+}
+
+function runDebateRound(instruction) {
+  var nonModerators = debatePersonas.filter(function(p){return p.class !== 'moderator';});
+  var chain = Promise.resolve();
+  nonModerators.forEach(function(persona) {
+    chain = chain.then(function() {
+      return getPersonaResponse(persona, instruction);
+    });
+  });
+  chain.then(function() {
+    debateRound++;
+  });
+}
+
+function getPersonaResponse(persona, instruction) {
+  var context = 'You are ' + persona.name + ' in a structured debate. Your role: ' + persona.role + '. Topic: "' + debateTopic + '". ' + instruction + '. Be concise (2-3 paragraphs), intellectually rigorous, British English. Do not break character.';
+  var messages = [{role:'system',content:context}];
+  debateHistory.forEach(function(h){messages.push(h);});
+  messages.push({role:'user',content:'Please give your ' + instruction + ' on the topic: "' + debateTopic + '"'});
+  
+  return fetch(WORKER + '/api/chat', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({messages:messages, profile:'balanced'})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    var response = d.content || 'No response.';
+    debateHistory.push({role:'assistant',content:persona.name+': '+response});
+    addDebateMsg(persona.class, persona.name, response);
+  })
+  .catch(function(e){addDebateMsg(persona.class, persona.name, 'Error: '+e.message);});
+}
+
+function nextRound() {
+  var instructions = ['rebut the previous arguments','develop your position further with evidence','respond to the strongest opposing argument','make your closing argument'];
+  var instruction = instructions[Math.min(debateRound, instructions.length-1)];
+  runDebateRound(instruction);
+}
+
+function requestSynthesis() {
+  var moderator = debatePersonas.find(function(p){return p.class==='moderator';});
+  if (!moderator) return;
+  var context = 'You are the Moderator. Synthesise the debate so far on "' + debateTopic + '". Identify: (1) points of agreement, (2) key disagreements, (3) strongest arguments on each side, (4) your assessment of where the weight of argument lies. British English. Be balanced and intellectually honest.';
+  var messages = [{role:'system',content:context}].concat(debateHistory);
+  messages.push({role:'user',content:'Please synthesise the debate so far.'});
+  fetch(WORKER+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:messages,profile:'frontier'})})
+  .then(function(r){return r.json();})
+  .then(function(d){addDebateMsg('moderator','Moderator — Synthesis',d.content||'No response.');});
+}
+
+function challengePoint() {
+  var lastMsg = debateHistory[debateHistory.length-1];
+  if (!lastMsg) return;
+  var advocate = debatePersonas.find(function(p){return p.class==='persona-a';});
+  if (!advocate) return;
+  getPersonaResponse(advocate, 'directly challenge and rebut the last argument made');
+}
+
+function requestEvidence() {
+  var lastMsg = debateHistory[debateHistory.length-1];
+  if (!lastMsg) return;
+  var academic = debatePersonas.find(function(p){return p.name==='Academic'||p.class==='persona-a';});
+  if (!academic) return;
+  getPersonaResponse(academic, 'provide specific academic evidence and citations to support your position');
+}
+
+function addUserContribution() {
+  var input = document.getElementById('debate-input');
+  var text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  addDebateMsg('user', 'Simon', text);
+  debateHistory.push({role:'user',content:'Simon says: '+text});
+  // Get responses from all personas
+  runDebateRound('respond to Simon's contribution: "'+text+'"');
+}
+
+function addDebateMsg(cls, name, text) {
+  var msgs = document.getElementById('debate-messages');
+  var div = document.createElement('div');
+  div.className = 'debate-msg ' + cls;
+  var label = document.createElement('div');
+  label.className = 'persona-label';
+  label.textContent = name;
+  var content = document.createElement('div');
+  content.textContent = text;
+  div.appendChild(label);
+  div.appendChild(content);
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function clearDebate() {
+  debateHistory = []; debateRound = 0;
+  document.getElementById('debate-messages').innerHTML = '<div style="text-align:center;padding:40px;color:var(--fg-muted);">Debate cleared. Enter a new topic to begin.</div>';
+  document.getElementById('next-btn').style.display = 'none';
+  document.getElementById('persona-setup').style.display = 'none';
+}
+
+function exportDebate() {
+  var lines = ['# Debate: ' + debateTopic, ''];
+  debateHistory.forEach(function(h){lines.push(h.content);lines.push('');});
+  var blob = new Blob([lines.join('
+')],{type:'text/markdown'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'debate-' + debateTopic.substring(0,30).replace(/\s+/g,'-') + '.md';
+  a.click();
+}
+</script>
+</body>
+</html>
