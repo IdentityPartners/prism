@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792809984 -->
+<!-- cache-bust-1792815244 -->
+
 
 
 
@@ -1280,7 +1281,23 @@ function showWeekOverview(week, mod) {
     el.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all 0.15s;';
     el.onmouseenter = function() { el.style.borderColor=card.colour; el.style.transform='translateY(-2px)'; };
     el.onmouseleave = function() { el.style.borderColor='var(--border)'; el.style.transform=''; };
-    el.onclick = (function(t) { return function() { currentTab=t; switchTab(t,null); }; })(card.tab);
+    el.onclick = (function(t, label, colour) {
+      return function() {
+        // Create tab if it doesn't exist
+        var tabBar = document.querySelector('.hub-tabs');
+        var existingTab = document.getElementById('tab-'+t+'-dynamic');
+        if (!existingTab && tabBar && card.count > 0) {
+          var newTab = document.createElement('div');
+          newTab.className = 'hub-tab';
+          newTab.id = 'tab-'+t+'-dynamic';
+          newTab.textContent = label + ' (' + card.count + ')';
+          newTab.style.borderBottom = '2px solid ' + colour;
+          newTab.onclick = function() { currentTab=t; switchTab(t,newTab); };
+          tabBar.appendChild(newTab);
+        }
+        currentTab=t; switchTab(t,null);
+      };
+    })(card.tab, card.label, card.colour);
     var lbl = document.createElement('div');
     lbl.style.cssText = 'font-size:13px;font-weight:600;color:var(--fg);margin-bottom:4px;';
     lbl.textContent = card.label;
