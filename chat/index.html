@@ -351,6 +351,7 @@ function loadConversations() {
     });
 }
 
+
 function renderConversations(convs) {
   var list = document.getElementById('conv-list');
   if (!convs.length) {
@@ -362,11 +363,31 @@ function renderConversations(convs) {
     var div = document.createElement('div');
     div.className = 'conv-item' + (c.id === currentThreadId ? ' active' : '');
     div.id = 'conv-' + c.id;
-    var date = c.updated ? new Date(c.updated).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';
-    div.innerHTML = '<div class="conv-title">' + (c.title || 'Conversation').replace(/</g,'&lt;') + '</div>' +
-      '<div class="conv-meta"><span>' + (c.messageCount||0) + ' msgs</span><span>' + date + '</span>' +
-      '<span class="conv-del" onclick="deleteConversation(\'' + c.id + '\',event)" title="Delete">✕</span></div>';
-    div.onclick = function() { loadConversation(c.id); };
+
+    var titleEl = document.createElement('div');
+    titleEl.className = 'conv-title';
+    titleEl.textContent = c.title || 'Conversation';
+
+    var metaEl = document.createElement('div');
+    metaEl.className = 'conv-meta';
+
+    var countEl = document.createElement('span');
+    countEl.textContent = (c.messageCount || 0) + ' msgs';
+
+    var dateEl = document.createElement('span');
+    dateEl.textContent = c.updated ? new Date(c.updated).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';
+
+    var delEl = document.createElement('span');
+    delEl.className = 'conv-del';
+    delEl.textContent = '✕';
+    delEl.onclick = (function(cid) { return function(e) { deleteConversation(cid, e); }; })(c.id);
+
+    metaEl.appendChild(countEl);
+    metaEl.appendChild(dateEl);
+    metaEl.appendChild(delEl);
+    div.appendChild(titleEl);
+    div.appendChild(metaEl);
+    div.onclick = (function(cid) { return function() { loadConversation(cid); }; })(c.id);
     list.appendChild(div);
   });
 }
