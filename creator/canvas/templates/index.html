@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canvas Templates — Argentica</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<!-- cache-bust-1792832369 -->
+<style>
+.templates-shell{display:flex;height:100vh;overflow:hidden;flex-direction:column;}
+.templates-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg-elevated);flex-shrink:0;}
+.templates-tabs a{padding:8px 16px;font-size:13px;font-weight:600;border-bottom:2px solid transparent;color:var(--fg-muted);text-decoration:none;}
+.templates-tabs a.active{border-bottom-color:var(--accent);color:var(--accent);}
+.templates-body{flex:1;overflow-y:auto;padding:16px;}
+.template-group{margin-bottom:24px;}
+.template-group-hdr{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid var(--border);}
+.template-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;}
+.template-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;transition:all 0.15s;}
+.template-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.1);}
+.template-preview{height:120px;display:flex;align-items:center;justify-content:center;font-size:32px;position:relative;overflow:hidden;}
+.template-info{padding:8px 10px;}
+.template-name{font-size:12px;font-weight:600;color:var(--fg);}
+.template-desc{font-size:10px;color:var(--fg-muted);margin-top:2px;}
+.generate-panel{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;}
+.gen-label{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:5px;}
+.gen-input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;}
+.gen-textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;resize:vertical;min-height:80px;}
+.gen-btn{padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:600;}
+.preview-modal{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;}
+.preview-modal.open{display:flex;}
+.preview-modal img,.preview-modal svg{max-width:90vmin;max-height:80vmin;border-radius:8px;}
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="templates-shell">
+
+<div class="templates-tabs">
+  <a href="/creator/canvas/">🎨 Canvas</a>
+  <a href="/creator/canvas/?tab=templates" class="active">📋 Templates</a>
+  <a href="/creator/assets/">📁 Assets</a>
+  <a href="/creator/assets/?tab=generate">✨ Generate</a>
+</div>
+
+<div class="templates-body">
+
+  <!-- Generate panel -->
+  <div class="generate-panel">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+      <div style="flex:2;min-width:200px;">
+        <label class="gen-label">Quote / Text</label>
+        <textarea class="gen-textarea" id="gen-text" placeholder="Understand your past. Appreciate the present. Define your future."></textarea>
+      </div>
+      <div style="flex:1;min-width:140px;">
+        <label class="gen-label">Template</label>
+        <select class="gen-input" id="gen-template">
+          <option value="quote-teal">Teal Block</option>
+          <option value="quote-rose">Rose Block</option>
+          <option value="quote-ivory">Ivory Block</option>
+          <option value="quote-dark">Dark Block</option>
+          <option value="quote-slate">Slate</option>
+          <option value="quote-forest">Forest</option>
+          <option value="quote-dusk">Dusk</option>
+          <option value="quote-coastal">Coastal</option>
+          <option value="quote-dawn">Dawn</option>
+          <option value="quote-parchment">Parchment</option>
+          <option value="quote-midnight">Midnight</option>
+          <option value="quote-stone">Stone</option>
+        </select>
+      </div>
+      <div>
+        <button class="gen-btn" onclick="generateCanvas()">Generate Canvas</button>
+      </div>
+    </div>
+    <div id="gen-status" style="margin-top:8px;font-size:12px;color:var(--fg-muted);"></div>
+  </div>
+
+  <!-- Template groups -->
+  <div id="template-groups"></div>
+
+</div>
+</div>
+</div>
+
+<!-- Preview modal -->
+<div class="preview-modal" id="preview-modal" onclick="closePreview()">
+  <div id="preview-content"></div>
+  <div style="display:flex;gap:8px;">
+    <a id="preview-download" href="#" download style="padding:8px 16px;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:13px;">⬇ Download SVG</a>
+    <button onclick="queueForPosting()" style="padding:8px 16px;background:#0f3b3a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">📤 Queue for posting</button>
+    <button onclick="closePreview()" style="padding:8px 16px;border:1px solid rgba(255,255,255,0.3);background:none;color:#fff;border-radius:6px;cursor:pointer;font-size:13px;">✕ Close</button>
+  </div>
+</div>
+
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var currentSvg = '';
+
+var TEMPLATES = [
+  {group:'Block Colour', items:[
+    {id:'quote-teal',name:'Teal Block',desc:'Deep teal background',bg:'#0f3b3a',fg:'#f7f3e9',accent:'#ddd0c8'},
+    {id:'quote-rose',name:'Rose Block',desc:'Deep rose background',bg:'#5c2d3f',fg:'#f7f3e9',accent:'#ddd0c8'},
+    {id:'quote-ivory',name:'Ivory Block',desc:'Warm ivory background',bg:'#f7f3e9',fg:'#0f3b3a',accent:'#5c2d3f'},
+    {id:'quote-dark',name:'Dark Block',desc:'Near-black background',bg:'#1a1a1a',fg:'#f7f3e9',accent:'#ddd0c8'},
+    {id:'quote-slate',name:'Slate',desc:'Cool blue-grey',bg:'#2d3748',fg:'#f7fafc',accent:'#90cdf4'},
+    {id:'quote-stone',name:'Stone',desc:'Warm grey',bg:'#44403c',fg:'#fafaf9',accent:'#d6d3d1'},
+  ]},
+  {group:'Nature & Landscape', items:[
+    {id:'quote-forest',name:'Forest',desc:'Deep forest green',bg:'#1a3a2a',fg:'#f0fdf4',accent:'#86efac'},
+    {id:'quote-coastal',name:'Coastal',desc:'Ocean blue',bg:'#0c2340',fg:'#e0f2fe',accent:'#7dd3fc'},
+    {id:'quote-dawn',name:'Dawn',desc:'Warm sunrise amber',bg:'#7c2d12',fg:'#fff7ed',accent:'#fed7aa'},
+    {id:'quote-dusk',name:'Dusk',desc:'Purple twilight',bg:'#2e1065',fg:'#faf5ff',accent:'#d8b4fe'},
+    {id:'quote-parchment',name:'Parchment',desc:'Aged paper warmth',bg:'#faf8f4',fg:'#1c1a17',accent:'#8b4513'},
+    {id:'quote-midnight',name:'Midnight',desc:'Deep navy night',bg:'#0d1520',fg:'#e8f0f8',accent:'#4a9fd4'},
+  ]},
+  {group:'IP Brand', items:[
+    {id:'ip-teal-rose',name:'IP Teal/Rose',desc:'Brand split',bg:'#0f3b3a',fg:'#f7f3e9',accent:'#5c2d3f'},
+    {id:'ip-minimal',name:'IP Minimal',desc:'Clean white',bg:'#ffffff',fg:'#0f3b3a',accent:'#5c2d3f'},
+    {id:'ip-bold',name:'IP Bold',desc:'High contrast',bg:'#0f3b3a',fg:'#ffffff',accent:'#d4899a'},
+  ]},
+  {group:'Post Types', items:[
+    {id:'post-research',name:'Research Finding',desc:'Academic style',bg:'#1e3a5f',fg:'#f0f9ff',accent:'#93c5fd'},
+    {id:'post-quote',name:'Client Quote',desc:'Testimonial style',bg:'#f7f3e9',fg:'#0f3b3a',accent:'#5c2d3f'},
+    {id:'post-stat',name:'Statistic',desc:'Data highlight',bg:'#0f3b3a',fg:'#f7f3e9',accent:'#7ecfcd'},
+    {id:'post-news',name:'News Reaction',desc:'Current affairs',bg:'#1a1a2e',fg:'#e0e0ff',accent:'#a78bfa'},
+  ]},
+];
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/creator/canvas/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  renderTemplates();
+});
+
+function renderTemplates() {
+  var container = document.getElementById('template-groups');
+  container.innerHTML = '';
+  TEMPLATES.forEach(function(group) {
+    var section = document.createElement('div');
+    section.className = 'template-group';
+    var hdr = document.createElement('div');
+    hdr.className = 'template-group-hdr';
+    hdr.textContent = group.group + ' (' + group.items.length + ')';
+    section.appendChild(hdr);
+    var grid = document.createElement('div');
+    grid.className = 'template-grid';
+    group.items.forEach(function(t) {
+      var card = document.createElement('div');
+      card.className = 'template-card';
+      card.onclick = function() { previewTemplate(t); };
+      var preview = document.createElement('div');
+      preview.className = 'template-preview';
+      preview.style.background = t.bg;
+      preview.innerHTML = '<div style="font-family:Georgia,serif;font-size:11px;font-style:italic;color:'+t.fg+';text-align:center;padding:10px;opacity:0.9;">Identity<br>Partners</div>';
+      var info = document.createElement('div');
+      info.className = 'template-info';
+      var name = document.createElement('div');
+      name.className = 'template-name';
+      name.textContent = t.name;
+      var desc = document.createElement('div');
+      desc.className = 'template-desc';
+      desc.textContent = t.desc;
+      info.appendChild(name);
+      info.appendChild(desc);
+      card.appendChild(preview);
+      card.appendChild(info);
+      grid.appendChild(card);
+    });
+    section.appendChild(grid);
+    container.appendChild(section);
+  });
+}
+
+function previewTemplate(t) {
+  var text = document.getElementById('gen-text').value.trim() || 'Understand your past. Appreciate the present. Define your future.';
+  document.getElementById('gen-template').value = t.id;
+  generateCanvasWithTemplate(t.id, text);
+}
+
+function generateCanvas() {
+  var text = document.getElementById('gen-text').value.trim();
+  var template = document.getElementById('gen-template').value;
+  if (!text) { alert('Enter some text first.'); return; }
+  generateCanvasWithTemplate(template, text);
+}
+
+function generateCanvasWithTemplate(templateId, text) {
+  var status = document.getElementById('gen-status');
+  status.textContent = 'Generating...';
+  fetch(WORKER + '/api/canvas/generate', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({text:text, template:templateId})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    status.textContent = '';
+    if (d.dataUrl || d.url) {
+      currentSvg = d.dataUrl || d.url;
+      showPreview(currentSvg, templateId);
+    } else {
+      status.textContent = 'Error: ' + (d.error||'Unknown');
+    }
+  })
+  .catch(function(e){ status.textContent = 'Error: '+e.message; });
+}
+
+function showPreview(url, templateId) {
+  var modal = document.getElementById('preview-modal');
+  var content = document.getElementById('preview-content');
+  var dl = document.getElementById('preview-download');
+  content.innerHTML = '';
+  if (url.startsWith('data:image/svg')) {
+    var img = document.createElement('img');
+    img.src = url;
+    img.style.cssText = 'max-width:90vmin;max-height:80vmin;border-radius:8px;';
+    content.appendChild(img);
+  } else {
+    var img2 = document.createElement('img');
+    img2.src = url;
+    img2.style.cssText = 'max-width:90vmin;max-height:80vmin;border-radius:8px;';
+    content.appendChild(img2);
+  }
+  dl.href = url;
+  dl.download = templateId + '-canvas.svg';
+  modal.classList.add('open');
+}
+
+function closePreview() {
+  document.getElementById('preview-modal').classList.remove('open');
+}
+
+function queueForPosting() {
+  var text = document.getElementById('gen-text').value.trim();
+  fetch(WORKER + '/api/canvas/social', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({text:text, template:document.getElementById('gen-template').value, platforms:['bluesky','instagram','facebook']})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    closePreview();
+    alert(d.message || 'Queued for Media Manager approval.');
+  })
+  .catch(function(e){alert('Error: '+e.message);});
+}
+</script>
+</body>
+</html>
