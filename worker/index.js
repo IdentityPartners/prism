@@ -3007,6 +3007,118 @@ export default {
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── Canvas SVG generation ─────────────────────────────────────────────────
+    if (path === '/api/canvas/generate' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = (body.text || 'Identity Partners').substring(0, 300);
+        const template = body.template || 'quote-teal';
+
+        const themes = {
+          'quote-teal':    {bg:'#0f3b3a', fg:'#f7f3e9', accent:'#ddd0c8'},
+          'quote-rose':    {bg:'#5c2d3f', fg:'#f7f3e9', accent:'#ddd0c8'},
+          'quote-ivory':   {bg:'#f7f3e9', fg:'#0f3b3a', accent:'#5c2d3f'},
+          'quote-dark':    {bg:'#1a1a1a', fg:'#f7f3e9', accent:'#ddd0c8'},
+          'quote-slate':   {bg:'#2d3748', fg:'#f7fafc', accent:'#90cdf4'},
+          'quote-stone':   {bg:'#44403c', fg:'#fafaf9', accent:'#d6d3d1'},
+          'quote-forest':  {bg:'#1a3a2a', fg:'#f0fdf4', accent:'#86efac'},
+          'quote-coastal': {bg:'#0c2340', fg:'#e0f2fe', accent:'#7dd3fc'},
+          'quote-dawn':    {bg:'#7c2d12', fg:'#fff7ed', accent:'#fed7aa'},
+          'quote-dusk':    {bg:'#2e1065', fg:'#faf5ff', accent:'#d8b4fe'},
+          'quote-parchment':{bg:'#faf8f4',fg:'#1c1a17', accent:'#8b4513'},
+          'quote-midnight':{bg:'#0d1520', fg:'#e8f0f8', accent:'#4a9fd4'},
+          'ip-teal-rose':  {bg:'#0f3b3a', fg:'#f7f3e9', accent:'#5c2d3f'},
+          'ip-minimal':    {bg:'#ffffff', fg:'#0f3b3a', accent:'#5c2d3f'},
+          'ip-bold':       {bg:'#0f3b3a', fg:'#ffffff', accent:'#d4899a'},
+          'post-research': {bg:'#1e3a5f', fg:'#f0f9ff', accent:'#93c5fd'},
+          'post-quote':    {bg:'#f7f3e9', fg:'#0f3b3a', accent:'#5c2d3f'},
+          'post-stat':     {bg:'#0f3b3a', fg:'#f7f3e9', accent:'#7ecfcd'},
+          'post-news':     {bg:'#1a1a2e', fg:'#e0e0ff', accent:'#a78bfa'},
+        };
+        const t = themes[template] || themes['quote-teal'];
+
+        // Word-wrap text
+        const safeText = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const words = safeText.split(' ');
+        const lines = [];
+        let line = '';
+        const maxChars = 28;
+        words.forEach(w => {
+          if ((line + ' ' + w).trim().length > maxChars && line) { lines.push(line.trim()); line = w; }
+          else { line = (line + ' ' + w).trim(); }
+        });
+        if (line) lines.push(line.trim());
+        if (lines.length > 8) { lines.splice(7, lines.length - 7); lines[6] += '...'; }
+
+        const lineH = 64;
+        const startY = Math.max(200, 540 - (lines.length * lineH) / 2);
+        const attrY = startY + lines.length * lineH + 40;
+
+        const textEls = lines.map((l, i) =>
+          `<text x="540" y="${startY + i * lineH}" font-family="Georgia,serif" font-size="46" font-style="italic" fill="${t.fg}" text-anchor="middle" filter="url(#ts)">${l}</text>`
+        ).join('\n');
+
+        const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080">
+  <defs>
+    <filter id="ts"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.6)"/></filter>
+  </defs>
+  <rect width="1080" height="1080" fill="${t.bg}"/>
+  <rect x="0" y="0" width="1080" height="10" fill="${t.accent}" opacity="0.85"/>
+  <rect x="0" y="1070" width="1080" height="10" fill="${t.accent}" opacity="0.85"/>
+  <rect x="30" y="30" width="46" height="46" rx="6" fill="#0f3b3a" opacity="0.9"/>
+  <rect x="82" y="30" width="46" height="46" rx="6" fill="#5c2d3f" opacity="0.9"/>
+  <rect x="30" y="82" width="46" height="46" rx="6" fill="#1a5550" opacity="0.7"/>
+  <rect x="82" y="82" width="46" height="46" rx="6" fill="#7a4254" opacity="0.7"/>
+  <text x="80" y="210" font-family="Georgia,serif" font-size="110" fill="${t.fg}" opacity="0.08">&#x201C;</text>
+  ${textEls}
+  <line x1="380" y1="${attrY}" x2="700" y2="${attrY}" stroke="${t.accent}" stroke-width="2" opacity="0.65"/>
+  <text x="440" y="${attrY + 46}" font-family="Georgia,serif" font-size="28" font-weight="600" fill="#0f3b3a" text-anchor="middle">Identity</text>
+  <text x="640" y="${attrY + 46}" font-family="Georgia,serif" font-size="28" font-weight="600" fill="#5c2d3f" text-anchor="middle">Partners</text>
+  <text x="540" y="${attrY + 80}" font-family="Georgia,serif" font-size="16" font-style="italic" fill="${t.accent}" text-anchor="middle" opacity="0.85">Understand your past &#xB7; Appreciate the present &#xB7; Define your future</text>
+  <text x="540" y="1042" font-family="Arial,sans-serif" font-size="16" fill="${t.accent}" text-anchor="middle" opacity="0.85">www.identitypartners.uk &#xB7; hello@identitypartners.uk &#xB7; @identitypartners</text>
+</svg>`;
+
+        const svgB64 = btoa(unescape(encodeURIComponent(svg)));
+        const dataUrl = 'data:image/svg+xml;base64,' + svgB64;
+
+        // Store in R2 if available
+        if (env.PRISM_ASSETS) {
+          const key = 'canvas-' + Date.now() + '.svg';
+          await env.PRISM_ASSETS.put(key, svg, {httpMetadata:{contentType:'image/svg+xml'}, expirationTtl:86400*30});
+          const r2Url = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + key;
+          return json({success:true, url:r2Url, dataUrl, format:'svg', template}, 200, origin);
+        }
+
+        return json({success:true, dataUrl, format:'svg', template}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+
+    // ── Clean spam threads ────────────────────────────────────────────────────
+    if (path === '/api/chat/cleanup-spam' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const pattern = body.pattern || 'Summarise this document';
+        const listResult = env.PRISM_KV ? await env.PRISM_KV.list({prefix:'thread:'}) : {keys:[]};
+        let deleted = 0;
+        for (const key of listResult.keys) {
+          const raw = await env.PRISM_KV.get(key.name);
+          if (raw) {
+            try {
+              const thread = JSON.parse(raw);
+              if ((thread.title||'').includes(pattern) || (thread.title||'').includes('say ok') || (thread.title||'').includes('Say OK') || (thread.title||'').includes('test') || (thread.title||'').includes('Test')) {
+                await env.PRISM_KV.delete(key.name);
+                deleted++;
+              }
+            } catch(e) {}
+          }
+        }
+        return json({success:true, deleted}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
