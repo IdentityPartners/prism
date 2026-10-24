@@ -2292,6 +2292,86 @@ export default {
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── Clean test threads ────────────────────────────────────────────────────
+    if (path === '/api/chat/cleanup-test-threads' && request.method === 'POST') {
+      try {
+        if (!env.PRISM_KV) return json({error:'KV not available'}, 500, origin);
+        const list = await env.PRISM_KV.list({prefix:'thread:'});
+        const testPatterns = ['say ok','test','2+2','hello world','what is the capital','capital of france','testing','hi there'];
+        let deleted = 0;
+        for (const key of list.keys) {
+          const thread = await env.PRISM_KV.get(key.name, 'json');
+          if (!thread) continue;
+          const title = (thread.title||'').toLowerCase();
+          const isTest = testPatterns.some(function(p){return title.includes(p);}) ||
+                         (thread.messages && thread.messages.length <= 2 && title.length < 10);
+          if (isTest) {
+            await env.PRISM_KV.delete(key.name);
+            deleted++;
+          }
+        }
+        return json({success:true, deleted}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Save home item (thinker/news) to study hub week ───────────────────────
+    if (path === '/api/study/save-item' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const {moduleId, weekId, item} = body;
+        if (!moduleId || !weekId || !item) return json({error:'Missing fields'}, 400, origin);
+        if (!env.PRISM_KV) return json({error:'KV not available'}, 500, origin);
+        const modulesRaw = await env.PRISM_KV.get('study:modules');
+        if (!modulesRaw) return json({error:'No modules found'}, 404, origin);
+        const modules = JSON.parse(modulesRaw);
+        const mod = modules.find(function(m){return m.id===moduleId;});
+        if (!mod) return json({error:'Module not found'}, 404, origin);
+        const week = (mod.weeks||[]).find(function(w){return w.id===weekId;});
+        if (!week) return json({error:'Week not found'}, 404, origin);
+        if (!week.resources) week.resources = [];
+        week.resources.push({
+          id: 'r-'+Date.now(),
+          type: item.type || 'link',
+          title: item.title || 'Saved item',
+          url: item.url || '',
+          content: item.content || '',
+          tags: item.tags || [],
+          added: new Date().toISOString(),
+          source: item.source || 'home'
+        });
+        await env.PRISM_KV.put('study:modules', JSON.stringify(modules));
+        return json({success:true, weekName:week.name, moduleName:mod.name}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Auto-generate resource names from URL/content ─────────────────────────
+    if (path === '/api/study/auto-name' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const url = body.url || '';
+        const content = (body.content||'').substring(0, 2000);
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        
+        let prompt = 'Extract the title and author from this academic resource. Return JSON only: {"title":"...","author":"...","year":"...","type":"reading"}\n\n';
+        if (url) prompt += 'URL: ' + url + '\n';
+        if (content) prompt += 'Content: ' + content;
+        
+        const result = await callProvider(env, 'gemini', GKEY, 'gemma-4-31b-it', [
+          {role:'system', content:'You extract bibliographic metadata from academic resources. Return only valid JSON.'},
+          {role:'user', content:prompt}
+        ]);
+        
+        let metadata = {title:'', author:'', year:'', type:'reading'};
+        try {
+          const match = result.content.match(/\{[\s\S]*\}/);
+          if (match) metadata = JSON.parse(match[0]);
+        } catch(e) {}
+        
+        return json({success:true, metadata}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
