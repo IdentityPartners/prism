@@ -2744,6 +2744,85 @@ export default {
       } catch(e) { return json({error: e.message}, 500, origin); }
     }
 
+
+    // ── Personas CRUD ─────────────────────────────────────────────────────────
+    if (path === '/api/personas' && request.method === 'GET') {
+      try {
+        const raw = env.PRISM_KV ? await env.PRISM_KV.get('personas:list') : null;
+        const personas = raw ? JSON.parse(raw) : [];
+        return json({personas}, 200, origin);
+      } catch(e) { return json({personas:[], error:e.message}, 200, origin); }
+    }
+    if (path === '/api/personas' && request.method === 'POST') {
+      try {
+        const persona = await request.json();
+        if (!persona.id || !persona.name) return json({error:'id and name required'}, 400, origin);
+        const raw = env.PRISM_KV ? await env.PRISM_KV.get('personas:list') : null;
+        const personas = raw ? JSON.parse(raw) : [];
+        const idx = personas.findIndex(p => p.id === persona.id);
+        if (idx !== -1) personas[idx] = persona;
+        else personas.push(persona);
+        if (env.PRISM_KV) await env.PRISM_KV.put('personas:list', JSON.stringify(personas));
+        return json({success:true, persona}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+    if (path.startsWith('/api/personas/') && request.method === 'DELETE') {
+      try {
+        const personaId = path.replace('/api/personas/', '');
+        const raw = env.PRISM_KV ? await env.PRISM_KV.get('personas:list') : null;
+        const personas = raw ? JSON.parse(raw) : [];
+        const filtered = personas.filter(p => p.id !== personaId);
+        if (env.PRISM_KV) await env.PRISM_KV.put('personas:list', JSON.stringify(filtered));
+        return json({success:true}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Memory: persistent facts about Simon ──────────────────────────────────
+    if (path === '/api/memory/about-me' && request.method === 'GET') {
+      try {
+        const raw = env.PRISM_KV ? await env.PRISM_KV.get('memory:about-me') : null;
+        const memories = raw ? JSON.parse(raw) : [];
+        return json({memories, count: memories.length}, 200, origin);
+      } catch(e) { return json({memories:[], error:e.message}, 200, origin); }
+    }
+    if (path === '/api/memory/about-me' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const fact = body.fact || body.content || '';
+        if (!fact) return json({error:'fact required'}, 400, origin);
+        const raw = env.PRISM_KV ? await env.PRISM_KV.get('memory:about-me') : null;
+        const memories = raw ? JSON.parse(raw) : [];
+        const entry = {id:'mem-'+Date.now(), fact, created:new Date().toISOString(), source:body.source||'chat'};
+        memories.unshift(entry);
+        // Keep last 200 memories
+        const trimmed = memories.slice(0, 200);
+        if (env.PRISM_KV) await env.PRISM_KV.put('memory:about-me', JSON.stringify(trimmed));
+        return json({success:true, entry, total:trimmed.length}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+    if (path === '/api/memory/about-me' && request.method === 'DELETE') {
+      try {
+        const body = await request.json();
+        const memId = body.id;
+        const raw = env.PRISM_KV ? await env.PRISM_KV.get('memory:about-me') : null;
+        const memories = raw ? JSON.parse(raw) : [];
+        const filtered = memId ? memories.filter(m => m.id !== memId) : [];
+        if (env.PRISM_KV) await env.PRISM_KV.put('memory:about-me', JSON.stringify(filtered));
+        return json({success:true, deleted: memId ? 1 : memories.length}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Memory injection into chat ────────────────────────────────────────────
+    // This is called by the orchestrator to prepend memory to system prompt
+    if (path === '/api/memory/context' && request.method === 'GET') {
+      try {
+        const raw = env.PRISM_KV ? await env.PRISM_KV.get('memory:about-me') : null;
+        const memories = raw ? JSON.parse(raw) : [];
+        const context = memories.slice(0, 20).map(m => m.fact).join('\n');
+        return json({context, count: memories.length}, 200, origin);
+      } catch(e) { return json({context:'', error:e.message}, 200, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
