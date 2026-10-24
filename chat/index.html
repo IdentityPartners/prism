@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792832369 -->
+<!-- cache-bust-1792843950 -->
+
 
 
 
@@ -208,7 +209,7 @@
 <div class="chat-right">
 <div class="right-sec">
 <h4>Model</h4>
-<select class="model-select" id="model-select" onchange="setModelOverride(this.value)">
+<select class="model-select" id="model-select" onchange="setModelOverride(this.value)" title="Select a specific model, or leave on Balanced profile for auto-routing">
 <option value="">Auto (Orchestrator)</option>
 <optgroup label="✓ Mistral Paid — Reliable">
 <option value="mistral:mistral-medium-3.5">Mistral Medium 3.5 · 262K · web · vision · ~416ms</option>
@@ -281,7 +282,7 @@ var allConversations = [];
 var isStreaming = false;
 
 var MODEL_INFO = {
-  '': 'Auto: tries Mistral Medium 3.5 first, falls through chain if unavailable.',
+
   'mistral:mistral-medium-3.5': '262K context · 32K output · web search · vision · ~416ms · paid subscription',
   'mistral:mistral-large-latest': '262K context · 32K output · web search · vision · ~573ms · paid subscription',
   'mistral:mistral-small-latest': '262K context · 32K output · vision · ~310ms · paid subscription',
@@ -311,6 +312,9 @@ document.addEventListener('DOMContentLoaded', function() {
   loadConversations();
   try { profile = localStorage.getItem('chat-profile') || 'balanced'; } catch(e) {}
   document.getElementById('chat-input').focus();
+  // Show tooltip for first model
+  var sel = document.getElementById('model-select');
+  if (sel && sel.value) setModelOverride(sel.value);
   loadMemory();
 });
 
