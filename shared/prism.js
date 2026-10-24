@@ -1,4 +1,4 @@
-// v1792808449
+// v1792819446
 
 // ── Immediate sidebar offset CSS (prevents flash of unstyled content) ─────────
 (function() {
@@ -1741,3 +1741,34 @@ var GlobalUI = (function() {
 document.addEventListener('DOMContentLoaded', function() {
   GlobalUI.init();
 });
+
+// ── Automatic error logging ───────────────────────────────────────────────────
+(function() {
+  var WORKER = 'https://prism-api.identitypartners.workers.dev';
+  window.addEventListener('error', function(e) {
+    fetch(WORKER + '/api/errors/log', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        page: window.location.pathname,
+        error: e.message || String(e.error),
+        stack: e.error && e.error.stack ? e.error.stack : '',
+        url: e.filename || '',
+        line: e.lineno,
+        col: e.colno
+      })
+    }).catch(function(){});
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    fetch(WORKER + '/api/errors/log', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        page: window.location.pathname,
+        error: 'Unhandled Promise: ' + String(e.reason),
+        stack: e.reason && e.reason.stack ? e.reason.stack : '',
+        url: window.location.href
+      })
+    }).catch(function(){});
+  });
+})();
