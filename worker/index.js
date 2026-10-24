@@ -987,6 +987,57 @@ export default {
       } catch (e) { return json({ error: e.message }, 500, origin); }
     }
 
+    // ── Zoho token refresh helper ─────────────────────────────────────────────
+    async function getZohoToken() {
+      if (!env.PRISM_KV) return null;
+      const tokenRaw = await env.PRISM_KV.get('zoho:calendar:token');
+      if (!tokenRaw) return null;
+      const tokenData = JSON.parse(tokenRaw);
+      
+      // Check if expired (with 5 min buffer)
+      const now = Date.now();
+      const expiresAt = tokenData.expires_at || 0;
+      
+      if (now < expiresAt - 300000) {
+        // Token still valid
+        return tokenData;
+      }
+      
+      // Token expired — refresh it
+      const refreshToken = tokenData.refresh_token;
+      if (!refreshToken) return null;
+      
+      const clientId = k(env, ['zoho_client_id','ZOHO_CLIENT_ID']) || '1000.HMH9CMYHZ9TPTN1FAXK6VTC6R8ISMZ';
+      const clientSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || 'ee56f3b903ad5c8afadeabb699aee5243fd38eec51';
+      
+      try {
+        const refreshResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: 'refresh_token=' + encodeURIComponent(refreshToken) +
+                '&client_id=' + encodeURIComponent(clientId) +
+                '&client_secret=' + encodeURIComponent(clientSecret) +
+                '&grant_type=refresh_token'
+        });
+        const refreshData = await refreshResp.json();
+        
+        if (refreshData.access_token) {
+          const newToken = {
+            ...tokenData,
+            access_token: refreshData.access_token,
+            expires_at: Date.now() + (refreshData.expires_in || 3600) * 1000,
+            stored_at: new Date().toISOString()
+          };
+          await env.PRISM_KV.put('zoho:calendar:token', JSON.stringify(newToken));
+          return newToken;
+        }
+      } catch(e) {
+        console.error('Zoho refresh failed:', e.message);
+      }
+      return tokenData; // Return old token as fallback
+    }
+
+
     // ── Zoho OAuth ────────────────────────────────────────────────────────────
     if (path === '/api/zoho/exchange' && request.method === 'POST') {
       try {
