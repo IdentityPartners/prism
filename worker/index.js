@@ -2636,6 +2636,114 @@ export default {
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── Error logging ─────────────────────────────────────────────────────────
+    if (path === '/api/errors/log' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const errorEntry = {
+          ts: new Date().toISOString(),
+          page: body.page || '',
+          error: body.error || '',
+          stack: (body.stack || '').substring(0, 500),
+          userAgent: request.headers.get('User-Agent') || '',
+          url: body.url || '',
+        };
+        if (env.PRISM_KV) {
+          const key = 'error:' + Date.now();
+          await env.PRISM_KV.put(key, JSON.stringify(errorEntry), {expirationTtl: 86400 * 7});
+          // Also append to error log list
+          const logRaw = await env.PRISM_KV.get('error:log');
+          const log = logRaw ? JSON.parse(logRaw) : [];
+          log.unshift(errorEntry);
+          await env.PRISM_KV.put('error:log', JSON.stringify(log.slice(0, 100)));
+        }
+        return json({success: true}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    if (path === '/api/errors/list' && request.method === 'GET') {
+      try {
+        const logRaw = env.PRISM_KV ? await env.PRISM_KV.get('error:log') : null;
+        const log = logRaw ? JSON.parse(logRaw) : [];
+        return json({errors: log, count: log.length}, 200, origin);
+      } catch(e) { return json({errors: [], error: e.message}, 200, origin); }
+    }
+
+    // ── PDF to Markdown via Gemini ────────────────────────────────────────────
+    if (path === '/api/pdf/to-markdown' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const fileUrl = body.url || '';
+        const b64Content = body.content || ''; // base64 PDF
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        if (!GKEY) return json({error:'Gemini key not configured'}, 400, origin);
+        
+        let pdfB64 = b64Content;
+        if (fileUrl && !pdfB64) {
+          const resp = await fetch(fileUrl);
+          if (!resp.ok) return json({error:'Could not fetch PDF'}, 400, origin);
+          const buf = await resp.arrayBuffer();
+          pdfB64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+        }
+        
+        if (!pdfB64) return json({error:'No PDF content'}, 400, origin);
+        
+        // Use Gemini to extract text from PDF
+        const gemResp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key='+GKEY, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            contents: [{parts: [
+              {text: 'Extract ALL text from this PDF document. Return in clean Markdown format. Preserve headings (use # ## ###), lists, tables, and paragraph structure. Include every word - do not summarise or skip any content.'},
+              {inline_data: {mime_type: 'application/pdf', data: pdfB64.substring(0, 1000000)}}
+            ]}],
+            generationConfig: {maxOutputTokens: 8192}
+          })
+        });
+        const gemData = await gemResp.json();
+        const markdown = gemData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!markdown) return json({error: 'No text extracted', raw: JSON.stringify(gemData).substring(0,200)}, 500, origin);
+        return json({success: true, markdown, wordCount: markdown.split(/\s+/).length}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Auto-name resource from URL ───────────────────────────────────────────
+    if (path === '/api/study/auto-name' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const url = body.url || '';
+        const content = (body.content || '').substring(0, 3000);
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        
+        let prompt = 'Extract bibliographic metadata from this academic resource. Return ONLY valid JSON: {"title":"...","author":"...","year":"...","journal":"...","type":"reading"}\n\n';
+        if (url) prompt += 'URL: ' + url + '\n';
+        if (content) prompt += 'Content excerpt: ' + content;
+        
+        const result = await callProvider(env, 'gemini', GKEY, 'gemma-4-31b-it', [
+          {role:'system', content:'Extract bibliographic metadata. Return only valid JSON, nothing else.'},
+          {role:'user', content:prompt}
+        ]);
+        
+        let metadata = {title:'', author:'', year:'', journal:'', type:'reading'};
+        try {
+          const match = result.content.match(/\{[\s\S]*\}/);
+          if (match) metadata = JSON.parse(match[0]);
+        } catch(e) {}
+        
+        // Generate 5 name suggestions
+        const suggestions = [
+          metadata.title,
+          metadata.author && metadata.year ? metadata.author + ' (' + metadata.year + ')' : '',
+          metadata.author && metadata.title ? metadata.author + ' - ' + metadata.title.substring(0,40) : '',
+          metadata.journal && metadata.year ? metadata.journal + ' ' + metadata.year : '',
+          metadata.title && metadata.year ? metadata.title.substring(0,50) + ' [' + metadata.year + ']' : '',
+        ].filter(Boolean);
+        
+        return json({success: true, metadata, suggestions}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
