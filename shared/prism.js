@@ -1,4 +1,4 @@
-// v1792819521
+// v1792819688
 
 // ── Immediate sidebar offset CSS (prevents flash of unstyled content) ─────────
 (function() {
@@ -711,6 +711,9 @@ function buildSidebar(activePage) {
     {type:'section', label:'Create'},
     {type:'group', label:'Create', icon:'fluent-emoji:artist-palette', children:[
       {label:'Canvas', icon:'fluent-emoji:framed-picture', href:'/creator/canvas/'},
+      {label:'Templates', icon:'fluent-emoji:card-index-dividers', href:'/creator/canvas/?tab=templates'},
+      {label:'Assets', icon:'fluent-emoji:file-folder', href:'/creator/assets/'},
+      {label:'Generate', icon:'fluent-emoji:magic-wand', href:'/creator/assets/?tab=generate'},
       {label:'Refract', icon:'fluent-emoji:gem-stone', href:'/atomise/'},
       {label:'Media Manager', icon:'fluent-emoji:calendar', href:'/social-queue/'},
       {label:'Podcasts', icon:'fluent-emoji:microphone', href:'/creator/podcasts/'},
@@ -732,6 +735,8 @@ function buildSidebar(activePage) {
     {type:'section', label:'Intelligence'},
     {type:'group', label:'Intelligence', icon:'fluent-emoji:brain', children:[
       {label:'Agents', icon:'fluent-emoji:robot', href:'/agenti/agent-builder/'},
+      {label:'Debate Society', icon:'fluent-emoji:speaking-head', href:'/debate/'},
+      {label:'Personas', icon:'fluent-emoji:performing-arts', href:'/personas/'},
       {label:'Workflows', icon:'fluent-emoji:gear', href:'/agenti/workflow-wizard/'},
       {label:'Orchestrator', icon:'fluent-emoji:control-knobs', href:'/orchestrator/'},
     ]},
