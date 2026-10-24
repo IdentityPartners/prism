@@ -1548,6 +1548,24 @@ export default {
         const CF_ACCOUNT_ID = 'd741de91f8cfff2306cc0f850a76ee07';
         const results = {};
 
+                if (action === 'push_file' && body.path && body.content) {
+          const ghToken = GH_TOKEN || k(env, ['github_token','GITHUB_TOKEN']) || '';
+          if (!ghToken) { results.push = {error:'No GitHub token'}; }
+          else {
+            const getResp = await fetch('https://api.github.com/repos/IdentityPartners/prism/contents/' + body.path, {
+              headers: {'Authorization': 'token ' + ghToken, 'User-Agent': 'Argentica-DevTeam', 'Accept': 'application/vnd.github.v3+json'}
+            }).then(r=>r.json()).catch(()=>null);
+            const sha = getResp?.sha;
+            const b64 = btoa(unescape(encodeURIComponent(body.content)));
+            const pushResp = await fetch('https://api.github.com/repos/IdentityPartners/prism/contents/' + body.path, {
+              method: 'PUT',
+              headers: {'Authorization': 'token ' + ghToken, 'User-Agent': 'Argentica-DevTeam', 'Content-Type': 'application/json'},
+              body: JSON.stringify({message: body.message || 'Dev Team auto-fix', content: b64, ...(sha ? {sha} : {}), branch: 'main'})
+            }).then(r=>r.json()).catch(e=>({error:e.message}));
+            results.push = {path: body.path, sha: pushResp?.content?.sha?.substring(0,8), success: !!pushResp?.content?.sha};
+          }
+        }
+
         if (action === 'test_providers') {
           const testResult = await fetch('https://prism-api.identitypartners.workers.dev/api/champion/test-providers', {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(function(r){return r.json();}).catch(function(e){return {error:e.message};});
           results.providers = testResult;
