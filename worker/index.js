@@ -3312,8 +3312,8 @@ export default {
         });
         if (!calResp.ok) {
           // Try token refresh
-          const refreshKey = k(env, ['zoho_client_id','ZOHO_CLIENT_ID']) || '1000.O98MYTLET4DOLL1UWEGIH1WD3K4IFL';
-          const refreshSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || '452109750327203929e77ddd72a7fb813990b0bbfc';
+          const refreshKey = k(env, ['zoho_client_id','ZOHO_CLIENT_ID']) || '';
+          const refreshSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || '';
           if (zohoToken.refresh_token && refreshKey) {
             const refreshResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {
               method: 'POST',
