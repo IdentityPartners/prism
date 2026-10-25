@@ -1,4 +1,4 @@
-// v1792832369
+// v1792924021
 
 // ── Immediate sidebar offset CSS (prevents flash of unstyled content) ─────────
 (function() {
@@ -714,6 +714,7 @@ function buildSidebar(activePage) {
       {label:'Templates', icon:'fluent-emoji:card-index-dividers', href:'/creator/canvas/templates/'},
       {label:'Assets', icon:'fluent-emoji:file-folder', href:'/creator/assets/'},
       {label:'Generate', icon:'fluent-emoji:magic-wand', href:'/creator/assets/?tab=generate'},
+      {label:'Carousel', icon:'fluent-emoji:film-frames', href:'/creator/carousel/'},
       {label:'Refract', icon:'fluent-emoji:gem-stone', href:'/atomise/'},
       {label:'Media Manager', icon:'fluent-emoji:calendar', href:'/social-queue/'},
       {label:'Podcasts', icon:'fluent-emoji:microphone', href:'/creator/podcasts/'},
