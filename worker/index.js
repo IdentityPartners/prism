@@ -1032,29 +1032,88 @@ export default {
 
 
     // ── Zoho OAuth ────────────────────────────────────────────────────────────
-    if (path === '/api/zoho/exchange' && request.method === 'POST') {
+    if (path === '/api/calendar/events' && request.method === 'GET') {
       try {
-        const body = await request.json();
-        const { code, redirect_uri } = body;
-        if (!code) return json({ error: 'No code' }, 400, origin);
-        const clientId = k(env, ['ZOHO_CLIENT_ID', 'Zoho_Client_ID', 'zoho_client_id']) || '';
-        const clientSecret = k(env, ['ZOHO_CLIENT_SECRET', 'Zoho_Client_Secret', 'zoho_client_secret']) || '';
-        if (!clientId || !clientSecret) return json({ error: 'Zoho credentials not configured' }, 500, origin);
-        const redirectUri = redirect_uri || 'https://prism.identitypartners.uk/comms/zoho-calendar/';
-        let tokenData = null;
-        for (const domain of ['accounts.zoho.eu', 'accounts.zoho.com']) {
-          const tr = await fetch(`https://${domain}/oauth/v2/token`, {
-            method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `grant_type=authorization_code&client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${encodeURIComponent(code)}`,
-          }).then(r => r.json()).catch(() => ({}));
-          if (tr.access_token) { tokenData = tr; break; }
+        const tokenRaw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
+        if (!tokenRaw) return json({status:'not_connected', today:[], week:[], next_week:[]}, 200, origin);
+        const zohoToken = JSON.parse(tokenRaw);
+        let accessToken = zohoToken.access_token;
+
+        // Refresh token if expired
+        const expiresAt = zohoToken.expires_at || 0;
+        if (expiresAt && Date.now() / 1000 > expiresAt - 300) {
+          const clientId = k(env, ['zoho_client_id','ZOHO_CLIENT_ID']) || '';
+          const clientSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || '';
+          if (clientId && clientSecret && zohoToken.refresh_token) {
+            try {
+              const refreshResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'grant_type=refresh_token&refresh_token=' + zohoToken.refresh_token +
+                      '&client_id=' + clientId + '&client_secret=' + clientSecret
+              });
+              const refreshData = await refreshResp.json();
+              if (refreshData.access_token) {
+                accessToken = refreshData.access_token;
+                zohoToken.access_token = accessToken;
+                zohoToken.expires_at = Math.floor(Date.now() / 1000) + (refreshData.expires_in || 3600);
+                if (env.PRISM_KV) await env.PRISM_KV.put('zoho:calendar:token', JSON.stringify(zohoToken));
+              }
+            } catch(e) {}
+          }
         }
-        if (!tokenData?.access_token) return json({ error: tokenData?.error || 'Token exchange failed', detail: tokenData }, 400, origin);
-        const store = { access_token: tokenData.access_token, refresh_token: tokenData.refresh_token, expires_at: Date.now() + (tokenData.expires_in || 3600) * 1000, api_domain: tokenData.api_domain || 'https://calendar.zoho.eu', stored_at: new Date().toISOString() };
-        await env.PRISM_KV?.put('zoho:calendar:token', JSON.stringify(store));
-        await env.PRISM_KV?.put('zoho:mail:token', JSON.stringify(store));
-        return json({ success: true, api_domain: store.api_domain }, 200, origin);
-      } catch (e) { return json({ error: e.message }, 500, origin); }
+
+        // CONFIRMED WORKING: calendar.zoho.eu for EU accounts
+        const CAL_BASE = 'https://calendar.zoho.eu';
+        const authHeader = {'Authorization': 'Zoho-oauthtoken ' + accessToken};
+
+        // Get calendars list
+        const calResp = await fetch(CAL_BASE + '/api/v1/calendars', {headers: authHeader});
+        if (!calResp.ok) {
+          return json({status:'api_error', code: calResp.status, today:[], week:[], next_week:[]}, 200, origin);
+        }
+        const calData = await calResp.json();
+        const calendars = calData.calendars || [];
+
+        // Get events for next 14 days
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
+        const weekEnd = new Date(now.getTime() + 7 * 86400000).toISOString().split('T')[0];
+        const nextWeekEnd = new Date(now.getTime() + 14 * 86400000).toISOString().split('T')[0];
+
+        const allEvents = [];
+        for (const cal of calendars.slice(0, 5)) {
+          try {
+            const evUrl = CAL_BASE + '/api/v1/calendars/' + cal.uid + '/events' +
+              '?range_start=' + todayStr + '&range_end=' + nextWeekEnd;
+            const evResp = await fetch(evUrl, {headers: authHeader});
+            if (evResp.ok) {
+              const evData = await evResp.json();
+              const events = evData.events || [];
+              events.forEach(ev => {
+                const startStr = ev.dateandtime?.start || ev.start || '';
+                const endStr = ev.dateandtime?.end || ev.end || '';
+                allEvents.push({
+                  id: ev.uid || ev.id,
+                  title: ev.title || ev.summary || '(no title)',
+                  start: startStr,
+                  end: endStr,
+                  calendar: cal.title || cal.name || 'Calendar',
+                  allDay: ev.isallday || false,
+                });
+              });
+            }
+          } catch(e2) {}
+        }
+
+        const today = allEvents.filter(e => e.start && e.start.startsWith(todayStr));
+        const week = allEvents.filter(e => e.start && e.start > todayStr && e.start <= weekEnd);
+        const next_week = allEvents.filter(e => e.start && e.start > weekEnd && e.start <= nextWeekEnd);
+
+        return json({status:'ok', today, week, next_week, calendarCount: calendars.length}, 200, origin);
+      } catch(e) {
+        return json({status:'error', error: e.message, today:[], week:[], next_week:[]}, 200, origin);
+      }
     }
 
     if (path === '/api/calendar/events' && request.method === 'GET') {
@@ -3292,9 +3351,7 @@ export default {
         const zohoToken = JSON.parse(tokenRaw);
         // Use the api_domain from the token (zohoapis.eu for EU accounts)
         const apiDomain = zohoToken.api_domain || 'https://www.zohoapis.eu';
-        // Zoho Calendar uses a separate domain from the main API
-        // EU accounts: calendar.zoho.eu | COM accounts: calendar.zoho.com
-        const calDomain = apiDomain.includes('.eu') ? 'https://calendar.zoho.eu' : 'https://calendar.zoho.com';
+        const calDomain = apiDomain.replace('www.zohoapis', 'calendar.zoho');
         
         const now = new Date();
         const todayStr = now.toISOString().split('T')[0];
