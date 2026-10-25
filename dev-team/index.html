@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792935669 -->
+<!-- cache-bust-1792935955 -->
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dev Team &mdash; Argentica</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs/loader.js"></script>
 <style>
 .dt-shell{display:flex;height:100vh;overflow:hidden;}
 .dt-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
@@ -93,7 +95,8 @@
         <button class="tool-btn" onclick="showPushFile()">&#x2B06; Push file to GitHub</button>
         <div id="push-file-form" style="display:none;margin-top:8px;">
           <input type="text" id="push-path" placeholder="Path e.g. shared/prism.js" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);box-sizing:border-box;margin-bottom:4px;">
-          <textarea id="push-content" placeholder="File content..." style="width:100%;min-height:80px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);resize:vertical;box-sizing:border-box;margin-bottom:4px;"></textarea>
+          <div id="monaco-container" style="width:100%;height:180px;border:1px solid var(--border);border-radius:5px;margin-bottom:4px;overflow:hidden;"></div>
+<textarea id="push-content" style="display:none;"></textarea>
           <input type="text" id="push-message" placeholder="Commit message" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);box-sizing:border-box;margin-bottom:4px;">
           <button onclick="executePushFile()" style="padding:5px 12px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">Push</button>
         </div>
@@ -339,6 +342,39 @@ function loadSystemStatus() {
     el.innerHTML = '<span class="status-dot status-err"></span>Worker unreachable';
   });
 }
+</script>
+<script>
+(function() {
+  if (typeof require === 'undefined') return;
+  require.config({paths:{vs:'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs'}});
+  require(['vs/editor/editor.main'], function() {
+    var container = document.getElementById('monaco-container');
+    if (!container) return;
+    var ed = monaco.editor.create(container, {
+      value:'// Enter file content here',
+      language:'javascript',
+      theme:'vs-dark',
+      minimap:{enabled:false},
+      fontSize:12,
+      lineNumbers:'on',
+      scrollBeyondLastLine:false,
+      automaticLayout:true,
+    });
+    ed.onDidChangeModelContent(function() {
+      var ta = document.getElementById('push-content');
+      if (ta) ta.value = ed.getValue();
+    });
+    var pathInput = document.getElementById('push-path');
+    if (pathInput) {
+      pathInput.addEventListener('input', function() {
+        var ext = this.value.split('.').pop().toLowerCase();
+        var langMap = {js:'javascript',ts:'typescript',html:'html',css:'css',json:'json',md:'markdown',py:'python',sh:'shell'};
+        monaco.editor.setModelLanguage(ed.getModel(), langMap[ext] || 'plaintext');
+      });
+    }
+    window._monacoEditor = ed;
+  });
+})();
 </script>
 </body>
 </html>
