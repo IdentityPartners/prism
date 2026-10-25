@@ -3095,6 +3095,27 @@ export default {
         const t = themes[template] || themes['quote-teal'];
         const isDark = t.fg === '#ffffff';
 
+        // Get IP logo from KV (pre-loaded, no external fetch needed)
+        let logoB64 = env.PRISM_KV ? await env.PRISM_KV.get('asset:logo-rect-right', 'text') : null;
+        
+        // Fallback: fetch from R2 public bucket
+        if (!logoB64) {
+          try {
+            const r2Resp = await fetch('https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/logo-rect-right.png');
+            if (r2Resp.ok) {
+              const buf = await r2Resp.arrayBuffer();
+              logoB64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+              if (env.PRISM_KV) await env.PRISM_KV.put('asset:logo-rect-right', logoB64, {expirationTtl: 86400 * 30});
+            }
+          } catch(e) {}
+        }
+
+        // Logo element: mix-blend-mode makes white background transparent
+        // screen = white→transparent on dark; multiply = white→transparent on light
+        const logoEl = logoB64
+          ? '<image href="data:image/png;base64,' + logoB64 + '" x="810" y="920" width="230" height="80" preserveAspectRatio="xMidYMid meet" style="mix-blend-mode:' + (isDark ? 'screen' : 'multiply') + '"/>'
+          : '<text x="900" y="960" font-family="Playfair Display,Georgia,serif" font-size="18" font-weight="700" fill="' + t.fg + '" text-anchor="middle" opacity="0.9">Identity Partners</text>';
+
         // Fetch Pexels background ONLY if user explicitly requested one
         let bgImageB64 = '';
         let bgMimeType = 'image/jpeg';
@@ -3120,24 +3141,7 @@ export default {
           } catch(e) {}
         }
 
-        // Get IP logo from KV cache (30 days) — real PNG with transparent background
-        let logoB64 = '';
-        try {
-          const cached = env.PRISM_KV ? await env.PRISM_KV.get('asset:logo-rect-right-v2', 'text') : null;
-          if (cached) {
-            logoB64 = cached;
-          } else {
-            // Fetch from GitHub Pages CDN — the real puzzle-piece logo
-            const logoResp = await fetch('https://prism.identitypartners.uk/shared/assets/logo-rect-right.png');
-            if (logoResp.ok) {
-              const logoBuf = await logoResp.arrayBuffer();
-              logoB64 = btoa(String.fromCharCode(...new Uint8Array(logoBuf)));
-              if (env.PRISM_KV) await env.PRISM_KV.put('asset:logo-rect-right-v2', logoB64, {expirationTtl: 86400 * 30});
-            }
-          }
-        } catch(e) {}
-
-        // Word-wrap quote text — NO italic, NO blur, clean readable text
+        // Word-wrap text — upright, no italic, no filter
         const safeText = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         const words = safeText.split(' ');
         const lines = [];
@@ -3153,28 +3157,16 @@ export default {
         const startY = Math.max(220, 540 - (lines.length * lineH) / 2);
         const attrY = startY + lines.length * lineH + 50;
 
-        // Clean text — NO italic, NO blur/shadow filter, just solid readable text
         const textEls = lines.map((l, i) =>
           '<text x="540" y="' + (startY + i * lineH) + '" ' +
           'font-family="Playfair Display,Georgia,serif" ' +
-          'font-size="52" ' +
-          'font-weight="600" ' +
-          'fill="' + t.fg + '" ' +
-          'text-anchor="middle">' + l + '</text>'
+          'font-size="52" font-weight="600" ' +
+          'fill="' + t.fg + '" text-anchor="middle">' + l + '</text>'
         ).join('\n  ');
 
-        // Background layer
         const bgEl = bgImageB64
           ? '<image href="data:' + bgMimeType + ';base64,' + bgImageB64 + '" x="0" y="0" width="1080" height="1080" preserveAspectRatio="xMidYMid slice"/>\n  <rect width="1080" height="1080" fill="' + t.bg + '" opacity="' + (isDark ? '0.55' : '0.40') + '"/>'
           : '<rect width="1080" height="1080" fill="' + t.bg + '"/>';
-
-        // Real IP logo — transparent PNG, no background rectangle behind it
-        const logoEl = logoB64
-          ? '<image href="data:image/png;base64,' + logoB64 + '" x="810" y="920" width="230" height="80" preserveAspectRatio="xMidYMid meet" style="mix-blend-mode:' + (isDark ? 'screen' : 'multiply') + '"/>'
-          : '<text x="540" y="' + (attrY + 46) + '" font-family="Playfair Display,Georgia,serif" font-size="22" font-weight="700" fill="' + t.fg + '" text-anchor="middle" opacity="0.9">Identity Partners</text>';
-
-        // Attribution line — clean, no effects
-        const attrEl = '<text x="540" y="' + (attrY + 36) + '" font-family="Playfair Display,Georgia,serif" font-size="17" fill="' + t.fg + '" text-anchor="middle" opacity="0.85">Identity Partners</text>';
 
         const svg = '<?xml version="1.0" encoding="UTF-8"?>' +
           '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1080" viewBox="0 0 1080 1080">' +
@@ -3183,7 +3175,7 @@ export default {
           '<rect x="0" y="1072" width="1080" height="8" fill="' + t.accent + '" opacity="0.95"/>' +
           textEls +
           '<line x1="340" y1="' + attrY + '" x2="740" y2="' + attrY + '" stroke="' + t.accent + '" stroke-width="1.5" opacity="0.7"/>' +
-          attrEl +
+          '<text x="540" y="' + (attrY + 36) + '" font-family="Playfair Display,Georgia,serif" font-size="17" fill="' + t.fg + '" text-anchor="middle" opacity="0.85">Identity Partners</text>' +
           logoEl +
           '<text x="540" y="1050" font-family="Inter,Arial,sans-serif" font-size="14" fill="' + t.fg + '" text-anchor="middle" opacity="0.75">identitypartners.uk \u00b7 hello@identitypartners.uk \u00b7 @identitypartners</text>' +
           '</svg>';
@@ -3202,7 +3194,6 @@ export default {
     }
 
 
-    // ── Zoho Mail inbox ───────────────────────────────────────────────────────
     if (path === '/api/zoho/mail/inbox' && request.method === 'GET') {
       try {
         const tokenRaw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
