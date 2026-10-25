@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792946061 -->
+<!-- cache-bust-1792952001 -->
+
 
 
 
@@ -168,223 +169,66 @@
 <script src="/shared/prism.js">
 function showWeekOverview(week, mod) {
   if (!week || !mod) return;
-  currentWeek = week;
-  currentModule = mod;
-  var titleEl = document.getElementById('hub-title');
-  if (titleEl) titleEl.textContent = mod.name + ' — ' + week.name;
-  var subtitleEl = document.getElementById('hub-subtitle');
-  if (subtitleEl) subtitleEl.textContent = (week.resources||[]).length + ' resources';
+  document.getElementById('hub-title').textContent = mod.name + ' — ' + week.name;
+  document.getElementById('hub-subtitle').textContent = (week.resources||[]).length + ' resources';
   var body = document.getElementById('hub-body');
-  if (!body) return;
   body.innerHTML = '';
 
-  // Details card
-  var dc = document.createElement('div');
-  dc.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;';
-  var dh = document.createElement('div');
-  dh.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;';
-  var dt = document.createElement('div');
-  dt.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);';
-  dt.textContent = 'Week Details';
-  var eb = document.createElement('button');
-  eb.style.cssText = 'padding:4px 12px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);';
-  eb.textContent = 'Edit';
-  eb.onclick = function() {
-    var form = document.getElementById('week-edit-form');
-    if (!form) return;
-    var isOpen = form.style.display !== 'none';
-    form.style.display = isOpen ? 'none' : 'block';
-    eb.textContent = isOpen ? 'Edit' : 'Close';
-  };
-  dh.appendChild(dt); dh.appendChild(eb); dc.appendChild(dh);
-  var ds = document.createElement('div');
-  ds.style.cssText = 'font-size:13px;color:var(--fg-muted);';
-  ds.textContent = (week.topic || 'No topic set') + (week.vle_url ? ' | VLE linked' : '');
-  dc.appendChild(ds);
-  var ef = document.createElement('div');
-  ef.id = 'week-edit-form';
-  ef.style.cssText = 'display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;';
-  var fields = [{label:'Week Name',id:'week-name-input',value:week.name||''},{label:'Topic',id:'week-topic-input',value:week.topic||''},{label:'VLE Link',id:'week-vle-input',value:week.vle_url||''}];
-  fields.forEach(function(f) {
-    var w = document.createElement('div'); w.style.cssText = 'margin-bottom:8px;';
-    var l = document.createElement('label'); l.style.cssText = 'font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;'; l.textContent = f.label;
-    var i = document.createElement('input'); i.id = f.id; i.value = f.value; i.style.cssText = 'width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;';
-    i.onkeydown = function(e) { if (e.key === 'Enter') saveWeekDetails(); };
-    w.appendChild(l); w.appendChild(i); ef.appendChild(w);
-  });
-  var sb2 = document.createElement('button');
-  sb2.id = 'week-save-btn';
-  sb2.style.cssText = 'padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;';
-  sb2.textContent = 'Save Week Details';
-  sb2.onclick = saveWeekDetails;
-  ef.appendChild(sb2); dc.appendChild(ef); body.appendChild(dc);
+  // Module details strip
+  var detailsCard = document.createElement('div');
+  detailsCard.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;';
+  detailsCard.innerHTML = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:10px;">Week Details</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
+    '<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;">Week Name</label>' +
+    '<div style="display:flex;gap:6px;"><input id="week-name-input" type="text" value="' + (week.name||'') + '" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--fg);" onkeydown="if(event.key==='Enter')saveWeekDetails()"><button id="week-save-btn" onclick="saveWeekDetails()" style="padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">Save</button></div></div>' +
+    '<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;">VLE Link</label>' +
+    '<input id="week-vle-input" type="url" value="' + (week.vle_url||'') + '" placeholder="https://learn.gold.ac.uk/..." style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--fg);box-sizing:border-box;"></div>' +
+    '</div>';
+  body.appendChild(detailsCard);
 
-  // Card grid
+  // Resource cards
   var resources = week.resources || [];
-  var COURSE = ['ppt','pptx','reading','recommended','further','sample','markscheme','handout','lecture'];
-  var SELF = ['news','paper','blog','report','podcast','video','link'];
-  var customCards = [];
-  try { customCards = JSON.parse(localStorage.getItem('custom-cards:'+mod.id)||'[]'); } catch(e) {}
+  var COURSE_TYPES = ['ppt','pptx','reading','recommended','further','sample','markscheme','handout','lecture'];
+  var SELF_TYPES = ['news','paper','blog','report','podcast','video','link'];
+  var courseCount = resources.filter(function(r){return COURSE_TYPES.indexOf(r.type)!==-1;}).length;
+  var selfCount = resources.filter(function(r){return SELF_TYPES.indexOf(r.type)!==-1;}).length;
+  var noteCount = week.notes && week.notes.trim() ? 1 : 0;
+
   var cardDefs = [
-    {label:'Course Material', count:resources.filter(function(r){return COURSE.indexOf(r.type)!==-1;}).length, colour:'#2d6a9f', tab:'resources', filter:'course'},
-    {label:'Self-Sourced', count:resources.filter(function(r){return SELF.indexOf(r.type)!==-1;}).length, colour:'#f59e0b', tab:'resources', filter:'self'},
-    {label:'My Notes', count:(week.notes&&week.notes.trim())?1:0, colour:'#7c3aed', tab:'notes', filter:null},
-    {label:'Themes', count:0, colour:'#0f3b3a', tab:'concepts', filter:null},
-    {label:'Chats', count:0, colour:'#5c2d3f', tab:'chats', filter:null},
-    {label:'Audio', count:resources.filter(function(r){return r.type==='audio'||r.type==='podcast';}).length, colour:'#16a34a', tab:'resources', filter:'audio'},
+    {label:'Course Material', count:courseCount, colour:'#2d6a9f', tab:'resources', filter:'course'},
+    {label:'Self-Sourced', count:selfCount, colour:'#f59e0b', tab:'resources', filter:'self'},
+    {label:'My Notes', count:noteCount, colour:'#7c3aed', tab:'notes', filter:null},
+    {label:'All Resources', count:resources.length, colour:'#16a34a', tab:'resources', filter:null},
     {label:'Upload', count:0, colour:'#6b7280', tab:'upload', filter:null},
+    {label:'Search', count:0, colour:'#0f3b3a', tab:'search', filter:null},
   ];
-  customCards.forEach(function(cc) {
-    cardDefs.push({label:cc.label, count:0, colour:cc.colour||'#6b7280', tab:'custom:'+cc.id, filter:null, custom:true, id:cc.id});
-  });
-  var cg = document.createElement('div');
-  cg.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:14px;';
+
+  var cardGrid = document.createElement('div');
+  cardGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px;';
+
   cardDefs.forEach(function(card) {
     var el = document.createElement('div');
-    el.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;transition:all 0.15s;position:relative;';
+    el.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;transition:all 0.15s;';
     el.onmouseenter = function(){el.style.borderColor=card.colour;el.style.transform='translateY(-2px)';};
     el.onmouseleave = function(){el.style.borderColor='var(--border)';el.style.transform='';};
-    el.onclick = (function(t,f){return function(){currentTab=t;if(f)currentResourceFilter=f;switchTab(t,null);};})(card.tab,card.filter||null);
-    var lbl = document.createElement('div'); lbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--fg);margin-bottom:4px;'; lbl.textContent = card.label;
-    var cnt = document.createElement('div'); cnt.style.cssText = 'font-size:24px;font-weight:700;color:'+card.colour+';'; cnt.textContent = card.count;
-    el.appendChild(lbl); el.appendChild(cnt);
-    if (card.custom) {
-      var db = document.createElement('button'); db.textContent = 'x'; db.style.cssText = 'position:absolute;top:4px;right:6px;background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:11px;';
-      db.onclick = (function(cid,m){return function(e){e.stopPropagation();var cards=[];try{cards=JSON.parse(localStorage.getItem('custom-cards:'+m.id)||'[]');}catch(ex){}cards=cards.filter(function(c){return c.id!==cid;});localStorage.setItem('custom-cards:'+m.id,JSON.stringify(cards));showWeekOverview(week,m);};})(card.id,mod);
-      el.appendChild(db);
-    }
-    cg.appendChild(el);
+    el.onclick = (function(t,f){return function(){currentTab=t;if(f)currentResourceFilter=f;switchTab(t,null);};})(card.tab, card.filter||null);
+    var labelEl = document.createElement('div');
+    labelEl.style.cssText = 'font-size:12px;font-weight:600;color:var(--fg);margin-bottom:4px;';
+    labelEl.textContent = card.label;
+    var countEl = document.createElement('div');
+    countEl.style.cssText = 'font-size:22px;font-weight:700;color:'+card.colour+';';
+    countEl.textContent = card.count;
+    el.appendChild(labelEl);
+    el.appendChild(countEl);
+    cardGrid.appendChild(el);
   });
-  var addEl = document.createElement('div');
-  addEl.style.cssText = 'background:var(--bg-sunken);border:2px dashed var(--border);border-radius:10px;padding:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;color:var(--fg-muted);transition:all 0.15s;';
-  addEl.textContent = '+ Add card type';
-  addEl.onmouseenter = function(){addEl.style.borderColor='var(--accent)';addEl.style.color='var(--accent)';};
-  addEl.onmouseleave = function(){addEl.style.borderColor='var(--border)';addEl.style.color='var(--fg-muted)';};
-  addEl.onclick = function() {
-    var label = prompt('Card type name:'); if (!label) return;
-    var colour = prompt('Colour (hex):', '#7c3aed') || '#7c3aed';
-    var cards = []; try { cards = JSON.parse(localStorage.getItem('custom-cards:'+mod.id)||'[]'); } catch(e) {}
-    cards.push({id:'cc-'+Date.now(), label:label, colour:colour});
-    localStorage.setItem('custom-cards:'+mod.id, JSON.stringify(cards));
-    showWeekOverview(week, mod);
-  };
-  cg.appendChild(addEl); body.appendChild(cg);
-  renderResources(body);
+  body.appendChild(cardGrid);
+
+  // Weeks section
+  showWeeksGrid(mod, body);
 }
-</script>
-<div id="sidebar-mount"></div>
-<div id="main-content">
-<div class="hub-shell">
-<!-- ── Left: Module/Week tree ── -->
-<div class="hub-tree">
-<div class="tree-hdr">
-<h3>📚 Study Hub</h3>
-<button onclick="openAddModule()" style="padding:3px 8px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">+ Module</button>
-</div>
-<div class="tree-search">
-<input id="tree-search" oninput="filterTree(this.value)" placeholder="Filter modules..." type="text"/>
-</div>
-<div class="tree-body" id="tree-body"></div>
-</div>
-<!-- ── Main: Content area ── -->
-<div class="hub-main">
-<!-- Global search -->
-<div class="global-search">
-<div class="global-search-row">
-<input class="global-search-input" id="global-search" onkeydown="if(event.key==='Enter')runGlobalSearch()" placeholder="Search across everything: course material, notes, papers, web..." type="text"/>
-<select class="search-scope" id="search-scope">
-<option value="all">All sources</option>
-<option value="course">Course material only</option>
-<option value="notes">My notes only</option>
-<option value="papers">Research papers only</option>
-<option value="web">Web search only</option>
-</select>
-<button class="search-btn" onclick="runGlobalSearch()">🔍 Search</button>
-</div>
-</div>
-<!-- Header -->
-<div class="hub-hdr">
-<div>
-<h2 id="hub-title">Select a module and week</h2>
-<div id="hub-subtitle" style="font-size:11px;color:var(--fg-muted);"></div>
-</div>
-<div style="display:flex;gap:6px;">
-<button onclick="addResource()" style="padding:5px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">+ Add Resource</button>
-<button onclick="exportWeek()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:var(--bg);">⬇ Export</button>
-</div>
-</div>
-<!-- Tabs -->
-<div class="hub-tabs">
-<div class="hub-tab" id="tab-overview" onclick="switchTab('overview',this)">&#x1F3E0; Overview</div>
-<div class="hub-tab active" onclick="switchTab('resources',this)">📋 Resources</div>
-<div class="hub-tab" onclick="switchTab('notes',this)">✍ My Notes</div>
-<div class="hub-tab" onclick="switchTab('search',this)">🔍 Search Results</div>
-<div class="hub-tab" onclick="switchTab('upload',this)">⬆ Upload</div>
-<div class="hub-tab" onclick="switchTab('concepts',this)">🧠 Concepts</div>
-</div>
-<!-- Tab bodies -->
-<div class="hub-body" id="hub-body">
-<div style="text-align:center;padding:60px 20px;color:var(--fg-muted);">
-<div style="font-size:48px;margin-bottom:12px;">📚</div>
-<div style="font-size:16px;font-weight:600;margin-bottom:8px;">Select a module and week from the left</div>
-<div style="font-size:13px;">Or use the search bar above to find anything across all your material.</div>
-</div>
-</div>
-</div>
-<!-- Right AI panel removed - use global chat pill instead -->
-<div class="hub-right" style="display:none;">
-<div class="ai-hdr">
-<span>💬</span>
-<span>Study Assistant</span>
-<span id="ai-provider-badge" style="margin-left:auto;font-size:10px;color:var(--fg-muted);"></span>
-</div>
-<div class="ai-messages" id="ai-messages">
-<div class="ai-msg system">Study Assistant ready. Ask me about any of your reading, or use the quick buttons below.</div>
-</div>
-<div class="ai-input-area">
-<div class="ai-quick">
-<button class="ai-quick-btn" onclick="aiQuick('What are the key themes in this week\'s reading?')">Key themes</button>
-<button class="ai-quick-btn" onclick="aiQuick('Find connections between this week and previous weeks')">Connections</button>
-<button class="ai-quick-btn" onclick="aiQuick('What arguments could I build from this material?')">Arguments</button>
-<button class="ai-quick-btn" onclick="aiQuick('Find related research papers on this topic')">Find papers</button>
-<button class="ai-quick-btn" onclick="aiQuick('Summarise the essential reading for this week')">Summarise</button>
-<button class="ai-quick-btn" onclick="aiQuick('What are the key thinkers and concepts here?')">Thinkers</button>
-</div>
-<textarea class="ai-textarea" id="ai-input" onkeydown="if(event.key==='Enter'&amp;&amp;!event.shiftKey){event.preventDefault();sendAI();}" placeholder="Ask about your reading, search for concepts, build arguments..."></textarea>
-<button class="ai-send" onclick="sendAI()">Send</button>
-<div class="ai-provider" id="ai-provider-info"></div>
-</div>
-</div>
-</div>
-</div>
-<script>
-var WORKER = 'https://prism-api.identitypartners.workers.dev';
 
-// ── Data model ────────────────────────────────────────────────────────────────
-// Modules stored in KV as study:modules
-// Each module has: id, name, icon, colour, weeks[]
-// Each week has: id, name, vle_url, resources[]
-// Each resource has: id, type, title, url, notes, tags, added
 
-var modules = [];
-var currentModule = null;
-var currentWeek = null;
-var currentResourceFilter = null;
-var currentTab = 'resources';
-var aiHistory = [];
-
-// ── Init ──────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', function() {
-  var mount = document.getElementById('sidebar-mount');
-  if (mount && typeof buildSidebar === 'function') {
-    var sb = buildSidebar('/study-hub/');
-    mount.parentNode.insertBefore(sb, mount);
-    mount.parentNode.removeChild(mount);
-  }
-  loadModules();
-});
-
-// ── Load/save ─────────────────────────────────────────────────────────────────
 function loadModules() {
   // Try KV first, fall back to localStorage
   fetch(WORKER + '/api/kv/get?key=study:modules')
