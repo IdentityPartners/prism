@@ -2782,7 +2782,8 @@ export default {
       try {
         const raw = env.PRISM_KV ? await env.PRISM_KV.get('memory:about-me') : null;
         const memories = raw ? JSON.parse(raw) : [];
-        return json({memories, count: memories.length}, 200, origin);
+        // Return both 'memories' and 'facts' for compatibility
+        return json({memories, facts: memories, count: memories.length}, 200, origin);
       } catch(e) { return json({memories:[], error:e.message}, 200, origin); }
     }
     if (path === '/api/memory/about-me' && request.method === 'POST') {
