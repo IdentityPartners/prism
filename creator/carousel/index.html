@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
+<!-- cache-bust-1792933321 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Carousel Creator — Argentica</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
-<!-- cache-bust-1792924021 -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css" id="reveal-theme">
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/howler@2.2.4/dist/howler.min.js"></script>
+
 <style>
 .carousel-shell{display:flex;height:100vh;overflow:hidden;}
 .carousel-sidebar{width:280px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-surface);overflow:hidden;}
@@ -359,20 +364,56 @@ function setTransition(t, btn) {
 
 function previewCarousel() {
   if (slides.length === 0) { alert('Add some slides first.'); return; }
-  stopPreview();
-  currentSlideIdx = 0;
-  showSlide(0);
-  document.getElementById('preview-btn').style.display = 'none';
-  document.getElementById('stop-btn').style.display = 'inline-block';
-  var dur = parseInt(document.getElementById('slide-duration').value) * 1000;
-  previewTimer = setInterval(function() {
-    currentSlideIdx = (currentSlideIdx + 1) % slides.length;
-    showSlide(currentSlideIdx);
-    renderSlideStrip();
-  }, dur);
-  // Play music if set
-  var audio = document.getElementById('bg-audio');
-  if (audio.src) audio.play();
+  // Build Reveal.js presentation in a modal
+  var modal = document.createElement('div');
+  modal.id = 'reveal-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;';
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = 'Close Presentation';
+  closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;z-index:10000;padding:8px 16px;background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:6px;cursor:pointer;font-size:13px;';
+  closeBtn.onclick = function() { modal.remove(); };
+  var revealDiv = document.createElement('div');
+  revealDiv.className = 'reveal';
+  revealDiv.style.cssText = 'flex:1;';
+  var slidesDiv = document.createElement('div');
+  slidesDiv.className = 'slides';
+  slides.forEach(function(slide) {
+    var section = document.createElement('section');
+    section.setAttribute('data-transition', transition);
+    if (slide.dataUrl) {
+      var img = document.createElement('img');
+      img.src = slide.dataUrl;
+      img.style.cssText = 'max-height:90vh;max-width:90vw;object-fit:contain;';
+      section.appendChild(img);
+    } else {
+      section.innerHTML = '<div style="color:#fff;font-size:24px;font-style:italic;">' + (slide.text||'Slide') + '</div>';
+    }
+    slidesDiv.appendChild(section);
+  });
+  revealDiv.appendChild(slidesDiv);
+  modal.appendChild(closeBtn);
+  modal.appendChild(revealDiv);
+  document.body.appendChild(modal);
+  // Init Reveal.js
+  setTimeout(function() {
+    if (typeof Reveal !== 'undefined') {
+      Reveal.initialize({
+        hash: false,
+        controls: true,
+        progress: true,
+        center: true,
+        transition: transition,
+        autoSlide: parseInt(document.getElementById('slide-duration').value) * 1000,
+        loop: true,
+        embedded: true,
+        width: '100%',
+        height: '100%',
+      });
+    }
+    // Play music
+    var audio = document.getElementById('bg-audio');
+    if (audio && audio.src) audio.play();
+  }, 100);
 }
 
 function stopPreview() {
