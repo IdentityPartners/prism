@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792945005 -->
+<!-- cache-bust-1792946061 -->
+
 
 
 
@@ -290,23 +291,20 @@ var allConversations = [];
 var isStreaming = false;
 
 var MODEL_INFO = {
-
-  'mistral:mistral-medium-3.5': '262K context · 32K output · web search · vision · ~416ms · paid subscription',
-  'mistral:mistral-large-latest': '262K context · 32K output · web search · vision · ~573ms · paid subscription',
-  'mistral:mistral-small-latest': '262K context · 32K output · vision · ~310ms · paid subscription',
-  'mistral:zai-glm-5-2': '1M context · 32K output · web search · ~419ms · paid via Mistral',
-  'mistral:magistral-medium-latest': '262K context · thinking mode · web search · paid subscription',
-  'gemini:gemini-3.5-flash': '1M context · 65K output · vision · Google Search grounding · free',
-  'gemini:gemma-4-31b-it': '262K context · 32K output · Google Search · free',
-  'gemini:gemini-2.5-flash': '1M context · 65K output · thinking mode · free',
-  'deepseek:deepseek-chat': '1M context · 32K output · built-in web search · paid',
-  'kimi:kimi-k2': '131K context · web search · paid credits',
-  'kimi:kimi-k3': '131K context · latest Kimi model · paid credits',
-  'groq:openai/gpt-oss-120b': '131K context · 16K output · free · ~300ms on Groq hardware',
-  'groq:qwen/qwen3.8-27b': '131K context · 16K output · free · ~350ms',
-  'cerebras:gpt-oss-120b': '8K context · paid credits · very fast',
-  'openrouter:nvidia/nemotron-3-ultra-550b-a55b:free': '1M context · frontier reasoning · free · slow ~20s',
-  'openrouter:minimax/minimax-m3.1-flash:free': '1M context · free',
+  '': 'Auto: Mistral Large → GLM 5.3 → Gemini 2.5 Flash → Gemma 4 → DeepSeek → GPT-OSS → Pollinations',
+  'mistral:mistral-large-latest': {ctx:'262K',out:'32K',tools:'web search, vision, thinking',speed:'~573ms',cost:'Paid subscription — PRIMARY'},
+  'mistral:zai-glm-5-2': {ctx:'1M',out:'32K',tools:'web search, thinking',speed:'~419ms',cost:'Paid via Mistral'},
+  'mistral:mistral-medium-3.5': {ctx:'262K',out:'32K',tools:'web search, vision',speed:'~416ms',cost:'Paid subscription'},
+  'mistral:magistral-medium-latest': {ctx:'262K',out:'32K',tools:'web search, thinking',speed:'~2-5s',cost:'Paid subscription'},
+  'gemini:gemini-2.5-flash': {ctx:'1M',out:'65K',tools:'thinking, Google Search, vision',speed:'~1-3s',cost:'Free (your credits)'},
+  'gemini:gemma-4-31b-it': {ctx:'262K',out:'32K',tools:'Google Search grounding',speed:'~1s',cost:'Free'},
+  'gemini:gemini-3.5-flash': {ctx:'1M',out:'65K',tools:'Google Search, vision',speed:'~1s',cost:'Free'},
+  'deepseek:deepseek-chat': {ctx:'1M',out:'32K',tools:'built-in web search',speed:'~2-3s',cost:'Paid'},
+  'groq:openai/gpt-oss-120b': {ctx:'131K',out:'16K',tools:'none',speed:'~300ms',cost:'Free'},
+  'groq:meta-llama/llama-4-scout-17b-16e-instruct': {ctx:'131K',out:'16K',tools:'none',speed:'~400ms',cost:'Free'},
+  'cerebras:gpt-oss-120b': {ctx:'8K',out:'8K',tools:'none',speed:'~200ms',cost:'Paid credits'},
+  'openrouter:nvidia/nemotron-3-ultra-550b-a55b:free': {ctx:'1M',out:'32K',tools:'reasoning',speed:'~20-60s',cost:'Free'},
+  'openrouter:minimax/minimax-m3.1-flash:free': {ctx:'1M',out:'32K',tools:'none',speed:'~1-2s',cost:'Free'},
 };
 
 document.addEventListener('DOMContentLoaded', function() {
