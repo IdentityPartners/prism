@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792923835 -->
+<!-- cache-bust-1792932049 -->
+
 
 
 
@@ -1345,6 +1346,172 @@ function showWeekOverview(week, mod) {
 
 
 
+
+// ── showWeekOverview: renders week cards + edit form ─────────────────────────
+function showWeekOverview(week, mod) {
+  if (!week || !mod) return;
+  currentWeek = week;
+  currentModule = mod;
+
+  var titleEl = document.getElementById('hub-title');
+  if (titleEl) titleEl.textContent = mod.name + ' \u2014 ' + week.name;
+  var subtitleEl = document.getElementById('hub-subtitle');
+  if (subtitleEl) subtitleEl.textContent = (week.resources||[]).length + ' resources';
+
+  var body = document.getElementById('hub-body');
+  if (!body) return;
+  body.innerHTML = '';
+
+  // ── Edit details strip ────────────────────────────────────────────────────
+  var detailsCard = document.createElement('div');
+  detailsCard.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;';
+
+  var detailsHdr = document.createElement('div');
+  detailsHdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;';
+
+  var detailsTitle = document.createElement('div');
+  detailsTitle.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);';
+  detailsTitle.textContent = 'Week Details';
+
+  var editBtn = document.createElement('button');
+  editBtn.style.cssText = 'padding:4px 12px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);';
+  editBtn.textContent = '\u270F Edit';
+  editBtn.onclick = function() {
+    var form = document.getElementById('week-edit-form');
+    if (!form) return;
+    var isOpen = form.style.display !== 'none';
+    form.style.display = isOpen ? 'none' : 'block';
+    editBtn.textContent = isOpen ? '\u270F Edit' : '\u2715 Close';
+  };
+
+  detailsHdr.appendChild(detailsTitle);
+  detailsHdr.appendChild(editBtn);
+  detailsCard.appendChild(detailsHdr);
+
+  // Summary line
+  var summary = document.createElement('div');
+  summary.style.cssText = 'font-size:13px;color:var(--fg-muted);';
+  summary.innerHTML = (week.topic ? '<strong>' + week.topic + '</strong> &nbsp;&middot;&nbsp; ' : '') +
+    (week.vle_url ? '<a href="' + week.vle_url + '" target="_blank" style="color:var(--accent);">VLE \u2197</a>' : 'No VLE link');
+  detailsCard.appendChild(summary);
+
+  // Edit form (hidden by default)
+  var editForm = document.createElement('div');
+  editForm.id = 'week-edit-form';
+  editForm.style.cssText = 'display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;';
+
+  function makeField(label, id, value, type) {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-bottom:10px;';
+    var lbl = document.createElement('label');
+    lbl.style.cssText = 'font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;';
+    lbl.textContent = label;
+    var inp = document.createElement('input');
+    inp.id = id;
+    inp.type = type || 'text';
+    inp.value = value || '';
+    inp.style.cssText = 'width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;';
+    inp.onkeydown = function(e) { if (e.key === 'Enter') saveWeekDetails(); };
+    wrap.appendChild(lbl);
+    wrap.appendChild(inp);
+    return wrap;
+  }
+
+  editForm.appendChild(makeField('Week Name', 'week-name-input', week.name));
+  editForm.appendChild(makeField('Topic / Description', 'week-topic-input', week.topic));
+  editForm.appendChild(makeField('VLE Link', 'week-vle-input', week.vle_url, 'url'));
+
+  var saveBtn = document.createElement('button');
+  saveBtn.id = 'week-save-btn';
+  saveBtn.style.cssText = 'padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;';
+  saveBtn.textContent = 'Save Week Details';
+  saveBtn.onclick = saveWeekDetails;
+  editForm.appendChild(saveBtn);
+  detailsCard.appendChild(editForm);
+  body.appendChild(detailsCard);
+
+  // ── Card grid ─────────────────────────────────────────────────────────────
+  var resources = week.resources || [];
+  var COURSE_TYPES = ['ppt','pptx','reading','recommended','further','sample','markscheme','handout','lecture'];
+  var SELF_TYPES = ['news','paper','blog','report','podcast','video','link'];
+
+  var customCards = [];
+  try { customCards = JSON.parse(localStorage.getItem('custom-cards:' + mod.id) || '[]'); } catch(e) {}
+
+  var cardDefs = [
+    {label:'Course Material', count:resources.filter(function(r){return COURSE_TYPES.indexOf(r.type)!==-1;}).length, colour:'#2d6a9f', tab:'resources', filter:'course'},
+    {label:'Self-Sourced', count:resources.filter(function(r){return SELF_TYPES.indexOf(r.type)!==-1;}).length, colour:'#f59e0b', tab:'resources', filter:'self'},
+    {label:'My Notes', count:(week.notes&&week.notes.trim())?1:0, colour:'#7c3aed', tab:'notes', filter:null},
+    {label:'Themes', count:0, colour:'#0f3b3a', tab:'concepts', filter:null},
+    {label:'Chats', count:0, colour:'#5c2d3f', tab:'chats', filter:null},
+    {label:'Audio', count:resources.filter(function(r){return r.type==='audio'||r.type==='podcast';}).length, colour:'#16a34a', tab:'resources', filter:'audio'},
+    {label:'Upload', count:0, colour:'#6b7280', tab:'upload', filter:null},
+  ];
+
+  customCards.forEach(function(cc) {
+    cardDefs.push({label:cc.label, count:0, colour:cc.colour||'#6b7280', tab:'custom:'+cc.id, filter:null, custom:true, id:cc.id});
+  });
+
+  var cardGrid = document.createElement('div');
+  cardGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:14px;';
+
+  cardDefs.forEach(function(card) {
+    var el = document.createElement('div');
+    el.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;transition:all 0.15s;position:relative;';
+    el.onmouseenter = function(){el.style.borderColor=card.colour;el.style.transform='translateY(-2px)';el.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';};
+    el.onmouseleave = function(){el.style.borderColor='var(--border)';el.style.transform='';el.style.boxShadow='';};
+    el.onclick = (function(t,f){return function(){
+      currentTab=t;
+      if(f) currentResourceFilter=f;
+      switchTab(t,null);
+    };})(card.tab, card.filter||null);
+
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--fg);margin-bottom:4px;';
+    lbl.textContent = card.label;
+    var cnt = document.createElement('div');
+    cnt.style.cssText = 'font-size:24px;font-weight:700;color:'+card.colour+';';
+    cnt.textContent = card.count;
+    el.appendChild(lbl);
+    el.appendChild(cnt);
+
+    if (card.custom) {
+      var delBtn = document.createElement('button');
+      delBtn.textContent = '\u2715';
+      delBtn.style.cssText = 'position:absolute;top:4px;right:6px;background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:11px;';
+      delBtn.onclick = (function(cid){return function(e){e.stopPropagation();
+        var cards=[];try{cards=JSON.parse(localStorage.getItem('custom-cards:'+mod.id)||'[]');}catch(e){}
+        cards=cards.filter(function(c){return c.id!==cid;});
+        localStorage.setItem('custom-cards:'+mod.id,JSON.stringify(cards));
+        showWeekOverview(week,mod);
+      };})(card.id);
+      el.appendChild(delBtn);
+    }
+    cardGrid.appendChild(el);
+  });
+
+  // Add custom card button
+  var addCardEl = document.createElement('div');
+  addCardEl.style.cssText = 'background:var(--bg-sunken);border:2px dashed var(--border);border-radius:10px;padding:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;color:var(--fg-muted);transition:all 0.15s;';
+  addCardEl.innerHTML = '<span style="font-size:18px;">+</span> Add card type';
+  addCardEl.onmouseenter = function(){addCardEl.style.borderColor='var(--accent)';addCardEl.style.color='var(--accent)';};
+  addCardEl.onmouseleave = function(){addCardEl.style.borderColor='var(--border)';addCardEl.style.color='var(--fg-muted)';};
+  addCardEl.onclick = function() {
+    var label = prompt('Card type name (e.g. "Positivist", "Constructionist", "Marxist"):');
+    if (!label) return;
+    var colour = prompt('Colour (hex, e.g. #7c3aed):', '#7c3aed') || '#7c3aed';
+    var cards = [];
+    try { cards = JSON.parse(localStorage.getItem('custom-cards:'+mod.id)||'[]'); } catch(e) {}
+    cards.push({id:'cc-'+Date.now(), label:label, colour:colour});
+    localStorage.setItem('custom-cards:'+mod.id, JSON.stringify(cards));
+    showWeekOverview(week, mod);
+  };
+  cardGrid.appendChild(addCardEl);
+  body.appendChild(cardGrid);
+
+  // Show resources section
+  renderResources(body);
+}
 </script>
 
 <!-- Edit Module Modal -->
