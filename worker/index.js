@@ -3008,6 +3008,328 @@ export default {
     }
 
 
+    // ── Canvas SVG generation with Pexels background + real logo ───────────────
+    if (path === '/api/canvas/generate' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = (body.text || 'Identity Partners').substring(0, 300);
+        const template = body.template || 'quote-teal';
+        const pexelsKey = k(env, ['pexels_api_key','PEXELS_API_KEY','pexels']) || '';
+
+        const themes = {
+          'quote-teal':    {bg:'#0f3b3a', fg:'#f7f3e9', accent:'#ddd0c8', query:'landscape vista nature'},
+          'quote-rose':    {bg:'#5c2d3f', fg:'#f7f3e9', accent:'#ddd0c8', query:'sunset dusk sky'},
+          'quote-ivory':   {bg:'#f7f3e9', fg:'#0f3b3a', accent:'#5c2d3f', query:'morning light nature'},
+          'quote-dark':    {bg:'#1a1a1a', fg:'#f7f3e9', accent:'#ddd0c8', query:'night sky stars'},
+          'quote-slate':   {bg:'#2d3748', fg:'#f7fafc', accent:'#90cdf4', query:'ocean sea coastal'},
+          'quote-stone':   {bg:'#44403c', fg:'#fafaf9', accent:'#d6d3d1', query:'mountain rock landscape'},
+          'quote-forest':  {bg:'#1a3a2a', fg:'#f0fdf4', accent:'#86efac', query:'forest trees green'},
+          'quote-coastal': {bg:'#0c2340', fg:'#e0f2fe', accent:'#7dd3fc', query:'ocean waves seascape'},
+          'quote-dawn':    {bg:'#7c2d12', fg:'#fff7ed', accent:'#fed7aa', query:'sunrise dawn golden'},
+          'quote-dusk':    {bg:'#2e1065', fg:'#faf5ff', accent:'#d8b4fe', query:'purple sunset twilight'},
+          'quote-parchment':{bg:'#faf8f4',fg:'#1c1a17', accent:'#8b4513', query:'autumn leaves warm'},
+          'quote-midnight':{bg:'#0d1520', fg:'#e8f0f8', accent:'#4a9fd4', query:'night city lights'},
+          'ip-teal-rose':  {bg:'#0f3b3a', fg:'#f7f3e9', accent:'#5c2d3f', query:'partnership connection'},
+          'ip-minimal':    {bg:'#ffffff', fg:'#0f3b3a', accent:'#5c2d3f', query:'minimal clean white'},
+          'ip-bold':       {bg:'#0f3b3a', fg:'#ffffff', accent:'#d4899a', query:'bold dramatic landscape'},
+          'post-research': {bg:'#1e3a5f', fg:'#f0f9ff', accent:'#93c5fd', query:'library books academic'},
+          'post-quote':    {bg:'#f7f3e9', fg:'#0f3b3a', accent:'#5c2d3f', query:'peaceful nature calm'},
+          'post-stat':     {bg:'#0f3b3a', fg:'#f7f3e9', accent:'#7ecfcd', query:'abstract geometric'},
+          'post-news':     {bg:'#1a1a2e', fg:'#e0e0ff', accent:'#a78bfa', query:'city urban modern'},
+        };
+        const t = themes[template] || themes['quote-teal'];
+
+        // Fetch Pexels background image
+        let bgImageB64 = '';
+        let bgMimeType = 'image/jpeg';
+        if (pexelsKey) {
+          try {
+            const pexResp = await fetch(
+              'https://api.pexels.com/v1/search?query=' + encodeURIComponent(t.query) + '&per_page=15&orientation=square',
+              {headers: {'Authorization': pexelsKey}}
+            );
+            if (pexResp.ok) {
+              const pexData = await pexResp.json();
+              const photos = pexData.photos || [];
+              if (photos.length > 0) {
+                // Pick a random photo
+                const photo = photos[Math.floor(Math.random() * Math.min(photos.length, 10))];
+                const imgUrl = photo.src?.medium || photo.src?.original || '';
+                if (imgUrl) {
+                  const imgResp = await fetch(imgUrl);
+                  if (imgResp.ok) {
+                    const imgBuf = await imgResp.arrayBuffer();
+                    bgImageB64 = btoa(String.fromCharCode(...new Uint8Array(imgBuf)));
+                    bgMimeType = imgResp.headers.get('content-type') || 'image/jpeg';
+                  }
+                }
+              }
+            }
+          } catch(e) { /* fall through to solid colour */ }
+        }
+
+        // Word-wrap text
+        const safeText = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const words = safeText.split(' ');
+        const lines = [];
+        let line = '';
+        words.forEach(w => {
+          if ((line + ' ' + w).trim().length > 26 && line) { lines.push(line.trim()); line = w; }
+          else { line = (line + ' ' + w).trim(); }
+        });
+        if (line) lines.push(line.trim());
+        if (lines.length > 7) { lines.splice(6); lines[5] += '...'; }
+
+        const lineH = 68;
+        const startY = Math.max(200, 540 - (lines.length * lineH) / 2);
+        const attrY = startY + lines.length * lineH + 44;
+
+        const textEls = lines.map((l, i) =>
+          `<text x="540" y="${startY + i * lineH}" font-family="'Playfair Display',Georgia,serif" font-size="50" font-style="italic" fill="${t.fg}" text-anchor="middle" filter="url(#ts)">${l}</text>`
+        ).join('\n  ');
+
+        // Background: image or solid colour
+        const bgEl = bgImageB64
+          ? `<image href="data:${bgMimeType};base64,${bgImageB64}" x="0" y="0" width="1080" height="1080" preserveAspectRatio="xMidYMid slice"/>
+  <rect width="1080" height="1080" fill="${t.bg}" opacity="0.62"/>`
+          : `<rect width="1080" height="1080" fill="${t.bg}"/>`;
+
+        // Real logo: use the R2-hosted logo asset
+        const logoUrl = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/logo-rect-right.png';
+        // Fetch logo for embedding
+        let logoB64 = '';
+        try {
+          const logoResp = await fetch(logoUrl);
+          if (logoResp.ok) {
+            const logoBuf = await logoResp.arrayBuffer();
+            logoB64 = btoa(String.fromCharCode(...new Uint8Array(logoBuf)));
+          }
+        } catch(e) {}
+
+        const logoEl = logoB64
+          ? `<image href="data:image/png;base64,${logoB64}" x="820" y="920" width="220" height="80" preserveAspectRatio="xMidYMid meet" opacity="0.9"/>`
+          : `<text x="540" y="${attrY + 48}" font-family="Georgia,serif" font-size="28" font-weight="600" fill="#0f3b3a" text-anchor="middle">Identity</text>
+  <text x="700" y="${attrY + 48}" font-family="Georgia,serif" font-size="28" font-weight="600" fill="#5c2d3f" text-anchor="middle">Partners</text>`;
+
+        const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1080" viewBox="0 0 1080 1080">
+  <defs>
+    <filter id="ts"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="rgba(0,0,0,0.75)"/></filter>
+    <filter id="ls"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="rgba(0,0,0,0.5)"/></filter>
+  </defs>
+  ${bgEl}
+  <rect x="0" y="0" width="1080" height="8" fill="${t.accent}" opacity="0.9"/>
+  <rect x="0" y="1072" width="1080" height="8" fill="${t.accent}" opacity="0.9"/>
+  <rect x="30" y="30" width="44" height="44" rx="6" fill="#0f3b3a" opacity="0.92"/>
+  <rect x="80" y="30" width="44" height="44" rx="6" fill="#5c2d3f" opacity="0.92"/>
+  <rect x="30" y="80" width="44" height="44" rx="6" fill="#1a5550" opacity="0.75"/>
+  <rect x="80" y="80" width="44" height="44" rx="6" fill="#7a4254" opacity="0.75"/>
+  <text x="80" y="210" font-family="Georgia,serif" font-size="120" fill="${t.fg}" opacity="0.07">&#x201C;</text>
+  ${textEls}
+  <line x1="360" y1="${attrY}" x2="720" y2="${attrY}" stroke="${t.accent}" stroke-width="1.5" opacity="0.7"/>
+  <text x="540" y="${attrY + 36}" font-family="Georgia,serif" font-size="16" font-style="italic" fill="${t.fg}" text-anchor="middle" opacity="0.85" filter="url(#ls)">Understand your past &#xB7; Appreciate the present &#xB7; Define your future</text>
+  ${logoEl}
+  <text x="540" y="1048" font-family="Arial,sans-serif" font-size="15" fill="${t.fg}" text-anchor="middle" opacity="0.8" filter="url(#ls)">identitypartners.uk &#xB7; hello@identitypartners.uk &#xB7; @identitypartners</text>
+</svg>`;
+
+        const svgB64 = btoa(unescape(encodeURIComponent(svg)));
+        const dataUrl = 'data:image/svg+xml;base64,' + svgB64;
+
+        if (env.PRISM_ASSETS) {
+          const key = 'canvas-' + Date.now() + '.svg';
+          await env.PRISM_ASSETS.put(key, svg, {httpMetadata:{contentType:'image/svg+xml'}, expirationTtl:86400*30});
+          const r2Url = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + key;
+          return json({success:true, url:r2Url, dataUrl, format:'svg', template, hasBackground:!!bgImageB64}, 200, origin);
+        }
+
+        return json({success:true, dataUrl, format:'svg', template, hasBackground:!!bgImageB64}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── PDF to Markdown via Gemini Vision ─────────────────────────────────────
+    if (path === '/api/pdf/to-markdown' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const b64 = body.content || ''; // base64 PDF
+        const fileUrl = body.url || '';
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        if (!GKEY) return json({error:'Gemini key not configured'}, 400, origin);
+
+        let pdfB64 = b64;
+        if (fileUrl && !pdfB64) {
+          const resp = await fetch(fileUrl);
+          if (!resp.ok) return json({error:'Could not fetch PDF: '+resp.status}, 400, origin);
+          const buf = await resp.arrayBuffer();
+          pdfB64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+        }
+        if (!pdfB64) return json({error:'No PDF content provided'}, 400, origin);
+
+        // Use Gemini to extract text from PDF
+        const gemResp = await fetch(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key='+GKEY,
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              contents: [{parts: [
+                {text: 'Extract ALL text from this PDF. Return clean Markdown. Preserve headings (# ## ###), lists, tables, paragraphs. Include every word — do not summarise or skip content.'},
+                {inline_data: {mime_type: 'application/pdf', data: pdfB64.substring(0, 1000000)}}
+              ]}],
+              generationConfig: {maxOutputTokens: 8192, temperature: 0.1}
+            })
+          }
+        );
+        const gemData = await gemResp.json();
+        const markdown = gemData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!markdown) return json({error:'No text extracted', raw: JSON.stringify(gemData).substring(0,200)}, 500, origin);
+        return json({success:true, markdown, wordCount: markdown.split(/\s+/).length}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── OneDrive upload via MSGraph ────────────────────────────────────────────
+    if (path === '/api/onedrive/upload' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const fileName = body.fileName || ('file-'+Date.now()+'.bin');
+        const content = body.content || ''; // base64
+        const folder = body.folder || 'Argentica';
+        const tenantId = k(env, ['msgraph_tenant','MSGRAPH_TENANT']) || '';
+        const clientId = k(env, ['msgraph_client','MSGRAPH_CLIENT']) || '';
+        const clientSecret = k(env, ['msgraph_secret','MSGRAPH_SECRET']) || '';
+        if (!tenantId || !clientId || !clientSecret) return json({error:'MSGraph credentials not configured'}, 400, origin);
+
+        // Get access token
+        const tokenResp = await fetch(
+          'https://login.microsoftonline.com/'+tenantId+'/oauth2/v2.0/token',
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'grant_type=client_credentials&client_id='+clientId+'&client_secret='+encodeURIComponent(clientSecret)+'&scope=https://graph.microsoft.com/.default'
+          }
+        );
+        const tokenData = await tokenResp.json();
+        const accessToken = tokenData.access_token;
+        if (!accessToken) return json({error:'Could not get MSGraph token: '+JSON.stringify(tokenData).substring(0,100)}, 500, origin);
+
+        // Upload to OneDrive (me/drive/root:/Argentica/filename:/content)
+        const fileBytes = Uint8Array.from(atob(content), c => c.charCodeAt(0));
+        const uploadResp = await fetch(
+          'https://graph.microsoft.com/v1.0/me/drive/root:/'+folder+'/'+encodeURIComponent(fileName)+':/content',
+          {
+            method: 'PUT',
+            headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': 'application/octet-stream'},
+            body: fileBytes
+          }
+        );
+        const uploadData = await uploadResp.json();
+        if (!uploadResp.ok) return json({error:'OneDrive upload failed: '+JSON.stringify(uploadData).substring(0,100)}, 500, origin);
+
+        // Create sharing link
+        const shareResp = await fetch(
+          'https://graph.microsoft.com/v1.0/me/drive/items/'+uploadData.id+'/createLink',
+          {
+            method: 'POST',
+            headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': 'application/json'},
+            body: JSON.stringify({type:'view', scope:'anonymous'})
+          }
+        );
+        const shareData = await shareResp.json();
+        const shareUrl = shareData.link?.webUrl || uploadData.webUrl || '';
+
+        return json({
+          success: true,
+          fileId: uploadData.id,
+          fileName: uploadData.name,
+          shareUrl,
+          viewUrl: shareUrl ? 'https://view.officeapps.live.com/op/embed.aspx?src='+encodeURIComponent(shareUrl) : '',
+          googleDocsUrl: shareUrl ? 'https://docs.google.com/viewer?url='+encodeURIComponent(shareUrl)+'&embedded=true' : '',
+        }, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Email ingestion: docs@identitypartners.uk ─────────────────────────────
+    // Cloudflare Email Routing webhook — receives forwarded emails
+    if (path === '/api/email/ingest' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const from = body.from || body.sender || '';
+        const subject = body.subject || 'No subject';
+        const text = body.text || body.body || '';
+        const attachments = body.attachments || [];
+
+        // Store as inbox notification
+        const entry = {
+          id: 'email-'+Date.now(),
+          type: 'email',
+          from,
+          subject,
+          preview: text.substring(0, 200),
+          attachments: attachments.map(a => ({name:a.filename||a.name, size:a.size})),
+          received: new Date().toISOString(),
+          read: false,
+          source: 'docs@identitypartners.uk'
+        };
+
+        if (env.PRISM_KV) {
+          const raw = await env.PRISM_KV.get('inbox:emails');
+          const emails = raw ? JSON.parse(raw) : [];
+          emails.unshift(entry);
+          await env.PRISM_KV.put('inbox:emails', JSON.stringify(emails.slice(0, 100)));
+
+          // Also add to notifications
+          const notifRaw = await env.PRISM_KV.get('inbox:notifications');
+          const notifs = notifRaw ? JSON.parse(notifRaw) : [];
+          notifs.unshift({id:'notif-'+Date.now(), type:'email', title:'Email from '+from, message:subject, link:'/comms/email/', ts:new Date().toISOString(), read:false});
+          await env.PRISM_KV.put('inbox:notifications', JSON.stringify(notifs.slice(0, 200)));
+        }
+
+        return json({success:true, id:entry.id}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Inbox: get all notifications ──────────────────────────────────────────
+    if (path === '/api/inbox' && request.method === 'GET') {
+      try {
+        const notifRaw = env.PRISM_KV ? await env.PRISM_KV.get('inbox:notifications') : null;
+        const emailRaw = env.PRISM_KV ? await env.PRISM_KV.get('inbox:emails') : null;
+        const msgRaw = env.PRISM_KV ? await env.PRISM_KV.get('messages:simon-olivia') : null;
+
+        const notifications = notifRaw ? JSON.parse(notifRaw) : [];
+        const emails = emailRaw ? JSON.parse(emailRaw) : [];
+        const messages = msgRaw ? JSON.parse(msgRaw) : [];
+
+        const unreadNotifs = notifications.filter(n => !n.read).length;
+        const unreadEmails = emails.filter(e => !e.read).length;
+        const unreadMsgs = messages.filter(m => !m.read && m.from !== 'simon').length;
+
+        return json({
+          notifications: notifications.slice(0, 20),
+          messages: messages.slice(0, 20),
+          unread: {
+            total: unreadNotifs + unreadEmails + unreadMsgs,
+            notifications: unreadNotifs,
+            mail: unreadEmails,
+            messages: unreadMsgs
+          }
+        }, 200, origin);
+      } catch(e) { return json({notifications:[], messages:[], unread:{total:0}}, 200, origin); }
+    }
+
+    // ── Mark notifications read ───────────────────────────────────────────────
+    if (path === '/api/notifications/read' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        if (env.PRISM_KV) {
+          const raw = await env.PRISM_KV.get('inbox:notifications');
+          const notifs = raw ? JSON.parse(raw) : [];
+          const updated = body.all ? notifs.map(n => ({...n, read:true})) : notifs.map(n => n.id === body.id ? {...n, read:true} : n);
+          await env.PRISM_KV.put('inbox:notifications', JSON.stringify(updated));
+        }
+        return json({success:true}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+
     // ── Canvas SVG generation ─────────────────────────────────────────────────
     if (path === '/api/canvas/generate' && request.method === 'POST') {
       try {
