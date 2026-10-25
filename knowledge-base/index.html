@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Knowledge Base — Argentica</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<!-- cache-bust-1792935669 -->
+<style>
+.wiki-shell{display:flex;height:100vh;overflow:hidden;}
+.wiki-tree{width:240px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-surface);overflow:hidden;}
+.wiki-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.wiki-tree-hdr{padding:10px 12px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.wiki-tree-hdr h3{font-size:13px;font-weight:700;margin:0;}
+.wiki-tree-body{flex:1;overflow-y:auto;padding:6px;}
+.wiki-page-item{padding:6px 10px;border-radius:6px;cursor:pointer;font-size:13px;color:var(--fg-muted);transition:background 0.1s;display:flex;align-items:center;gap:6px;}
+.wiki-page-item:hover{background:var(--bg-sunken);}
+.wiki-page-item.active{background:var(--accent-light,#e8f0f8);color:var(--accent);font-weight:600;}
+.wiki-hdr{padding:8px 16px;border-bottom:1px solid var(--border);background:var(--bg-elevated);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.wiki-hdr h2{font-size:16px;font-weight:700;margin:0;flex:1;}
+.wiki-toolbar{padding:5px 12px;border-bottom:1px solid var(--border);background:var(--bg-elevated);display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0;}
+.wiki-body{flex:1;overflow:hidden;display:flex;}
+.wiki-editor-wrap{flex:1;overflow-y:auto;}
+.ql-container{border:none!important;font-size:16px!important;font-family:var(--font-ui,Inter,sans-serif)!important;}
+.ql-editor{min-height:calc(100vh - 200px);padding:24px 40px!important;color:var(--fg)!important;line-height:1.75!important;}
+.ql-toolbar{display:none!important;}
+.wiki-read-view{flex:1;overflow-y:auto;padding:24px 40px;max-width:800px;margin:0 auto;font-size:16px;line-height:1.75;color:var(--fg);}
+.wiki-read-view h1{font-size:28px;font-weight:700;font-family:var(--font-heading,Georgia,serif);margin:20px 0 10px;}
+.wiki-read-view h2{font-size:22px;font-weight:700;margin:16px 0 8px;}
+.wiki-read-view p{margin:0 0 10px;}
+.wiki-read-view ul,.wiki-read-view ol{padding-left:24px;margin:8px 0;}
+.wiki-read-view li{margin:4px 0;}
+.wiki-read-view blockquote{border-left:3px solid var(--accent);padding-left:14px;margin:10px 0;color:var(--fg-muted);font-style:italic;}
+.wiki-read-view code{background:var(--bg-sunken);padding:2px 5px;border-radius:3px;font-family:monospace;}
+.wiki-status{padding:4px 12px;border-top:1px solid var(--border);background:var(--bg-elevated);display:flex;gap:14px;font-size:12px;color:var(--fg-muted);flex-shrink:0;}
+.tb-btn{padding:5px 9px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);font-family:inherit;transition:all 0.15s;}
+.tb-btn:hover{border-color:var(--accent);color:var(--accent);}
+.tb-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.backlink{display:inline-block;padding:2px 8px;background:rgba(45,106,159,0.1);border:1px solid rgba(45,106,159,0.2);border-radius:10px;font-size:11px;color:var(--accent);cursor:pointer;margin:2px;}
+.backlink:hover{background:rgba(45,106,159,0.2);}
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="wiki-shell">
+<div class="wiki-tree">
+  <div class="wiki-tree-hdr">
+    <h3>&#x1F4D6; Knowledge Base</h3>
+    <button onclick="newPage()" style="padding:3px 8px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">+ New</button>
+  </div>
+  <div style="padding:6px 10px;border-bottom:1px solid var(--border);">
+    <input type="text" id="wiki-search" placeholder="Search pages..." style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box;" oninput="filterPages(this.value)">
+  </div>
+  <div class="wiki-tree-body" id="wiki-tree-body"></div>
+</div>
+<div class="wiki-main">
+  <div class="wiki-hdr">
+    <h2 id="wiki-title" contenteditable="true" onblur="saveTitle(this.textContent)" style="outline:none;cursor:text;">Untitled Page</h2>
+    <div style="display:flex;gap:5px;">
+      <button class="tb-btn active" id="btn-edit" onclick="setMode('edit',this)">Edit</button>
+      <button class="tb-btn" id="btn-read" onclick="setMode('read',this)">Read</button>
+      <button class="tb-btn" onclick="exportPage()">Export</button>
+      <button class="tb-btn" onclick="deletePage()" style="color:#dc2626;">Delete</button>
+    </div>
+  </div>
+  <div class="wiki-toolbar" id="wiki-toolbar">
+    <select id="fmt-sel" onchange="applyFormat(this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg);color:var(--fg);">
+      <option value="p">Paragraph</option>
+      <option value="h1">Heading 1</option>
+      <option value="h2">Heading 2</option>
+      <option value="h3">Heading 3</option>
+    </select>
+    <button class="tb-btn" onclick="qcmd('bold')"><strong>B</strong></button>
+    <button class="tb-btn" onclick="qcmd('italic')"><em>I</em></button>
+    <button class="tb-btn" onclick="qcmd('list','bullet')">List</button>
+    <button class="tb-btn" onclick="qcmd('list','ordered')">1. List</button>
+    <button class="tb-btn" onclick="qcmd('blockquote',true)">Quote</button>
+    <button class="tb-btn" onclick="qcmd('code-block',true)">Code</button>
+    <button class="tb-btn" onclick="insertBacklink()">[[Link]]</button>
+    <button class="tb-btn" onclick="aiExpand()">AI Expand</button>
+  </div>
+  <div class="wiki-body" id="wiki-body">
+    <div class="wiki-editor-wrap" id="wiki-editor-wrap">
+      <div id="wiki-quill"></div>
+    </div>
+  </div>
+  <div class="wiki-status">
+    <span id="wiki-word-count">0 words</span>
+    <span id="wiki-save-status">Not saved</span>
+    <span id="wiki-backlinks"></span>
+  </div>
+</div>
+</div>
+</div>
+<script>
+
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var pages = [];
+var currentPageId = null;
+var quill = null;
+var saveTimer = null;
+var editMode = 'edit';
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/knowledge-base/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  loadPages();
+  initQuill();
+});
+
+function initQuill() {
+  if (typeof Quill === 'undefined') { setTimeout(initQuill, 200); return; }
+  quill = new Quill('#wiki-quill', {
+    theme:'snow',
+    placeholder:'Start writing... Use [[Page Name]] to link to other pages.',
+    modules:{toolbar:false, history:{delay:1000,maxStack:200}}
+  });
+  quill.on('text-change', function() { updateWordCount(); scheduleSave(); detectBacklinks(); });
+}
+
+function qcmd(format, value) {
+  if (!quill) return;
+  var current = quill.getFormat();
+  if (value === undefined) quill.format(format, !current[format]);
+  else quill.format(format, current[format]===value ? false : value);
+}
+
+function applyFormat(tag) {
+  if (!quill) return;
+  if (tag==='p') quill.format('header',false);
+  else quill.format('header',parseInt(tag.replace('h','')));
+}
+
+function setMode(mode, btn) {
+  editMode = mode;
+  document.querySelectorAll('.tb-btn[id^="btn-"]').forEach(function(b){b.classList.remove('active');});
+  if (btn) btn.classList.add('active');
+  var toolbar = document.getElementById('wiki-toolbar');
+  var editorWrap = document.getElementById('wiki-editor-wrap');
+  var existing = document.getElementById('wiki-read-view');
+  if (existing) existing.remove();
+  if (mode === 'edit') {
+    toolbar.style.display = 'flex';
+    editorWrap.style.display = 'block';
+  } else {
+    toolbar.style.display = 'none';
+    editorWrap.style.display = 'none';
+    var readDiv = document.createElement('div');
+    readDiv.id = 'wiki-read-view';
+    readDiv.className = 'wiki-read-view';
+    readDiv.innerHTML = quill ? quill.root.innerHTML : '';
+    document.getElementById('wiki-body').appendChild(readDiv);
+  }
+}
+
+function loadPages() {
+  try { pages = JSON.parse(localStorage.getItem('wiki:pages')||'[]'); } catch(e){pages=[];}
+  if (!pages.length) {
+    pages = [
+      {id:'p-welcome',title:'Welcome',content:'<h1>Knowledge Base</h1><p>Your personal wiki. Create pages, link them with [[Page Name]], and build your knowledge graph.</p>',created:new Date().toISOString()},
+      {id:'p-concepts',title:'Key Concepts',content:'<h1>Key Concepts</h1><p>Add your key sociological concepts here.</p>',created:new Date().toISOString()},
+      {id:'p-thinkers',title:'Thinkers',content:'<h1>Thinkers</h1><p>Bourdieu, Goffman, Foucault, Crenshaw...</p>',created:new Date().toISOString()},
+    ];
+    savePages();
+  }
+  renderTree();
+  if (pages.length > 0) openPage(pages[0].id);
+}
+
+function savePages() { try { localStorage.setItem('wiki:pages', JSON.stringify(pages)); } catch(e){} }
+
+function renderTree(filter) {
+  var body = document.getElementById('wiki-tree-body');
+  body.innerHTML = '';
+  var filtered = filter ? pages.filter(function(p){return p.title.toLowerCase().includes(filter.toLowerCase());}) : pages;
+  filtered.forEach(function(p) {
+    var item = document.createElement('div');
+    item.className = 'wiki-page-item' + (p.id===currentPageId?' active':'');
+    var icon = document.createElement('span');
+    icon.textContent = '\uD83D\uDCC4';
+    var label = document.createElement('span');
+    label.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    label.textContent = p.title;
+    item.appendChild(icon);
+    item.appendChild(label);
+    item.onclick = (function(pid){return function(){openPage(pid);};})(p.id);
+    body.appendChild(item);
+  });
+}
+
+function filterPages(q) { renderTree(q); }
+
+function openPage(id) {
+  if (currentPageId) saveCurrent();
+  currentPageId = id;
+  var page = pages.find(function(p){return p.id===id;});
+  if (!page) return;
+  document.getElementById('wiki-title').textContent = page.title;
+  if (quill) { quill.root.innerHTML = page.content || ''; updateWordCount(); }
+  renderTree();
+  updateBacklinks();
+  setMode('edit', document.getElementById('btn-edit'));
+}
+
+function saveCurrent() {
+  if (!currentPageId || !quill) return;
+  var page = pages.find(function(p){return p.id===currentPageId;});
+  if (!page) return;
+  page.content = quill.root.innerHTML;
+  page.updated = new Date().toISOString();
+  savePages();
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  document.getElementById('wiki-save-status').textContent = 'Unsaved';
+  saveTimer = setTimeout(function(){saveCurrent();document.getElementById('wiki-save-status').textContent='Saved';}, 1500);
+}
+
+function saveTitle(title) {
+  if (!currentPageId) return;
+  var page = pages.find(function(p){return p.id===currentPageId;});
+  if (!page) return;
+  page.title = title.trim() || 'Untitled';
+  savePages();
+  renderTree();
+}
+
+function newPage() {
+  saveCurrent();
+  var page = {id:'p-'+Date.now(), title:'New Page', content:'<h1>New Page</h1><p>Start writing...</p>', created:new Date().toISOString()};
+  pages.push(page);
+  savePages();
+  renderTree();
+  openPage(page.id);
+  setTimeout(function(){document.getElementById('wiki-title').focus();document.execCommand('selectAll');},100);
+}
+
+function deletePage() {
+  if (!currentPageId || !confirm('Delete this page?')) return;
+  pages = pages.filter(function(p){return p.id!==currentPageId;});
+  savePages();
+  currentPageId = null;
+  renderTree();
+  if (pages.length > 0) openPage(pages[0].id);
+  else { document.getElementById('wiki-title').textContent = 'No pages'; if (quill) quill.root.innerHTML = ''; }
+}
+
+function updateWordCount() {
+  if (!quill) return;
+  var text = quill.getText() || '';
+  var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  document.getElementById('wiki-word-count').textContent = words + ' words';
+}
+
+function detectBacklinks() {
+  if (!quill) return;
+  var text = quill.getText();
+  var matches = text.match(/\[\[([^\]]+)\]\]/g);
+  if (matches) {
+    var linked = matches.map(function(m){return m.slice(2,-2);});
+    document.getElementById('wiki-backlinks').textContent = 'Links: ' + linked.join(', ');
+  }
+}
+
+function updateBacklinks() {
+  if (!currentPageId) return;
+  var currentPage = pages.find(function(p){return p.id===currentPageId;});
+  if (!currentPage) return;
+  var backlinks = pages.filter(function(p) {
+    return p.id !== currentPageId && (p.content||'').includes('[['+currentPage.title+']]');
+  });
+  if (backlinks.length > 0) {
+    var bl = document.getElementById('wiki-backlinks');
+    bl.innerHTML = 'Linked from: ';
+    backlinks.forEach(function(p) {
+      var span = document.createElement('span');
+      span.className = 'backlink';
+      span.textContent = p.title;
+      span.onclick = (function(pid){return function(){openPage(pid);};})(p.id);
+      bl.appendChild(span);
+    });
+  }
+}
+
+function insertBacklink() {
+  var pageName = prompt('Link to page:');
+  if (!pageName || !quill) return;
+  var range = quill.getSelection(true);
+  quill.insertText(range.index, '[['+pageName+']]');
+}
+
+function aiExpand() {
+  if (!quill) return;
+  var text = quill.getText().substring(0, 1000);
+  if (!text.trim()) return;
+  fetch(WORKER+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'system',content:'You are a knowledge base assistant. Expand and enrich this wiki page. Add relevant details, examples, and connections. British English. Return only expanded content in HTML.'},{role:'user',content:text}],profile:'balanced'})})
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if (d.content && quill) {
+      var range = quill.getSelection(true);
+      quill.clipboard.dangerouslyPasteHTML(range.index, '<p>' + d.content + '</p>');
+      scheduleSave();
+    }
+  });
+}
+
+function exportPage() {
+  if (!quill) return;
+  var page = pages.find(function(p){return p.id===currentPageId;});
+  var title = page ? page.title : 'page';
+  var html = quill.root.innerHTML;
+  var md = html.replace(/<h1[^>]*>(.*?)<\/h1>/gi,'# $1\n\n').replace(/<h2[^>]*>(.*?)<\/h2>/gi,'## $1\n\n').replace(/<h3[^>]*>(.*?)<\/h3>/gi,'### $1\n\n').replace(/<strong[^>]*>(.*?)<\/strong>/gi,'**$1**').replace(/<em[^>]*>(.*?)<\/em>/gi,'*$1*').replace(/<li[^>]*>(.*?)<\/li>/gi,'- $1\n').replace(/<p[^>]*>(.*?)<\/p>/gi,'$1\n\n').replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ');
+  var blob = new Blob([md],{type:'text/markdown'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = title + '.md';
+  a.click();
+}
+
+</script>
+</body>
+</html>
