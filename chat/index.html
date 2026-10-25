@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792935955 -->
+<!-- cache-bust-1792936222 -->
+
 
 
 
@@ -156,6 +157,11 @@
 <h3>💬 Conversations</h3>
 <button onclick="newConversation()" style="padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">+ New</button>
 </div>
+  <div style="display:flex;border-bottom:1px solid var(--border);flex-shrink:0;">
+    <button id="conv-tab-all" onclick="setConvTab('all',this)" style="flex:1;padding:5px;font-size:11px;font-weight:600;border:none;border-bottom:2px solid var(--accent);background:var(--bg-elevated);color:var(--accent);cursor:pointer;">All</button>
+    <button id="conv-tab-pinned" onclick="setConvTab('pinned',this)" style="flex:1;padding:5px;font-size:11px;font-weight:600;border:none;border-bottom:2px solid transparent;background:var(--bg-elevated);color:var(--fg-muted);cursor:pointer;">&#x1F4CC; Pinned</button>
+    <button id="conv-tab-projects" onclick="setConvTab('projects',this)" style="flex:1;padding:5px;font-size:11px;font-weight:600;border:none;border-bottom:2px solid transparent;background:var(--bg-elevated);color:var(--fg-muted);cursor:pointer;">&#x1F4C1; Projects</button>
+  </div>
 <div class="conv-search">
 <input id="conv-search" oninput="filterConversations(this.value)" placeholder="Search..." type="text"/>
 </div>
