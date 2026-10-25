@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
+<!-- cache-bust-1792933321 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Canvas — Argentica</title>
@@ -8,7 +9,7 @@
 <link rel="stylesheet" href="/shared/themes.css">
 <!-- Fabric.js — production canvas editor library (MIT) -->
 <script src="https://cdn.jsdelivr.net/npm/fabric@5.3.0/dist/fabric.min.js"></script>
-<!-- cache-bust-1792925337 -->
+
 <style>
 .canvas-shell{display:flex;height:100vh;overflow:hidden;}
 .canvas-left{width:220px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-surface);overflow-y:auto;}
@@ -159,7 +160,8 @@
     <div style="margin-bottom:6px;">
       <label class="prop-label">Font</label>
       <select class="prop-input" id="font-family" onchange="updateTextProp('fontFamily',this.value)">
-        <option value="Georgia">Georgia (serif)</option>
+        <option value="Playfair Display">Playfair Display (IP brand)</option>
+      <option value="Georgia">Georgia (serif)</option>
         <option value="Playfair Display">Playfair Display</option>
         <option value="Inter">Inter (sans)</option>
         <option value="Arial">Arial</option>
