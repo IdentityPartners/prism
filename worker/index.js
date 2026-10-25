@@ -3095,7 +3095,7 @@ export default {
           : `<rect width="1080" height="1080" fill="${t.bg}"/>`;
 
         // Real logo: use the R2-hosted logo asset
-        const logoUrl = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/logo-rect-right.png';
+        const logoUrl = 'https://prism.identitypartners.uk/shared/assets/logo-rect-right.png';
         // Fetch logo for embedding
         let logoB64 = '';
         try {
@@ -3438,6 +3438,42 @@ export default {
           }
         }
         return json({success:true, deleted}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+
+    // ── ImgBB image hosting (free CDN for assets) ─────────────────────────────
+    if (path === '/api/imgbb/upload' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const b64 = body.image || ''; // base64 image data
+        const name = body.name || ('img-'+Date.now());
+        const imgbbKey = k(env, ['imgbb_api_key','IMGBB_API_KEY']) || '';
+        
+        if (!b64) return json({error:'No image data'}, 400, origin);
+        
+        // Upload to ImgBB
+        const formData = new URLSearchParams();
+        formData.append('image', b64);
+        formData.append('name', name);
+        if (imgbbKey) formData.append('key', imgbbKey);
+        
+        const uploadResp = await fetch(
+          'https://api.imgbb.com/1/upload' + (imgbbKey ? '?key='+imgbbKey : '?key=2e2b5e5e5e5e5e5e5e5e5e5e5e5e5e5e'),
+          {method:'POST', body:formData.toString(), headers:{'Content-Type':'application/x-www-form-urlencoded'}}
+        );
+        const uploadData = await uploadResp.json();
+        
+        if (uploadData.success) {
+          return json({
+            success: true,
+            url: uploadData.data.url,
+            displayUrl: uploadData.data.display_url,
+            deleteUrl: uploadData.data.delete_url,
+            size: uploadData.data.size,
+          }, 200, origin);
+        }
+        return json({error: 'ImgBB upload failed', raw: JSON.stringify(uploadData).substring(0,100)}, 500, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
