@@ -1,1 +1,1 @@
-v1792946061 - security fix, routing, chat, study hub
+v1792947358 - React app deployed to /app/
