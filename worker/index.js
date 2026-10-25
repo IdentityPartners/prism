@@ -235,31 +235,23 @@ async function orchestrate(env, messages, profile = 'balanced') {
   } else {
     // Balanced (default): quality first, speed as fallback
     // 1. GLM 5.3 via Mistral — FREE, 1M ctx, thinking, web search
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',                          note: 'GLM 5.3 via Mistral (free)' });
-    // 2. Mistral Large Latest — better quality than Medium, vision, web search
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-latest',                 note: 'Mistral Large Latest' });
-    // 3. Mistral Medium 3.5 — faster fallback, still good quality
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-medium-3.5',                   note: 'Mistral Medium 3.5' });
-    // 3. Llama 3.2 11B Vision NVIDIA — 256ms, confirmed working, vision capable
-    if (KEYS.nvidia)     chain.push({ p: 'nvidia',     key: KEYS.nvidia,     m: 'meta/llama-3.2-11b-vision-instruct',   note: 'Llama 3.2 11B Vision NVIDIA' });
-    // 4. Gemma 4 31B via Gemini API — reliable, Google Search grounding
-    // 3. Gemma 4 31B via Gemini API — Google Search grounding
-    if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemma-4-31b-it',                       note: 'Gemma 4 Gemini' });
-    // 4. Gemini 3.5 Flash — reliable, 1M ctx, no thinking mode issues
-    if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemini-3.5-flash',                     note: 'Gemini 3.5 Flash' });
-    // 5. GLM 5.3 via Mistral — 1M ctx, web search, thinking (slow ~7s, use later in chain)
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-2',                          note: 'GLM 5.2 via Mistral' });
-    // 5b. Nemotron Ultra 550B — frontier reasoning, 1M ctx, free (slow ~15-20s)
-    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3-ultra-550b-a55b:free', note: 'Nemotron Ultra 550B' });
-    // 5. DeepSeek V4 Flash — 1M ctx, web search
-    if (KEYS.deepseek)   chain.push({ p: 'deepseek',   key: KEYS.deepseek,   m: 'deepseek-chat',                        note: 'DeepSeek V4 Flash' });
-    // Cohere REMOVED - billing issue
-    // 7. GPT-OSS 120B via Groq — fast, 131K ctx
-    if (KEYS.groq)       chain.push({ p: 'groq',       key: KEYS.groq,       m: 'openai/gpt-oss-120b',                  note: 'GPT-OSS 120B Groq' });
-    // 8. Nemotron Ultra 550B — frontier-grade, 1M ctx, free
-    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3-ultra-550b-a55b:free', note: 'Nemotron Ultra 550B' });
-    // 9. MiniMax M3.1 Flash — 1M ctx, free
-    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'minimax/minimax-m3.1-flash:free',      note: 'MiniMax M3.1 Free' });
+    // BALANCED CHAIN: Mistral Large → GLM 5.3 → Gemini 2.5 Flash → Gemma 4 → DeepSeek → GPT-OSS → Pollinations
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-latest',
+                                      note: 'Mistral Large Latest -- paid, 262K ctx, web search, vision, thinking' });
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',
+                                      note: 'GLM 5.3 via Mistral -- paid, 1M ctx, web search, thinking' });
+    if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemini-2.5-flash',
+                                      note: 'Gemini 2.5 Flash -- free, 1M ctx, thinking, Google Search' });
+    if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemma-4-31b-it',
+                                      note: 'Gemma 4 31B -- free, 262K ctx, Google Search grounding' });
+    if (KEYS.deepseek)   chain.push({ p: 'deepseek',   key: KEYS.deepseek,   m: 'deepseek-chat',
+                                      note: 'DeepSeek V4 Flash -- paid, 1M ctx, built-in web search' });
+    if (KEYS.groq)       chain.push({ p: 'groq',       key: KEYS.groq,       m: 'openai/gpt-oss-120b',
+                                      note: 'GPT-OSS 120B Groq -- free, 131K ctx, ~300ms' });
+    if (KEYS.groq)       chain.push({ p: 'groq',       key: KEYS.groq,       m: 'meta-llama/llama-4-scout-17b-16e-instruct',
+                                      note: 'Llama 4 Scout -- free, 131K ctx' });
+    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'minimax/minimax-m3.1-flash:free',
+                                      note: 'MiniMax M3.1 -- free, 1M ctx' });
   }
   // Unconditional fallback — always responds
   chain.push({ p: 'pollinations', key: null, m: 'openai', note: 'Pollinations' });
@@ -3312,8 +3304,8 @@ export default {
         });
         if (!calResp.ok) {
           // Try token refresh
-          const refreshKey = k(env, ['zoho_client_id','ZOHO_CLIENT_ID']) || '';
-          const refreshSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || '';
+          const refreshKey = k(env, ['zoho_client_id','ZOHO_CLIENT_ID']) || '1000.O98MYTLET4DOLL1UWEGIH1WD3K4IFL';
+          const refreshSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || '452109750327203929e77ddd72a7fb813990b0bbfc';
           if (zohoToken.refresh_token && refreshKey) {
             const refreshResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {
               method: 'POST',
