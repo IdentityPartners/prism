@@ -1,117 +1,54 @@
 <!DOCTYPE html>
-
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792932049 -->
-
-
-
-
-
-
-
-
-
-
-
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Document Viewer — Argentica</title>
-<link href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E" rel="icon" type="image/svg+xml"/>
-<link href="/shared/prism.css" rel="stylesheet"/>
-<link href="/shared/themes.css" rel="stylesheet"/>
-<!-- PDF.js for PDF rendering -->
-<script id="pdfjs-script" src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs" type="module"></script>
-<!-- Mammoth for DOCX -->
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
-<!-- SheetJS for Excel/CSV -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<!-- Marked for Markdown -->
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
-<!-- Quill for annotations -->
-<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet"/>
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<!-- cache-bust-1792935669 -->
 <style>
-.viewer-shell { display:flex; height:100vh; overflow:hidden; }
-.viewer-main { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
-.viewer-hdr { padding:8px 14px; border-bottom:1px solid var(--border); background:var(--bg-elevated); display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; }
-.viewer-hdr h2 { font-size:14px; font-weight:700; margin:0; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.viewer-toolbar { display:flex; gap:4px; flex-wrap:wrap; }
-.vt-btn { padding:4px 10px; border:1px solid var(--border); border-radius:5px; cursor:pointer; font-size:12px; background:var(--bg); color:var(--fg); font-family:inherit; transition:all 0.15s; }
-.vt-btn:hover { border-color:var(--accent); color:var(--accent); }
-.vt-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-.viewer-body { flex:1; overflow:hidden; display:flex; }
-
-/* Document pane */
-.doc-pane { flex:1; overflow-y:auto; padding:20px 40px; background:var(--bg); position:relative; }
-.doc-pane.pdf-mode { padding:10px; background:#525659; }
-
-/* PDF canvas */
-.pdf-page { display:block; margin:0 auto 10px; box-shadow:0 2px 8px rgba(0,0,0,0.3); }
-.pdf-controls { display:flex; align-items:center; gap:8px; padding:6px 14px; background:var(--bg-elevated); border-bottom:1px solid var(--border); flex-shrink:0; }
-.pdf-controls input[type=number] { width:50px; padding:3px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px; text-align:center; background:var(--bg); color:var(--fg); }
-
-/* Rendered content */
-.doc-content { max-width:800px; margin:0 auto; font-size:16px; line-height:1.75; color:var(--fg); }
-.doc-content h1 { font-size:26px; font-weight:700; margin:20px 0 10px; font-family:var(--font-heading,Georgia,serif); }
-.doc-content h2 { font-size:20px; font-weight:700; margin:16px 0 8px; }
-.doc-content h3 { font-size:16px; font-weight:600; margin:12px 0 6px; }
-.doc-content p { margin:0 0 10px; }
-.doc-content ul, .doc-content ol { padding-left:24px; margin:8px 0; }
-.doc-content li { margin:4px 0; }
-.doc-content table { border-collapse:collapse; width:100%; margin:12px 0; font-size:14px; }
-.doc-content th, .doc-content td { border:1px solid var(--border); padding:6px 10px; text-align:left; }
-.doc-content th { background:var(--bg-sunken); font-weight:600; }
-.doc-content code { background:var(--bg-sunken); padding:2px 5px; border-radius:3px; font-family:monospace; font-size:0.9em; }
-.doc-content pre { background:var(--bg-sunken); padding:12px; border-radius:6px; overflow-x:auto; margin:10px 0; }
-.doc-content blockquote { border-left:3px solid var(--accent); padding-left:14px; margin:10px 0; color:var(--fg-muted); font-style:italic; }
-.doc-content img { max-width:100%; border-radius:6px; }
-
-/* Highlight / annotation */
-.doc-content .highlight-yellow { background:rgba(255,220,0,0.35); border-radius:2px; cursor:pointer; }
-.doc-content .highlight-blue { background:rgba(45,106,159,0.2); border-radius:2px; cursor:pointer; }
-.doc-content .highlight-green { background:rgba(22,163,74,0.2); border-radius:2px; cursor:pointer; }
-.doc-content .highlight-red { background:rgba(220,38,38,0.2); border-radius:2px; cursor:pointer; }
-.doc-content .annotation-marker { display:inline-block; width:14px; height:14px; border-radius:50%; background:var(--accent); color:#fff; font-size:9px; font-weight:700; text-align:center; line-height:14px; cursor:pointer; vertical-align:super; margin-left:2px; }
-
-/* Selection toolbar (appears on text select) */
-.selection-toolbar { position:fixed; background:var(--bg-elevated); border:1px solid var(--border); border-radius:8px; padding:4px 6px; display:none; gap:4px; z-index:9000; box-shadow:0 4px 16px rgba(0,0,0,0.15); }
-.selection-toolbar.show { display:flex; }
-.sel-btn { padding:4px 8px; border:none; border-radius:5px; cursor:pointer; font-size:11px; background:var(--bg-sunken); color:var(--fg); font-family:inherit; }
-.sel-btn:hover { background:var(--accent); color:#fff; }
-.sel-btn.hl-y { background:rgba(255,220,0,0.5); }
-.sel-btn.hl-b { background:rgba(45,106,159,0.2); color:var(--accent); }
-.sel-btn.hl-g { background:rgba(22,163,74,0.2); color:#16a34a; }
-.sel-btn.hl-r { background:rgba(220,38,38,0.2); color:#dc2626; }
-
-/* Annotation panel */
-.annot-panel { width:280px; flex-shrink:0; border-left:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-surface); overflow:hidden; }
-.annot-hdr { padding:10px 12px; border-bottom:1px solid var(--border); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
-.annot-tabs { display:flex; border-bottom:1px solid var(--border); flex-shrink:0; }
-.annot-tab { flex:1; padding:7px; font-size:11px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; color:var(--fg-muted); text-align:center; }
-.annot-tab.active { border-bottom-color:var(--accent); color:var(--accent); }
-.annot-body { flex:1; overflow-y:auto; padding:10px; }
-.annot-item { padding:8px 10px; border:1px solid var(--border); border-radius:7px; margin-bottom:6px; background:var(--bg-elevated); cursor:pointer; }
-.annot-item:hover { border-color:var(--accent); }
-.annot-item-text { font-size:12px; color:var(--fg-muted); font-style:italic; margin-bottom:4px; }
-.annot-item-note { font-size:12.5px; color:var(--fg); }
-.annot-item-meta { font-size:10px; color:var(--fg-muted); margin-top:4px; }
-.annot-add { border-top:1px solid var(--border); padding:10px; flex-shrink:0; }
-.annot-textarea { width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; resize:none; min-height:60px; background:var(--bg); color:var(--fg); box-sizing:border-box; }
-.annot-send { width:100%; padding:6px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-family:inherit; margin-top:5px; }
-
-/* AI chat in annotation panel */
-.ai-msg { padding:7px 9px; border-radius:8px; font-size:12px; line-height:1.5; margin-bottom:6px; }
-.ai-msg.user { background:var(--accent); color:#fff; }
-.ai-msg.assistant { background:var(--bg-elevated); border:1px solid var(--border); color:var(--fg); }
-
-/* Empty state */
-.empty-state { text-align:center; padding:60px 20px; color:var(--fg-muted); }
-.empty-state .icon { font-size:48px; margin-bottom:12px; }
-
-/* TTS controls */
-.tts-bar { padding:6px 14px; border-top:1px solid var(--border); background:var(--bg-elevated); display:flex; align-items:center; gap:8px; flex-shrink:0; font-size:12px; }
-.tts-bar select { padding:4px 7px; border:1px solid var(--border); border-radius:5px; font-size:11px; background:var(--bg); color:var(--fg); }
+.viewer-shell{display:flex;height:100vh;overflow:hidden;}
+.viewer-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.viewer-hdr{padding:8px 14px;border-bottom:1px solid var(--border);background:var(--bg-elevated);display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;}
+.viewer-hdr h2{font-size:14px;font-weight:700;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.vt-btn{padding:5px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);font-family:inherit;transition:all 0.15s;}
+.vt-btn:hover{border-color:var(--accent);color:var(--accent);}
+.pdf-controls{padding:5px 14px;border-bottom:1px solid var(--border);background:var(--bg-elevated);display:none;align-items:center;gap:8px;flex-shrink:0;font-size:12px;}
+.doc-pane{flex:1;overflow-y:auto;padding:20px 40px;background:var(--bg);}
+.doc-pane.pdf-mode{padding:10px;background:#525659;display:flex;flex-direction:column;align-items:center;}
+.doc-content{max-width:800px;margin:0 auto;font-size:16px;line-height:1.75;color:var(--fg);}
+.doc-content h1{font-size:26px;font-weight:700;margin:20px 0 10px;}
+.doc-content h2{font-size:20px;font-weight:700;margin:16px 0 8px;}
+.doc-content h3{font-size:16px;font-weight:600;margin:12px 0 6px;}
+.doc-content p{margin:0 0 10px;}
+.doc-content ul,.doc-content ol{padding-left:24px;margin:8px 0;}
+.doc-content li{margin:4px 0;}
+.doc-content table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px;}
+.doc-content th,.doc-content td{border:1px solid var(--border);padding:6px 10px;text-align:left;}
+.doc-content th{background:var(--bg-sunken);font-weight:600;}
+.doc-content code{background:var(--bg-sunken);padding:2px 5px;border-radius:3px;font-family:monospace;font-size:0.9em;}
+.doc-content pre{background:var(--bg-sunken);padding:12px;border-radius:6px;overflow-x:auto;margin:10px 0;}
+.doc-content blockquote{border-left:3px solid var(--accent);padding-left:14px;margin:10px 0;color:var(--fg-muted);font-style:italic;}
+.annot-panel{width:260px;flex-shrink:0;border-left:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-surface);overflow:hidden;}
+.annot-hdr{padding:10px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.annot-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+.annot-tab{flex:1;padding:7px;font-size:11px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--fg-muted);text-align:center;}
+.annot-tab.active{border-bottom-color:var(--accent);color:var(--accent);}
+.annot-body{flex:1;overflow-y:auto;padding:10px;}
+.annot-add{border-top:1px solid var(--border);padding:10px;flex-shrink:0;}
+.annot-ta{width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;font-family:inherit;resize:none;min-height:60px;background:var(--bg);color:var(--fg);box-sizing:border-box;}
+.annot-send{width:100%;padding:6px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;margin-top:5px;}
+.ai-msg{padding:7px 9px;border-radius:8px;font-size:12px;line-height:1.5;margin-bottom:6px;}
+.ai-msg.user{background:var(--accent);color:#fff;}
+.ai-msg.assistant{background:var(--bg-elevated);border:1px solid var(--border);color:var(--fg);}
+.viewer-options{background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:10px;padding:16px;margin-bottom:16px;}
+.viewer-btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+.viewer-option-btn{padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:600;text-decoration:none;display:inline-block;}
+.tts-bar{padding:6px 14px;border-top:1px solid var(--border);background:var(--bg-elevated);display:none;align-items:center;gap:8px;font-size:12px;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -120,89 +57,64 @@
 <div id="main-content">
 <div class="viewer-shell">
 <div class="viewer-main">
-<!-- Header -->
-<div class="viewer-hdr">
-<h2 id="doc-title">Document Viewer</h2>
-<div class="viewer-toolbar">
-<button class="vt-btn" onclick="zoomIn()" title="Zoom in">🔍+</button>
-<button class="vt-btn" onclick="zoomOut()" title="Zoom out">🔍-</button>
-<button class="vt-btn" onclick="zoomReset()" title="Reset zoom">100%</button>
-<div style="width:1px;height:20px;background:var(--border);margin:0 2px;"></div>
-<button class="vt-btn" onclick="readAloudDoc()" title="Read aloud">🔊 Read</button>
-<button class="vt-btn" id="stop-btn" onclick="stopReading()" style="display:none;" title="Stop reading">⏹ Stop</button>
-<div style="width:1px;height:20px;background:var(--border);margin:0 2px;"></div>
-<button class="vt-btn" onclick="exportAnnotations()" title="Export annotations">⬇ Annotations</button>
-<button class="vt-btn" onclick="window.close()" title="Close">✕ Close</button>
+  <div class="viewer-hdr">
+    <h2 id="doc-title">Document Viewer</h2>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;">
+      <button class="vt-btn" onclick="zoomIn()">+ Zoom</button>
+      <button class="vt-btn" onclick="zoomOut()">- Zoom</button>
+      <button class="vt-btn" onclick="readAloudDoc()">Read Aloud</button>
+      <button class="vt-btn" id="stop-btn" onclick="stopReading()" style="display:none;">Stop</button>
+      <button class="vt-btn" onclick="exportAnnotations()">Export Notes</button>
+      <button class="vt-btn" onclick="window.history.back()">Close</button>
+    </div>
+  </div>
+  <div class="pdf-controls" id="pdf-controls">
+    <button class="vt-btn" onclick="prevPage()">Prev</button>
+    <span>Page</span>
+    <input type="number" id="page-num" value="1" min="1" style="width:50px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;text-align:center;background:var(--bg);color:var(--fg);" onchange="goToPage(parseInt(this.value))">
+    <span id="page-total">of ?</span>
+    <button class="vt-btn" onclick="nextPage()">Next</button>
+    <div style="flex:1;"></div>
+    <label style="font-size:11px;">Zoom:</label>
+    <input type="range" min="50" max="200" value="100" id="pdf-zoom" style="width:80px;" oninput="setPdfZoom(parseInt(this.value))">
+    <span id="pdf-zoom-label" style="font-size:11px;">100%</span>
+  </div>
+  <div class="doc-pane" id="doc-pane">
+    <div style="text-align:center;padding:60px 20px;color:var(--fg-muted);">
+      <div style="font-size:48px;margin-bottom:12px;">&#x1F4C4;</div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:8px;">No document loaded</div>
+      <div style="font-size:13px;">Open from Study Hub by clicking a resource.</div>
+    </div>
+  </div>
+  <div class="tts-bar" id="tts-bar">
+    <span>&#x1F50A;</span>
+    <span id="tts-status" style="flex:1;color:var(--fg-muted);">Ready</span>
+    <select id="tts-voice" style="padding:4px 7px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);">
+      <option value="aura-arcas-en">Arcas (British Male)</option>
+      <option value="aura-asteria-en">Asteria (Female)</option>
+      <option value="aura-luna-en">Luna (Female, warm)</option>
+    </select>
+    <button class="vt-btn" onclick="stopReading()">Stop</button>
+  </div>
 </div>
-</div>
-<!-- PDF page controls (shown only for PDFs) -->
-<div class="pdf-controls" id="pdf-controls" style="display:none;">
-<button class="vt-btn" onclick="prevPage()">‹ Prev</button>
-<span style="font-size:12px;">Page</span>
-<input id="page-num" min="1" onchange="goToPage(parseInt(this.value))" type="number" value="1"/>
-<span id="page-total" style="font-size:12px;">of ?</span>
-<button class="vt-btn" onclick="nextPage()">Next ›</button>
-<div style="flex:1;"></div>
-<label style="font-size:11px;color:var(--fg-muted);">Zoom:</label>
-<input id="pdf-zoom" max="200" min="50" oninput="setPdfZoom(parseInt(this.value))" style="width:80px;" type="range" value="100"/>
-<span id="pdf-zoom-label" style="font-size:11px;color:var(--fg-muted);">100%</span>
-</div>
-<!-- Document content -->
-<div class="doc-pane" id="doc-pane">
-<div class="empty-state">
-<div class="icon">📄</div>
-<div style="font-size:15px;font-weight:600;margin-bottom:8px;">No document loaded</div>
-<div style="font-size:13px;">Open this viewer from Study Hub by clicking a resource.</div>
-</div>
-</div>
-<!-- TTS bar -->
-<div class="tts-bar" id="tts-bar" style="display:none;">
-<span>🔊 Reading:</span>
-<span id="tts-status" style="flex:1;color:var(--fg-muted);">Ready</span>
-<select id="tts-voice">
-<option value="aura-arcas-en">Arcas (British Male)</option>
-<option value="aura-asteria-en">Asteria (Female)</option>
-<option value="aura-luna-en">Luna (Female, warm)</option>
-<option value="aura-zeus-en">Zeus (Male, deep)</option>
-</select>
-<button class="vt-btn" onclick="stopReading()">⏹ Stop</button>
-</div>
-</div>
-<!-- Annotation panel -->
 <div class="annot-panel">
-<div class="annot-hdr">
-<span>📝 Annotations</span>
-<span id="annot-count" style="font-size:10px;color:var(--fg-muted);">0</span>
-</div>
-<div class="annot-tabs">
-<div class="annot-tab active" onclick="switchAnnotTab('notes',this)">Notes</div>
-<div class="annot-tab" onclick="switchAnnotTab('highlights',this)">Highlights</div>
-<div class="annot-tab" onclick="switchAnnotTab('ai',this)">Ask AI</div>
-</div>
-<div class="annot-body" id="annot-body">
-<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No annotations yet. Select text to highlight or annotate.</div>
-</div>
-<div class="annot-add" id="annot-add">
-<textarea class="annot-textarea" id="annot-input" placeholder="Add a note about this document..."></textarea>
-<button class="annot-send" onclick="addNote()">Add Note</button>
+  <div class="annot-hdr"><span>Notes</span><span id="annot-count" style="font-size:10px;color:var(--fg-muted);">0</span></div>
+  <div class="annot-tabs">
+    <div class="annot-tab active" onclick="switchAnnotTab('notes',this)">Notes</div>
+    <div class="annot-tab" onclick="switchAnnotTab('ai',this)">Ask AI</div>
+  </div>
+  <div class="annot-body" id="annot-body"><div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No annotations yet.</div></div>
+  <div class="annot-add" id="annot-add">
+    <textarea class="annot-ta" id="annot-input" placeholder="Add a note..."></textarea>
+    <button class="annot-send" onclick="addNote()">Add Note</button>
+  </div>
 </div>
 </div>
-</div>
-</div>
-<!-- Selection toolbar (floating) -->
-<div class="selection-toolbar" id="sel-toolbar">
-<button class="sel-btn hl-y" onclick="highlight('yellow')" title="Highlight yellow">🟡</button>
-<button class="sel-btn hl-b" onclick="highlight('blue')" title="Highlight blue">🔵</button>
-<button class="sel-btn hl-g" onclick="highlight('green')" title="Highlight green">🟢</button>
-<button class="sel-btn hl-r" onclick="highlight('red')" title="Highlight red">🔴</button>
-<button class="sel-btn" onclick="annotateSelection()" title="Add note">📝</button>
-<button class="sel-btn" onclick="askAIAboutSelection()" title="Ask AI">💬</button>
-<button class="sel-btn" onclick="readSelection()" title="Read aloud">🔊</button>
-<button class="sel-btn" onclick="hideSelToolbar()" title="Close">✕</button>
 </div>
 <script>
+
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
-var docData = null; // {id, name, type, content, url}
+var docData = null;
 var annotations = [];
 var currentAnnotTab = 'notes';
 var pdfDoc = null;
@@ -210,47 +122,30 @@ var pdfPage = 1;
 var pdfZoom = 1.0;
 var ttsAudio = null;
 var zoom = 1.0;
-var selectedText = '';
-var selectedRange = null;
+var aiHistory = [];
 
-// ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
   if (mount && typeof buildSidebar === 'function') {
-    var sb = buildSidebar('/study-hub/');
+    var sb = buildSidebar('/doc-viewer/');
     mount.parentNode.insertBefore(sb, mount);
     mount.parentNode.removeChild(mount);
   }
-
-  // Load document from URL params or postMessage
-  var params = new URLSearchParams(window.location.search);
-  var docId = params.get('id');
-  var docName = params.get('name');
-  var docType = params.get('type');
-  var docUrl = params.get('url');
-
-  if (docId || docUrl) {
-    loadDocumentFromParams(docId, docName, docType, docUrl);
+  if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
   }
-
-  // Listen for postMessage from Study Hub
+  var params = new URLSearchParams(window.location.search);
+  var id = params.get('id');
+  var name = params.get('name');
+  var type = params.get('type');
+  var url = params.get('url');
+  if (id || url || name) loadDocumentFromParams(id, name, type, url);
   window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'load-document') {
-      loadDocument(e.data.doc);
-    }
-  });
-
-  // Selection detection
-  document.addEventListener('mouseup', onMouseUp);
-  document.addEventListener('touchend', onMouseUp);
-  document.addEventListener('mousedown', function(e) {
-    if (!e.target.closest('#sel-toolbar')) hideSelToolbar();
+    if (e.data && e.data.type === 'load-document') loadDocument(e.data.doc);
   });
 });
 
-// ── Load document ─────────────────────────────────────────────────────────────
 function loadDocumentFromParams(id, name, type, url) {
-  // Try to get from Study Hub localStorage
   try {
     var modules = JSON.parse(localStorage.getItem('study:modules') || '[]');
     for (var i = 0; i < modules.length; i++) {
@@ -259,7 +154,7 @@ function loadDocumentFromParams(id, name, type, url) {
         var w = m.weeks[j];
         for (var k = 0; k < (w.resources||[]).length; k++) {
           var res = w.resources[k];
-          if (res.id === id || res.name === name) {
+          if (res.id === id || res.name === decodeURIComponent(name||'')) {
             loadDocument(res);
             return;
           }
@@ -267,22 +162,14 @@ function loadDocumentFromParams(id, name, type, url) {
       }
     }
   } catch(e) {}
-
-  // Load from URL directly
   if (url) {
-    var doc = {id: id||'doc', name: decodeURIComponent(name||'Document'), type: type||'link', url: decodeURIComponent(url), content: ''};
-    document.getElementById('doc-title').textContent = doc.name;
-    // For PDFs and office docs, show viewer options immediately
-    var ext = doc.name.split('.').pop().toLowerCase();
-    if (ext === 'pdf' || ext === 'docx' || ext === 'doc' || ext === 'pptx' || ext === 'ppt' || ext === 'xlsx') {
-      showOfficeViewerOptions(doc, doc.name);
-    } else {
-      loadDocument(doc);
-    }
+    var decodedUrl = decodeURIComponent(url);
+    var decodedName = decodeURIComponent(name||'Document');
+    var ext = decodedName.split('.').pop().toLowerCase();
+    loadDocument({id:id||'doc', name:decodedName, type:type||ext, url:decodedUrl, content:''});
   } else if (name) {
-    // No URL but have name — show empty state with name
     document.getElementById('doc-title').textContent = decodeURIComponent(name);
-    document.getElementById('doc-pane').innerHTML = '<div class="empty-state"><div class="icon">📄</div><div style="font-size:15px;font-weight:600;">' + decodeURIComponent(name) + '</div><div style="font-size:13px;margin-top:6px;">This file was uploaded locally. To view it, open it from Study Hub.</div></div>';
+    showViewerOptions({name:decodeURIComponent(name), url:'', type:type||''}, 'Document');
   }
 }
 
@@ -290,400 +177,92 @@ function loadDocument(doc) {
   docData = doc;
   document.getElementById('doc-title').textContent = doc.name || 'Document';
   loadAnnotations(doc.id);
-
   var ext = (doc.name||'').split('.').pop().toLowerCase();
   var type = doc.type || ext;
-  var content = doc.content || '';
-
-  // Detect binary content regardless of type
-  var isBinaryContent = content.length > 100 && content.split('').filter(function(c) {
-    var code = c.charCodeAt(0);
-    return code < 32 && code !== 10 && code !== 13 && code !== 9;
-  }).length > content.length * 0.03;
-
-  // Binary office files
-  if (isBinaryContent || content.startsWith('PK') || content.startsWith('%PDF')) {
-    if (content.startsWith('%PDF') || ext === 'pdf' || type === 'pdf') {
-      renderPDF(doc);
-    } else if (doc.url) {
-      // Has URL — show viewer options immediately
-      showOfficeViewerOptions(doc, ext.toUpperCase() + ' File');
-    } else if (content.startsWith('data:') || content.startsWith('PK')) {
-      // Binary content without URL — upload to R2 first, then show viewers
-      uploadAndView(doc, ext);
-    } else {
-      showOfficeViewerOptions(doc, ext.toUpperCase() + ' File');
-    }
-    return;
-  }
-
-  if (type === 'pdf' || ext === 'pdf') {
-    renderPDF(doc);
-  } else if (type === 'ppt' || type === 'pptx' || ext === 'ppt' || ext === 'pptx') {
-    renderPPT(doc);
-  } else if (type === 'docx' || type === 'doc' || ext === 'docx' || ext === 'doc') {
-    renderDOCX(doc);
-  } else if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
-    renderSpreadsheet(doc);
-  } else if (ext === 'md' || type === 'md') {
-    renderMarkdown(doc);
-  } else if (ext === 'txt' || type === 'txt' || type === 'note') {
-    renderText(doc);
-  } else if (doc.url) {
-    renderURL(doc);
-  } else if (content.trim()) {
-    renderText(doc);
-  } else {
-    renderEmpty(doc);
-  }
-}
-
-// ── PDF rendering ─────────────────────────────────────────────────────────────
-var currentPDFDoc = null;
-var currentPDFRenderer = 'pdfjs';
-
-function setPDFRenderer(renderer) {
-  currentPDFRenderer = renderer;
-  document.querySelectorAll('[id^="renderer-"]').forEach(function(b) {
-    b.style.background = 'var(--bg)';
-    b.style.color = 'var(--fg)';
-  });
-  var btn = document.getElementById('renderer-' + renderer);
-  if (btn) { btn.style.background = 'var(--accent)'; btn.style.color = '#fff'; }
-  if (currentPDFDoc) renderPDF(currentPDFDoc);
+  if (type === 'pdf' || ext === 'pdf') renderPDF(doc);
+  else if (type === 'docx' || type === 'doc' || ext === 'docx' || ext === 'doc') renderDOCX(doc);
+  else if (type === 'pptx' || type === 'ppt' || ext === 'pptx' || ext === 'ppt') showViewerOptions(doc, 'PowerPoint');
+  else if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') showViewerOptions(doc, 'Spreadsheet');
+  else if (ext === 'md' || type === 'md') renderMarkdown(doc);
+  else if (doc.url) showViewerOptions(doc, doc.name);
+  else if (doc.content) renderText(doc);
+  else showViewerOptions(doc, doc.name);
 }
 
 function renderPDF(doc) {
-  currentPDFDoc = doc;
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane pdf-mode';
+  pane.innerHTML = '<div style="color:#fff;text-align:center;padding:20px;">Loading PDF...</div>';
   document.getElementById('pdf-controls').style.display = 'flex';
-  var optionsEl = document.getElementById('pdf-viewer-options');
-  if (optionsEl) optionsEl.style.display = 'flex';
-
-  // Nutrient renderer (free, high quality)
-  if (currentPDFRenderer === 'nutrient' && doc.url) {
-    pane.innerHTML = '';
-    var iframe = document.createElement('iframe');
-    iframe.src = 'https://pspdfkit.com/api/viewer/?url=' + encodeURIComponent(doc.url);
-    iframe.style.cssText = 'width:100%;height:100%;border:none;';
-    pane.appendChild(iframe);
-    return;
-  }
-
-  // Google Docs renderer
-  if (currentPDFRenderer === 'google' && doc.url) {
-    loadInFrame('https://docs.google.com/viewer?url=' + encodeURIComponent(doc.url) + '&embedded=true');
-    return;
-  }
-
-  // PDF.js renderer (default)
-  pane.innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:14px;">Loading PDF...</div>';
-
-  function doLoad() {
-    // Set worker — must match the library version
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-
-    var loadingTask;
-    if (doc.content && doc.content.startsWith('data:')) {
-      // Convert base64 data URL to Uint8Array
-      var b64 = doc.content.split(',')[1];
-      var binary = atob(b64);
-      var bytes = new Uint8Array(binary.length);
-      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      loadingTask = pdfjsLib.getDocument({data: bytes});
-    } else if (doc.content && !doc.url) {
-      // Raw binary string stored as content — try as text fallback
-      renderText(doc);
-      return;
-    } else if (doc.url) {
-      loadingTask = pdfjsLib.getDocument(doc.url);
-    } else {
-      pane.innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:14px;">No PDF source available. Upload the file to view it.</div>';
-      return;
-    }
-
-    loadingTask.promise.then(function(pdf) {
-      pdfDoc = pdf;
-      document.getElementById('page-total').textContent = 'of ' + pdf.numPages;
-      renderPDFPage(1);
-    }).catch(function(e) {
-      pane.innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:14px;">PDF error: ' + e.message + '<br><br><a href="' + (doc.url||'#') + '" target="_blank" style="color:#7ecfcd;">Open in new tab ↗</a></div>';
-    });
-  }
-
-  if (typeof pdfjsLib !== 'undefined') {
-    doLoad();
+  var src = null;
+  if (doc.content && doc.content.startsWith('data:')) {
+    var b64 = doc.content.split(',')[1];
+    var binary = atob(b64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    src = {data: bytes};
+  } else if (doc.url) {
+    src = doc.url;
   } else {
-    // Load PDF.js dynamically if not yet loaded
-    pane.innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:14px;">Loading PDF renderer...</div>';
-    var s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
-    s.onload = doLoad;
-    s.onerror = function() {
-      pane.innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:14px;">Could not load PDF renderer.<br><a href="' + (doc.url||'#') + '" target="_blank" style="color:#7ecfcd;">Open PDF in new tab ↗</a></div>';
-    };
-    document.head.appendChild(s);
+    showViewerOptions(doc, 'PDF');
+    return;
   }
-}
-
-function loadPDFWithLib(src) {
-  // Legacy alias — calls renderPDF internally now
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  if (typeof pdfjsLib === 'undefined') {
+    pane.innerHTML = '<div style="color:#fff;text-align:center;padding:40px;">PDF.js not loaded. Refresh and try again.</div>';
+    return;
+  }
   pdfjsLib.getDocument(src).promise.then(function(pdf) {
     pdfDoc = pdf;
     document.getElementById('page-total').textContent = 'of ' + pdf.numPages;
     renderPDFPage(1);
   }).catch(function(e) {
-    document.getElementById('doc-pane').innerHTML = '<div style="text-align:center;padding:40px;color:#fff;font-size:14px;">PDF error: ' + e.message + '</div>';
+    showViewerOptions(doc, 'PDF');
   });
 }
 
 function renderPDFPage(num) {
   if (!pdfDoc) return;
   pdfPage = Math.max(1, Math.min(num, pdfDoc.numPages));
-  var pageNumEl = document.getElementById('page-num');
-  if (pageNumEl) pageNumEl.value = pdfPage;
-
+  document.getElementById('page-num').value = pdfPage;
   pdfDoc.getPage(pdfPage).then(function(page) {
-    var dpr = window.devicePixelRatio || 1;
-    // Scale to fit pane width, respecting zoom
-    var pane = document.getElementById('doc-pane');
-    var paneWidth = pane.clientWidth - 20;
-    var baseViewport = page.getViewport({scale: 1});
-    var fitScale = paneWidth / baseViewport.width;
-    var scale = fitScale * pdfZoom;
-    var viewport = page.getViewport({scale: scale});
-
+    var viewport = page.getViewport({scale: pdfZoom});
     var canvas = document.createElement('canvas');
-    canvas.className = 'pdf-page';
-    canvas.width = Math.floor(viewport.width * dpr);
-    canvas.height = Math.floor(viewport.height * dpr);
-    canvas.style.width = viewport.width + 'px';
-    canvas.style.height = viewport.height + 'px';
-
+    canvas.style.cssText = 'display:block;margin:0 auto 10px;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
     var ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-
+    var pane = document.getElementById('doc-pane');
     pane.innerHTML = '';
     pane.appendChild(canvas);
-
-    // Create ink canvas overlay after PDF renders
-    page.render({canvasContext: ctx, viewport: viewport}).promise.then(function() {
-      if (typeof createInkCanvas === 'function') {
-        setTimeout(createInkCanvas, 100);
-      }
-    });
-  }).catch(function(e) {
-    console.error('Page render error:', e);
+    page.render({canvasContext:ctx, viewport:viewport});
   });
 }
 
-function prevPage() { renderPDFPage(pdfPage - 1); }
-function nextPage() { renderPDFPage(pdfPage + 1); }
-function goToPage(n) { renderPDFPage(n); }
-function setPdfZoom(pct) {
-  pdfZoom = pct / 100;
-  document.getElementById('pdf-zoom-label').textContent = pct + '%';
-  renderPDFPage(pdfPage);
-}
+function prevPage(){renderPDFPage(pdfPage-1);}
+function nextPage(){renderPDFPage(pdfPage+1);}
+function goToPage(n){renderPDFPage(n);}
+function setPdfZoom(pct){pdfZoom=pct/100;document.getElementById('pdf-zoom-label').textContent=pct+'%';renderPDFPage(pdfPage);}
 
-// ── DOCX rendering ────────────────────────────────────────────────────────────
 function renderDOCX(doc) {
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane';
-  pane.innerHTML = '';
-  var content = doc.content || '';
-  var isBinary = content.length > 50 && content.split('').filter(function(c) {
-    var code = c.charCodeAt(0);
-    return code < 32 && code !== 10 && code !== 13 && code !== 9;
-  }).length > content.length * 0.05;
-  if (isBinary || content.startsWith('PK')) {
-    showOfficeViewerOptions(doc, 'DOCX / Word Document');
-    return;
-  }
-  if (content.startsWith('data:')) {
-    var doMammoth = function() {
-      try {
-        var b64 = content.split(',')[1];
-        var binary = atob(b64);
-        var bytes = new Uint8Array(binary.length);
-        for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        mammoth.convertToHtml({arrayBuffer: bytes.buffer}).then(function(result) {
-          pane.innerHTML = '<div class="doc-content">' + result.value + '</div>';
-          setupAnnotationLayer();
-        }).catch(function() { showOfficeViewerOptions(doc, 'DOCX'); });
-      } catch(e) { showOfficeViewerOptions(doc, 'DOCX'); }
-    };
-    if (typeof mammoth !== 'undefined') { doMammoth(); }
-    else {
-      var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js';
-      s.onload = doMammoth;
-      s.onerror = function() { showOfficeViewerOptions(doc, 'DOCX'); };
-      document.head.appendChild(s);
-    }
-    return;
-  }
-  if (content.trim()) {
-    pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;font-size:15px;line-height:1.7;">' + content.substring(0,20000).replace(/</g,'&lt;') + '</pre></div>';
-    setupAnnotationLayer();
-  } else { showOfficeViewerOptions(doc, 'DOCX'); }
-}
-
-function showOfficeViewerOptions(doc, label) {
-  var pane = document.getElementById('doc-pane');
-  pane.innerHTML = '';
-  var wrap = document.createElement('div');
-  wrap.className = 'doc-content';
-  var hdr = document.createElement('div');
-  hdr.style.cssText = 'background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:10px;padding:18px;margin-bottom:16px;';
-  var titleEl = document.createElement('div');
-  titleEl.style.cssText = 'font-size:17px;font-weight:700;margin-bottom:8px;';
-  titleEl.textContent = (doc.name || label || 'Document');
-  var descEl = document.createElement('div');
-  descEl.style.cssText = 'font-size:14px;color:var(--fg-muted);margin-bottom:14px;';
-  descEl.textContent = 'Open in an external viewer:';
-  var btnRow = document.createElement('div');
-  btnRow.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;';
-  var gdBtn = document.createElement('button');
-  gdBtn.style.cssText = 'padding:10px 18px;background:#4285f4;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:600;';
-  gdBtn.textContent = 'Google Docs Viewer';
-  var offBtn = document.createElement('button');
-  offBtn.style.cssText = 'padding:10px 18px;background:#d83b01;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:600;';
-  offBtn.textContent = 'Office Online';
-  if (doc.url) {
-    gdBtn.onclick = (function(u){return function(){loadInFrame('https://docs.google.com/viewer?url='+encodeURIComponent(u)+'&embedded=true');};})(doc.url);
-    offBtn.onclick = (function(u){return function(){loadInFrame('https://view.officeapps.live.com/op/embed.aspx?src='+encodeURIComponent(u));};})(doc.url);
-    var directLink = document.createElement('a');
-    directLink.href = doc.url; directLink.target = '_blank';
-    directLink.textContent = 'Open directly';
-    directLink.style.cssText = 'padding:10px 18px;background:var(--accent);color:#fff;border-radius:7px;text-decoration:none;font-size:14px;font-weight:600;display:inline-block;';
-    btnRow.appendChild(gdBtn); btnRow.appendChild(offBtn); btnRow.appendChild(directLink);
+  if (!doc.content || doc.content.length < 10) { showViewerOptions(doc, 'Word Document'); return; }
+  var isBinary = doc.content.split('').filter(function(c){var code=c.charCodeAt(0);return code<32&&code!==10&&code!==13&&code!==9;}).length > doc.content.length * 0.05;
+  if (isBinary) { showViewerOptions(doc, 'Word Document'); return; }
+  if (doc.content.startsWith('data:')) {
+    if (typeof mammoth === 'undefined') { showViewerOptions(doc, 'Word Document'); return; }
+    var b64 = doc.content.split(',')[1];
+    var binary = atob(b64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    mammoth.convertToHtml({arrayBuffer:bytes.buffer}).then(function(result) {
+      pane.innerHTML = '<div class="doc-content">' + result.value + '</div>';
+    }).catch(function(){showViewerOptions(doc,'Word Document');});
   } else {
-    var noteEl = document.createElement('div');
-    noteEl.style.cssText = 'font-size:13px;color:var(--fg-muted);margin-bottom:10px;';
-    noteEl.textContent = 'Clicking will upload this file to get a public URL, then open it:';
-    hdr.appendChild(noteEl);
-    gdBtn.onclick = function(){uploadToR2AndOpen('google',doc);};
-    offBtn.onclick = function(){uploadToR2AndOpen('office',doc);};
-    btnRow.appendChild(gdBtn); btnRow.appendChild(offBtn);
-  }
-  hdr.appendChild(titleEl); hdr.appendChild(descEl); hdr.appendChild(btnRow);
-  wrap.appendChild(hdr); pane.appendChild(wrap);
-}
-
-function uploadToR2AndOpen(viewer, doc) {
-  var pane = document.getElementById('doc-pane');
-  var status = document.createElement('div');
-  status.style.cssText = 'padding:12px;color:var(--fg-muted);font-size:14px;';
-  status.textContent = 'Uploading file to get public URL...';
-  pane.appendChild(status);
-  var mimeType = (doc.name||'').endsWith('.docx') ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' :
-                 (doc.name||'').endsWith('.pptx') ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation' :
-                 'application/octet-stream';
-  fetch('https://prism-api.identitypartners.workers.dev/api/r2/upload', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({content:doc.content||'',filename:doc.name||'document',mimeType:mimeType})
-  }).then(function(r){return r.json();}).then(function(d){
-    if (d.url) {
-      doc.url = d.url;
-      if (viewer==='google') loadInFrame('https://docs.google.com/viewer?url='+encodeURIComponent(d.url)+'&embedded=true');
-      else loadInFrame('https://view.officeapps.live.com/op/embed.aspx?src='+encodeURIComponent(d.url));
-    } else { status.textContent='Upload failed: '+(d.error||'unknown'); status.style.color='#dc2626'; }
-  }).catch(function(e){status.textContent='Error: '+e.message;status.style.color='#dc2626';});
-}
-
-
-function loadInFrame(url) {
-  var pane = document.getElementById('doc-pane');
-  pane.innerHTML = '';
-  var iframe = document.createElement('iframe');
-  iframe.src = url;
-  iframe.style.cssText = 'width:100%;height:100%;border:none;';
-  iframe.allowFullscreen = true;
-  pane.appendChild(iframe);
-}
-
-function extractText() {
-  if (!docData || !docData.url) return;
-  var statusEl = document.getElementById('extract-status');
-  if (statusEl) statusEl.textContent = 'Extracting text...';
-  fetch('https://prism-api.identitypartners.workers.dev/api/firecrawl/scrape', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({url: docData.url, formats: ['markdown']})
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(d) {
-    var text = d.markdown || d.content || d.text || '';
-    if (text && statusEl) {
-      statusEl.innerHTML = '';
-      var pre = document.createElement('pre');
-      pre.style.cssText = 'white-space:pre-wrap;font-size:15px;line-height:1.7;';
-      pre.textContent = text.substring(0, 10000);
-      statusEl.appendChild(pre);
-    } else if (statusEl) {
-      statusEl.textContent = 'Could not extract text. Try Google Docs or Office Online above.';
-      statusEl.style.color = '#dc2626';
-    }
-  })
-  .catch(function(e) {
-    if (statusEl) { statusEl.textContent = 'Error: ' + e.message; statusEl.style.color = '#dc2626'; }
-  });
-}
-
-
-function renderSpreadsheet(doc) {
-  var pane = document.getElementById('doc-pane');
-  pane.className = 'doc-pane';
-
-  var renderFromContent = function(content) {
-    try {
-      var wb;
-      if (content.startsWith('data:')) {
-        var b64 = content.split(',')[1];
-        wb = XLSX.read(b64, {type:'base64'});
-      } else {
-        wb = XLSX.read(content, {type:'string'});
-      }
-      var html = '<div class="doc-content">';
-      wb.SheetNames.forEach(function(name) {
-        html += '<h3 style="margin:16px 0 8px;">' + name + '</h3>';
-        html += XLSX.utils.sheet_to_html(wb.Sheets[name], {editable:false});
-      });
-      html += '</div>';
-      pane.innerHTML = html;
-      // Style the generated table
-      pane.querySelectorAll('table').forEach(function(t) {
-        t.style.cssText = 'border-collapse:collapse;width:100%;margin-bottom:16px;font-size:13px;';
-        t.querySelectorAll('td,th').forEach(function(c) {
-          c.style.cssText = 'border:1px solid var(--border);padding:5px 8px;';
-        });
-      });
-      setupAnnotationLayer();
-    } catch(e) {
-      pane.innerHTML = '<div class="doc-content"><p style="color:#dc2626;">Spreadsheet error: ' + e.message + '</p></div>';
-    }
-  };
-
-  if (typeof XLSX === 'undefined') {
-    pane.innerHTML = '<div class="doc-content"><p>Loading spreadsheet renderer...</p></div>';
-    var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
-    script.onload = function() { renderSpreadsheet(doc); };
-    document.head.appendChild(script);
-    return;
-  }
-
-  if (doc.content) {
-    renderFromContent(doc.content);
-  } else {
-    pane.innerHTML = '<div class="doc-content"><p style="color:var(--fg-muted);">No spreadsheet content. Upload the file.</p></div>';
+    pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;">' + doc.content.replace(/</g,'&lt;') + '</pre></div>';
   }
 }
 
-// ── Markdown rendering ────────────────────────────────────────────────────────
 function renderMarkdown(doc) {
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane';
@@ -691,255 +270,141 @@ function renderMarkdown(doc) {
   if (typeof marked !== 'undefined') {
     pane.innerHTML = '<div class="doc-content">' + marked.parse(content) + '</div>';
   } else {
-    // Simple fallback
-    var html = content
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/^# (.+)$/gm,'<h1>$1</h1>')
-      .replace(/^## (.+)$/gm,'<h2>$1</h2>')
-      .replace(/^### (.+)$/gm,'<h3>$1</h3>')
-      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g,'<em>$1</em>')
-      .replace(/\n\n/g,'</p><p>')
-      .replace(/\n/g,'<br>');
-    pane.innerHTML = '<div class="doc-content"><p>' + html + '</p></div>';
+    pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;">' + content.replace(/</g,'&lt;') + '</pre></div>';
   }
-  setupAnnotationLayer();
 }
 
-// ── Text rendering ────────────────────────────────────────────────────────────
 function renderText(doc) {
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane';
-  var content = doc.content || '';
-  pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;font-size:15px;line-height:1.7;">' + content.replace(/</g,'&lt;') + '</pre></div>';
-  setupAnnotationLayer();
+  pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;font-size:15px;line-height:1.7;">' + (doc.content||'').replace(/</g,'&lt;') + '</pre></div>';
 }
 
-// ── URL rendering ─────────────────────────────────────────────────────────────
-function renderURL(doc) {
+function showViewerOptions(doc, label) {
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane';
-  pane.innerHTML = '<div class="doc-content">' +
-    '<div style="background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:8px;padding:16px;margin-bottom:16px;">' +
-    '<div style="font-size:14px;font-weight:600;margin-bottom:6px;">🔗 ' + (doc.name||'Link') + '</div>' +
-    '<a href="' + doc.url + '" target="_blank" style="color:var(--accent);font-size:13px;">' + doc.url + ' ↗</a>' +
-    '</div>' +
-    (doc.content ? '<div class="doc-content"><p>' + doc.content.replace(/</g,'&lt;').replace(/\n/g,'<br>') + '</p></div>' : '') +
-    '</div>';
-}
-
-function renderEmpty(doc) {
-  document.getElementById('doc-pane').innerHTML = '<div class="empty-state"><div class="icon">📄</div><div style="font-size:15px;font-weight:600;">' + (doc.name||'Document') + '</div><div style="font-size:13px;margin-top:6px;">No content available. Upload the file to view it.</div></div>';
-}
-
-// ── Annotation layer ──────────────────────────────────────────────────────────
-function setupAnnotationLayer() {
-  // Re-apply saved highlights
-  annotations.filter(function(a){return a.type==='highlight';}).forEach(function(a) {
-    // Highlights are stored as text ranges — re-apply on render
-    // (simplified: just show in panel)
-  });
-}
-
-// ── Text selection ────────────────────────────────────────────────────────────
-function onMouseUp(e) {
-  setTimeout(function() {
-    var sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-      hideSelToolbar();
-      return;
-    }
-    selectedText = sel.toString().trim();
-    selectedRange = sel.getRangeAt(0).cloneRange();
-    var rect = sel.getRangeAt(0).getBoundingClientRect();
-    var toolbar = document.getElementById('sel-toolbar');
-    toolbar.style.left = Math.min(rect.left, window.innerWidth - 280) + 'px';
-    toolbar.style.top = (rect.top + window.scrollY - 44) + 'px';
-    toolbar.classList.add('show');
-  }, 10);
-}
-
-function hideSelToolbar() {
-  document.getElementById('sel-toolbar').classList.remove('show');
-}
-
-function highlight(colour) {
-  if (!selectedRange) return;
-  var span = document.createElement('span');
-  span.className = 'highlight-' + colour;
-  span.title = 'Click to annotate';
-  span.onclick = function() { annotateHighlight(span); };
-  try {
-    selectedRange.surroundContents(span);
-  } catch(e) {
-    // Range spans multiple elements — wrap each text node
-    var frag = selectedRange.extractContents();
-    span.appendChild(frag);
-    selectedRange.insertNode(span);
+  var card = document.createElement('div');
+  card.className = 'viewer-options';
+  var titleEl = document.createElement('div');
+  titleEl.style.cssText = 'font-size:16px;font-weight:700;margin-bottom:6px;';
+  titleEl.textContent = '\uD83D\uDCC4 ' + (doc.name || label);
+  var descEl = document.createElement('div');
+  descEl.style.cssText = 'font-size:13px;color:var(--fg-muted);margin-bottom:10px;';
+  descEl.textContent = 'Choose a viewer:';
+  card.appendChild(titleEl);
+  card.appendChild(descEl);
+  if (doc.url) {
+    var btnRow = document.createElement('div');
+    btnRow.className = 'viewer-btn-row';
+    var gdBtn = document.createElement('a');
+    gdBtn.href = 'https://docs.google.com/viewer?url=' + encodeURIComponent(doc.url) + '&embedded=true';
+    gdBtn.target = '_blank';
+    gdBtn.className = 'viewer-option-btn';
+    gdBtn.style.cssText = 'background:#4285f4;color:#fff;';
+    gdBtn.textContent = 'Google Docs Viewer';
+    var offBtn = document.createElement('a');
+    offBtn.href = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(doc.url);
+    offBtn.target = '_blank';
+    offBtn.className = 'viewer-option-btn';
+    offBtn.style.cssText = 'background:#d83b01;color:#fff;';
+    offBtn.textContent = 'Office Online';
+    var directBtn = document.createElement('a');
+    directBtn.href = doc.url;
+    directBtn.target = '_blank';
+    directBtn.className = 'viewer-option-btn';
+    directBtn.style.cssText = 'background:var(--accent);color:#fff;';
+    directBtn.textContent = 'Open directly';
+    var iframeBtn = document.createElement('button');
+    iframeBtn.className = 'viewer-option-btn';
+    iframeBtn.style.cssText = 'background:var(--bg);color:var(--fg);border:1px solid var(--border);cursor:pointer;';
+    iframeBtn.textContent = 'Embed viewer';
+    iframeBtn.onclick = (function(u){return function(){loadInFrame('https://docs.google.com/viewer?url='+encodeURIComponent(u)+'&embedded=true');};})(doc.url);
+    btnRow.appendChild(gdBtn);
+    btnRow.appendChild(offBtn);
+    btnRow.appendChild(directBtn);
+    btnRow.appendChild(iframeBtn);
+    card.appendChild(btnRow);
+  } else {
+    var noUrl = document.createElement('div');
+    noUrl.style.cssText = 'font-size:13px;color:var(--fg-muted);';
+    noUrl.textContent = 'No public URL. Upload to OneDrive or share publicly to use external viewers.';
+    card.appendChild(noUrl);
   }
-  var annot = {
-    id: 'h-' + Date.now(),
-    type: 'highlight',
-    colour: colour,
-    text: selectedText.substring(0, 200),
-    note: '',
-    created: new Date().toISOString()
-  };
-  annotations.push(annot);
-  saveAnnotations();
-  renderAnnotations();
-  hideSelToolbar();
+  pane.appendChild(card);
 }
 
-function annotateSelection() {
-  hideSelToolbar();
-  var note = prompt('Add annotation for: "' + selectedText.substring(0,80) + '"');
-  if (!note) return;
-  var annot = {
-    id: 'n-' + Date.now(),
-    type: 'note',
-    text: selectedText.substring(0, 200),
-    note: note,
-    created: new Date().toISOString()
-  };
-  annotations.push(annot);
-  saveAnnotations();
-  renderAnnotations();
+function loadInFrame(url) {
+  var pane = document.getElementById('doc-pane');
+  pane.className = 'doc-pane';
+  pane.style.padding = '0';
+  var iframe = document.createElement('iframe');
+  iframe.src = url;
+  iframe.style.cssText = 'width:100%;height:100%;border:none;';
+  iframe.allow = 'fullscreen';
+  pane.innerHTML = '';
+  pane.appendChild(iframe);
 }
 
-function annotateHighlight(span) {
-  var note = prompt('Add note to highlight:');
-  if (!note) return;
-  var id = span.dataset.annotId;
-  var annot = annotations.find(function(a){return a.id===id;});
-  if (annot) { annot.note = note; saveAnnotations(); renderAnnotations(); }
-}
-
-function askAIAboutSelection() {
-  hideSelToolbar();
-  switchAnnotTab('ai');
-  var input = document.getElementById('annot-input');
-  if (input) input.value = 'Explain this passage: "' + selectedText.substring(0,300) + '"';
-  sendAI();
-}
-
-function readSelection() {
-  hideSelToolbar();
-  if (!selectedText) return;
-  readTextAloud(selectedText);
-}
-
-// ── Annotations ───────────────────────────────────────────────────────────────
 function loadAnnotations(docId) {
-  try {
-    annotations = JSON.parse(localStorage.getItem('annot:' + docId) || '[]');
-  } catch(e) { annotations = []; }
+  try { annotations = JSON.parse(localStorage.getItem('annot:'+docId)||'[]'); } catch(e){annotations=[];}
   renderAnnotations();
 }
-
 function saveAnnotations() {
   if (!docData) return;
-  try { localStorage.setItem('annot:' + docData.id, JSON.stringify(annotations)); } catch(e) {}
+  try { localStorage.setItem('annot:'+docData.id, JSON.stringify(annotations)); } catch(e){}
 }
-
 function addNote() {
-  var input = document.getElementById('annot-input');
-  var note = input ? input.value.trim() : '';
+  var inp = document.getElementById('annot-input');
+  var note = inp ? inp.value.trim() : '';
   if (!note) return;
-  annotations.push({
-    id: 'n-' + Date.now(),
-    type: 'note',
-    text: '',
-    note: note,
-    created: new Date().toISOString()
-  });
-  if (input) input.value = '';
+  annotations.push({id:'n-'+Date.now(),type:'note',note:note,created:new Date().toISOString()});
+  if (inp) inp.value = '';
   saveAnnotations();
   renderAnnotations();
 }
-
 function renderAnnotations() {
   var body = document.getElementById('annot-body');
   var count = document.getElementById('annot-count');
   if (count) count.textContent = annotations.length;
-
-  var filtered = annotations.filter(function(a) {
-    if (currentAnnotTab === 'notes') return a.type === 'note';
-    if (currentAnnotTab === 'highlights') return a.type === 'highlight';
-    return false;
-  });
-
-  if (!filtered.length) {
-    body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">' +
-      (currentAnnotTab === 'notes' ? 'No notes yet. Select text and click 📝, or type below.' :
-       currentAnnotTab === 'highlights' ? 'No highlights yet. Select text and click a colour.' :
-       '') + '</div>';
-    return;
-  }
-
+  if (!annotations.length) { body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No annotations yet.</div>'; return; }
   body.innerHTML = '';
-  filtered.slice().reverse().forEach(function(a) {
+  annotations.slice().reverse().forEach(function(a) {
     var div = document.createElement('div');
-    div.className = 'annot-item';
-    var colourDot = a.colour ? '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + {yellow:'#ffdd00',blue:'#2d6a9f',green:'#16a34a',red:'#dc2626'}[a.colour] + ';margin-right:4px;"></span>' : '';
-    div.innerHTML = (a.text ? '<div class="annot-item-text">' + colourDot + '"' + a.text.substring(0,80) + (a.text.length>80?'...':'"') + '</div>' : '') +
-      (a.note ? '<div class="annot-item-note">' + a.note.replace(/</g,'&lt;') + '</div>' : '') +
-      '<div class="annot-item-meta">' + new Date(a.created).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) +
-      ' <button onclick="deleteAnnotation(\'' + a.id + '\')" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:10px;margin-left:6px;">✕</button></div>';
+    div.style.cssText = 'padding:8px 10px;border:1px solid var(--border);border-radius:7px;margin-bottom:6px;background:var(--bg-elevated);font-size:12px;';
+    div.textContent = a.note || '';
+    var meta = document.createElement('div');
+    meta.style.cssText = 'font-size:10px;color:var(--fg-muted);margin-top:4px;';
+    meta.textContent = new Date(a.created).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    div.appendChild(meta);
     body.appendChild(div);
   });
 }
-
-function deleteAnnotation(id) {
-  annotations = annotations.filter(function(a){return a.id!==id;});
-  saveAnnotations();
-  renderAnnotations();
-}
-
 function exportAnnotations() {
-  var lines = ['# Annotations: ' + (docData ? docData.name : 'Document'), ''];
-  annotations.forEach(function(a) {
-    lines.push('## ' + (a.type==='highlight'?'Highlight':'Note') + ' — ' + new Date(a.created).toLocaleString('en-GB'));
-    if (a.text) lines.push('> ' + a.text);
-    if (a.note) lines.push(a.note);
-    lines.push('');
-  });
-  var blob = new Blob([lines.join('\n')], {type:'text/markdown'});
-  var link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = (docData ? docData.name : 'document') + '-annotations.md';
-  link.click();
+  var lines = ['# Annotations: '+(docData?docData.name:'Document'),''];
+  annotations.forEach(function(a){lines.push(a.note||'');lines.push('');});
+  var blob = new Blob([lines.join('\n')],{type:'text/markdown'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (docData?docData.name:'doc')+'-notes.md';
+  a.click();
 }
-
-// ── AI chat ───────────────────────────────────────────────────────────────────
-var aiHistory = [];
-
 function switchAnnotTab(tab, btn) {
   currentAnnotTab = tab;
   document.querySelectorAll('.annot-tab').forEach(function(t){t.classList.remove('active');});
   if (btn) btn.classList.add('active');
-  else document.querySelectorAll('.annot-tab').forEach(function(t){if(t.textContent.toLowerCase()===tab)t.classList.add('active');});
-
   var addArea = document.getElementById('annot-add');
+  var body = document.getElementById('annot-body');
   if (tab === 'ai') {
-    if (addArea) {
-      addArea.innerHTML = '<textarea class="annot-textarea" id="annot-input" placeholder="Ask about this document..."></textarea><button class="annot-send" onclick="sendAI()">Ask</button>';
-    }
+    if (addArea) addArea.innerHTML = '<textarea class="annot-ta" id="annot-input" placeholder="Ask about this document..."></textarea><button class="annot-send" onclick="sendAI()">Ask</button>';
     renderAIChat();
   } else {
-    if (addArea) {
-      addArea.innerHTML = '<textarea class="annot-textarea" id="annot-input" placeholder="Add a note about this document..."></textarea><button class="annot-send" onclick="addNote()">Add Note</button>';
-    }
+    if (addArea) addArea.innerHTML = '<textarea class="annot-ta" id="annot-input" placeholder="Add a note..."></textarea><button class="annot-send" onclick="addNote()">Add Note</button>';
     renderAnnotations();
   }
 }
-
 function renderAIChat() {
   var body = document.getElementById('annot-body');
-  if (!aiHistory.length) {
-    body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">Ask anything about this document. Select text first to ask about a specific passage.</div>';
-    return;
-  }
+  if (!aiHistory.length) { body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">Ask anything about this document.</div>'; return; }
   body.innerHTML = '';
   aiHistory.forEach(function(m) {
     var div = document.createElement('div');
@@ -949,92 +414,42 @@ function renderAIChat() {
   });
   body.scrollTop = body.scrollHeight;
 }
-
 function sendAI() {
-  var input = document.getElementById('annot-input');
-  var text = input ? input.value.trim() : '';
+  var inp = document.getElementById('annot-input');
+  var text = inp ? inp.value.trim() : '';
   if (!text) return;
-  if (input) input.value = '';
-
-  var docContext = docData ? 'Document: ' + docData.name + '. ' : '';
-  if (docData && docData.content) docContext += 'Content excerpt: ' + docData.content.substring(0, 3000) + '. ';
-
-  aiHistory.push({role:'user', content:text});
+  if (inp) inp.value = '';
+  aiHistory.push({role:'user',content:text});
   renderAIChat();
-
-  var messages = [
-    {role:'system', content:'You are a study assistant helping Simon analyse academic documents. ' + docContext + 'British English. Be precise and cite specific passages when possible.'}
-  ].concat(aiHistory);
-
-  fetch(WORKER + '/api/chat', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({messages:messages, profile:'balanced'})
-  })
+  var docCtx = docData ? 'Document: ' + docData.name + '. ' : '';
+  fetch(WORKER+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'system',content:'You are a study assistant. '+docCtx+'British English. Be precise.'},{role:'user',content:text}],profile:'balanced'})})
   .then(function(r){return r.json();})
-  .then(function(d){
-    var response = d.content || 'No response.';
-    aiHistory.push({role:'assistant', content:response});
-    renderAIChat();
-  })
-  .catch(function(e){
-    aiHistory.push({role:'assistant', content:'Error: ' + e.message});
-    renderAIChat();
-  });
+  .then(function(d){aiHistory.push({role:'assistant',content:d.content||'No response.'});renderAIChat();})
+  .catch(function(e){aiHistory.push({role:'assistant',content:'Error: '+e.message});renderAIChat();});
 }
-
-// ── TTS ───────────────────────────────────────────────────────────────────────
 function readAloudDoc() {
   var pane = document.getElementById('doc-pane');
   var text = pane.innerText || pane.textContent || '';
-  readTextAloud(text.substring(0, 5000));
-}
-
-function readTextAloud(text) {
-  if (!text) return;
+  if (!text.trim()) return;
   var voice = document.getElementById('tts-voice') ? document.getElementById('tts-voice').value : 'aura-arcas-en';
   document.getElementById('tts-bar').style.display = 'flex';
   document.getElementById('tts-status').textContent = 'Generating audio...';
   document.getElementById('stop-btn').style.display = 'inline-block';
-
-  fetch(WORKER + '/api/tts/read', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({text:text, voice:voice, provider:'deepgram'})
-  })
-  .then(function(r){
-    if (!r.ok) throw new Error('TTS failed: ' + r.status);
-    return r.blob();
-  })
+  fetch(WORKER+'/api/tts/read',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text.substring(0,5000),voice:voice,provider:'deepgram'})})
+  .then(function(r){if(!r.ok)throw new Error('TTS failed');return r.blob();})
   .then(function(blob){
-    if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; }
-    var url = URL.createObjectURL(blob);
-    ttsAudio = new Audio(url);
+    if (ttsAudio){ttsAudio.pause();ttsAudio=null;}
+    ttsAudio = new Audio(URL.createObjectURL(blob));
     ttsAudio.play();
     document.getElementById('tts-status').textContent = 'Playing...';
-    ttsAudio.onended = function() {
-      document.getElementById('tts-status').textContent = 'Done';
-      document.getElementById('stop-btn').style.display = 'none';
-    };
+    ttsAudio.onended = function(){document.getElementById('tts-status').textContent='Done';document.getElementById('stop-btn').style.display='none';};
   })
-  .catch(function(e){
-    document.getElementById('tts-status').textContent = 'Error: ' + e.message;
-    document.getElementById('stop-btn').style.display = 'none';
-  });
+  .catch(function(e){document.getElementById('tts-status').textContent='Error: '+e.message;document.getElementById('stop-btn').style.display='none';});
 }
+function stopReading(){if(ttsAudio){ttsAudio.pause();ttsAudio=null;}document.getElementById('tts-status').textContent='Stopped';document.getElementById('stop-btn').style.display='none';}
+function zoomIn(){zoom=Math.min(zoom+0.1,2.0);var c=document.querySelector('.doc-content');if(c)c.style.fontSize=Math.round(16*zoom)+'px';}
+function zoomOut(){zoom=Math.max(zoom-0.1,0.5);var c=document.querySelector('.doc-content');if(c)c.style.fontSize=Math.round(16*zoom)+'px';}
 
-function stopReading() {
-  if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; }
-  document.getElementById('tts-status').textContent = 'Stopped';
-  document.getElementById('stop-btn').style.display = 'none';
-}
-
-// ── Zoom ──────────────────────────────────────────────────────────────────────
-function zoomIn() { zoom = Math.min(zoom + 0.1, 2.0); applyZoom(); }
-function zoomOut() { zoom = Math.max(zoom - 0.1, 0.5); applyZoom(); }
-function zoomReset() { zoom = 1.0; applyZoom(); }
-function applyZoom() {
-  var content = document.querySelector('.doc-content');
-  if (content) content.style.fontSize = Math.round(16 * zoom) + 'px';
-}
 </script>
 </body>
 </html>
