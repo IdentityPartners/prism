@@ -3188,6 +3188,73 @@ export default {
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── Telegram webhook receiver ─────────────────────────────────────────────
+    if (path === '/api/telegram/webhook' && request.method === 'POST') {
+      try {
+        const update = await request.json();
+        const msg = update.message || update.edited_message;
+        if (!msg) return json({ok:true}, 200, origin);
+        const text = msg.text || '';
+        const from = msg.from ? (msg.from.first_name + ' ' + (msg.from.last_name||'')).trim() : 'Unknown';
+        const chatId = msg.chat?.id;
+        // Store as inbox notification
+        if (env.PRISM_KV) {
+          const notifRaw = await env.PRISM_KV.get('inbox:notifications');
+          const notifs = notifRaw ? JSON.parse(notifRaw) : [];
+          notifs.unshift({
+            id:'tg-'+Date.now(),
+            type:'telegram',
+            title:'Telegram from ' + from,
+            message:text.substring(0,200),
+            link:'/inbox/',
+            ts:new Date().toISOString(),
+            read:false,
+            chatId:chatId,
+          });
+          await env.PRISM_KV.put('inbox:notifications', JSON.stringify(notifs.slice(0,200)));
+        }
+        // Auto-reply if it's a command
+        const tgToken = k(env, ['telegram_token','TELEGRAM_TOKEN']) || '';
+        if (tgToken && chatId && text.startsWith('/')) {
+          let reply = '';
+          if (text === '/status') reply = 'Argentica is running. All systems operational.';
+          else if (text === '/help') reply = 'Commands: /status, /help, /queue\nSend any message to add to inbox.';
+          else if (text === '/queue') {
+            const qRaw = env.PRISM_KV ? await env.PRISM_KV.get('mm:queue:list') : null;
+            const q = qRaw ? JSON.parse(qRaw) : [];
+            const pending = q.filter(i => i.status === 'pending').length;
+            reply = pending + ' posts pending in Media Manager queue.';
+          }
+          if (reply) {
+            await fetch('https://api.telegram.org/bot'+tgToken+'/sendMessage', {
+              method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({chat_id:chatId, text:reply})
+            });
+          }
+        }
+        return json({ok:true}, 200, origin);
+      } catch(e) { return json({ok:true}, 200, origin); } // Always return 200 to Telegram
+    }
+
+    // ── Send Telegram message ─────────────────────────────────────────────────
+    if (path === '/api/telegram/send' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const tgToken = k(env, ['telegram_token','TELEGRAM_TOKEN']) || '';
+        const chatId = k(env, ['telegram_chat_id','TELEGRAM_CHAT_ID']) || body.chatId || '';
+        if (!tgToken || !chatId) return json({error:'Telegram not configured'}, 400, origin);
+        const resp = await fetch('https://api.telegram.org/bot'+tgToken+'/sendMessage', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({chat_id:chatId, text:body.text||'', parse_mode:'HTML'})
+        });
+        const d = await resp.json();
+        return json({success:d.ok, messageId:d.result?.message_id}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
