@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792933321 -->
+<!-- cache-bust-1792954304 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Canvas Templates — Argentica</title>
@@ -74,7 +74,17 @@
         </select>
       </div>
       <div>
-        <button class="gen-btn" onclick="generateCanvas()">Generate Canvas</button>
+        <div style="margin-bottom:10px;">
+        <label class="gen-label">Background Image (optional)</label>
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <input class="gen-input" id="bg-query" type="text" placeholder="e.g. sunset ocean, forest mist, mountain vista...">
+          <button onclick="searchBgImages()" style="padding:6px 12px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);">Search</button>
+          <button onclick="clearBg()" style="padding:6px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg-muted);">None</button>
+        </div>
+        <div id="bg-results" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;"></div>
+        <div id="bg-selected-label" style="font-size:11px;color:var(--accent);"></div>
+      </div>
+      <button class="gen-btn" onclick="generateCanvas()">Generate Canvas</button>
       </div>
     </div>
     <div id="gen-status" style="margin-top:8px;font-size:12px;color:var(--fg-muted);"></div>
@@ -198,7 +208,7 @@ function generateCanvasWithTemplate(templateId, text) {
   status.textContent = 'Generating...';
   fetch(WORKER + '/api/canvas/generate', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({text:text, template:templateId})
+    body:JSON.stringify({text:text, template:templateId, bgQuery:selectedBgQuery})
   })
   .then(function(r){return r.json();})
   .then(function(d){
