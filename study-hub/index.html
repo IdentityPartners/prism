@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792941605 -->
+<!-- cache-bust-1792941637 -->
+
 
 
 
@@ -1215,143 +1216,7 @@ function exportWeek() {
 }
 
 
-function showWeekOverview(week, mod) {
-  var body = document.getElementById('hub-body');
-  if (!body) { console.error('hub-body not found'); return; }
-  if (!week) { body.innerHTML = '<p style="padding:20px;color:var(--fg-muted);">No week selected.</p>'; return; }
-  
-  console.log('showWeekOverview called for:', week.name, 'resources:', (week.resources||[]).length);
-  body.innerHTML = '';
 
-  // ── EDIT FIELDS ──────────────────────────────────────────────────────────
-  var editCard = document.createElement('div');
-  editCard.style.cssText = 'background:var(--bg-elevated);border:2px solid var(--accent);border-radius:10px;padding:16px;margin-bottom:14px;';
-
-  var editTitle = document.createElement('div');
-  editTitle.style.cssText = 'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--accent);margin-bottom:12px;';
-  editTitle.textContent = 'Edit Week Details';
-  editCard.appendChild(editTitle);
-
-  var fields = [
-    {label:'Week Name', id:'week-name-input', type:'text', val:week.name||'', ph:'e.g. Week 4: Qualitative Methods'},
-    {label:'Topic', id:'week-topic-input', type:'text', val:week.topic||'', ph:'What this week covers'},
-    {label:'VLE Link', id:'week-vle-input', type:'url', val:week.vle_url||'', ph:'https://learn.gold.ac.uk/...'},
-  ];
-
-  fields.forEach(function(f) {
-    var row = document.createElement('div');
-    row.style.cssText = 'margin-bottom:10px;';
-    var lbl = document.createElement('label');
-    lbl.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;';
-    lbl.textContent = f.label;
-    var inp = document.createElement('input');
-    inp.type = f.type;
-    inp.id = f.id;
-    inp.value = f.val;
-    inp.placeholder = f.ph;
-    inp.style.cssText = 'width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:15px;background:var(--bg);color:var(--fg);box-sizing:border-box;';
-    inp.onfocus = function() { inp.style.borderColor='var(--accent)'; inp.style.outline='none'; };
-    inp.onblur = function() { inp.style.borderColor='var(--border)'; };
-    inp.onkeydown = function(e) { if (e.key==='Enter') { e.preventDefault(); saveWeekDetails(); } };
-    row.appendChild(lbl);
-    row.appendChild(inp);
-    editCard.appendChild(row);
-  });
-
-  var saveBtn = document.createElement('button');
-  saveBtn.textContent = 'Save Week Details';
-  saveBtn.style.cssText = 'padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;';
-  saveBtn.onclick = saveWeekDetails;
-  editCard.appendChild(saveBtn);
-  body.appendChild(editCard);
-
-  // ── RESOURCE CARDS ────────────────────────────────────────────────────────
-  var resources = week.resources || [];
-  var COURSE_TYPES = ['ppt','pptx','reading','recommended','further','sample','markscheme','handout','lecture'];
-  var SELF_TYPES = ['news','paper','blog','report','podcast','video','link'];
-
-  var cardDefs = [
-    {label:'Course Material', count:resources.filter(function(r){return COURSE_TYPES.indexOf(r.type)!==-1;}).length, colour:'#2d6a9f', tab:'resources'},
-    {label:'Self-Sourced', count:resources.filter(function(r){return SELF_TYPES.indexOf(r.type)!==-1;}).length, colour:'#f59e0b', tab:'resources'},
-    {label:'All Resources', count:resources.length, colour:'#6b7280', tab:'resources'},
-    {label:'My Notes', count:week.notes&&week.notes.trim()?1:0, colour:'#7c3aed', tab:'notes'},
-    {label:'Upload', count:0, colour:'#16a34a', tab:'upload'},
-  ];
-
-  var cardsHdr = document.createElement('div');
-  cardsHdr.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:8px;';
-  cardsHdr.textContent = 'Resources';
-  body.appendChild(cardsHdr);
-
-  var cardGrid = document.createElement('div');
-  cardGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:14px;';
-
-  cardDefs.forEach(function(card) {
-    var el = document.createElement('div');
-    el.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all 0.15s;';
-    el.onmouseenter = function() { el.style.borderColor=card.colour; el.style.transform='translateY(-2px)'; };
-    el.onmouseleave = function() { el.style.borderColor='var(--border)'; el.style.transform=''; };
-    el.onclick = (function(t, label, colour) {
-      return function() {
-        // Create tab if it doesn't exist
-        var tabBar = document.querySelector('.hub-tabs');
-        var existingTab = document.getElementById('tab-'+t+'-dynamic');
-        if (!existingTab && tabBar && card.count > 0) {
-          var newTab = document.createElement('div');
-          newTab.className = 'hub-tab';
-          newTab.id = 'tab-'+t+'-dynamic';
-          newTab.textContent = label + ' (' + card.count + ')';
-          newTab.style.borderBottom = '2px solid ' + colour;
-          newTab.onclick = function() { currentTab=t; switchTab(t,newTab); };
-          tabBar.appendChild(newTab);
-        }
-        currentTab=t; switchTab(t,null);
-      };
-    })(card.tab, card.label, card.colour);
-    var lbl = document.createElement('div');
-    lbl.style.cssText = 'font-size:13px;font-weight:600;color:var(--fg);margin-bottom:4px;';
-    lbl.textContent = card.label;
-    var cnt = document.createElement('div');
-    cnt.style.cssText = 'font-size:24px;font-weight:700;color:'+card.colour+';';
-    cnt.textContent = card.count;
-    el.appendChild(lbl);
-    el.appendChild(cnt);
-    cardGrid.appendChild(el);
-  });
-  body.appendChild(cardGrid);
-
-  // ── RECENT RESOURCES ──────────────────────────────────────────────────────
-  if (resources.length > 0) {
-    var resHdr = document.createElement('div');
-    resHdr.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:8px;';
-    resHdr.textContent = 'Recent Resources';
-    body.appendChild(resHdr);
-    resources.slice(0,5).forEach(function(r) {
-      var item = document.createElement('div');
-      item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg-elevated);cursor:pointer;';
-      item.onclick = function() { openResource(r); };
-      var name = document.createElement('div');
-      name.style.cssText = 'flex:1;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-      name.textContent = r.title||r.name||'Untitled';
-      var type = document.createElement('div');
-      type.style.cssText = 'font-size:11px;color:var(--fg-muted);flex-shrink:0;padding:2px 7px;background:var(--bg-sunken);border-radius:8px;';
-      type.textContent = r.type||'file';
-      item.appendChild(name);
-      item.appendChild(type);
-      body.appendChild(item);
-    });
-  } else {
-    var emptyMsg = document.createElement('div');
-    emptyMsg.style.cssText = 'padding:16px;text-align:center;color:var(--fg-muted);font-size:14px;border:2px dashed var(--border);border-radius:8px;';
-    emptyMsg.textContent = 'No resources yet. Click Upload to add files, or + Add Resource to add links.';
-    body.appendChild(emptyMsg);
-  }
-}
-
-
-
-
-// ── showWeekOverview: renders week cards + edit form ─────────────────────────
 function showWeekOverview(week, mod) {
   if (!week || !mod) return;
   currentWeek = week;
