@@ -3225,6 +3225,133 @@ export default {
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── Zoho Mail inbox ───────────────────────────────────────────────────────
+    if (path === '/api/zoho/mail/inbox' && request.method === 'GET') {
+      try {
+        const tokenRaw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
+        if (!tokenRaw) return json({status:'not_connected', messages:[]}, 200, origin);
+        const zohoToken = JSON.parse(tokenRaw);
+        const apiDomain = zohoToken.api_domain || 'https://www.zohoapis.eu';
+        
+        // Get account ID first
+        const acctResp = await fetch(apiDomain + '/api/accounts', {
+          headers: {'Authorization': 'Zoho-oauthtoken ' + zohoToken.access_token}
+        });
+        if (!acctResp.ok) return json({status:'api_error', code: acctResp.status, messages:[]}, 200, origin);
+        const acctData = await acctResp.json();
+        const accountId = acctData.data?.[0]?.accountId;
+        if (!accountId) return json({status:'no_account', messages:[]}, 200, origin);
+        
+        // Get inbox messages
+        const msgResp = await fetch(apiDomain + '/api/accounts/' + accountId + '/messages/view?folderId=inbox&limit=20', {
+          headers: {'Authorization': 'Zoho-oauthtoken ' + zohoToken.access_token}
+        });
+        if (!msgResp.ok) return json({status:'mail_error', code: msgResp.status, messages:[]}, 200, origin);
+        const msgData = await msgResp.json();
+        const messages = (msgData.data || []).map(m => ({
+          id: m.messageId,
+          from: m.fromAddress,
+          subject: m.subject,
+          preview: m.summary || '',
+          date: m.receivedTime,
+          read: m.isRead,
+        }));
+        return json({status:'ok', messages, accountId}, 200, origin);
+      } catch(e) { return json({status:'error', error:e.message, messages:[]}, 200, origin); }
+    }
+
+    // ── Zoho Mail send ────────────────────────────────────────────────────────
+    if (path === '/api/zoho/mail/send' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const tokenRaw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
+        if (!tokenRaw) return json({error:'not_connected'}, 400, origin);
+        const zohoToken = JSON.parse(tokenRaw);
+        const apiDomain = zohoToken.api_domain || 'https://www.zohoapis.eu';
+        const acctResp = await fetch(apiDomain + '/api/accounts', {
+          headers: {'Authorization': 'Zoho-oauthtoken ' + zohoToken.access_token}
+        });
+        const acctData = await acctResp.json();
+        const accountId = acctData.data?.[0]?.accountId;
+        const fromAddress = acctData.data?.[0]?.emailAddress;
+        if (!accountId) return json({error:'no_account'}, 400, origin);
+        const sendResp = await fetch(apiDomain + '/api/accounts/' + accountId + '/messages', {
+          method: 'POST',
+          headers: {'Authorization': 'Zoho-oauthtoken ' + zohoToken.access_token, 'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            fromAddress,
+            toAddress: body.to,
+            subject: body.subject || '(no subject)',
+            content: body.content || body.text || '',
+            mailFormat: 'html',
+          })
+        });
+        const sendData = await sendResp.json();
+        return json({success: sendResp.ok, data: sendData}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Zoho Calendar events (fixed domain) ───────────────────────────────────
+    if (path === '/api/calendar/events' && request.method === 'GET') {
+      try {
+        const tokenRaw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
+        if (!tokenRaw) return json({status:'not_connected', today:[], week:[], next_week:[]}, 200, origin);
+        const zohoToken = JSON.parse(tokenRaw);
+        // Use the api_domain from the token (zohoapis.eu for EU accounts)
+        const apiDomain = zohoToken.api_domain || 'https://www.zohoapis.eu';
+        const calDomain = apiDomain.replace('www.zohoapis', 'calendar.zoho');
+        
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
+        const weekEnd = new Date(now.getTime() + 7 * 86400000).toISOString().split('T')[0];
+        const nextWeekEnd = new Date(now.getTime() + 14 * 86400000).toISOString().split('T')[0];
+        
+        const calResp = await fetch(calDomain + '/api/v1/calendars', {
+          headers: {'Authorization': 'Zoho-oauthtoken ' + zohoToken.access_token}
+        });
+        if (!calResp.ok) {
+          // Try token refresh
+          const refreshKey = k(env, ['zoho_client_id','ZOHO_CLIENT_ID']) || '1000.O98MYTLET4DOLL1UWEGIH1WD3K4IFL';
+          const refreshSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || '452109750327203929e77ddd72a7fb813990b0bbfc';
+          if (zohoToken.refresh_token && refreshKey) {
+            const refreshResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+              body: 'grant_type=refresh_token&refresh_token=' + zohoToken.refresh_token + '&client_id=' + refreshKey + '&client_secret=' + refreshSecret
+            });
+            const refreshData = await refreshResp.json();
+            if (refreshData.access_token) {
+              zohoToken.access_token = refreshData.access_token;
+              if (env.PRISM_KV) await env.PRISM_KV.put('zoho:calendar:token', JSON.stringify(zohoToken));
+            }
+          }
+          return json({status:'api_error', code: calResp.status, today:[], week:[], next_week:[]}, 200, origin);
+        }
+        const calData = await calResp.json();
+        const calendars = calData.calendars || [];
+        const allEvents = [];
+        for (const cal of calendars.slice(0, 3)) {
+          try {
+            const evResp = await fetch(calDomain + '/api/v1/calendars/' + cal.uid + '/events?range_start=' + todayStr + '&range_end=' + nextWeekEnd, {
+              headers: {'Authorization': 'Zoho-oauthtoken ' + zohoToken.access_token}
+            });
+            if (evResp.ok) {
+              const evData = await evResp.json();
+              (evData.events || []).forEach(ev => allEvents.push({
+                id: ev.uid, title: ev.title, start: ev.dateandtime?.start,
+                end: ev.dateandtime?.end, calendar: cal.name
+              }));
+            }
+          } catch(e2) {}
+        }
+        const today = allEvents.filter(e => e.start && e.start.startsWith(todayStr));
+        const week = allEvents.filter(e => e.start && e.start > todayStr && e.start <= weekEnd);
+        const next_week = allEvents.filter(e => e.start && e.start > weekEnd && e.start <= nextWeekEnd);
+        return json({status:'ok', today, week, next_week}, 200, origin);
+      } catch(e) { return json({status:'error', error:e.message, today:[], week:[], next_week:[]}, 200, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
