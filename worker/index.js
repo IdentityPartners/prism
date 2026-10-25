@@ -3123,7 +3123,7 @@ export default {
         // Get IP logo from KV cache (30 days) — real PNG with transparent background
         let logoB64 = '';
         try {
-          const cached = env.PRISM_KV ? await env.PRISM_KV.get('asset:logo-rect-right', 'text') : null;
+          const cached = env.PRISM_KV ? await env.PRISM_KV.get('asset:logo-rect-right-v2', 'text') : null;
           if (cached) {
             logoB64 = cached;
           } else {
@@ -3132,7 +3132,7 @@ export default {
             if (logoResp.ok) {
               const logoBuf = await logoResp.arrayBuffer();
               logoB64 = btoa(String.fromCharCode(...new Uint8Array(logoBuf)));
-              if (env.PRISM_KV) await env.PRISM_KV.put('asset:logo-rect-right', logoB64, {expirationTtl: 86400 * 30});
+              if (env.PRISM_KV) await env.PRISM_KV.put('asset:logo-rect-right-v2', logoB64, {expirationTtl: 86400 * 30});
             }
           }
         } catch(e) {}
@@ -3170,7 +3170,7 @@ export default {
 
         // Real IP logo — transparent PNG, no background rectangle behind it
         const logoEl = logoB64
-          ? '<image href="data:image/png;base64,' + logoB64 + '" x="810" y="920" width="230" height="80" preserveAspectRatio="xMidYMid meet"/>'
+          ? '<image href="data:image/png;base64,' + logoB64 + '" x="810" y="920" width="230" height="80" preserveAspectRatio="xMidYMid meet" style="mix-blend-mode:' + (isDark ? 'screen' : 'multiply') + '"/>'
           : '<text x="540" y="' + (attrY + 46) + '" font-family="Playfair Display,Georgia,serif" font-size="22" font-weight="700" fill="' + t.fg + '" text-anchor="middle" opacity="0.9">Identity Partners</text>';
 
         // Attribution line — clean, no effects
