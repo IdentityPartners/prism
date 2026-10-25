@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792701125 -->
+<!-- cache-bust-1792933321 -->
+
 <meta charset="UTF-8">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -140,6 +141,7 @@
     <button class="wh-view-btn active" id="vbtn-ink" onclick="setView('ink')">Ink</button>
     <button class="wh-view-btn" id="vbtn-dual" onclick="setView('dual')">Dual</button>
     <button class="wh-view-btn" id="vbtn-read" onclick="setView('read')">Read</button>
+    <button class="wh-view-btn" id="vbtn-excalidraw" onclick="setView('excalidraw')">✏ Whiteboard</button>
 
     <div class="wh-tb-sep"></div>
 
@@ -469,6 +471,16 @@ function setView(view) {
     readDiv.className = 'wh-read-view';
     readDiv.innerHTML = currentPage ? (currentPage.content || '<p style="color:var(--fg-muted);">No text content yet. Switch to Dual view to write.</p>') : '';
     surface.appendChild(readDiv);
+    surface.style.flexDirection = 'column';
+  } else if (view === 'excalidraw') {
+    var excalidrawDiv = document.createElement('div');
+    excalidrawDiv.style.cssText = 'flex:1;overflow:hidden;';
+    var iframe = document.createElement('iframe');
+    iframe.src = 'https://excalidraw.com/';
+    iframe.style.cssText = 'width:100%;height:100%;border:none;';
+    iframe.allow = 'clipboard-read; clipboard-write';
+    excalidrawDiv.appendChild(iframe);
+    surface.appendChild(excalidrawDiv);
     surface.style.flexDirection = 'column';
   }
 }
