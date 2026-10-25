@@ -3292,7 +3292,9 @@ export default {
         const zohoToken = JSON.parse(tokenRaw);
         // Use the api_domain from the token (zohoapis.eu for EU accounts)
         const apiDomain = zohoToken.api_domain || 'https://www.zohoapis.eu';
-        const calDomain = apiDomain.replace('www.zohoapis', 'calendar.zoho');
+        // Zoho Calendar uses a separate domain from the main API
+        // EU accounts: calendar.zoho.eu | COM accounts: calendar.zoho.com
+        const calDomain = apiDomain.includes('.eu') ? 'https://calendar.zoho.eu' : 'https://calendar.zoho.com';
         
         const now = new Date();
         const todayStr = now.toISOString().split('T')[0];
