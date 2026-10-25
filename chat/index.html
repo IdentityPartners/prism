@@ -2,7 +2,7 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792953028 -->
+<!-- cache-bust-1792954304 -->
 
 
 
@@ -147,6 +147,13 @@
 .routing-log { font-size:11px; color:var(--fg-muted); font-family:monospace; line-height:1.5; max-height:100px; overflow-y:auto; white-space:pre-wrap; }
 .action-btn { display:block; width:100%; padding:7px 10px; margin-bottom:4px; border:1px solid var(--border); border-radius:6px; font-size:13px; cursor:pointer; background:var(--bg); color:var(--fg); font-family:inherit; text-align:left; transition:all 0.15s; }
 .action-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+/* OSK: hidden by default, compact when toggled */
+.osk-strip { display: none !important; }
+.osk-strip.show { display: block !important; max-height: 160px; overflow-y: auto; }
+/* Right panel: always visible on Surface Pro */
+@media(max-width: 780px) { .chat-right { display: none; } }
+@media(min-width: 781px) { .chat-right { display: flex; } }
 </style>
 </head>
 <body>
