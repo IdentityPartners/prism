@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
+<!-- cache-bust-1792941434 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Document Viewer — Argentica</title>
@@ -9,7 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
-<!-- cache-bust-1792935669 -->
+
 <style>
 .viewer-shell{display:flex;height:100vh;overflow:hidden;}
 .viewer-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
@@ -247,7 +248,14 @@ function renderDOCX(doc) {
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane';
   if (!doc.content || doc.content.length < 10) { showViewerOptions(doc, 'Word Document'); return; }
-  var isBinary = doc.content.split('').filter(function(c){var code=c.charCodeAt(0);return code<32&&code!==10&&code!==13&&code!==9;}).length > doc.content.length * 0.05;
+  // PK = ZIP-based format, cannot render in browser without library
+  if (doc.content.startsWith('PK') || doc.content.charCodeAt(0) === 80 && doc.content.charCodeAt(1) === 75) {
+    showViewerOptions(doc, 'Word Document');
+    return;
+  }
+  // PK header = ZIP-based format (DOCX/PPTX/XLSX) — always use external viewer
+  var startsWithPK = doc.content.startsWith('PK') || doc.content.startsWith('\x50\x4B');
+  var isBinary = startsWithPK || doc.content.split('').filter(function(c){var code=c.charCodeAt(0);return code<32&&code!==10&&code!==13&&code!==9;}).length > doc.content.length * 0.03;
   if (isBinary) { showViewerOptions(doc, 'Word Document'); return; }
   if (doc.content.startsWith('data:')) {
     if (typeof mammoth === 'undefined') { showViewerOptions(doc, 'Word Document'); return; }
