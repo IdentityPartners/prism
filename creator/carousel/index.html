@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carousel Creator — Argentica</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<!-- cache-bust-1792924021 -->
+<style>
+.carousel-shell{display:flex;height:100vh;overflow:hidden;}
+.carousel-sidebar{width:280px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-surface);overflow:hidden;}
+.carousel-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.carousel-preview{flex:1;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#1a1a1a;position:relative;}
+.carousel-controls{padding:10px 14px;border-top:1px solid var(--border);background:var(--bg-elevated);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.slide-strip{display:flex;gap:6px;overflow-x:auto;padding:8px 14px;border-top:1px solid var(--border);background:var(--bg-elevated);flex-shrink:0;}
+.slide-thumb{width:60px;height:60px;border-radius:6px;border:2px solid var(--border);cursor:pointer;flex-shrink:0;overflow:hidden;position:relative;background:var(--bg-sunken);}
+.slide-thumb.active{border-color:var(--accent);}
+.slide-thumb img,.slide-thumb svg{width:100%;height:100%;object-fit:cover;}
+.slide-thumb .del-slide{position:absolute;top:1px;right:1px;background:rgba(220,38,38,0.8);color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:9px;padding:1px 4px;display:none;}
+.slide-thumb:hover .del-slide{display:block;}
+.add-slide-btn{width:60px;height:60px;border-radius:6px;border:2px dashed var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--fg-muted);flex-shrink:0;background:var(--bg);}
+.add-slide-btn:hover{border-color:var(--accent);color:var(--accent);}
+.sidebar-section{padding:10px 12px;border-bottom:1px solid var(--border);}
+.sidebar-section h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin:0 0 8px;}
+.ctrl-btn{padding:6px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);font-family:inherit;transition:all 0.15s;}
+.ctrl-btn:hover{border-color:var(--accent);color:var(--accent);}
+.ctrl-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.ctrl-btn.primary:hover{opacity:0.85;}
+.form-input{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg);color:var(--fg);box-sizing:border-box;font-family:inherit;}
+.form-select{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg);color:var(--fg);cursor:pointer;}
+.form-label{font-size:11px;font-weight:600;color:var(--fg-muted);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:0.4px;}
+.transition-btn{padding:5px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);color:var(--fg-muted);font-family:inherit;}
+.transition-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.preview-slide{max-width:540px;max-height:540px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.4);}
+.preview-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:24px;cursor:pointer;padding:8px 14px;border-radius:6px;}
+.preview-nav:hover{background:rgba(255,255,255,0.3);}
+.preview-nav.prev{left:16px;}
+.preview-nav.next{right:16px;}
+.slide-counter{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);color:#fff;padding:4px 12px;border-radius:12px;font-size:12px;}
+.music-player{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-sunken);border-radius:6px;margin-top:6px;}
+.music-player audio{flex:1;height:32px;}
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="carousel-shell">
+
+<!-- Sidebar: controls -->
+<div class="carousel-sidebar">
+  <div class="sidebar-section">
+    <h4>Carousel</h4>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;">
+      <button class="ctrl-btn" onclick="addSlide('canvas')">+ Canvas slide</button>
+      <button class="ctrl-btn" onclick="addSlide('image')">+ Image</button>
+      <button class="ctrl-btn" onclick="addSlide('text')">+ Text slide</button>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <h4>Slide Text</h4>
+    <div style="margin-bottom:6px;">
+      <label class="form-label">Quote / Caption</label>
+      <textarea class="form-input" id="slide-text" rows="3" placeholder="Text for this slide..." oninput="updateCurrentSlide()" style="resize:vertical;"></textarea>
+    </div>
+    <div style="margin-bottom:6px;">
+      <label class="form-label">Template</label>
+      <select class="form-select" id="slide-template" onchange="updateCurrentSlide()">
+        <option value="quote-teal">Teal Block</option>
+        <option value="quote-rose">Rose Block</option>
+        <option value="quote-ivory">Ivory Block</option>
+        <option value="quote-dark">Dark Block</option>
+        <option value="quote-forest">Forest</option>
+        <option value="quote-coastal">Coastal</option>
+        <option value="quote-dawn">Dawn</option>
+        <option value="quote-dusk">Dusk</option>
+        <option value="quote-midnight">Midnight</option>
+        <option value="ip-teal-rose">IP Brand</option>
+        <option value="post-research">Research</option>
+        <option value="post-quote">Quote Card</option>
+      </select>
+    </div>
+    <button class="ctrl-btn primary" onclick="generateCurrentSlide()" style="width:100%;">Generate Slide</button>
+  </div>
+
+  <div class="sidebar-section">
+    <h4>Transition</h4>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+      <button class="transition-btn active" id="trans-fade" onclick="setTransition('fade',this)">Fade</button>
+      <button class="transition-btn" id="trans-slide" onclick="setTransition('slide',this)">Slide</button>
+      <button class="transition-btn" id="trans-wipe" onclick="setTransition('wipe',this)">Wipe</button>
+      <button class="transition-btn" id="trans-zoom" onclick="setTransition('zoom',this)">Zoom</button>
+      <button class="transition-btn" id="trans-none" onclick="setTransition('none',this)">None</button>
+    </div>
+    <div style="margin-top:8px;">
+      <label class="form-label">Duration (seconds)</label>
+      <input type="range" min="1" max="10" value="4" id="slide-duration" style="width:100%;" oninput="document.getElementById('dur-label').textContent=this.value+'s'">
+      <span id="dur-label" style="font-size:11px;color:var(--fg-muted);">4s</span>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <h4>Music</h4>
+    <div style="margin-bottom:6px;">
+      <label class="form-label">Background music</label>
+      <select class="form-select" id="music-source">
+        <option value="">No music</option>
+        <option value="generate">Generate with Lyria</option>
+        <option value="upload">Upload audio file</option>
+      </select>
+    </div>
+    <div id="music-lyria" style="display:none;">
+      <input class="form-input" id="music-prompt" placeholder="e.g. Uplifting piano, warm, 120bpm" style="margin-bottom:5px;">
+      <button class="ctrl-btn primary" onclick="generateMusic()" style="width:100%;">Generate Music</button>
+    </div>
+    <div id="music-upload" style="display:none;">
+      <input type="file" id="music-file" accept="audio/*" onchange="loadMusicFile(this)" style="font-size:12px;">
+    </div>
+    <div class="music-player" id="music-player" style="display:none;">
+      <audio id="bg-audio" controls></audio>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <h4>Captions</h4>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <input type="checkbox" id="captions-enabled" style="width:15px;height:15px;">
+      <label for="captions-enabled" style="font-size:13px;">Show captions</label>
+    </div>
+    <div style="margin-bottom:6px;">
+      <label class="form-label">Caption style</label>
+      <select class="form-select" id="caption-style">
+        <option value="bottom">Bottom bar</option>
+        <option value="overlay">Text overlay</option>
+        <option value="subtitle">Subtitle style</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="sidebar-section" style="margin-top:auto;">
+    <h4>Export</h4>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;">
+      <button class="ctrl-btn primary" onclick="exportCarousel('gif')">Export GIF</button>
+      <button class="ctrl-btn" onclick="exportCarousel('mp4')">Export MP4</button>
+      <button class="ctrl-btn" onclick="exportCarousel('images')">Export Images</button>
+      <button class="ctrl-btn" onclick="queueCarousel()">📤 Queue for posting</button>
+    </div>
+  </div>
+</div>
+
+<!-- Main: preview -->
+<div class="carousel-main">
+  <div style="padding:8px 14px;border-bottom:1px solid var(--border);background:var(--bg-elevated);display:flex;align-items:center;gap:8px;flex-shrink:0;">
+    <h2 style="margin:0;font-size:15px;font-weight:700;">🎠 Carousel Creator</h2>
+    <span id="carousel-info" style="font-size:12px;color:var(--fg-muted);">0 slides</span>
+    <div style="margin-left:auto;display:flex;gap:6px;">
+      <button class="ctrl-btn" onclick="previewCarousel()" id="preview-btn">▶ Preview</button>
+      <button class="ctrl-btn" onclick="stopPreview()" id="stop-btn" style="display:none;">⏹ Stop</button>
+    </div>
+  </div>
+
+  <div class="carousel-preview" id="carousel-preview">
+    <div style="text-align:center;color:#888;">
+      <div style="font-size:48px;margin-bottom:12px;">🎠</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:6px;">Carousel Creator</div>
+      <div style="font-size:13px;">Add slides using the panel on the left.<br>Each slide can be a canvas, image, or text card.</div>
+    </div>
+    <button class="preview-nav prev" onclick="prevSlide()" style="display:none;" id="nav-prev">‹</button>
+    <button class="preview-nav next" onclick="nextSlide()" style="display:none;" id="nav-next">›</button>
+    <div class="slide-counter" id="slide-counter" style="display:none;"></div>
+  </div>
+
+  <div class="slide-strip" id="slide-strip">
+    <div class="add-slide-btn" onclick="addSlide('canvas')" title="Add canvas slide">+</div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var slides = [];
+var currentSlideIdx = 0;
+var transition = 'fade';
+var previewTimer = null;
+var bgAudioUrl = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/creator/carousel/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  document.getElementById('music-source').onchange = function() {
+    document.getElementById('music-lyria').style.display = this.value === 'generate' ? 'block' : 'none';
+    document.getElementById('music-upload').style.display = this.value === 'upload' ? 'block' : 'none';
+  };
+});
+
+function addSlide(type) {
+  var slide = {id:'s-'+Date.now(), type:type, text:'', template:'quote-teal', dataUrl:'', generating:false};
+  slides.push(slide);
+  currentSlideIdx = slides.length - 1;
+  renderSlideStrip();
+  updateSidebarForSlide(slide);
+  if (type === 'canvas') generateCurrentSlide();
+  updateInfo();
+}
+
+function updateInfo() {
+  document.getElementById('carousel-info').textContent = slides.length + ' slide' + (slides.length !== 1 ? 's' : '');
+}
+
+function renderSlideStrip() {
+  var strip = document.getElementById('slide-strip');
+  strip.innerHTML = '';
+  slides.forEach(function(slide, idx) {
+    var thumb = document.createElement('div');
+    thumb.className = 'slide-thumb' + (idx === currentSlideIdx ? ' active' : '');
+    thumb.onclick = (function(i){return function(){selectSlide(i);};})(idx);
+    if (slide.dataUrl) {
+      var img = document.createElement('img');
+      img.src = slide.dataUrl;
+      thumb.appendChild(img);
+    } else {
+      thumb.style.background = 'var(--bg-sunken)';
+      thumb.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:20px;">' + (slide.generating ? '⏳' : '📄') + '</div>';
+    }
+    var delBtn = document.createElement('button');
+    delBtn.className = 'del-slide';
+    delBtn.textContent = '✕';
+    delBtn.onclick = (function(i){return function(e){e.stopPropagation();deleteSlide(i);};})(idx);
+    thumb.appendChild(delBtn);
+    strip.appendChild(thumb);
+  });
+  var addBtn = document.createElement('div');
+  addBtn.className = 'add-slide-btn';
+  addBtn.textContent = '+';
+  addBtn.title = 'Add slide';
+  addBtn.onclick = function() { addSlide('canvas'); };
+  strip.appendChild(addBtn);
+}
+
+function selectSlide(idx) {
+  currentSlideIdx = idx;
+  renderSlideStrip();
+  showSlide(idx);
+  updateSidebarForSlide(slides[idx]);
+}
+
+function deleteSlide(idx) {
+  slides.splice(idx, 1);
+  if (currentSlideIdx >= slides.length) currentSlideIdx = Math.max(0, slides.length - 1);
+  renderSlideStrip();
+  if (slides.length > 0) showSlide(currentSlideIdx);
+  else {
+    document.getElementById('carousel-preview').innerHTML = '<div style="text-align:center;color:#888;"><div style="font-size:48px;margin-bottom:12px;">🎠</div><div>Add slides to get started.</div></div>';
+  }
+  updateInfo();
+}
+
+function updateSidebarForSlide(slide) {
+  if (!slide) return;
+  document.getElementById('slide-text').value = slide.text || '';
+  document.getElementById('slide-template').value = slide.template || 'quote-teal';
+}
+
+function updateCurrentSlide() {
+  if (!slides[currentSlideIdx]) return;
+  slides[currentSlideIdx].text = document.getElementById('slide-text').value;
+  slides[currentSlideIdx].template = document.getElementById('slide-template').value;
+}
+
+function generateCurrentSlide() {
+  var slide = slides[currentSlideIdx];
+  if (!slide) return;
+  slide.text = document.getElementById('slide-text').value;
+  slide.template = document.getElementById('slide-template').value;
+  slide.generating = true;
+  renderSlideStrip();
+
+  fetch(WORKER + '/api/canvas/generate', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({text:slide.text||'Identity Partners', template:slide.template})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    slide.generating = false;
+    if (d.dataUrl || d.url) {
+      slide.dataUrl = d.dataUrl || d.url;
+      renderSlideStrip();
+      showSlide(currentSlideIdx);
+    }
+  })
+  .catch(function(e){slide.generating=false;renderSlideStrip();alert('Error: '+e.message);});
+}
+
+function showSlide(idx) {
+  var slide = slides[idx];
+  if (!slide) return;
+  var preview = document.getElementById('carousel-preview');
+  // Clear existing content except nav buttons
+  var navPrev = document.getElementById('nav-prev');
+  var navNext = document.getElementById('nav-next');
+  var counter = document.getElementById('slide-counter');
+  preview.innerHTML = '';
+
+  if (slide.dataUrl) {
+    var img = document.createElement('img');
+    img.className = 'preview-slide';
+    img.src = slide.dataUrl;
+    preview.appendChild(img);
+  } else {
+    var placeholder = document.createElement('div');
+    placeholder.style.cssText = 'width:540px;height:540px;background:var(--bg-sunken);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--fg-muted);font-size:14px;';
+    placeholder.textContent = slide.generating ? 'Generating...' : 'Click "Generate Slide" to create this slide';
+    preview.appendChild(placeholder);
+  }
+
+  if (slides.length > 1) {
+    var np = document.createElement('button');
+    np.className = 'preview-nav prev';
+    np.textContent = '‹';
+    np.onclick = prevSlide;
+    var nn = document.createElement('button');
+    nn.className = 'preview-nav next';
+    nn.textContent = '›';
+    nn.onclick = nextSlide;
+    var nc = document.createElement('div');
+    nc.className = 'slide-counter';
+    nc.textContent = (idx+1) + ' / ' + slides.length;
+    preview.appendChild(np);
+    preview.appendChild(nn);
+    preview.appendChild(nc);
+  }
+}
+
+function prevSlide() {
+  if (slides.length === 0) return;
+  currentSlideIdx = (currentSlideIdx - 1 + slides.length) % slides.length;
+  selectSlide(currentSlideIdx);
+}
+
+function nextSlide() {
+  if (slides.length === 0) return;
+  currentSlideIdx = (currentSlideIdx + 1) % slides.length;
+  selectSlide(currentSlideIdx);
+}
+
+function setTransition(t, btn) {
+  transition = t;
+  document.querySelectorAll('.transition-btn').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+}
+
+function previewCarousel() {
+  if (slides.length === 0) { alert('Add some slides first.'); return; }
+  stopPreview();
+  currentSlideIdx = 0;
+  showSlide(0);
+  document.getElementById('preview-btn').style.display = 'none';
+  document.getElementById('stop-btn').style.display = 'inline-block';
+  var dur = parseInt(document.getElementById('slide-duration').value) * 1000;
+  previewTimer = setInterval(function() {
+    currentSlideIdx = (currentSlideIdx + 1) % slides.length;
+    showSlide(currentSlideIdx);
+    renderSlideStrip();
+  }, dur);
+  // Play music if set
+  var audio = document.getElementById('bg-audio');
+  if (audio.src) audio.play();
+}
+
+function stopPreview() {
+  if (previewTimer) { clearInterval(previewTimer); previewTimer = null; }
+  document.getElementById('preview-btn').style.display = 'inline-block';
+  document.getElementById('stop-btn').style.display = 'none';
+  var audio = document.getElementById('bg-audio');
+  if (audio.src) audio.pause();
+}
+
+function generateMusic() {
+  var prompt = document.getElementById('music-prompt').value.trim() || 'Uplifting piano, warm, professional';
+  fetch(WORKER + '/api/music/generate', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({prompt:prompt, model:'lyria-3.5'})
+  })
+  .then(function(r){return r.blob();})
+  .then(function(blob){
+    var url = URL.createObjectURL(blob);
+    var audio = document.getElementById('bg-audio');
+    audio.src = url;
+    document.getElementById('music-player').style.display = 'flex';
+  })
+  .catch(function(e){alert('Music generation error: '+e.message);});
+}
+
+function loadMusicFile(input) {
+  var file = input.files[0];
+  if (!file) return;
+  var url = URL.createObjectURL(file);
+  var audio = document.getElementById('bg-audio');
+  audio.src = url;
+  document.getElementById('music-player').style.display = 'flex';
+}
+
+function exportCarousel(format) {
+  if (slides.length === 0) { alert('Add some slides first.'); return; }
+  if (format === 'images') {
+    slides.forEach(function(slide, idx) {
+      if (!slide.dataUrl) return;
+      var a = document.createElement('a');
+      a.href = slide.dataUrl;
+      a.download = 'carousel-slide-' + (idx+1) + '.svg';
+      a.click();
+    });
+    return;
+  }
+  alert('MP4 and GIF export require server-side processing. Use "Export Images" to download individual slides, then combine in a video editor. Queue for posting sends all slides to Media Manager.');
+}
+
+function queueCarousel() {
+  if (slides.length === 0) { alert('Add some slides first.'); return; }
+  var promises = slides.filter(function(s){return s.dataUrl;}).map(function(slide) {
+    return fetch(WORKER + '/api/canvas/social', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({text:slide.text||'', template:slide.template, platforms:['instagram','facebook']})
+    }).then(function(r){return r.json();});
+  });
+  Promise.all(promises).then(function(results) {
+    var queued = results.filter(function(r){return r.success;}).length;
+    alert(queued + ' slides queued for Media Manager approval.');
+  });
+}
+</script>
+</body>
+</html>
