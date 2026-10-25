@@ -2,7 +2,7 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792843950 -->
+
 
 
 
@@ -20,6 +20,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Chat — Argentica</title>
+<!-- cache-bust-1792923835 -->
 <link href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E" rel="icon" type="image/svg+xml"/>
 <link href="/shared/prism.css" rel="stylesheet"/>
 <link href="/shared/themes.css" rel="stylesheet"/>
@@ -210,7 +211,6 @@
 <div class="right-sec">
 <h4>Model</h4>
 <select class="model-select" id="model-select" onchange="setModelOverride(this.value)" title="Select a specific model, or leave on Balanced profile for auto-routing">
-<option value="">Auto (Orchestrator)</option>
 <optgroup label="✓ Mistral Paid — Reliable">
 <option value="mistral:mistral-medium-3.5">Mistral Medium 3.5 · 262K · web · vision · ~416ms</option>
 <option value="mistral:mistral-large-latest">Mistral Large Latest · 262K · web · vision · ~573ms</option>
@@ -344,6 +344,39 @@ function addMemory() {
   }).then(function(){loadMemory();});
 }
 
+function setConvTab(tab, btn) {
+  document.querySelectorAll('[id^="conv-tab-"]').forEach(function(b){
+    b.style.borderBottomColor = 'transparent';
+    b.style.color = 'var(--fg-muted)';
+  });
+  btn.style.borderBottomColor = 'var(--accent)';
+  btn.style.color = 'var(--accent)';
+  var convs = allConversations;
+  if (tab === 'pinned') convs = allConversations.filter(function(c){return c.pinned;});
+  else if (tab === 'projects') convs = allConversations.filter(function(c){return c.project;});
+  renderConversations(convs);
+}
+
+function pinConversation(id, e) {
+  if (e) e.stopPropagation();
+  var c = allConversations.find(function(c){return c.id===id;});
+  if (!c) return;
+  c.pinned = !c.pinned;
+  fetch(WORKER + '/api/threads/' + id + '/pin', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pinned:c.pinned})}).catch(function(){});
+  renderConversations(allConversations);
+}
+
+function assignToProject(id, e) {
+  if (e) e.stopPropagation();
+  var project = prompt('Assign to project (e.g. "Methodology Now Week 4"):');
+  if (!project) return;
+  var c = allConversations.find(function(c){return c.id===id;});
+  if (!c) return;
+  c.project = project;
+  fetch(WORKER + '/api/threads/' + id + '/project', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project})}).catch(function(){});
+  renderConversations(allConversations);
+}
+
 function loadConversations() {
   fetch(WORKER + '/api/threads')
     .then(function(r){return r.json();})
@@ -382,6 +415,19 @@ function renderConversations(convs) {
     var dateEl = document.createElement('span');
     dateEl.textContent = c.updated ? new Date(c.updated).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';
 
+    var pinEl = document.createElement('span');
+    pinEl.className = 'conv-del';
+    pinEl.textContent = c.pinned ? '📌' : '📍';
+    pinEl.title = c.pinned ? 'Unpin' : 'Pin conversation';
+    pinEl.onclick = (function(cid) { return function(e) { pinConversation(cid, e); }; })(c.id);
+
+    var projEl = document.createElement('span');
+    projEl.className = 'conv-del';
+    projEl.textContent = '📁';
+    projEl.title = c.project ? 'Project: ' + c.project : 'Assign to project';
+    projEl.style.color = c.project ? 'var(--accent)' : '';
+    projEl.onclick = (function(cid) { return function(e) { assignToProject(cid, e); }; })(c.id);
+
     var delEl = document.createElement('span');
     delEl.className = 'conv-del';
     delEl.textContent = '✕';
@@ -389,6 +435,8 @@ function renderConversations(convs) {
 
     metaEl.appendChild(countEl);
     metaEl.appendChild(dateEl);
+    metaEl.appendChild(pinEl);
+    metaEl.appendChild(projEl);
     metaEl.appendChild(delEl);
     div.appendChild(titleEl);
     div.appendChild(metaEl);
@@ -742,7 +790,7 @@ function updateAttachStrip() {
 
 // ── Model / profile ───────────────────────────────────────────────────────────
 function setModelOverride(val) {
-  modelOverride = val || null;
+  modelOverride = (val && val !== '') ? val : null;
   document.getElementById('model-info').textContent = MODEL_INFO[val] || MODEL_INFO[''];
 }
 
