@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792941637 -->
+<!-- cache-bust-1792941701 -->
+
 
 
 
@@ -162,7 +163,113 @@
 </style>
 </head>
 <body>
-<script src="/shared/prism.js"></script>
+<script src="/shared/prism.js">
+function showWeekOverview(week, mod) {
+  if (!week || !mod) return;
+  currentWeek = week;
+  currentModule = mod;
+  var titleEl = document.getElementById('hub-title');
+  if (titleEl) titleEl.textContent = mod.name + ' — ' + week.name;
+  var subtitleEl = document.getElementById('hub-subtitle');
+  if (subtitleEl) subtitleEl.textContent = (week.resources||[]).length + ' resources';
+  var body = document.getElementById('hub-body');
+  if (!body) return;
+  body.innerHTML = '';
+
+  // Details card
+  var dc = document.createElement('div');
+  dc.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;';
+  var dh = document.createElement('div');
+  dh.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;';
+  var dt = document.createElement('div');
+  dt.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);';
+  dt.textContent = 'Week Details';
+  var eb = document.createElement('button');
+  eb.style.cssText = 'padding:4px 12px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);';
+  eb.textContent = 'Edit';
+  eb.onclick = function() {
+    var form = document.getElementById('week-edit-form');
+    if (!form) return;
+    var isOpen = form.style.display !== 'none';
+    form.style.display = isOpen ? 'none' : 'block';
+    eb.textContent = isOpen ? 'Edit' : 'Close';
+  };
+  dh.appendChild(dt); dh.appendChild(eb); dc.appendChild(dh);
+  var ds = document.createElement('div');
+  ds.style.cssText = 'font-size:13px;color:var(--fg-muted);';
+  ds.textContent = (week.topic || 'No topic set') + (week.vle_url ? ' | VLE linked' : '');
+  dc.appendChild(ds);
+  var ef = document.createElement('div');
+  ef.id = 'week-edit-form';
+  ef.style.cssText = 'display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;';
+  var fields = [{label:'Week Name',id:'week-name-input',value:week.name||''},{label:'Topic',id:'week-topic-input',value:week.topic||''},{label:'VLE Link',id:'week-vle-input',value:week.vle_url||''}];
+  fields.forEach(function(f) {
+    var w = document.createElement('div'); w.style.cssText = 'margin-bottom:8px;';
+    var l = document.createElement('label'); l.style.cssText = 'font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;'; l.textContent = f.label;
+    var i = document.createElement('input'); i.id = f.id; i.value = f.value; i.style.cssText = 'width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;';
+    i.onkeydown = function(e) { if (e.key === 'Enter') saveWeekDetails(); };
+    w.appendChild(l); w.appendChild(i); ef.appendChild(w);
+  });
+  var sb2 = document.createElement('button');
+  sb2.id = 'week-save-btn';
+  sb2.style.cssText = 'padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;';
+  sb2.textContent = 'Save Week Details';
+  sb2.onclick = saveWeekDetails;
+  ef.appendChild(sb2); dc.appendChild(ef); body.appendChild(dc);
+
+  // Card grid
+  var resources = week.resources || [];
+  var COURSE = ['ppt','pptx','reading','recommended','further','sample','markscheme','handout','lecture'];
+  var SELF = ['news','paper','blog','report','podcast','video','link'];
+  var customCards = [];
+  try { customCards = JSON.parse(localStorage.getItem('custom-cards:'+mod.id)||'[]'); } catch(e) {}
+  var cardDefs = [
+    {label:'Course Material', count:resources.filter(function(r){return COURSE.indexOf(r.type)!==-1;}).length, colour:'#2d6a9f', tab:'resources', filter:'course'},
+    {label:'Self-Sourced', count:resources.filter(function(r){return SELF.indexOf(r.type)!==-1;}).length, colour:'#f59e0b', tab:'resources', filter:'self'},
+    {label:'My Notes', count:(week.notes&&week.notes.trim())?1:0, colour:'#7c3aed', tab:'notes', filter:null},
+    {label:'Themes', count:0, colour:'#0f3b3a', tab:'concepts', filter:null},
+    {label:'Chats', count:0, colour:'#5c2d3f', tab:'chats', filter:null},
+    {label:'Audio', count:resources.filter(function(r){return r.type==='audio'||r.type==='podcast';}).length, colour:'#16a34a', tab:'resources', filter:'audio'},
+    {label:'Upload', count:0, colour:'#6b7280', tab:'upload', filter:null},
+  ];
+  customCards.forEach(function(cc) {
+    cardDefs.push({label:cc.label, count:0, colour:cc.colour||'#6b7280', tab:'custom:'+cc.id, filter:null, custom:true, id:cc.id});
+  });
+  var cg = document.createElement('div');
+  cg.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:14px;';
+  cardDefs.forEach(function(card) {
+    var el = document.createElement('div');
+    el.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;transition:all 0.15s;position:relative;';
+    el.onmouseenter = function(){el.style.borderColor=card.colour;el.style.transform='translateY(-2px)';};
+    el.onmouseleave = function(){el.style.borderColor='var(--border)';el.style.transform='';};
+    el.onclick = (function(t,f){return function(){currentTab=t;if(f)currentResourceFilter=f;switchTab(t,null);};})(card.tab,card.filter||null);
+    var lbl = document.createElement('div'); lbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--fg);margin-bottom:4px;'; lbl.textContent = card.label;
+    var cnt = document.createElement('div'); cnt.style.cssText = 'font-size:24px;font-weight:700;color:'+card.colour+';'; cnt.textContent = card.count;
+    el.appendChild(lbl); el.appendChild(cnt);
+    if (card.custom) {
+      var db = document.createElement('button'); db.textContent = 'x'; db.style.cssText = 'position:absolute;top:4px;right:6px;background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:11px;';
+      db.onclick = (function(cid,m){return function(e){e.stopPropagation();var cards=[];try{cards=JSON.parse(localStorage.getItem('custom-cards:'+m.id)||'[]');}catch(ex){}cards=cards.filter(function(c){return c.id!==cid;});localStorage.setItem('custom-cards:'+m.id,JSON.stringify(cards));showWeekOverview(week,m);};})(card.id,mod);
+      el.appendChild(db);
+    }
+    cg.appendChild(el);
+  });
+  var addEl = document.createElement('div');
+  addEl.style.cssText = 'background:var(--bg-sunken);border:2px dashed var(--border);border-radius:10px;padding:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;color:var(--fg-muted);transition:all 0.15s;';
+  addEl.textContent = '+ Add card type';
+  addEl.onmouseenter = function(){addEl.style.borderColor='var(--accent)';addEl.style.color='var(--accent)';};
+  addEl.onmouseleave = function(){addEl.style.borderColor='var(--border)';addEl.style.color='var(--fg-muted)';};
+  addEl.onclick = function() {
+    var label = prompt('Card type name:'); if (!label) return;
+    var colour = prompt('Colour (hex):', '#7c3aed') || '#7c3aed';
+    var cards = []; try { cards = JSON.parse(localStorage.getItem('custom-cards:'+mod.id)||'[]'); } catch(e) {}
+    cards.push({id:'cc-'+Date.now(), label:label, colour:colour});
+    localStorage.setItem('custom-cards:'+mod.id, JSON.stringify(cards));
+    showWeekOverview(week, mod);
+  };
+  cg.appendChild(addEl); body.appendChild(cg);
+  renderResources(body);
+}
+</script>
 <div id="sidebar-mount"></div>
 <div id="main-content">
 <div class="hub-shell">
@@ -1217,345 +1324,3 @@ function exportWeek() {
 
 
 
-function showWeekOverview(week, mod) {
-  if (!week || !mod) return;
-  currentWeek = week;
-  currentModule = mod;
-
-  var titleEl = document.getElementById('hub-title');
-  if (titleEl) titleEl.textContent = mod.name + ' \u2014 ' + week.name;
-  var subtitleEl = document.getElementById('hub-subtitle');
-  if (subtitleEl) subtitleEl.textContent = (week.resources||[]).length + ' resources';
-
-  var body = document.getElementById('hub-body');
-  if (!body) return;
-  body.innerHTML = '';
-
-  // ── Edit details strip ────────────────────────────────────────────────────
-  var detailsCard = document.createElement('div');
-  detailsCard.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;';
-
-  var detailsHdr = document.createElement('div');
-  detailsHdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;';
-
-  var detailsTitle = document.createElement('div');
-  detailsTitle.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);';
-  detailsTitle.textContent = 'Week Details';
-
-  var editBtn = document.createElement('button');
-  editBtn.style.cssText = 'padding:4px 12px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);';
-  editBtn.textContent = '\u270F Edit';
-  editBtn.onclick = function() {
-    var form = document.getElementById('week-edit-form');
-    if (!form) return;
-    var isOpen = form.style.display !== 'none';
-    form.style.display = isOpen ? 'none' : 'block';
-    editBtn.textContent = isOpen ? '\u270F Edit' : '\u2715 Close';
-  };
-
-  detailsHdr.appendChild(detailsTitle);
-  detailsHdr.appendChild(editBtn);
-  detailsCard.appendChild(detailsHdr);
-
-  // Summary line
-  var summary = document.createElement('div');
-  summary.style.cssText = 'font-size:13px;color:var(--fg-muted);';
-  summary.innerHTML = (week.topic ? '<strong>' + week.topic + '</strong> &nbsp;&middot;&nbsp; ' : '') +
-    (week.vle_url ? '<a href="' + week.vle_url + '" target="_blank" style="color:var(--accent);">VLE \u2197</a>' : 'No VLE link');
-  detailsCard.appendChild(summary);
-
-  // Edit form (hidden by default)
-  var editForm = document.createElement('div');
-  editForm.id = 'week-edit-form';
-  editForm.style.cssText = 'display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;';
-
-  function makeField(label, id, value, type) {
-    var wrap = document.createElement('div');
-    wrap.style.cssText = 'margin-bottom:10px;';
-    var lbl = document.createElement('label');
-    lbl.style.cssText = 'font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;';
-    lbl.textContent = label;
-    var inp = document.createElement('input');
-    inp.id = id;
-    inp.type = type || 'text';
-    inp.value = value || '';
-    inp.style.cssText = 'width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;';
-    inp.onkeydown = function(e) { if (e.key === 'Enter') saveWeekDetails(); };
-    wrap.appendChild(lbl);
-    wrap.appendChild(inp);
-    return wrap;
-  }
-
-  editForm.appendChild(makeField('Week Name', 'week-name-input', week.name));
-  editForm.appendChild(makeField('Topic / Description', 'week-topic-input', week.topic));
-  editForm.appendChild(makeField('VLE Link', 'week-vle-input', week.vle_url, 'url'));
-
-  var saveBtn = document.createElement('button');
-  saveBtn.id = 'week-save-btn';
-  saveBtn.style.cssText = 'padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;';
-  saveBtn.textContent = 'Save Week Details';
-  saveBtn.onclick = saveWeekDetails;
-  editForm.appendChild(saveBtn);
-  detailsCard.appendChild(editForm);
-  body.appendChild(detailsCard);
-
-  // ── Card grid ─────────────────────────────────────────────────────────────
-  var resources = week.resources || [];
-  var COURSE_TYPES = ['ppt','pptx','reading','recommended','further','sample','markscheme','handout','lecture'];
-  var SELF_TYPES = ['news','paper','blog','report','podcast','video','link'];
-
-  var customCards = [];
-  try { customCards = JSON.parse(localStorage.getItem('custom-cards:' + mod.id) || '[]'); } catch(e) {}
-
-  var cardDefs = [
-    {label:'Course Material', count:resources.filter(function(r){return COURSE_TYPES.indexOf(r.type)!==-1;}).length, colour:'#2d6a9f', tab:'resources', filter:'course'},
-    {label:'Self-Sourced', count:resources.filter(function(r){return SELF_TYPES.indexOf(r.type)!==-1;}).length, colour:'#f59e0b', tab:'resources', filter:'self'},
-    {label:'My Notes', count:(week.notes&&week.notes.trim())?1:0, colour:'#7c3aed', tab:'notes', filter:null},
-    {label:'Themes', count:0, colour:'#0f3b3a', tab:'concepts', filter:null},
-    {label:'Chats', count:0, colour:'#5c2d3f', tab:'chats', filter:null},
-    {label:'Audio', count:resources.filter(function(r){return r.type==='audio'||r.type==='podcast';}).length, colour:'#16a34a', tab:'resources', filter:'audio'},
-    {label:'Upload', count:0, colour:'#6b7280', tab:'upload', filter:null},
-  ];
-
-  customCards.forEach(function(cc) {
-    cardDefs.push({label:cc.label, count:0, colour:cc.colour||'#6b7280', tab:'custom:'+cc.id, filter:null, custom:true, id:cc.id});
-  });
-
-  var cardGrid = document.createElement('div');
-  cardGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:14px;';
-
-  cardDefs.forEach(function(card) {
-    var el = document.createElement('div');
-    el.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;transition:all 0.15s;position:relative;';
-    el.onmouseenter = function(){el.style.borderColor=card.colour;el.style.transform='translateY(-2px)';el.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';};
-    el.onmouseleave = function(){el.style.borderColor='var(--border)';el.style.transform='';el.style.boxShadow='';};
-    el.onclick = (function(t,f){return function(){
-      currentTab=t;
-      if(f) currentResourceFilter=f;
-      switchTab(t,null);
-    };})(card.tab, card.filter||null);
-
-    var lbl = document.createElement('div');
-    lbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--fg);margin-bottom:4px;';
-    lbl.textContent = card.label;
-    var cnt = document.createElement('div');
-    cnt.style.cssText = 'font-size:24px;font-weight:700;color:'+card.colour+';';
-    cnt.textContent = card.count;
-    el.appendChild(lbl);
-    el.appendChild(cnt);
-
-    if (card.custom) {
-      var delBtn = document.createElement('button');
-      delBtn.textContent = '\u2715';
-      delBtn.style.cssText = 'position:absolute;top:4px;right:6px;background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:11px;';
-      delBtn.onclick = (function(cid){return function(e){e.stopPropagation();
-        var cards=[];try{cards=JSON.parse(localStorage.getItem('custom-cards:'+mod.id)||'[]');}catch(e){}
-        cards=cards.filter(function(c){return c.id!==cid;});
-        localStorage.setItem('custom-cards:'+mod.id,JSON.stringify(cards));
-        showWeekOverview(week,mod);
-      };})(card.id);
-      el.appendChild(delBtn);
-    }
-    cardGrid.appendChild(el);
-  });
-
-  // Add custom card button
-  var addCardEl = document.createElement('div');
-  addCardEl.style.cssText = 'background:var(--bg-sunken);border:2px dashed var(--border);border-radius:10px;padding:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;color:var(--fg-muted);transition:all 0.15s;';
-  addCardEl.innerHTML = '<span style="font-size:18px;">+</span> Add card type';
-  addCardEl.onmouseenter = function(){addCardEl.style.borderColor='var(--accent)';addCardEl.style.color='var(--accent)';};
-  addCardEl.onmouseleave = function(){addCardEl.style.borderColor='var(--border)';addCardEl.style.color='var(--fg-muted)';};
-  addCardEl.onclick = function() {
-    var label = prompt('Card type name (e.g. "Positivist", "Constructionist", "Marxist"):');
-    if (!label) return;
-    var colour = prompt('Colour (hex, e.g. #7c3aed):', '#7c3aed') || '#7c3aed';
-    var cards = [];
-    try { cards = JSON.parse(localStorage.getItem('custom-cards:'+mod.id)||'[]'); } catch(e) {}
-    cards.push({id:'cc-'+Date.now(), label:label, colour:colour});
-    localStorage.setItem('custom-cards:'+mod.id, JSON.stringify(cards));
-    showWeekOverview(week, mod);
-  };
-  cardGrid.appendChild(addCardEl);
-  body.appendChild(cardGrid);
-
-  // Show resources section
-  renderResources(body);
-}
-
-function showWeekOverview(week, mod) {
-  if (!week || !mod) return;
-  currentWeek = week;
-  currentModule = mod;
-  var titleEl = document.getElementById('hub-title');
-  if (titleEl) titleEl.textContent = mod.name + ' — ' + week.name;
-  var subtitleEl = document.getElementById('hub-subtitle');
-  if (subtitleEl) subtitleEl.textContent = (week.resources||[]).length + ' resources';
-  var body = document.getElementById('hub-body');
-  if (!body) return;
-  body.innerHTML = '';
-
-  // Details card with edit form
-  var detailsCard = document.createElement('div');
-  detailsCard.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;';
-  var detailsHdr = document.createElement('div');
-  detailsHdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;';
-  var detailsTitle = document.createElement('div');
-  detailsTitle.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);';
-  detailsTitle.textContent = 'Week Details';
-  var editBtn = document.createElement('button');
-  editBtn.style.cssText = 'padding:4px 12px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);';
-  editBtn.textContent = 'Edit';
-  editBtn.onclick = function() {
-    var form = document.getElementById('week-edit-form');
-    if (!form) return;
-    var isOpen = form.style.display !== 'none';
-    form.style.display = isOpen ? 'none' : 'block';
-    editBtn.textContent = isOpen ? 'Edit' : 'Close';
-  };
-  detailsHdr.appendChild(detailsTitle);
-  detailsHdr.appendChild(editBtn);
-  detailsCard.appendChild(detailsHdr);
-  var summary = document.createElement('div');
-  summary.style.cssText = 'font-size:13px;color:var(--fg-muted);';
-  summary.textContent = (week.topic || 'No topic set') + (week.vle_url ? ' | VLE linked' : '');
-  detailsCard.appendChild(summary);
-  var editForm = document.createElement('div');
-  editForm.id = 'week-edit-form';
-  editForm.style.cssText = 'display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;';
-  var fields = [
-    {label:'Week Name', id:'week-name-input', value:week.name||'', type:'text'},
-    {label:'Topic', id:'week-topic-input', value:week.topic||'', type:'text'},
-    {label:'VLE Link', id:'week-vle-input', value:week.vle_url||'', type:'url'},
-  ];
-  fields.forEach(function(f) {
-    var wrap = document.createElement('div');
-    wrap.style.cssText = 'margin-bottom:8px;';
-    var lbl = document.createElement('label');
-    lbl.style.cssText = 'font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;';
-    lbl.textContent = f.label;
-    var inp = document.createElement('input');
-    inp.id = f.id;
-    inp.type = f.type;
-    inp.value = f.value;
-    inp.style.cssText = 'width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;';
-    inp.onkeydown = function(e) { if (e.key === 'Enter') saveWeekDetails(); };
-    wrap.appendChild(lbl);
-    wrap.appendChild(inp);
-    editForm.appendChild(wrap);
-  });
-  var saveBtn = document.createElement('button');
-  saveBtn.id = 'week-save-btn';
-  saveBtn.style.cssText = 'padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;';
-  saveBtn.textContent = 'Save Week Details';
-  saveBtn.onclick = saveWeekDetails;
-  editForm.appendChild(saveBtn);
-  detailsCard.appendChild(editForm);
-  body.appendChild(detailsCard);
-
-  // Card grid
-  var resources = week.resources || [];
-  var COURSE_TYPES = ['ppt','pptx','reading','recommended','further','sample','markscheme','handout','lecture'];
-  var SELF_TYPES = ['news','paper','blog','report','podcast','video','link'];
-  var customCards = [];
-  try { customCards = JSON.parse(localStorage.getItem('custom-cards:'+mod.id)||'[]'); } catch(e) {}
-  var cardDefs = [
-    {label:'Course Material', count:resources.filter(function(r){return COURSE_TYPES.indexOf(r.type)!==-1;}).length, colour:'#2d6a9f', tab:'resources', filter:'course'},
-    {label:'Self-Sourced', count:resources.filter(function(r){return SELF_TYPES.indexOf(r.type)!==-1;}).length, colour:'#f59e0b', tab:'resources', filter:'self'},
-    {label:'My Notes', count:(week.notes&&week.notes.trim())?1:0, colour:'#7c3aed', tab:'notes', filter:null},
-    {label:'Themes', count:0, colour:'#0f3b3a', tab:'concepts', filter:null},
-    {label:'Chats', count:0, colour:'#5c2d3f', tab:'chats', filter:null},
-    {label:'Audio', count:resources.filter(function(r){return r.type==='audio'||r.type==='podcast';}).length, colour:'#16a34a', tab:'resources', filter:'audio'},
-    {label:'Upload', count:0, colour:'#6b7280', tab:'upload', filter:null},
-  ];
-  customCards.forEach(function(cc) {
-    cardDefs.push({label:cc.label, count:0, colour:cc.colour||'#6b7280', tab:'custom:'+cc.id, filter:null, custom:true, id:cc.id});
-  });
-  var cardGrid = document.createElement('div');
-  cardGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:14px;';
-  cardDefs.forEach(function(card) {
-    var el = document.createElement('div');
-    el.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;transition:all 0.15s;position:relative;';
-    el.onmouseenter = function(){el.style.borderColor=card.colour;el.style.transform='translateY(-2px)';};
-    el.onmouseleave = function(){el.style.borderColor='var(--border)';el.style.transform='';};
-    el.onclick = (function(t,f){return function(){currentTab=t;if(f)currentResourceFilter=f;switchTab(t,null);};})(card.tab,card.filter||null);
-    var lbl = document.createElement('div');
-    lbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--fg);margin-bottom:4px;';
-    lbl.textContent = card.label;
-    var cnt = document.createElement('div');
-    cnt.style.cssText = 'font-size:24px;font-weight:700;color:'+card.colour+';';
-    cnt.textContent = card.count;
-    el.appendChild(lbl);
-    el.appendChild(cnt);
-    if (card.custom) {
-      var delBtn = document.createElement('button');
-      delBtn.textContent = 'x';
-      delBtn.style.cssText = 'position:absolute;top:4px;right:6px;background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:11px;';
-      delBtn.onclick = (function(cid,m){return function(e){e.stopPropagation();
-        var cards=[];try{cards=JSON.parse(localStorage.getItem('custom-cards:'+m.id)||'[]');}catch(ex){}
-        cards=cards.filter(function(c){return c.id!==cid;});
-        localStorage.setItem('custom-cards:'+m.id,JSON.stringify(cards));
-        showWeekOverview(week,m);
-      };})(card.id,mod);
-      el.appendChild(delBtn);
-    }
-    cardGrid.appendChild(el);
-  });
-  var addCardEl = document.createElement('div');
-  addCardEl.style.cssText = 'background:var(--bg-sunken);border:2px dashed var(--border);border-radius:10px;padding:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;color:var(--fg-muted);transition:all 0.15s;';
-  addCardEl.textContent = '+ Add card type';
-  addCardEl.onmouseenter = function(){addCardEl.style.borderColor='var(--accent)';addCardEl.style.color='var(--accent)';};
-  addCardEl.onmouseleave = function(){addCardEl.style.borderColor='var(--border)';addCardEl.style.color='var(--fg-muted)';};
-  addCardEl.onclick = function() {
-    var label = prompt('Card type name:');
-    if (!label) return;
-    var colour = prompt('Colour (hex):', '#7c3aed') || '#7c3aed';
-    var cards = [];
-    try { cards = JSON.parse(localStorage.getItem('custom-cards:'+mod.id)||'[]'); } catch(e) {}
-    cards.push({id:'cc-'+Date.now(), label:label, colour:colour});
-    localStorage.setItem('custom-cards:'+mod.id, JSON.stringify(cards));
-    showWeekOverview(week, mod);
-  };
-  cardGrid.appendChild(addCardEl);
-  body.appendChild(cardGrid);
-  renderResources(body);
-}
-</script>
-
-<!-- Edit Module Modal -->
-<div id="edit-module-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
-  <div style="background:var(--bg-elevated);border-radius:12px;padding:24px;width:480px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
-    <h3 style="margin:0 0 16px;font-size:16px;">Edit Module</h3>
-    <div style="margin-bottom:12px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">Module Name</label>
-    <input id="em-name" type="text" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;"></div>
-    <div style="margin-bottom:12px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">Research Question / Focus</label>
-    <textarea id="em-rq" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;min-height:70px;resize:vertical;font-family:inherit;"></textarea></div>
-    <div style="margin-bottom:12px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">Lecturer / Professor</label>
-    <input id="em-lec" type="text" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;"></div>
-    <div style="margin-bottom:16px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">VLE URL</label>
-    <input id="em-vle" type="url" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button onclick="closeEditModule()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);font-size:13px;">Cancel</button>
-      <button onclick="saveEditModule()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">Save</button>
-    </div>
-  </div>
-</div>
-
-<!-- Edit Week Modal -->
-<div id="edit-week-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
-  <div style="background:var(--bg-elevated);border-radius:12px;padding:24px;width:480px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
-    <h3 style="margin:0 0 16px;font-size:16px;">Edit Week</h3>
-    <div style="margin-bottom:12px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">Week Name</label>
-    <input id="ew-name" type="text" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;"></div>
-    <div style="margin-bottom:12px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">Topic / Description</label>
-    <textarea id="ew-topic" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;min-height:60px;resize:vertical;font-family:inherit;"></textarea></div>
-    <div style="margin-bottom:16px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:4px;">VLE Link</label>
-    <input id="ew-vle" type="url" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--fg);box-sizing:border-box;"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button onclick="closeEditWeek()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);font-size:13px;">Cancel</button>
-      <button onclick="saveEditWeek()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">Save</button>
-    </div>
-  </div>
-</div>
-
-</body>
-</html>
