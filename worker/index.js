@@ -766,7 +766,7 @@ export default {
     if (path === '/api/memory/about-me' && request.method === 'GET') {
       try {
         const raw = await env.PRISM_KV?.get('memory:about-simon').catch(() => null);
-        return json({ facts: raw ? JSON.parse(raw) : [] }, 200, origin);
+        return json({memories: memories || [],  facts: raw ? JSON.parse(raw) : [] }, 200, origin);
       } catch (e) { return json({ error: e.message }, 500, origin); }
     }
 
