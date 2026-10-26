@@ -4035,6 +4035,194 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── Embedding: generate vector for text ──────────────────────────────────
+    if (path === '/api/embed' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = body.text || '';
+        const model = body.model || 'auto';
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        const MKEY = k(env, ['mistral_api_key','MISTRAL_API_KEY']) || '';
+        const NKEY = k(env, ['nvidia_build_api_key','NVIDIA_BUILD_API_KEY']) || '';
+
+        if (!text) return json({error:'No text provided'}, 400, origin);
+
+        // Auto-select: Google free first, NVIDIA free second, Mistral paid third
+        const providers = [];
+        if (GKEY) providers.push({name:'google', key:GKEY});
+        if (NKEY) providers.push({name:'nvidia', key:NKEY});
+        if (MKEY) providers.push({name:'mistral', key:MKEY});
+
+        for (const p of providers) {
+          if (model !== 'auto' && !model.includes(p.name)) continue;
+          try {
+            if (p.name === 'google') {
+              const resp = await fetch(
+                'https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=' + p.key,
+                {method:'POST', headers:{'Content-Type':'application/json'},
+                 body:JSON.stringify({model:'models/text-embedding-004', content:{parts:[{text}]}})}
+              );
+              if (resp.ok) {
+                const d = await resp.json();
+                const embedding = d.embedding?.values || [];
+                if (embedding.length > 0) return json({embedding, model:'text-embedding-004', provider:'google', dims:embedding.length}, 200, origin);
+              }
+            }
+            if (p.name === 'nvidia') {
+              const resp = await fetch('https://integrate.api.nvidia.com/v1/embeddings', {
+                method:'POST', headers:{'Authorization':'Bearer '+p.key,'Content-Type':'application/json'},
+                body:JSON.stringify({input:[text], model:'nvidia/nv-embed-v2', input_type:'query', encoding_format:'float', truncate:'END'})
+              });
+              if (resp.ok) {
+                const d = await resp.json();
+                const embedding = d.data?.[0]?.embedding || [];
+                if (embedding.length > 0) return json({embedding, model:'nvidia/nv-embed-v2', provider:'nvidia', dims:embedding.length}, 200, origin);
+              }
+            }
+            if (p.name === 'mistral') {
+              const resp = await fetch('https://api.mistral.ai/v1/embeddings', {
+                method:'POST', headers:{'Authorization':'Bearer '+p.key,'Content-Type':'application/json'},
+                body:JSON.stringify({input:[text], model:'mistral-embed', encoding_format:'float'})
+              });
+              if (resp.ok) {
+                const d = await resp.json();
+                const embedding = d.data?.[0]?.embedding || [];
+                if (embedding.length > 0) return json({embedding, model:'mistral-embed', provider:'mistral', dims:embedding.length}, 200, origin);
+              }
+            }
+          } catch(e) { continue; }
+        }
+        return json({error:'All embedding providers failed'}, 500, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── RAG: index document chunk ─────────────────────────────────────────────
+    if (path === '/api/rag/index' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = (body.text || '').substring(0, 8000);
+        const docId = body.doc_id || ('doc-' + Date.now());
+        const docName = body.name || 'Document';
+        const workspaceId = body.workspace_id || 'default';
+        const tags = body.tags || [];
+        const chunkSize = 1000;
+        const overlap = 100;
+
+        // Split into chunks
+        const chunks = [];
+        for (let i = 0; i < text.length; i += chunkSize - overlap) {
+          chunks.push({idx: chunks.length, text: text.substring(i, i + chunkSize)});
+        }
+
+        // Embed each chunk using Google text-embedding-004 (free)
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        let embedded = 0;
+        for (const chunk of chunks.slice(0, 20)) { // max 20 chunks per call
+          try {
+            const resp = await fetch(
+              'https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=' + GKEY,
+              {method:'POST', headers:{'Content-Type':'application/json'},
+               body:JSON.stringify({model:'models/text-embedding-004', content:{parts:[{text:chunk.text}]}})}
+            );
+            if (resp.ok) {
+              const d = await resp.json();
+              const embedding = d.embedding?.values || [];
+              if (embedding.length > 0 && env.PRISM_D1) {
+                await env.PRISM_D1.prepare(
+                  'INSERT OR REPLACE INTO rag_chunks (id, doc_id, doc_name, workspace_id, chunk_idx, chunk_text, embedding_json, tags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                ).bind(
+                  docId + '_' + chunk.idx, docId, docName, workspaceId,
+                  chunk.idx, chunk.text,
+                  JSON.stringify(embedding),
+                  JSON.stringify(tags),
+                  new Date().toISOString()
+                ).run();
+                embedded++;
+              }
+            }
+          } catch(e) { continue; }
+        }
+        return json({success:true, chunks_total:chunks.length, chunks_embedded:embedded, doc_id:docId}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── RAG: semantic search ──────────────────────────────────────────────────
+    if (path === '/api/rag/search' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const query = body.query || '';
+        const limit = body.limit || 5;
+        const workspaceId = body.workspace_id || null;
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+
+        if (!query) return json({results:[]}, 200, origin);
+
+        // Embed the query
+        const qResp = await fetch(
+          'https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=' + GKEY,
+          {method:'POST', headers:{'Content-Type':'application/json'},
+           body:JSON.stringify({model:'models/text-embedding-004', content:{parts:[{text:query}]}})}
+        );
+        if (!qResp.ok) return json({results:[], error:'Query embedding failed'}, 200, origin);
+        const qData = await qResp.json();
+        const queryEmbedding = qData.embedding?.values || [];
+        if (!queryEmbedding.length) return json({results:[]}, 200, origin);
+
+        // Fetch all chunks from D1 (cosine similarity in JS)
+        if (!env.PRISM_D1) return json({results:[], error:'D1 not configured'}, 200, origin);
+        const wsFilter = workspaceId ? `WHERE workspace_id = '${workspaceId}'` : '';
+        const rows = await env.PRISM_D1.prepare(
+          `SELECT id, doc_id, doc_name, workspace_id, chunk_idx, chunk_text, embedding_json FROM rag_chunks ${wsFilter} LIMIT 500`
+        ).all();
+
+        // Cosine similarity
+        function cosineSim(a, b) {
+          let dot = 0, normA = 0, normB = 0;
+          for (let i = 0; i < Math.min(a.length, b.length); i++) {
+            dot += a[i] * b[i]; normA += a[i]*a[i]; normB += b[i]*b[i];
+          }
+          return dot / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-10);
+        }
+
+        const scored = (rows.results || []).map(row => {
+          try {
+            const emb = JSON.parse(row.embedding_json || '[]');
+            return {...row, score: cosineSim(queryEmbedding, emb)};
+          } catch { return {...row, score: 0}; }
+        }).sort((a, b) => b.score - a.score).slice(0, limit);
+
+        return json({results: scored.map(r => ({
+          doc_id: r.doc_id, doc_name: r.doc_name,
+          chunk_idx: r.chunk_idx, chunk_text: r.chunk_text,
+          score: r.score, workspace_id: r.workspace_id
+        }))}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── RAG: setup D1 table ───────────────────────────────────────────────────
+    if (path === '/api/rag/setup' && request.method === 'POST') {
+      try {
+        if (!env.PRISM_D1) return json({error:'D1 not configured'}, 400, origin);
+        await env.PRISM_D1.prepare(`
+          CREATE TABLE IF NOT EXISTS rag_chunks (
+            id TEXT PRIMARY KEY,
+            doc_id TEXT NOT NULL,
+            doc_name TEXT,
+            workspace_id TEXT DEFAULT 'default',
+            chunk_idx INTEGER DEFAULT 0,
+            chunk_text TEXT NOT NULL,
+            embedding_json TEXT,
+            tags TEXT DEFAULT '[]',
+            created_at TEXT
+          )
+        `).run();
+        await env.PRISM_D1.prepare('CREATE INDEX IF NOT EXISTS idx_rag_workspace ON rag_chunks(workspace_id)').run();
+        await env.PRISM_D1.prepare('CREATE INDEX IF NOT EXISTS idx_rag_doc ON rag_chunks(doc_id)').run();
+        return json({success:true, message:'RAG table created'}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
