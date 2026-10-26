@@ -140,19 +140,10 @@ async function callProvider(env, provider, key, model, messages) {
   const reqBody = { model, messages, temperature: 0.7 };
 
   // Add web search tools for models that support it
+  // Mistral web search: use correct format per docs.mistral.ai/studio/agents/agent-tools/websearch
+  // Format: {type: "web_search"} - NOT the function-calling format
   if (provider === 'mistral' && (model.includes('large') || model.includes('medium') || model.includes('magistral') || model.includes('glm'))) {
-    reqBody.tools = [{
-        type: 'function',
-        function: {
-          name: 'web_search',
-          description: 'Search the web for current information',
-          parameters: {
-            type: 'object',
-            properties: { query: { type: 'string', description: 'Search query' } },
-            required: ['query']
-          }
-        }
-      }];
+    reqBody.tools = [{ type: 'web_search' }];
   }
   if (provider === 'deepseek') {
     // DeepSeek has built-in web search, no tool needed
