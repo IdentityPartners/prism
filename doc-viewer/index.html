@@ -356,9 +356,17 @@ function showViewerOptions(doc, label) {
     btnRow.appendChild(embedBtn);
   } else {
     var noUrl = document.createElement('div');
-    noUrl.style.cssText = 'font-size:13px;color:var(--fg-muted);';
-    noUrl.textContent = 'No public URL. Upload to OneDrive or share publicly to use external viewers.';
+    noUrl.style.cssText = 'font-size:13px;color:var(--fg-muted);margin-bottom:10px;';
+    noUrl.textContent = 'No public URL. Upload to Macro to get a shareable link:';
     btnRow.appendChild(noUrl);
+    if (doc.content) {
+      var macroBtn = document.createElement('button');
+      macroBtn.className = 'viewer-option-btn';
+      macroBtn.style.cssText = 'background:#1a1a2e;color:#fff;cursor:pointer;border:none;';
+      macroBtn.textContent = 'Upload to Macro & View';
+      macroBtn.onclick = (function(d){return function(){uploadToMacro(d);};})(doc);
+      btnRow.appendChild(macroBtn);
+    }
   }
   card.appendChild(btnRow);
   pane.appendChild(card);
@@ -480,6 +488,37 @@ function stopReading(){if(ttsAudio){ttsAudio.pause();ttsAudio=null;}document.get
 function zoomIn(){zoom=Math.min(zoom+0.1,2.0);var c=document.querySelector('.doc-content');if(c)c.style.fontSize=Math.round(16*zoom)+'px';}
 function zoomOut(){zoom=Math.max(zoom-0.1,0.5);var c=document.querySelector('.doc-content');if(c)c.style.fontSize=Math.round(16*zoom)+'px';}
 
+
+function uploadToMacro(doc) {
+  var btn = event.target;
+  if (btn) { btn.textContent = 'Uploading...'; btn.disabled = true; }
+  fetch(WORKER + '/api/macro/upload', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      fileName: doc.name || 'document',
+      content: doc.content || '',
+      mimeType: 'text/plain'
+    })
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if (d.url) {
+      // Now we have a public URL — load in Google Docs viewer
+      loadInFrame('https://docs.google.com/viewer?url=' + encodeURIComponent(d.url) + '&embedded=true');
+    } else if (d.id) {
+      // Macro doc created — open it
+      window.open('https://macro.com/app/docs/' + d.id, '_blank');
+    } else {
+      alert('Upload failed: ' + (d.error || 'Unknown error'));
+      if (btn) { btn.textContent = 'Upload to Macro & View'; btn.disabled = false; }
+    }
+  })
+  .catch(function(e){
+    alert('Error: ' + e.message);
+    if (btn) { btn.textContent = 'Upload to Macro & View'; btn.disabled = false; }
+  });
+}
 </script>
 </body>
 </html>
