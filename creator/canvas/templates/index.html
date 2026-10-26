@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792991367 -->
+<!-- cache-bust-1792991618 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Canvas Templates — Argentica</title>
@@ -211,25 +211,43 @@ function generateCanvasWithTemplate(templateId, text) {
       status.textContent = 'Taking longer than expected — logo is large. Please wait...';
     }
   }, 8000);
-  fetch(WORKER + '/api/canvas/generate', {
+  // Step 1: Get instant preview (no logo, fast)
+  fetch(WORKER + '/api/canvas/preview', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({text:text, template:templateId, bgQuery:selectedBgQuery})
+    body:JSON.stringify({text:text, template:templateId})
+  })
+  .then(function(r){return r.text();})
+  .then(function(svgText){
+    // Show preview immediately using SVG text directly
+    var blob = new Blob([svgText], {type:'image/svg+xml'});
+    var previewUrl = URL.createObjectURL(blob);
+    showPreview(previewUrl, templateId, svgText);
+    status.textContent = 'Preview ready. Generating full version with logo...';
+    // Step 2: Generate full version with logo in background
+    return fetch(WORKER + '/api/canvas/generate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({text:text, template:templateId, bgQuery:selectedBgQuery})
+    });
   })
   .then(function(r){return r.json();})
   .then(function(d){
     clearTimeout(genTimeout);
-    status.textContent = '';
-    if (d.dataUrl || d.url) {
-      currentSvg = d.dataUrl || d.url;
-      showPreview(currentSvg, templateId);
-    } else {
-      status.textContent = 'Error: ' + (d.error||'Unknown');
+    status.textContent = d.hasLogo ? 'Full version with logo ready.' : 'Generated (logo unavailable).';
+    if (d.dataUrl) {
+      currentSvg = d.dataUrl;
+      // Update download link with full version
+      var dl = document.getElementById('preview-download');
+      if (dl) {
+        var blob2 = new Blob([atob(d.dataUrl.split(',')[1])], {type:'image/svg+xml'});
+        dl.href = URL.createObjectURL(blob2);
+        dl.download = templateId + '-full.svg';
+      }
     }
   })
-  .catch(function(e){ status.textContent = 'Error: '+e.message; });
+  .catch(function(e){ clearTimeout(genTimeout); status.textContent = 'Error: '+e.message; });
 }
 
-function showPreview(url, templateId) {
+function showPreview(url, templateId, svgText) {
   var modal = document.getElementById('preview-modal');
   var content = document.getElementById('preview-content');
   var dl = document.getElementById('preview-download');
