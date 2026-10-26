@@ -408,7 +408,21 @@ async function callModel(provider, model, key, messages, env) {
     }
     const data = await resp.json();
     const msg = data.choices?.[0]?.message;
-    let content = msg?.content || '';
+    let rawContent = msg?.content || '';
+    let content = '';
+    // GLM 5.3 and thinking models return content as an array
+    if (typeof rawContent === 'string') {
+      content = rawContent;
+    } else if (Array.isArray(rawContent)) {
+      // Extract text parts first, fall back to thinking parts
+      const textParts = rawContent.filter(p => p.type === 'text').map(p => p.text || '');
+      content = textParts.join('');
+      if (!content) {
+        const thinkParts = rawContent.filter(p => p.type === 'thinking')
+          .flatMap(p => (p.thinking || []).map(t => t.text || ''));
+        content = thinkParts.join('').substring(0, 5000);
+      }
+    }
     // Handle tool calls — if Mistral used web_search, get the result
     if (!content && msg?.tool_calls?.length > 0) {
       // Model wants to search — extract query and search ourselves
