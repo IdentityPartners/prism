@@ -3349,6 +3349,41 @@ export default {
     }
 
 
+    // ── Image search (Pexels) ─────────────────────────────────────────────────
+    if (path === '/api/image-search' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const query = body.query || body.q || '';
+        const limit = body.limit || 8;
+        const pexelsKey = k(env, ['pexels_api_key','PEXELS_API_KEY','pexels']) || '';
+        if (!pexelsKey) return json({results:[], error:'Pexels key not configured'}, 200, origin);
+        const resp = await fetch(
+          'https://api.pexels.com/v1/search?query=' + encodeURIComponent(query) + '&per_page=' + limit + '&orientation=landscape',
+          {headers: {'Authorization': pexelsKey}}
+        );
+        if (!resp.ok) return json({results:[], error:'Pexels error: '+resp.status}, 200, origin);
+        const data = await resp.json();
+        return json({results: data.photos || [], total: data.total_results || 0}, 200, origin);
+      } catch(e) { return json({results:[], error:e.message}, 200, origin); }
+    }
+
+    // ── Image search GET (legacy) ─────────────────────────────────────────────
+    if (path.startsWith('/api/image-search') && request.method === 'GET') {
+      try {
+        const url = new URL(request.url);
+        const query = url.searchParams.get('q') || '';
+        const pexelsKey = k(env, ['pexels_api_key','PEXELS_API_KEY','pexels']) || '';
+        if (!pexelsKey) return json({results:[]}, 200, origin);
+        const resp = await fetch(
+          'https://api.pexels.com/v1/search?query=' + encodeURIComponent(query) + '&per_page=8&orientation=landscape',
+          {headers: {'Authorization': pexelsKey}}
+        );
+        const data = await resp.json();
+        return json({results: data.photos || []}, 200, origin);
+      } catch(e) { return json({results:[]}, 200, origin); }
+    }
+
+
     // ── Zoho OAuth token exchange ─────────────────────────────────────────────
     if (path === '/api/zoho/exchange' && request.method === 'POST') {
       try {
