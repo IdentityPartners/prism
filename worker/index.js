@@ -186,119 +186,232 @@ async function orchestrate(messages, env, options = {}) {
   const profile = options.profile || 'balanced';
   const providerOverride = options.providerOverride;
   const modelOverride = options.modelOverride;
-  const threadId = options.threadId;
+  const startTime = Date.now();
 
-  // Helper to get key
-  const k = (env, names) => { for (const n of names) { if (env[n]) return env[n]; } return null; };
-
-  // Keys
-  const MISTRAL_KEY = k(env, ['mistral_api_key', 'MISTRAL_API_KEY']);
-  const GEMINI_KEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']);
-  const DEEPSEEK_KEY = k(env, ['deepseek_paid', 'DEEPSEEK_PAID', 'deepseek_free_1']);
-  const GROQ_KEY = k(env, ['groq_free_1', 'GROQ_FREE_1', 'groq_free_2', 'GROQ_FREE_2']);
-  const OPENROUTER_KEY = k(env, ['openrouter_api_key', 'OPENROUTER_API_KEY']);
-  const CEREBRAS_KEY = k(env, ['CEREBRAS_FREE_1', 'cerebras_free_1', 'CEREBRAS_PAID']);
-  const ZAI_KEY = k(env, ['zai_api_key', 'ZAI_API_KEY']);
-
-  // Routing chains — ordered by reliability (confirmed working)
-  const CHAINS = {
-    balanced: [
-      // 1. GLM 5.3 via Mistral paid — 1M context, web search, thinking
-      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY},
-      // 2. Mistral Large Latest — paid, web search, vision, 1M context
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY},
-      // 3. Gemini 3.5 Flash — free tier, 1M context, Google Search grounding
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash', key:GEMINI_KEY},
-      // 4. Gemma 4 31B — free tier, Google Search
-      GEMINI_KEY && {provider:'gemini', model:'gemma-4-31b-it', key:GEMINI_KEY},
-      // 5. DeepSeek V4 Flash — paid, 1M context, built-in web search
-      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY},
-      // 6. GPT-OSS 120B via Groq — free, fast ~300ms
-      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY},
-      // 7. GPT-OSS 120B via Cerebras — paid credits, very fast
-      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY},
-      // 8. Nemotron Ultra 550B via OpenRouter — free frontier, slow but capable
-      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY},
-      // NO Pollinations for text — we have real providers
-    ],
-    fast: [
-      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY},
-      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY},
-      GEMINI_KEY && {provider:'gemini', model:'gemma-4-31b-it', key:GEMINI_KEY},
-      {provider:'pollinations', model:'openai', key:null},
-    ],
-    frontier: [
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY},
-      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-2', key:MISTRAL_KEY},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash', key:GEMINI_KEY},
-      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY},
-      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY},
-      {provider:'pollinations', model:'openai', key:null},
-    ],
-  };
-
-  // If provider/model override specified, try that first
-  let chain = (CHAINS[profile] || CHAINS.balanced).filter(Boolean);
-  if (providerOverride && modelOverride) {
-    const overrideEntry = {provider:providerOverride, model:modelOverride, key:
-      providerOverride==='mistral' ? MISTRAL_KEY :
-      providerOverride==='gemini' ? GEMINI_KEY :
-      providerOverride==='deepseek' ? DEEPSEEK_KEY :
-      providerOverride==='groq' ? GROQ_KEY :
-      providerOverride==='openrouter' ? OPENROUTER_KEY :
-      providerOverride==='cerebras' ? CEREBRAS_KEY :
-      providerOverride==='zai' ? ZAI_KEY : null
-    };
-    chain = [overrideEntry, ...chain];
+  // ── Key lookup helper ─────────────────────────────────────────────────────
+  function k(names) {
+    for (const n of names) {
+      const v = env[n];
+      if (v && v.trim()) return v.trim();
+    }
+    return null;
   }
 
-  const log = [];
-  let lastError = '';
+  // ── All available keys ────────────────────────────────────────────────────
+  const KEYS = {
+    mistral:    k(['mistral_api_key', 'MISTRAL_API_KEY']),
+    gemini:     k(['gemini_api_key', 'GEMINI_API_KEY']),
+    deepseek:   k(['deepseek_paid', 'DEEPSEEK_PAID', 'deepseek_free_1', 'DEEPSEEK_FREE_1']),
+    groq:       k(['groq_free_1', 'GROQ_FREE_1', 'GROQ_FREE_2', 'groq_free_2']),
+    cerebras:   k(['CEREBRAS_FREE_1', 'cerebras_free_1', 'CEREBRAS_PAID', 'cerebras_paid']),
+    openrouter: k(['openrouter_api_key', 'OPENROUTER_API_KEY']),
+    kimi:       k(['kimi_api_key', 'KIMI_API_KEY']),
+    nvidia:     k(['nvidia_build_api_key', 'NVIDIA_BUILD_API_KEY']),
+    xai:        k(['xai_api_key', 'XAI_API_KEY']),
+    cohere:     k(['cohere_free_key', 'cohere_api_key']),
+  };
 
-  for (const entry of chain) {
-    if (!entry) continue;
-    const {provider, model, key} = entry;
-    const t0 = Date.now();
+  // ── Full model catalogue ──────────────────────────────────────────────────
+  // Mistral subscription: 63 models including GLM 5.x, Magistral, Voxtral, OCR
+  // Google AI Studio: Gemini 3.5 Flash, Gemma 4, Gemini 2.5 etc (free tier)
+  // Groq/Cerebras: GPT-OSS, Llama (free)
+  // DeepSeek: V4 Flash (paid)
+
+  // Build chain based on profile
+  const chain = [];
+
+  if (providerOverride && modelOverride) {
+    // Manual model selection — try only that model
+    chain.push({ p: providerOverride, key: KEYS[providerOverride] || KEYS.mistral, m: modelOverride, note: 'manual' });
+  } else if (profile === 'fast') {
+    // Fast: lowest latency, free models first
+    if (KEYS.groq)       chain.push({ p: 'groq',       key: KEYS.groq,       m: 'openai/gpt-oss-120b',                    note: 'GPT-OSS Groq (fast, free)' });
+    if (KEYS.cerebras)   chain.push({ p: 'cerebras',   key: KEYS.cerebras,   m: 'gpt-oss-120b',                           note: 'GPT-OSS Cerebras (fast, paid)' });
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-small-latest',                   note: 'Mistral Small (fast, paid)' });
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'ministral-8b-latest',                    note: 'Ministral 8B (fast, paid)' });
+    if (KEYS.gemini)     chain.push({ p: 'gemini',     key: KEYS.gemini,     m: 'gemma-4-9b-it',                          note: 'Gemma 4 9B (fast, free)' });
+    if (KEYS.gemini)     chain.push({ p: 'gemini',     key: KEYS.gemini,     m: 'gemini-3.5-flash-lite',                  note: 'Gemini 3.5 Flash Lite (fast, free)' });
+  } else if (profile === 'frontier') {
+    // Frontier: maximum capability, thinking models
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',                            note: 'GLM 5.3 (1M, thinking, web)' });
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-4',                        note: 'Mistral Large 4 (1M, thinking)' });
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'magistral-medium-latest',                note: 'Magistral Medium (thinking)' });
+    if (KEYS.gemini)     chain.push({ p: 'gemini',     key: KEYS.gemini,     m: 'gemini-2.5-pro',                         note: 'Gemini 2.5 Pro (1M, thinking, free)' });
+    if (KEYS.gemini)     chain.push({ p: 'gemini',     key: KEYS.gemini,     m: 'gemini-2.5-flash',                       note: 'Gemini 2.5 Flash (1M, thinking, free)' });
+    if (KEYS.deepseek)   chain.push({ p: 'deepseek',   key: KEYS.deepseek,   m: 'deepseek-chat',                          note: 'DeepSeek V4 Flash (1M, web)' });
+    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3-ultra-550b-a55b:free', note: 'Nemotron Ultra 550B (1M, free)' });
+  } else {
+    // Balanced (default): quality + reliability + free fallbacks
+    // Tier 1: Primary paid models (GLM 5.3 and Mistral Large — your subscription)
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',                            note: 'GLM 5.3 via Mistral (1M, thinking, web)' });
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-4',                        note: 'Mistral Large 4 (1M, thinking, web)' });
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-latest',                   note: 'Mistral Large Latest (262K, web)' });
+    // Tier 2: Free Google models (your AI Studio account)
+    if (KEYS.gemini)     chain.push({ p: 'gemini',     key: KEYS.gemini,     m: 'gemini-3.5-flash',                       note: 'Gemini 3.5 Flash (1M, search, free)' });
+    if (KEYS.gemini)     chain.push({ p: 'gemini',     key: KEYS.gemini,     m: 'gemma-4-31b-it',                         note: 'Gemma 4 31B (262K, search, free)' });
+    if (KEYS.gemini)     chain.push({ p: 'gemini',     key: KEYS.gemini,     m: 'gemini-2.5-flash',                       note: 'Gemini 2.5 Flash (1M, thinking, free)' });
+    // Tier 3: Paid DeepSeek
+    if (KEYS.deepseek)   chain.push({ p: 'deepseek',   key: KEYS.deepseek,   m: 'deepseek-chat',                          note: 'DeepSeek V4 Flash (1M, web)' });
+    // Tier 4: Free fast models
+    if (KEYS.groq)       chain.push({ p: 'groq',       key: KEYS.groq,       m: 'openai/gpt-oss-120b',                    note: 'GPT-OSS 120B Groq (131K, free)' });
+    if (KEYS.cerebras)   chain.push({ p: 'cerebras',   key: KEYS.cerebras,   m: 'gpt-oss-120b',                           note: 'GPT-OSS 120B Cerebras (8K, fast)' });
+    // Tier 5: Smaller Mistral fallbacks (your subscription covers these)
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-medium-3.5',                     note: 'Mistral Medium 3.5 (262K, web)' });
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'ministral-8b-latest',                    note: 'Ministral 8B (262K, fast)' });
+    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-small-latest',                   note: 'Mistral Small (262K)' });
+    // Tier 6: Free frontier
+    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3-ultra-550b-a55b:free', note: 'Nemotron Ultra 550B (1M, free, slow)' });
+    // Tier 7: More free Google fallbacks
+    if (KEYS.gemini)     chain.push({ p: 'gemini',     key: KEYS.gemini,     m: 'gemma-4-9b-it',                          note: 'Gemma 4 9B (131K, free)' });
+    if (KEYS.gemini)     chain.push({ p: 'gemini',     key: KEYS.gemini,     m: 'gemini-3.5-flash-lite',                  note: 'Gemini 3.5 Flash Lite (1M, free)' });
+  }
+
+  // ── Call a provider ───────────────────────────────────────────────────────
+  async function callProvider(entry) {
+    const { p, key, m } = entry;
+    if (!key && p !== 'gemini') throw new Error(`No key for ${p}`);
+
+    const timeout = 30000; // 30s per provider
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+
     try {
-      const result = await callModel(provider, model, key, messages, env);
-      const ms = Date.now() - t0;
-      if (result.content) {
-        log.push(`${provider}/${model}: OK (${ms}ms)`);
-        // Save to thread if threadId provided
-        if (threadId && env.PRISM_KV) {
-          try {
-            const threadKey = 'thread:' + threadId;
-            const raw = await env.PRISM_KV.get(threadKey);
-            const thread = raw ? JSON.parse(raw) : {id:threadId, messages:[], created:new Date().toISOString()};
-            // Add user message if not already there
-            const lastMsg = messages[messages.length-1];
-            if (lastMsg && lastMsg.role === 'user') {
-              thread.messages.push({...lastMsg, ts:Date.now()});
-            }
-            thread.messages.push({role:'assistant', content:result.content, provider, model, ts:Date.now()});
-            thread.updated = new Date().toISOString();
-            thread.messageCount = thread.messages.length;
-            // Auto-title from first user message
-            if (!thread.title) {
-              const firstUser = thread.messages.find(m => m.role === 'user');
-              if (firstUser) thread.title = firstUser.content.substring(0, 60);
-            }
-            await env.PRISM_KV.put(threadKey, JSON.stringify(thread), {expirationTtl: 86400 * 90});
-          } catch(e) {}
-        }
-        return {...result, provider, model, routingLog: log};
+      let url, headers, body;
+
+      if (p === 'mistral') {
+        url = 'https://api.mistral.ai/v1/chat/completions';
+        headers = { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' };
+        // Enable web search for models that support it
+        const webSearchModels = ['zai-glm-5-3', 'zai-glm-5-2', 'mistral-large-4', 'mistral-large-latest', 'mistral-medium-3.5', 'magistral-medium-latest'];
+        const tools = webSearchModels.includes(m) ? [{ type: 'web_search' }] : undefined;
+        body = { model: m, messages, max_tokens: 8192, ...(tools ? { tools } : {}) };
+      } else if (p === 'gemini') {
+        // Gemini uses a different API format
+        const gemKey = key || env.GEMINI_API_KEY || env.gemini_api_key;
+        url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
+        headers = { 'Content-Type': 'application/json', 'x-goog-api-key': gemKey };
+        // Convert messages to Gemini format
+        const gemContents = messages.filter(msg => msg.role !== 'system').map(msg => ({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.content }]
+        }));
+        const systemMsg = messages.find(msg => msg.role === 'system');
+        body = {
+          contents: gemContents,
+          ...(systemMsg ? { systemInstruction: { parts: [{ text: systemMsg.content }] } } : {}),
+          generationConfig: { maxOutputTokens: 8192 },
+          // Enable Google Search grounding for Gemini models (not Gemma)
+          ...(m.startsWith('gemini') ? { tools: [{ googleSearch: {} }] } : {})
+        };
+      } else if (p === 'deepseek') {
+        url = 'https://api.deepseek.com/v1/chat/completions';
+        headers = { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' };
+        body = { model: m, messages, max_tokens: 8192 };
+      } else if (p === 'groq') {
+        url = 'https://api.groq.com/openai/v1/chat/completions';
+        headers = { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' };
+        body = { model: m, messages, max_tokens: 8192 };
+      } else if (p === 'cerebras') {
+        url = 'https://api.cerebras.ai/v1/chat/completions';
+        headers = { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' };
+        body = { model: m, messages, max_tokens: 8192 };
+      } else if (p === 'openrouter') {
+        url = 'https://openrouter.ai/api/v1/chat/completions';
+        headers = { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://prism.identitypartners.uk', 'X-Title': 'Argentica' };
+        body = { model: m, messages, max_tokens: 8192 };
+      } else if (p === 'kimi') {
+        url = 'https://api.moonshot.cn/v1/chat/completions';
+        headers = { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' };
+        body = { model: m, messages, max_tokens: 8192 };
+      } else if (p === 'nvidia') {
+        url = 'https://integrate.api.nvidia.com/v1/chat/completions';
+        headers = { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' };
+        body = { model: m, messages, max_tokens: 8192 };
+      } else {
+        throw new Error(`Unknown provider: ${p}`);
       }
-      log.push(`${provider}/${model}: empty (${Date.now()-t0}ms)`);
-    } catch(e) {
-      const ms = Date.now() - t0;
-      log.push(`${provider}/${model}: ${e.message.substring(0,60)} (${ms}ms)`);
-      lastError = e.message;
+
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+
+      clearTimeout(timer);
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`${p} ${resp.status}: ${errText.substring(0, 100)}`);
+      }
+
+      const d = await resp.json();
+
+      // Extract content — handle different response formats
+      let content = '';
+      let thinking = '';
+
+      if (p === 'gemini') {
+        // Gemini format
+        const parts = d.candidates?.[0]?.content?.parts || [];
+        content = parts.map(pt => pt.text || '').join('');
+        // Check for grounding metadata (web search results)
+        const grounding = d.candidates?.[0]?.groundingMetadata;
+        if (grounding?.webSearchQueries) {
+          // Append search context note
+        }
+      } else {
+        // OpenAI-compatible format
+        const msg = d.choices?.[0]?.message;
+        const rawContent = msg?.content;
+
+        if (typeof rawContent === 'string') {
+          content = rawContent;
+        } else if (Array.isArray(rawContent)) {
+          // GLM thinking format: array of {type: 'thinking'|'text', ...}
+          for (const part of rawContent) {
+            if (part.type === 'thinking') {
+              thinking += (part.thinking || []).map(t => t.text || '').join('');
+            } else if (part.type === 'text') {
+              content += part.text || '';
+            }
+          }
+        }
+
+        // Cerebras/GLM reasoning_content
+        if (!content && msg?.reasoning_content) thinking = msg.reasoning_content;
+        if (!content && msg?.reasoning) thinking = msg.reasoning;
+      }
+
+      if (!content && !thinking) throw new Error(`${p} empty response`);
+
+      return { content: content || thinking, thinking, provider: p, model: m };
+
+    } catch (e) {
+      clearTimeout(timer);
+      throw e;
     }
   }
 
-  return {content: null, error: 'All providers unavailable. Log: ' + log.join(' | '), routingLog: log};
+  // ── Try each provider in chain ────────────────────────────────────────────
+  const log = [];
+  for (const entry of chain) {
+    const t0 = Date.now();
+    try {
+      const result = await callProvider(entry);
+      const ms = Date.now() - t0;
+      log.push(`${entry.note || entry.p + '/' + entry.m}: OK (${ms}ms)`);
+      return { ...result, log, totalMs: Date.now() - startTime };
+    } catch (e) {
+      const ms = Date.now() - t0;
+      log.push(`${entry.note || entry.p + '/' + entry.m}: ${e.message.substring(0, 60)} (${ms}ms)`);
+      // Continue to next provider
+    }
+  }
+
+  return { content: null, error: 'All providers unavailable', log, totalMs: Date.now() - startTime };
 }
+
 
 async function callModel(provider, model, key, messages, env) {
   // Inject web search context for time-sensitive queries
