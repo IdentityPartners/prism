@@ -1157,20 +1157,22 @@ document.addEventListener('DOMContentLoaded', function() {
       e.preventDefault();
       var panel = document.getElementById('theme-picker-panel');
       if (!panel) {
-        buildThemePicker();
+        if (typeof buildThemePicker === 'function') buildThemePicker();
         panel = document.getElementById('theme-picker-panel');
       }
       if (panel) {
-        var isVisible = panel.style.display !== 'none' && panel.style.display !== '';
-        panel.style.display = isVisible ? 'none' : 'block';
+        var isHidden = panel.style.display === 'none' || panel.style.display === '';
+        // Position panel near the button
+        var btnRect = btn.getBoundingClientRect();
         panel.style.position = 'fixed';
-        panel.style.top = '52px';
-        panel.style.right = '14px';
+        panel.style.top = (btnRect.bottom + 4) + 'px';
+        panel.style.right = '8px';
         panel.style.left = 'auto';
         panel.style.bottom = 'auto';
         panel.style.zIndex = '99999';
+        panel.style.display = isHidden ? 'block' : 'none';
       }
-    };;
+    };;;
     document.body.appendChild(btn);
     document.addEventListener('click', function() {
       if (panel) panel.style.display = 'none';
