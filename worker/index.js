@@ -3467,6 +3467,129 @@ export default {
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── Macro.com file storage ────────────────────────────────────────────────
+    if (path === '/api/macro/upload' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const fileName = body.fileName || ('file-'+Date.now());
+        const content = body.content || ''; // text content
+        const mimeType = body.mimeType || 'text/plain';
+        const macroKey = k(env, ['macro_api_key','MACRO_API_KEY']) || '';
+        if (!macroKey) return json({error:'Macro API key not configured'}, 400, origin);
+        // Macro API: create a doc
+        const resp = await fetch('https://api.macro.com/v1/docs', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer '+macroKey, 'Content-Type': 'application/json'},
+          body: JSON.stringify({title: fileName, content: content, type: 'document'})
+        });
+        const data = await resp.json();
+        if (data.id) {
+          return json({success:true, id:data.id, url:data.url||'', title:data.title}, 200, origin);
+        }
+        return json({error:'Macro upload failed: '+JSON.stringify(data).substring(0,100)}, 500, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Macro list docs ───────────────────────────────────────────────────────
+    if (path === '/api/macro/list' && request.method === 'GET') {
+      try {
+        const macroKey = k(env, ['macro_api_key','MACRO_API_KEY']) || '';
+        if (!macroKey) return json({docs:[]}, 200, origin);
+        const resp = await fetch('https://api.macro.com/v1/docs', {
+          headers: {'Authorization': 'Bearer '+macroKey}
+        });
+        const data = await resp.json();
+        return json({docs: data.docs || data.items || data || []}, 200, origin);
+      } catch(e) { return json({docs:[], error:e.message}, 200, origin); }
+    }
+
+    // ── Zoho: list all calendars (to find the right one) ─────────────────────
+    if (path === '/api/zoho/calendars' && request.method === 'GET') {
+      try {
+        const raw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
+        if (!raw) return json({error:'Not connected', status:'not_connected'}, 200, origin);
+        const tokenData = JSON.parse(raw);
+        const apiDomain = tokenData.api_domain || 'https://www.zohoapis.eu';
+        const resp = await fetch(apiDomain+'/calendar/v1/calendars', {
+          headers: {'Authorization': 'Bearer '+tokenData.access_token}
+        });
+        const data = await resp.json();
+        return json({calendars: data.calendars || [], raw: JSON.stringify(data).substring(0,500)}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Zoho: get events from ALL calendars ───────────────────────────────────
+    if (path === '/api/calendar/events' && request.method === 'GET') {
+      try {
+        const raw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
+        if (!raw) return json({today:[],week:[],next_week:[],status:'not_connected'}, 200, origin);
+        const tokenData = JSON.parse(raw);
+        // Check token expiry
+        const storedAt = tokenData.stored_at || 0;
+        const expiresIn = (tokenData.expires_in || 3600) * 1000;
+        if (Date.now() - storedAt > expiresIn - 60000) {
+          // Token expired — try refresh
+          if (tokenData.refresh_token) {
+            const clientId = k(env, ['zoho_client_id','ZOHO_CLIENT_ID']) || '1000.BXJ9CZSVLMX25OO9L0KKG95KR8Y05P';
+            const clientSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || '';
+            const params = new URLSearchParams({grant_type:'refresh_token',client_id:clientId,client_secret:clientSecret,refresh_token:tokenData.refresh_token});
+            const refreshResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()});
+            const refreshData = await refreshResp.json();
+            if (refreshData.access_token) {
+              tokenData.access_token = refreshData.access_token;
+              tokenData.stored_at = Date.now();
+              if (env.PRISM_KV) await env.PRISM_KV.put('zoho:calendar:token', JSON.stringify(tokenData));
+            }
+          }
+        }
+        const apiDomain = tokenData.api_domain || 'https://www.zohoapis.eu';
+        const now = new Date();
+        const startDate = now.toISOString().split('T')[0];
+        const endDate = new Date(now.getTime() + 14*24*60*60*1000).toISOString().split('T')[0];
+        // Get all calendars first
+        let calendarIds = [];
+        try {
+          const calResp = await fetch(apiDomain+'/calendar/v1/calendars', {
+            headers: {'Authorization': 'Bearer '+tokenData.access_token}
+          });
+          const calData = await calResp.json();
+          const cals = calData.calendars || [];
+          calendarIds = cals.map(c => c.uid || c.id).filter(Boolean);
+        } catch(e) {}
+        if (!calendarIds.length) calendarIds = ['personal']; // fallback
+        // Fetch events from all calendars
+        let allEvents = [];
+        for (const calId of calendarIds.slice(0,5)) {
+          try {
+            const evResp = await fetch(
+              apiDomain+'/calendar/v1/calendars/'+encodeURIComponent(calId)+'/events?startdatetime='+startDate+'&enddatetime='+endDate+'&range=14',
+              {headers: {'Authorization': 'Bearer '+tokenData.access_token}}
+            );
+            const evData = await evResp.json();
+            const events = evData.events || [];
+            allEvents = allEvents.concat(events.map(ev => ({
+              id: ev.uid || ev.id,
+              title: ev.title || ev.summary || 'Event',
+              start: ev.dateandtime?.start || ev.start?.dateTime || ev.start?.date || '',
+              end: ev.dateandtime?.end || ev.end?.dateTime || ev.end?.date || '',
+              calendar: calId,
+              location: ev.location || '',
+            })));
+          } catch(e) {}
+        }
+        // Sort and split into today/week/next_week
+        allEvents.sort((a,b) => new Date(a.start) - new Date(b.start));
+        const today = now.toDateString();
+        const weekEnd = new Date(now.getTime() + 7*24*60*60*1000);
+        const nextWeekEnd = new Date(now.getTime() + 14*24*60*60*1000);
+        const todayEvents = allEvents.filter(e => e.start && new Date(e.start).toDateString() === today);
+        const weekEvents = allEvents.filter(e => e.start && new Date(e.start) > now && new Date(e.start) <= weekEnd);
+        const nextWeekEvents = allEvents.filter(e => e.start && new Date(e.start) > weekEnd && new Date(e.start) <= nextWeekEnd);
+        return json({today:todayEvents, week:weekEvents, next_week:nextWeekEvents, status:'ok', calendarCount:calendarIds.length}, 200, origin);
+      } catch(e) { return json({today:[],week:[],next_week:[],status:'api_error',error:e.message}, 200, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
