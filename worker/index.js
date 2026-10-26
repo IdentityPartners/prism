@@ -203,21 +203,23 @@ async function orchestrate(messages, env, options = {}) {
   // Routing chains — ordered by reliability (confirmed working)
   const CHAINS = {
     balanced: [
-      // Mistral paid — most reliable, web search built in
+      // 1. GLM 5.3 via Mistral paid — 1M context, web search, thinking
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY},
+      // 2. Mistral Large Latest — paid, web search, vision, 1M context
       MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY},
-      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-2', key:MISTRAL_KEY},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY},
-      // Gemini free — good quality, 1M context
+      // 3. Gemini 3.5 Flash — free tier, 1M context, Google Search grounding
       GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash', key:GEMINI_KEY},
+      // 4. Gemma 4 31B — free tier, Google Search
       GEMINI_KEY && {provider:'gemini', model:'gemma-4-31b-it', key:GEMINI_KEY},
-      // DeepSeek paid — 1M context, web search
+      // 5. DeepSeek V4 Flash — paid, 1M context, built-in web search
       DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY},
-      // Groq free — fast
+      // 6. GPT-OSS 120B via Groq — free, fast ~300ms
       GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY},
-      // Nemotron via OpenRouter — free frontier
+      // 7. GPT-OSS 120B via Cerebras — paid credits, very fast
+      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY},
+      // 8. Nemotron Ultra 550B via OpenRouter — free frontier, slow but capable
       OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY},
-      // Pollinations — unconditional fallback
-      {provider:'pollinations', model:'openai', key:null},
+      // NO Pollinations for text — we have real providers
     ],
     fast: [
       GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY},
@@ -3858,6 +3860,89 @@ export default {
         if (!markdown) return json({error: 'No text extracted', raw: JSON.stringify(gemData).substring(0,200)}, 500, origin);
         return json({success: true, markdown, wordCount: markdown.split(/\s+/).length}, 200, origin);
       } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+
+    // ── Streaming chat with thinking display ─────────────────────────────────
+    if (path === '/api/chat/stream' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const messages = (body.messages || []).filter(m => m?.role && m?.content);
+        const profile = body.profile || 'balanced';
+        const threadId = body.threadId || ('t' + Date.now());
+        const providerOverride = body.providerOverride;
+        const modelOverride = body.modelOverride;
+
+        // Set up SSE stream
+        const { readable, writable } = new TransformStream();
+        const writer = writable.getWriter();
+        const encoder = new TextEncoder();
+
+        const send = async (event, data) => {
+          await writer.write(encoder.encode(`event: ${event}
+data: ${JSON.stringify(data)}
+
+`));
+        };
+
+        // Run orchestration in background, stream results
+        (async () => {
+          try {
+            await send('status', { status: 'connecting', message: 'Connecting to AI...' });
+
+            const result = await orchestrate(messages, env, { profile, providerOverride, modelOverride, threadId });
+
+            if (result.error) {
+              await send('error', { error: result.error, log: result.log });
+            } else {
+              // Send thinking if present
+              if (result.thinking) {
+                await send('thinking', { text: result.thinking });
+              }
+              // Send connected status
+              await send('status', { status: 'connected', provider: result.provider, model: result.model });
+              // Stream the content token by token (simulate streaming for now)
+              const content = result.content || '';
+              const chunkSize = 20;
+              for (let i = 0; i < content.length; i += chunkSize) {
+                await send('token', { text: content.slice(i, i + chunkSize) });
+              }
+              // Send done
+              await send('done', {
+                content: result.content,
+                provider: result.provider,
+                model: result.model,
+                thinking: result.thinking,
+                threadId
+              });
+              // Save thread
+              if (env.PRISM_KV && result.content) {
+                const threadKey = `thread:${threadId}`;
+                const existing = await env.PRISM_KV.get(threadKey);
+                const thread = existing ? JSON.parse(existing) : { id: threadId, messages: [], created: new Date().toISOString() };
+                thread.messages = [...messages, { role: 'assistant', content: result.content, provider: result.provider, ts: Date.now() }];
+                thread.updated = new Date().toISOString();
+                thread.messageCount = thread.messages.filter(m => m.role !== 'system').length;
+                if (!thread.title) thread.title = messages.find(m => m.role === 'user')?.content?.substring(0, 60) || 'Conversation';
+                await env.PRISM_KV.put(threadKey, JSON.stringify(thread), { expirationTtl: 86400 * 90 });
+              }
+            }
+          } catch(e) {
+            await send('error', { error: e.message });
+          } finally {
+            await writer.close();
+          }
+        })();
+
+        return new Response(readable, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': origin,
+          }
+        });
+      } catch(e) { return json({ error: e.message }, 500, origin); }
     }
 
 return json({ error: 'Not found', path }, 404, origin);
