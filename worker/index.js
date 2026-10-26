@@ -140,8 +140,6 @@ async function callProvider(env, provider, key, model, messages) {
   const reqBody = { model, messages, temperature: 0.7 };
 
   // Add web search tools for models that support it
-  // Mistral web search: use correct format per docs.mistral.ai/studio/agents/agent-tools/websearch
-  // Format: {type: "web_search"} - NOT the function-calling format
   if (provider === 'mistral' && (model.includes('large') || model.includes('medium') || model.includes('magistral') || model.includes('glm'))) {
     reqBody.tools = [{ type: 'web_search' }];
   }
