@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
-<!-- cache-bust-1793057851 -->
+<!-- cache-bust-1793058077 -->
 <style>
 .hub-shell{display:flex;height:100vh;overflow:hidden;}
 .hub-tree{width:260px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-surface);overflow:hidden;}
@@ -31,7 +31,6 @@
 .hub-body{flex:1;overflow-y:auto;padding:16px;}
 .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px;}
 .card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all 0.15s;position:relative;overflow:hidden;}
-.card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.1);}
 .card-icon{font-size:26px;margin-bottom:8px;}
 .card-label{font-size:13px;font-weight:700;color:var(--fg);margin-bottom:3px;}
 .card-count{font-size:22px;font-weight:700;}
@@ -55,8 +54,8 @@
 .res-title{font-size:13px;font-weight:600;color:var(--fg);margin-bottom:2px;}
 .res-meta{font-size:11px;color:var(--fg-muted);display:flex;gap:8px;}
 .res-type{padding:1px 7px;border-radius:8px;font-size:10px;font-weight:600;}
-.type-ppt{background:rgba(220,38,38,0.1);color:#dc2626;}
-.type-reading{background:rgba(45,106,159,0.1);color:var(--accent);}
+.type-ppt,.type-pptx{background:rgba(220,38,38,0.1);color:#dc2626;}
+.type-reading,.type-recommended,.type-further{background:rgba(45,106,159,0.1);color:var(--accent);}
 .type-paper{background:rgba(22,163,74,0.1);color:#16a34a;}
 .type-news{background:rgba(245,158,11,0.1);color:#f59e0b;}
 .type-note{background:rgba(124,58,237,0.1);color:#7c3aed;}
@@ -83,7 +82,7 @@
 .tts-btn{padding:4px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);color:var(--fg-muted);font-family:inherit;}
 .tts-btn:hover{border-color:var(--accent);color:var(--accent);}
 .del-btn{padding:4px 8px;border:1px solid #dc2626;border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);color:#dc2626;font-family:inherit;}
-.global-search{padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-elevated);flex-shrink:0;}
+.global-search-wrap{padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-elevated);flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -104,7 +103,7 @@
   </div>
 </div>
 <div class="hub-main">
-  <div class="global-search">
+  <div class="global-search-wrap">
     <div class="search-bar">
       <input class="search-input" id="global-search" type="text" placeholder="Search everything: course material, notes, papers, web..." onkeydown="if(event.key==='Enter')runGlobalSearch()">
       <button class="search-btn" onclick="runGlobalSearch()">&#x1F50D; Search</button>
@@ -141,6 +140,7 @@ var modules = [];
 var currentModule = null;
 var currentWeek = null;
 var currentTab = 'overview';
+var currentResourceFilter = null;
 
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
@@ -182,12 +182,12 @@ function initDefaultModules() {
 }
 
 function saveModules() {
-  var json = JSON.stringify(modules);
-  try { localStorage.setItem('study:modules', json); } catch(e) {}
+  var j = JSON.stringify(modules);
+  try { localStorage.setItem('study:modules', j); } catch(e) {}
   fetch(WORKER + '/api/kv/set', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({key: 'study:modules', value: json})
+    body: JSON.stringify({key: 'study:modules', value: j})
   }).catch(function() {});
 }
 
@@ -207,7 +207,7 @@ function renderTree(filter) {
         var we = document.createElement('div');
         we.className = 'week-item' + (currentWeek && currentWeek.id === week.id ? ' active' : '');
         we.innerHTML = '<span>\uD83D\uDCC5</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + week.name + '</span><span style="font-size:10px;background:var(--bg-sunken);padding:1px 5px;border-radius:8px;">' + (week.resources || []).length + '</span>';
-        we.onclick = (function(m, w) { return function(e) { e.stopPropagation(); selectWeek(m, w); }; })(mod, week);
+        we.onclick = (function(m2, w) { return function(e) { e.stopPropagation(); selectWeek(m2, w); }; })(mod, week);
         body.appendChild(we);
       });
       var addW = document.createElement('div');
@@ -277,86 +277,110 @@ function switchTab(tab, btn) {
   else if (tab === 'upload') renderUpload(body);
 }
 
-function renderOverview(body) {
+function showModuleOverview(mod) {
+  document.getElementById('hub-title').textContent = mod.name;
+  var body = document.getElementById('hub-body');
   body.innerHTML = '';
-  var target = currentWeek || currentModule;
-  var resources = currentWeek ? (currentWeek.resources || []) : getAllResources();
-
   var detailCard = document.createElement('div');
   detailCard.className = 'detail-card';
-  detailCard.innerHTML = '<h4>' + (currentWeek ? 'Week Details' : 'Module Details') + '</h4>' +
+  detailCard.innerHTML = '<h4>Module Details</h4>' +
     '<div class="field-row">' +
-      '<div class="field-group"><label class="field-label">' + (currentWeek ? 'Week Name' : 'Module Name') + '</label>' +
-      '<input class="field-input" id="edit-name" type="text" value="' + (target.name || '').replace(/"/g, '&quot;') + '"></div>' +
+      '<div class="field-group"><label class="field-label">Module Name</label>' +
+      '<input class="field-input" id="edit-name" type="text" value="' + (mod.name || '').replace(/"/g, '&quot;') + '"></div>' +
       '<div class="field-group"><label class="field-label">Lecturer / Professor</label>' +
-      '<input class="field-input" id="edit-lecturer" type="text" value="' + (target.lecturer || '').replace(/"/g, '&quot;') + '" placeholder="Dr / Prof name..."></div>' +
+      '<input class="field-input" id="edit-lecturer" type="text" value="' + (mod.lecturer || '').replace(/"/g, '&quot;') + '" placeholder="Dr / Prof name..."></div>' +
     '</div>' +
     '<div class="field-row">' +
       '<div class="field-group"><label class="field-label">Research Question / Focus</label>' +
-      '<textarea class="field-textarea" id="edit-rq">' + (target.researchQ || '') + '</textarea></div>' +
+      '<textarea class="field-textarea" id="edit-rq">' + (mod.researchQ || '') + '</textarea></div>' +
       '<div class="field-group"><label class="field-label">VLE URL</label>' +
-      '<input class="field-input" id="edit-vle" type="url" value="' + (target.vle || target.vle_url || '').replace(/"/g, '&quot;') + '" placeholder="https://learn.gold.ac.uk/...">' +
-      (target.vle || target.vle_url ? '<a href="' + (target.vle || target.vle_url) + '" target="_blank" style="font-size:11px;color:var(--accent);display:block;margin-top:4px;">Open VLE \u2197</a>' : '') +
+      '<input class="field-input" id="edit-vle" type="url" value="' + (mod.vle || '').replace(/"/g, '&quot;') + '" placeholder="https://learn.gold.ac.uk/...">' +
+      (mod.vle ? '<a href="' + mod.vle + '" target="_blank" style="font-size:11px;color:var(--accent);display:block;margin-top:4px;">Open VLE \u2197</a>' : '') +
       '</div>' +
     '</div>' +
-    '<button class="save-btn" onclick="saveDetails()">Save Details</button>' +
+    '<button class="save-btn" id="week-save-btn" onclick="saveDetails()">Save Details</button>' +
     '<span id="save-status" style="font-size:12px;color:var(--fg-muted);margin-left:10px;"></span>';
   body.appendChild(detailCard);
+  var weekHdr = document.createElement('div');
+  weekHdr.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;';
+  weekHdr.innerHTML = '<span>Weeks (' + (mod.weeks || []).length + ')</span><button onclick="addWeekToModule(\'' + mod.id + '\')" style="padding:3px 10px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">+ Add Week</button>';
+  body.appendChild(weekHdr);
+  var weekGrid = document.createElement('div');
+  weekGrid.className = 'week-grid';
+  (mod.weeks || []).forEach(function(week) {
+    var wc = document.createElement('div');
+    wc.className = 'week-card';
+    var rc = (week.resources || []).length;
+    var hn = !!(week.notes && week.notes.trim());
+    wc.innerHTML = '<h4>' + week.name + '</h4><p>' + rc + ' resources' + (hn ? ' \u00b7 notes' : '') + '</p>';
+    wc.onclick = (function(m, w) { return function() { selectWeek(m, w); }; })(mod, week);
+    wc.onmouseenter = function() { wc.style.borderColor = 'var(--accent)'; };
+    wc.onmouseleave = function() { wc.style.borderColor = 'var(--border)'; };
+    weekGrid.appendChild(wc);
+  });
+  if (!(mod.weeks || []).length) {
+    var empty = document.createElement('div');
+    empty.style.cssText = 'text-align:center;padding:30px;color:var(--fg-muted);font-size:13px;border:2px dashed var(--border);border-radius:10px;grid-column:1/-1;';
+    empty.textContent = 'No weeks yet. Click "+ Add Week" to get started.';
+    weekGrid.appendChild(empty);
+  }
+  body.appendChild(weekGrid);
+}
 
+function showWeekOverview(week, mod) {
+  var body = document.getElementById('hub-body');
+  body.innerHTML = '';
+  var detailCard = document.createElement('div');
+  detailCard.className = 'detail-card';
+  detailCard.innerHTML = '<h4>Week Details</h4>' +
+    '<div id="week-edit-form">' +
+    '<div class="field-row">' +
+      '<div class="field-group"><label class="field-label">Week Name</label>' +
+      '<div style="display:flex;gap:6px;"><input class="field-input" id="edit-name" type="text" value="' + (week.name || '').replace(/"/g, '&quot;') + '" style="flex:1;" onkeydown="if(event.key===\'Enter\'){saveDetails();}">' +
+      '<button id="week-save-btn" onclick="saveDetails()" style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap;">Save</button></div></div>' +
+      '<div class="field-group"><label class="field-label">Lecturer / Professor</label>' +
+      '<input class="field-input" id="edit-lecturer" type="text" value="' + (week.lecturer || mod.lecturer || '').replace(/"/g, '&quot;') + '" placeholder="Dr / Prof name..."></div>' +
+    '</div>' +
+    '<div class="field-row">' +
+      '<div class="field-group"><label class="field-label">Topic / Focus</label>' +
+      '<textarea class="field-textarea" id="edit-rq">' + (week.topic || week.researchQ || '') + '</textarea></div>' +
+      '<div class="field-group"><label class="field-label">VLE Link</label>' +
+      '<input class="field-input" id="edit-vle" type="url" value="' + (week.vle_url || week.vle || '').replace(/"/g, '&quot;') + '" placeholder="https://learn.gold.ac.uk/...">' +
+      (week.vle_url || week.vle ? '<a href="' + (week.vle_url || week.vle) + '" target="_blank" style="font-size:11px;color:var(--accent);display:block;margin-top:4px;">Open VLE \u2197</a>' : '') +
+      '</div>' +
+    '</div>' +
+    '</div>' +
+    '<span id="save-status" style="font-size:12px;color:var(--fg-muted);margin-left:10px;"></span>';
+  body.appendChild(detailCard);
+  var resources = week.resources || [];
+  var COURSE = ['ppt','pptx','reading','recommended','further','sample','markscheme','handout','lecture'];
+  var SELF = ['news','paper','blog','report','podcast','video','link'];
+  var cardDefs = [
+    {label:'Course Material', icon:'\uD83D\uDCDA', colour:'#2d6a9f', count:resources.filter(function(r){return COURSE.indexOf(r.type)!==-1;}).length, tab:'resources', filter:'course'},
+    {label:'Self-Sourced',    icon:'\uD83D\uDCF0', colour:'#f59e0b', count:resources.filter(function(r){return SELF.indexOf(r.type)!==-1;}).length,   tab:'resources', filter:'self'},
+    {label:'My Notes',        icon:'\u270D',        colour:'#7c3aed', count:week.notes&&week.notes.trim()?1:0,                                          tab:'notes',     filter:null},
+    {label:'All Resources',   icon:'\uD83D\uDCCB', colour:'#16a34a', count:resources.length,                                                           tab:'resources', filter:null},
+    {label:'Upload',          icon:'\u2B06',        colour:'#6b7280', count:0,                                                                          tab:'upload',    filter:null},
+  ];
+  var grid = document.createElement('div');
+  grid.className = 'card-grid';
+  cardDefs.forEach(function(card) {
+    var el = document.createElement('div');
+    el.className = 'card';
+    el.innerHTML = '<div class="card-icon">' + card.icon + '</div><div class="card-label">' + card.label + '</div><div class="card-count" style="color:' + card.colour + ';">' + card.count + '</div><div class="card-bar" style="background:' + card.colour + ';"></div>';
+    el.onclick = (function(t, f) { return function() { currentResourceFilter = f; switchTab(t); }; })(card.tab, card.filter);
+    el.onmouseenter = (function(c, e) { return function() { e.style.borderColor = c; e.style.transform = 'translateY(-2px)'; }; })(card.colour, el);
+    el.onmouseleave = function() { el.style.borderColor = 'var(--border)'; el.style.transform = ''; };
+    grid.appendChild(el);
+  });
+  body.appendChild(grid);
+}
+
+function renderOverview(body) {
   if (currentWeek) {
-    var COURSE = ['ppt','pptx','reading','recommended','further','sample','markscheme','handout','lecture'];
-    var SELF = ['news','paper','blog','report','podcast','video','link'];
-    var cardDefs = [
-      {label:'Course Material', icon:'\uD83D\uDCDA', colour:'#2d6a9f', count:resources.filter(function(r){return COURSE.indexOf(r.type)!==-1;}).length, tab:'resources'},
-      {label:'Self-Sourced',    icon:'\uD83D\uDCF0', colour:'#f59e0b', count:resources.filter(function(r){return SELF.indexOf(r.type)!==-1;}).length,   tab:'resources'},
-      {label:'My Notes',        icon:'\u270D',        colour:'#7c3aed', count:currentWeek.notes&&currentWeek.notes.trim()?1:0,                            tab:'notes'},
-      {label:'All Resources',   icon:'\uD83D\uDCCB', colour:'#16a34a', count:resources.length,                                                           tab:'resources'},
-      {label:'Upload',          icon:'\u2B06',        colour:'#6b7280', count:0,                                                                          tab:'upload'},
-    ];
-    var grid = document.createElement('div');
-    grid.className = 'card-grid';
-    cardDefs.forEach(function(card) {
-      var el = document.createElement('div');
-      el.className = 'card';
-      el.innerHTML = '<div class="card-icon">' + card.icon + '</div><div class="card-label">' + card.label + '</div><div class="card-count" style="color:' + card.colour + ';">' + card.count + '</div><div class="card-bar" style="background:' + card.colour + ';"></div>';
-      el.onclick = (function(t) { return function() { switchTab(t); }; })(card.tab);
-      el.onmouseenter = (function(c, e) { return function() { e.style.borderColor = c; }; })(card.colour, el);
-      el.onmouseleave = function() { el.style.borderColor = 'var(--border)'; };
-      grid.appendChild(el);
-    });
-    var addCardEl = document.createElement('div');
-    addCardEl.style.cssText = 'background:var(--bg-elevated);border:2px dashed var(--border);border-radius:10px;padding:14px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--fg-muted);font-size:13px;transition:all 0.15s;';
-    addCardEl.innerHTML = '<span style="font-size:24px;">+</span><span>Add Card</span>';
-    addCardEl.onmouseenter = function(){addCardEl.style.borderColor='var(--accent)';addCardEl.style.color='var(--accent)';};
-    addCardEl.onmouseleave = function(){addCardEl.style.borderColor='var(--border)';addCardEl.style.color='var(--fg-muted)';};
-    addCardEl.onclick = addCustomCard;
-    grid.appendChild(addCardEl);
-    body.appendChild(grid);
-  } else {
-    var weekHdr = document.createElement('div');
-    weekHdr.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;';
-    weekHdr.innerHTML = '<span>Weeks (' + (currentModule.weeks || []).length + ')</span><button onclick="addWeekToModule(\'' + currentModule.id + '\')" style="padding:3px 10px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">+ Add Week</button>';
-    body.appendChild(weekHdr);
-    var weekGrid = document.createElement('div');
-    weekGrid.className = 'week-grid';
-    (currentModule.weeks || []).forEach(function(week) {
-      var wc = document.createElement('div');
-      wc.className = 'week-card';
-      var rc = (week.resources || []).length;
-      var hn = !!(week.notes && week.notes.trim());
-      wc.innerHTML = '<h4>' + week.name + '</h4><p>' + rc + ' resources' + (hn ? ' &middot; notes' : '') + '</p>';
-      wc.onclick = (function(m, w) { return function() { selectWeek(m, w); }; })(currentModule, week);
-      wc.onmouseenter = function() { wc.style.borderColor = 'var(--accent)'; };
-      wc.onmouseleave = function() { wc.style.borderColor = 'var(--border)'; };
-      weekGrid.appendChild(wc);
-    });
-    if (!(currentModule.weeks || []).length) {
-      var empty = document.createElement('div');
-      empty.style.cssText = 'text-align:center;padding:30px;color:var(--fg-muted);font-size:13px;border:2px dashed var(--border);border-radius:10px;grid-column:1/-1;';
-      empty.textContent = 'No weeks yet. Click "+ Add Week" to get started.';
-      weekGrid.appendChild(empty);
-    }
-    body.appendChild(weekGrid);
+    showWeekOverview(currentWeek, currentModule);
+  } else if (currentModule) {
+    showModuleOverview(currentModule);
   }
 }
 
@@ -367,26 +391,35 @@ function saveDetails() {
   var l = document.getElementById('edit-lecturer');
   var rq = document.getElementById('edit-rq');
   var v = document.getElementById('edit-vle');
-  if (n) target.name = n.value.trim() || target.name;
+  if (n && n.value.trim()) target.name = n.value.trim();
   if (l) target.lecturer = l.value;
-  if (rq) target.researchQ = rq.value;
+  if (rq) { target.researchQ = rq.value; target.topic = rq.value; }
   if (v) { target.vle = v.value; target.vle_url = v.value; }
   saveModules();
   document.getElementById('hub-title').textContent = currentWeek ? (currentModule.name + ' \u2014 ' + target.name) : target.name;
   renderTree();
   var s = document.getElementById('save-status');
   if (s) { s.textContent = '\u2713 Saved'; setTimeout(function() { s.textContent = ''; }, 2000); }
+  var btn = document.getElementById('week-save-btn');
+  if (btn) { btn.textContent = '\u2713 Saved!'; btn.style.background = '#16a34a'; setTimeout(function() { btn.textContent = 'Save'; btn.style.background = 'var(--accent)'; }, 2000); }
 }
 
 function getAllResources() {
   var all = [];
-  (currentModule.weeks || []).forEach(function(w) { all = all.concat(w.resources || []); });
+  if (currentModule) (currentModule.weeks || []).forEach(function(w) { all = all.concat(w.resources || []); });
   return all;
 }
 
 function renderResources(body) {
   body.innerHTML = '';
   var resources = currentWeek ? (currentWeek.resources || []) : getAllResources();
+  if (currentResourceFilter === 'course') {
+    var COURSE = ['ppt','pptx','reading','recommended','further','sample','markscheme','handout','lecture'];
+    resources = resources.filter(function(r) { return COURSE.indexOf(r.type) !== -1; });
+  } else if (currentResourceFilter === 'self') {
+    var SELF = ['news','paper','blog','report','podcast','video','link'];
+    resources = resources.filter(function(r) { return SELF.indexOf(r.type) !== -1; });
+  }
   if (!resources.length) {
     body.innerHTML = '<div class="empty-state"><div class="icon">\uD83D\uDCC2</div><div style="font-size:14px;font-weight:600;margin-bottom:6px;">No resources yet</div><div style="font-size:13px;">Use the Upload tab to add files and links.</div></div>';
     return;
@@ -395,7 +428,7 @@ function renderResources(body) {
   resources.forEach(function(r) {
     var item = document.createElement('div');
     item.className = 'res-item';
-    item.onclick = (function(rid){return function(){openResource(rid);};})(r.id);
+    item.onclick = function() { openResource(r); };
     item.innerHTML = '<div class="res-icon">' + (icons[r.type] || '\uD83D\uDCC4') + '</div>' +
       '<div class="res-info"><div class="res-title">' + r.title.replace(/</g, '&lt;') + '</div>' +
       '<div class="res-meta"><span class="res-type type-' + (r.type || 'link') + '">' + (r.type || 'link') + '</span>' +
@@ -404,11 +437,23 @@ function renderResources(body) {
       '<div style="display:flex;gap:4px;flex-shrink:0;">' +
       '<button class="tts-btn" onclick="event.stopPropagation();readAloud(\'' + r.id + '\')" title="Read aloud">\uD83D\uDD0A</button>' +
       '<button class="tts-btn" onclick="event.stopPropagation();askAboutResource(\'' + r.id + '\')" title="Ask AI">\uD83D\uDCAC</button>' +
-      '<button class="tts-btn" onclick="event.stopPropagation();crossLinkResource(\'' + r.id + '\')" title="Link to another week">\uD83D\uDD17</button>' +
       '<button class="del-btn" onclick="event.stopPropagation();deleteResource(\'' + r.id + '\')" title="Delete">\u2715</button>' +
       '</div>';
     body.appendChild(item);
   });
+}
+
+function openResource(r) {
+  if (r.url) {
+    var params = new URLSearchParams({id: r.id, name: r.title, type: r.type, url: r.url});
+    window.open('/doc-viewer/?' + params.toString(), '_blank');
+  } else if (r.content) {
+    try { sessionStorage.setItem('doc-viewer-content-' + r.id, r.content); } catch(e) {}
+    var params2 = new URLSearchParams({id: r.id, name: r.title, type: r.type});
+    window.open('/doc-viewer/?' + params2.toString(), '_blank');
+  } else {
+    alert('No content or URL for this resource.');
+  }
 }
 
 function deleteResource(id) {
@@ -417,66 +462,6 @@ function deleteResource(id) {
   saveModules();
   renderResources(document.getElementById('hub-body'));
 }
-function crossLinkResource(id) {
-  var resource = currentWeek ? (currentWeek.resources || []).find(function(r) { return r.id === id; }) : null;
-  if (!resource) return;
-  var options = [];
-  modules.forEach(function(mod) {
-    (mod.weeks || []).forEach(function(week) {
-      if (!(currentModule && mod.id === currentModule.id && currentWeek && week.id === currentWeek.id)) {
-        options.push({label: mod.name + ' > ' + week.name, modId: mod.id, weekId: week.id});
-      }
-    });
-  });
-  if (!options.length) { alert('No other weeks to link to.'); return; }
-  var optList = options.map(function(o, i) { return (i + 1) + '. ' + o.label; }).join(', ');
-  var choice = prompt('Link to which week? Enter number: ' + optList);
-  var idx = parseInt(choice) - 1;
-  if (isNaN(idx) || idx < 0 || idx >= options.length) return;
-  var target = options[idx];
-  var targetMod = modules.find(function(m) { return m.id === target.modId; });
-  var targetWeek = targetMod && (targetMod.weeks || []).find(function(w) { return w.id === target.weekId; });
-  if (!targetWeek) return;
-  if (!targetWeek.resources) targetWeek.resources = [];
-  targetWeek.resources.push({
-    id: 'ref-' + Date.now(),
-    type: resource.type,
-    title: resource.title + ' [linked from ' + (currentModule ? currentModule.name : '') + ']',
-    url: resource.url || null,
-    content: resource.content || null,
-    tags: resource.tags || [],
-    added: new Date().toISOString()
-  });
-  saveModules();
-  alert('Linked to ' + target.label);
-}
-
-function openResource(id) {
-  var resource = currentWeek ? (currentWeek.resources || []).find(function(r) { return r.id === id; }) : null;
-  if (!resource) return;
-  if (resource.url) {
-    var params = new URLSearchParams({id: resource.id, name: resource.title, type: resource.type, url: resource.url});
-    window.open('/doc-viewer/?' + params.toString(), '_blank');
-  } else if (resource.content) {
-    try { sessionStorage.setItem('doc-viewer-content-' + resource.id, resource.content); } catch(e) {}
-    var params2 = new URLSearchParams({id: resource.id, name: resource.title, type: resource.type});
-    window.open('/doc-viewer/?' + params2.toString(), '_blank');
-  } else {
-    alert('No content or URL for this resource.');
-  }
-}
-
-function addCustomCard() {
-  var name = prompt('Card name (e.g. "Themes", "Arguments", "Key Quotes"):');
-  if (!name) return;
-  var target = currentWeek || currentModule;
-  if (!target) return;
-  if (!target.customCards) target.customCards = [];
-  target.customCards.push({id: 'cc-' + Date.now(), name: name, items: []});
-  saveModules();
-  switchTab('overview');
-}
-
 
 function readAloud(id) {
   var resource = currentWeek ? (currentWeek.resources || []).find(function(r) { return r.id === id; }) : null;
@@ -490,13 +475,19 @@ function readAloud(id) {
 function askAboutResource(id) {
   var resource = currentWeek ? (currentWeek.resources || []).find(function(r) { return r.id === id; }) : null;
   if (!resource) return;
-  var q = 'Tell me about "' + resource.title + '". What are the key arguments, methods, and findings?';
-  window.location.href = '/chat/?q=' + encodeURIComponent(q);
+  var q = 'Tell me about "' + resource.title + '". What are the key arguments, methods, and findings? How does it relate to the module themes?';
+  if (typeof GlobalUI !== 'undefined' && GlobalUI.toggleChat) {
+    GlobalUI.toggleChat();
+    setTimeout(function() { var inp = document.getElementById('pill-input'); if (inp) { inp.value = q; inp.focus(); } }, 200);
+  } else {
+    window.location.href = '/chat/?q=' + encodeURIComponent(q);
+  }
 }
 
 function renderNotes(body) {
   body.innerHTML = '';
   var target = currentWeek || currentModule;
+  if (!target) return;
   var lbl = document.createElement('div');
   lbl.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);margin-bottom:8px;';
   lbl.textContent = 'My notes for ' + target.name;
@@ -532,10 +523,6 @@ function renderUpload(body) {
   zone.ondrop = function(e) { e.preventDefault(); zone.style.borderColor = 'var(--border)'; handleUpload(e.dataTransfer.files); };
   body.appendChild(zone);
   body.appendChild(fi);
-  var indexStatus = document.createElement('div');
-  indexStatus.id = 'index-status';
-  indexStatus.style.cssText = 'font-size:11px;color:var(--accent);padding:4px 0;';
-  body.appendChild(indexStatus);
   var urlForm = document.createElement('div');
   urlForm.className = 'detail-card';
   urlForm.innerHTML = '<h4>Add by URL</h4>' +
@@ -543,8 +530,8 @@ function renderUpload(body) {
     '<input class="form-input" id="url-input" type="url" placeholder="https://...">' +
     '<input class="form-input" id="url-title" type="text" placeholder="Title">' +
     '<select class="form-select" id="url-type">' +
-    '<optgroup label="Course Material"><option value="ppt">Slides / PPT</option><option value="reading">Essential Reading</option><option value="recommended">Recommended</option><option value="further">Further Reading</option><option value="sample">Sample Answer</option><option value="markscheme">Mark Scheme</option></optgroup>' +
-    '<optgroup label="Self-Sourced"><option value="news">News Article</option><option value="paper">Research Paper</option><option value="blog">Blog / Opinion</option><option value="report">Report / Policy</option></optgroup>' +
+    '<optgroup label="Course Material"><option value="ppt">Slides / PPT</option><option value="reading">Essential Reading</option><option value="recommended">Recommended</option><option value="further">Further Reading</option><option value="sample">Sample Answer</option><option value="markscheme">Mark Scheme</option><option value="handout">Handout</option><option value="lecture">Lecture Notes</option></optgroup>' +
+    '<optgroup label="Self-Sourced"><option value="news">News Article</option><option value="paper">Research Paper</option><option value="blog">Blog / Opinion</option><option value="report">Report / Policy</option><option value="podcast">Podcast</option><option value="video">Video</option></optgroup>' +
     '<optgroup label="Other"><option value="link">Link</option></optgroup>' +
     '</select>' +
     '<button class="form-btn" onclick="addUrlResource()">Add</button>' +
@@ -565,33 +552,6 @@ function handleUpload(files) {
       saveModules();
       renderTree();
       switchTab('resources');
-      // Auto-upload to OneDrive for public URL (enables Office Online viewer)
-      if (resource.content) {
-        fetch(WORKER + '/api/onedrive/upload', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({fileName:resource.title, content:resource.content, folder:'Argentica/StudyHub'})
-        }).then(function(r){return r.json();})
-        .then(function(d){
-          if (d.shareUrl) {
-            resource.url = d.shareUrl;
-            resource.officeOnlineUrl = d.officeOnlineUrl;
-            resource.googleDocsUrl = d.googleDocsUrl;
-            saveModules();
-          }
-        }).catch(function(){
-          // OneDrive failed — try Macro as fallback
-          fetch(WORKER + '/api/macro/upload', {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({fileName:resource.title, content:resource.content})
-          }).then(function(r){return r.json();})
-          .then(function(d){
-            if (d.url || d.id) {
-              resource.url = d.url || ('https://macro.com/app/docs/' + d.id);
-              saveModules();
-            }
-          }).catch(function(){});
-        });
-      }
     };
     reader.readAsText(file);
   });
@@ -616,89 +576,10 @@ function addResource() {
 }
 
 function renderSearchTab(body) {
-  body.innerHTML = '<div class="search-bar"><input class="search-input" id="tab-search-input" type="text" placeholder="Search notes, resources..." onkeydown="if(event.key===\'Enter\')runTabSearch()"><button class="search-btn" onclick="runTabSearch()">Search</button></div><div id="search-results"></div>';
+  body.innerHTML = '<div class="search-bar"><input class="search-input" id="tab-search-input" type="text" placeholder="Search notes, resources, thinkers..." onkeydown="if(event.key===\'Enter\')runTabSearch()"><button class="search-btn" onclick="runTabSearch()">Search</button></div><div id="search-results"></div>';
 }
 
 function runGlobalSearch() {
-  var q = document.getElementById('global-search').value.trim();
-  var scope = document.getElementById('search-scope').value;
-  if (!q) return;
-  switchTab('search');
-  var body = document.getElementById('hub-body');
-  body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);">Searching...</div>';
-
-  // RAG semantic search
-  fetch(WORKER + '/api/study/search', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({query:q, limit:10})
-  })
-  .then(function(r){return r.json();})
-  .then(function(d){
-    var ragResults = d.results || [];
-    // Also do local text search
-    var localResults = [];
-    var ql = q.toLowerCase();
-    modules.forEach(function(mod) {
-      (mod.weeks||[]).forEach(function(week) {
-        (week.resources||[]).forEach(function(res) {
-          if ((res.title+' '+(res.content||'')).toLowerCase().includes(ql)) {
-            localResults.push({title:res.title, excerpt:(res.content||'').substring(0,150), location:mod.name+' > '+week.name, source:'course', url:res.url});
-          }
-        });
-        if (week.notes && week.notes.toLowerCase().includes(ql)) {
-          var ni = week.notes.toLowerCase().indexOf(ql);
-          localResults.push({title:'Notes: '+week.name, excerpt:week.notes.substring(Math.max(0,ni-60),ni+120), location:mod.name+' > '+week.name, source:'note'});
-        }
-      });
-    });
-    renderSearchResults(body, ragResults, localResults, q);
-  })
-  .catch(function(){
-    // Fallback to local only
-    var localResults = [];
-    var ql = q.toLowerCase();
-    modules.forEach(function(mod) {
-      (mod.weeks||[]).forEach(function(week) {
-        (week.resources||[]).forEach(function(res) {
-          if ((res.title+' '+(res.content||'')).toLowerCase().includes(ql)) {
-            localResults.push({title:res.title, excerpt:(res.content||'').substring(0,150), location:mod.name+' > '+week.name, source:'course', url:res.url});
-          }
-        });
-      });
-    });
-    renderSearchResults(body, [], localResults, q);
-  });
-}
-
-function renderSearchResults(body, ragResults, localResults, q) {
-  body.innerHTML = '';
-  var allResults = [];
-  ragResults.forEach(function(r) {
-    allResults.push({title:r.doc_name, excerpt:r.chunk_text.substring(0,200), location:'RAG: '+r.workspace_id, source:'rag', score:r.score});
-  });
-  localResults.forEach(function(r) { allResults.push(r); });
-  if (!allResults.length) {
-    body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);">No results found for "'+q.replace(/</g,'&lt;')+'". Try different keywords.</div>';
-    return;
-  }
-  var hdr = document.createElement('div');
-  hdr.style.cssText = 'font-size:12px;color:var(--fg-muted);margin-bottom:12px;';
-  hdr.textContent = allResults.length + ' results for "' + q + '"';
-  body.appendChild(hdr);
-  allResults.forEach(function(r) {
-    var div = document.createElement('div');
-    div.className = 'search-result';
-    var srcClass = r.source==='rag'?'src-paper':r.source==='course'?'src-course':'src-note';
-    var srcLabel = r.source==='rag'?'Semantic':'Course';
-    div.innerHTML = '<div class="search-result-title">'+r.title.replace(/</g,'&lt;')+'</div>'+
-      '<div class="search-result-excerpt">'+r.excerpt.replace(/</g,'&lt;')+'</div>'+
-      '<div class="search-result-meta"><span class="search-source-badge '+srcClass+'">'+srcLabel+'</span>'+
-      '<span>'+r.location+'</span>'+(r.url?'<a href="'+r.url+'" target="_blank" style="color:var(--accent);">Open ↗</a>':'')+'</div>';
-    body.appendChild(div);
-  });
-}
-
-function _runGlobalSearch_old() { return; 
   var q = document.getElementById('global-search').value.trim();
   if (!q) return;
   switchTab('search');
@@ -730,7 +611,11 @@ function runTabSearch() {
   });
   results.innerHTML = '';
   if (!found.length) {
-    results.innerHTML = '<div style="padding:12px;color:var(--fg-muted);font-size:13px;">No local results found.</div>';
+    results.innerHTML = '<div style="padding:12px;color:var(--fg-muted);font-size:13px;">No local results. The AI assistant can search the web for related content.</div>';
+    if (typeof GlobalUI !== 'undefined' && GlobalUI.toggleChat) {
+      GlobalUI.toggleChat();
+      setTimeout(function() { var inp2 = document.getElementById('pill-input'); if (inp2) { inp2.value = 'Search my study materials and the web for: ' + q; inp2.focus(); } }, 200);
+    }
   } else {
     found.forEach(function(r) {
       var div = document.createElement('div');
