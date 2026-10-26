@@ -3,256 +3,142 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Orchestrator &mdash; Argentica</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
+<title>Orchestrator — Argentica</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
 <style>
-.orch-wrap{display:flex;height:100vh;overflow:hidden;}
-.orch-body{flex:1;overflow-y:auto;padding:16px 20px;}
-.orch-hdr{margin-bottom:14px;}
-.orch-hdr h2{font-size:20px;font-weight:700;margin:0 0 4px;}
-.orch-hdr p{font-size:13px;color:var(--fg-muted);margin:0;}
-.card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden;}
-.card-hdr{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
-.card-hdr h3{font-size:13px;font-weight:700;margin:0;}
-.card-body{padding:12px 14px;}
-.model-picker{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:start;}
-.panel{border:1px solid var(--border);border-radius:8px;overflow:hidden;}
-.panel-hdr{padding:7px 10px;background:var(--bg-sunken);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;}
-.panel-hdr h4{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);margin:0;flex:1;}
-.panel-search{width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);box-sizing:border-box;}
-.panel-filters{display:flex;gap:3px;padding:5px 8px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
-.filter-btn{padding:2px 7px;border:1px solid var(--border);border-radius:8px;font-size:10px;cursor:pointer;background:var(--bg);color:var(--fg-muted);font-family:inherit;}
-.filter-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
-.panel-list{height:300px;overflow-y:auto;}
-.model-row{display:flex;align-items:center;gap:5px;padding:5px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:11.5px;transition:background 0.1s;}
-.model-row:hover{background:var(--bg-sunken);}
-.model-row.selected{background:var(--accent-light,#e8f0f8);}
-.model-row:last-child{border-bottom:none;}
-.model-name{flex:1;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.model-ctx{font-size:10px;color:var(--fg-muted);flex-shrink:0;}
-.model-tags{display:flex;gap:2px;flex-shrink:0;}
-.tag{padding:1px 4px;border-radius:4px;font-size:9px;font-weight:600;}
-.tag-free{background:rgba(22,163,74,0.15);color:#16a34a;}
-.tag-fast{background:rgba(45,106,159,0.15);color:var(--accent);}
-.tag-vision{background:rgba(124,58,237,0.15);color:#7c3aed;}
-.tag-search{background:rgba(245,158,11,0.15);color:#f59e0b;}
-.tag-thinking{background:rgba(220,38,38,0.15);color:#dc2626;}
-.tag-tts,.tag-stt{background:rgba(15,59,58,0.15);color:#0f3b3a;}
-.tag-music{background:rgba(124,58,237,0.15);color:#7c3aed;}
-.tag-image_gen,.tag-video_gen{background:rgba(245,158,11,0.15);color:#f59e0b;}
-.tag-ocr{background:rgba(45,106,159,0.15);color:var(--accent);}
-.transfer-btns{display:flex;flex-direction:column;gap:5px;justify-content:center;padding-top:50px;}
-.transfer-btn{padding:5px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);font-family:inherit;white-space:nowrap;}
-.transfer-btn:hover{border-color:var(--accent);color:var(--accent);}
-.transfer-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
-.chain-row{display:flex;align-items:center;gap:5px;padding:5px 10px;border-bottom:1px solid var(--border);font-size:11.5px;cursor:grab;}
-.chain-row:last-child{border-bottom:none;}
-.chain-row.selected{background:var(--accent-light,#e8f0f8);}
-.chain-num{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;}
-.chain-drag{color:var(--fg-muted);font-size:12px;}
-.chain-name{flex:1;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.chain-provider{font-size:10px;color:var(--fg-muted);flex-shrink:0;}
-.reorder-btns{display:flex;gap:2px;}
-.reorder-btn{padding:1px 4px;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-size:9px;background:var(--bg);font-family:inherit;}
-.bench-table{width:100%;border-collapse:collapse;font-size:11px;}
-.bench-table th{padding:5px 7px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);border-bottom:2px solid var(--border);white-space:nowrap;}
-.bench-table td{padding:5px 7px;border-bottom:1px solid var(--border);}
-.bench-table tr:last-child td{border-bottom:none;}
-.bench-table tr:hover td{background:var(--bg-sunken);}
-.tool-badge{display:inline-block;padding:1px 4px;border-radius:3px;font-size:9px;font-weight:600;margin:1px;}
-.tool-web{background:rgba(245,158,11,0.15);color:#f59e0b;}
-.tool-vision{background:rgba(124,58,237,0.15);color:#7c3aed;}
-.tool-thinking{background:rgba(220,38,38,0.15);color:#dc2626;}
-.tool-rag{background:rgba(22,163,74,0.15);color:#16a34a;}
-.tool-realtime{background:rgba(45,106,159,0.15);color:var(--accent);}
-.save-btn{padding:6px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;font-weight:600;}
-.test-btn{padding:5px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);font-family:inherit;}
-.test-result{font-size:11px;font-family:monospace;background:var(--bg-sunken);border-radius:5px;padding:7px 10px;margin-top:7px;max-height:90px;overflow-y:auto;white-space:pre-wrap;display:none;}
-.profile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
-.profile-card{padding:10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.15s;}
-.profile-card:hover,.profile-card.active{border-color:var(--accent);background:var(--accent-light,#e8f0f8);}
-.profile-card h4{font-size:12px;font-weight:700;margin:0 0 3px;}
-.profile-card p{font-size:11px;color:var(--fg-muted);margin:0;}
+.orch-shell { display:flex; height:100vh; overflow:hidden; }
+.orch-main { flex:1; overflow-y:auto; padding:20px; max-width:900px; }
+.orch-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px; }
+.orch-card h3 { font-size:14px; font-weight:700; margin:0 0 12px; }
+.chain-item { display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; margin-bottom:6px; background:var(--bg); cursor:grab; }
+.chain-item:active { cursor:grabbing; }
+.chain-num { width:22px; height:22px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
+.chain-info { flex:1; }
+.chain-name { font-size:13px; font-weight:600; }
+.chain-detail { font-size:11px; color:var(--fg-muted); }
+.chain-toggle { flex-shrink:0; }
+.chain-toggle input { cursor:pointer; width:16px; height:16px; }
+.chain-drag { color:var(--fg-muted); cursor:grab; font-size:16px; }
+.profile-tabs { display:flex; gap:6px; margin-bottom:12px; }
+.profile-tab { padding:6px 14px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:13px; background:var(--bg); color:var(--fg-muted); }
+.profile-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.save-btn { padding:8px 18px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-family:inherit; font-weight:600; }
+.save-btn:hover { opacity:0.85; }
+.test-result { font-size:12px; font-family:monospace; background:var(--bg-sunken); border-radius:6px; padding:10px; margin-top:8px; max-height:120px; overflow-y:auto; white-space:pre-wrap; }
+.badge { padding:2px 7px; border-radius:8px; font-size:10px; font-weight:600; }
+.badge-free { background:rgba(22,163,74,0.1); color:#16a34a; }
+.badge-paid { background:rgba(245,158,11,0.1); color:#f59e0b; }
+.badge-fast { background:rgba(45,106,159,0.1); color:var(--accent); }
+.badge-1m { background:rgba(124,58,237,0.1); color:#7c3aed; }
 </style>
 </head>
 <body>
 <script src="/shared/prism.js"></script>
 <div id="sidebar-mount"></div>
 <div id="main-content">
-<div class="orch-wrap">
-<div class="orch-body">
-  <div class="orch-hdr">
-    <h2>&#x2699; Orchestrator</h2>
-    <p>Configure routing chain, model settings, and system behaviour. Changes saved to KV immediately.</p>
+<div class="orch-shell">
+<div class="orch-main">
+
+  <h2 style="font-size:20px;font-weight:700;margin:0 0 16px;">⚙ Orchestrator</h2>
+
+  <!-- Profile selector -->
+  <div class="orch-card">
+    <h3>Routing Profile</h3>
+    <div class="profile-tabs">
+      <div class="profile-tab active" id="tab-balanced" onclick="switchProfile('balanced',this)">Balanced</div>
+      <div class="profile-tab" id="tab-fast" onclick="switchProfile('fast',this)">Fast</div>
+      <div class="profile-tab" id="tab-frontier" onclick="switchProfile('frontier',this)">Frontier</div>
+    </div>
+    <p style="font-size:12px;color:var(--fg-muted);margin:0 0 10px;" id="profile-desc">
+      Balanced: Best quality with reliable fallbacks. GLM 5.3 → Mistral Large → Gemini → DeepSeek → GPT-OSS → Cerebras
+    </p>
   </div>
 
-  <div class="card">
-    <div class="card-hdr"><h3>Routing Profiles</h3><button class="save-btn" onclick="saveProfiles()">Save</button></div>
-    <div class="card-body">
-      <div class="profile-grid">
-        <div class="profile-card active" onclick="selectProfile(this)">
-          <h4>&#x2696; Balanced</h4>
-          <p>GLM 5.3 &rarr; Mistral L4 &rarr; Gemma NVIDIA &rarr; Gemini 3.8 &rarr; DeepSeek &rarr; Cohere A+ &rarr; GPT-OSS &rarr; Nemotron Ultra &rarr; Pollinations</p>
-        </div>
-        <div class="profile-card" onclick="selectProfile(this)">
-          <h4>&#x26A1; Fast</h4>
-          <p>GPT-OSS Groq &rarr; Gemma NVIDIA &rarr; Qwen Groq &rarr; Pollinations</p>
-        </div>
-        <div class="profile-card" onclick="selectProfile(this)">
-          <h4>&#x1F680; Frontier</h4>
-          <p>GLM 5.3 &rarr; Mistral L4 &rarr; Gemini 3.8 &rarr; DeepSeek &rarr; Nemotron Ultra &rarr; Pollinations</p>
-        </div>
-      </div>
-      <div style="margin-top:10px;">
-        <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);display:block;margin-bottom:3px;">Default Profile</label>
-        <select id="default-profile" style="padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg);color:var(--fg);">
-          <option value="balanced">Balanced</option>
-          <option value="fast">Fast</option>
-          <option value="frontier">Frontier</option>
-        </select>
-      </div>
+  <!-- Chain editor -->
+  <div class="orch-card">
+    <h3>Model Chain — <span id="chain-profile-label">Balanced</span></h3>
+    <p style="font-size:12px;color:var(--fg-muted);margin:0 0 10px;">Drag to reorder. Toggle to enable/disable. Chain tries each model in order until one responds.</p>
+    <div id="chain-list"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="save-btn" onclick="saveChain()">Save Chain</button>
+      <button class="save-btn" style="background:var(--bg);color:var(--fg);border:1px solid var(--border);" onclick="resetChain()">Reset to Default</button>
+      <button class="save-btn" style="background:var(--bg);color:var(--fg);border:1px solid var(--border);" onclick="testChain()">▶ Test Chain</button>
+    </div>
+    <div id="test-result" class="test-result" style="display:none;"></div>
+  </div>
+
+  <!-- System prompt -->
+  <div class="orch-card">
+    <h3>Gerald System Prompt</h3>
+    <textarea id="system-prompt" style="width:100%;min-height:120px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);resize:vertical;box-sizing:border-box;line-height:1.5;"></textarea>
+    <div style="margin-top:8px;">
+      <button class="save-btn" onclick="saveSystemPrompt()">Save Prompt</button>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-hdr"><h3>Model Chain &mdash; Balanced Profile</h3><div style="display:flex;gap:6px;"><button class="test-btn" onclick="testChain()">&#x25B6; Test</button><button class="save-btn" onclick="saveChain()">Save Chain</button></div></div>
-    <div class="card-body">
-      <p style="font-size:11px;color:var(--fg-muted);margin:0 0 8px;">Left: 65 models across all your providers. Double-click or select + Add to include. Right: current chain. Drag to reorder. Filters include TTS, STT, image, music, video, OCR.</p>
-      <div class="model-picker">
-        <div class="panel">
-          <div class="panel-hdr"><h4>Available Models</h4><span id="avail-count" style="font-size:10px;color:var(--fg-muted);"></span></div>
-          <div style="padding:5px 8px;border-bottom:1px solid var(--border);"><input class="panel-search" id="model-search" type="text" placeholder="Search by name, model ID, provider..." oninput="filterModels(this.value)"></div>
-          <div class="panel-filters">
-            <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
-            <button class="filter-btn" onclick="setFilter('free',this)">Free</button>
-            <button class="filter-btn" onclick="setFilter('fast',this)">Fast</button>
-            <button class="filter-btn" onclick="setFilter('vision',this)">Vision</button>
-            <button class="filter-btn" onclick="setFilter('search',this)">Web Search</button>
-            <button class="filter-btn" onclick="setFilter('thinking',this)">Thinking</button>
-            <button class="filter-btn" onclick="setFilter('1m',this)">1M ctx</button>
-            <button class="filter-btn" onclick="setFilter('tts',this)">TTS</button>
-            <button class="filter-btn" onclick="setFilter('stt',this)">STT</button>
-            <button class="filter-btn" onclick="setFilter('image_gen',this)">Image</button>
-            <button class="filter-btn" onclick="setFilter('music',this)">Music</button>
-            <button class="filter-btn" onclick="setFilter('video_gen',this)">Video</button>
-            <button class="filter-btn" onclick="setFilter('ocr',this)">OCR</button>
-          </div>
-          <div class="panel-list" id="avail-list"></div>
-        </div>
-        <div class="transfer-btns">
-          <button class="transfer-btn primary" onclick="addSelected()">Add &#x2192;</button>
-          <button class="transfer-btn" onclick="addAll()">Add All &#x2192;</button>
-          <button class="transfer-btn" onclick="removeSelected()">&#x2190; Remove</button>
-          <button class="transfer-btn" onclick="clearChain()">&#x2190; Clear</button>
-        </div>
-        <div class="panel">
-          <div class="panel-hdr"><h4>Current Chain</h4><span id="chain-count" style="font-size:10px;color:var(--fg-muted);"></span></div>
-          <div class="panel-list" id="chain-list"></div>
-        </div>
+  <!-- Timeout settings -->
+  <div class="orch-card">
+    <h3>Timeout Settings</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--fg-muted);display:block;margin-bottom:4px;">Connection timeout (ms)</label>
+        <input type="number" id="timeout-connect" value="8000" min="1000" max="30000" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg);color:var(--fg);">
+        <p style="font-size:11px;color:var(--fg-muted);margin:3px 0 0;">Time to wait for model to respond at all</p>
       </div>
-      <div id="test-result" class="test-result"></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-hdr"><h3>Model Benchmarks</h3><span style="font-size:10px;color:var(--fg-muted);">MMLU &middot; HumanEval &middot; MATH &middot; MT-Bench &middot; Tools &middot; Context &middot; Max Output &middot; Speed &middot; Cost</span></div>
-    <div class="card-body" style="overflow-x:auto;">
-      <table class="bench-table"><thead><tr><th>Model</th><th>MMLU</th><th>HumanEval</th><th>MATH</th><th>MT-Bench</th><th>Tools</th><th>Context</th><th>Max Out</th><th>Speed</th><th>Cost</th></tr></thead><tbody id="bench-tbody"></tbody></table>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-hdr"><h3>Gerald System Prompt</h3><button class="save-btn" onclick="saveSystemPrompt()">Save</button></div>
-    <div class="card-body"><textarea id="system-prompt" style="width:100%;min-height:120px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);resize:vertical;box-sizing:border-box;line-height:1.5;"></textarea></div>
-  </div>
-
-  <div class="card">
-    <div class="card-hdr"><h3>Web Search Injection</h3><button class="save-btn" onclick="saveSearchSettings()">Save</button></div>
-    <div class="card-body">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><input type="checkbox" id="search-enabled" checked style="width:15px;height:15px;"><label for="search-enabled" style="font-size:13px;">Auto-inject web search for time-sensitive queries</label></div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:140px;"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);display:block;margin-bottom:3px;">Provider</label><select id="search-provider" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg);color:var(--fg);"><option value="tavily">Tavily (recommended)</option><option value="brave">Brave Search</option><option value="perplexity">Perplexity Sonar</option></select></div>
-        <div style="flex:2;min-width:180px;"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);display:block;margin-bottom:3px;">Trigger Keywords</label><input type="text" id="search-keywords" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);box-sizing:border-box;" value="latest,recent,today,current,news,2024,2025,2026,who is,what is,when did,report,study,paper,findings,published,review,this week,past week,last week"></div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--fg-muted);display:block;margin-bottom:4px;">Generation timeout (ms)</label>
+        <input type="number" id="timeout-generate" value="120000" min="10000" max="300000" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg);color:var(--fg);">
+        <p style="font-size:11px;color:var(--fg-muted);margin:3px 0 0;">Total time to wait for full response</p>
       </div>
+    </div>
+    <div style="margin-top:10px;">
+      <button class="save-btn" onclick="saveTimeouts()">Save Timeouts</button>
     </div>
   </div>
 
 </div>
 </div>
 </div>
+
 <script>
-var MODEL_CATALOGUE = [
-  {id:"glm53",name:"GLM 5.3 via Mistral",provider:"mistral",model:"zai-glm-5-3",ctx:1048576,maxOut:32768,free:false,cost:"Paid sub",tools:["function_calling","web_search"],tags:["1m","thinking","web"],mmlu:89.2,humaneval:87.1,math:72.4,mtbench:9.1,speed:"382ms",note:"Z.AI GLM 5.3 via Mistral. 1M ctx. Native web search. Thinking."},
-  {id:"mistral4",name:"Mistral Large 4",provider:"mistral",model:"mistral-large-4",ctx:1048576,maxOut:32768,free:false,cost:"Paid sub",tools:["function_calling","vision","web_search"],tags:["1m","thinking","web","vision"],mmlu:88.7,humaneval:85.3,math:70.1,mtbench:9.0,speed:"659ms",note:"Mistral flagship. 1M ctx. Vision. Web search."},
-  {id:"magistral",name:"Magistral Medium",provider:"mistral",model:"magistral-medium-latest",ctx:262144,maxOut:32768,free:false,cost:"Paid sub",tools:["function_calling","vision","web_search"],tags:["262k","thinking","web"],mmlu:87.3,humaneval:83.1,math:68.9,mtbench:8.9,speed:"890ms",note:"Mistral reasoning. Thinking. Web search."},
-  {id:"mistral_med",name:"Mistral Medium 3.5",provider:"mistral",model:"mistral-medium-3.5",ctx:262144,maxOut:32768,free:false,cost:"Paid sub",tools:["function_calling","vision","web_search"],tags:["262k","web","vision"],mmlu:85.1,humaneval:80.2,math:64.3,mtbench:8.6,speed:"520ms",note:"262K ctx. Web search. Vision."},
-  {id:"mistral_sm",name:"Mistral Small",provider:"mistral",model:"mistral-small-latest",ctx:262144,maxOut:32768,free:false,cost:"Paid sub",tools:["function_calling","vision"],tags:["262k","fast","vision"],mmlu:82.4,humaneval:76.1,math:59.2,mtbench:8.3,speed:"310ms",note:"Fast. 262K ctx. Vision."},
-  {id:"ministral14",name:"Ministral 14B",provider:"mistral",model:"ministral-14b-latest",ctx:262144,maxOut:32768,free:false,cost:"Paid sub",tools:["function_calling","vision"],tags:["262k","vision"],mmlu:83.2,humaneval:77.4,math:61.1,mtbench:8.4,speed:"280ms",note:"Efficient 14B. 262K ctx. Vision."},
-  {id:"ministral8",name:"Ministral 8B",provider:"mistral",model:"ministral-8b-latest",ctx:262144,maxOut:32768,free:false,cost:"Paid sub",tools:["function_calling","vision"],tags:["262k","fast","vision"],mmlu:80.1,humaneval:72.3,math:56.4,mtbench:8.1,speed:"180ms",note:"Very fast 8B. 262K ctx. Vision."},
-  {id:"mistral_ocr",name:"Mistral OCR 4",provider:"mistral",model:"mistral-ocr-4",ctx:16384,maxOut:8192,free:false,cost:"Paid sub",tools:["ocr","vision"],tags:["ocr"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"800ms",note:"Dedicated OCR. Best for document text extraction."},
-  {id:"voxtral_tts",name:"Voxtral TTS (Mistral)",provider:"mistral",model:"voxtral-mini-tts-3",ctx:4096,maxOut:4096,free:false,cost:"Paid sub",tools:["tts"],tags:["tts"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"800ms",note:"Mistral TTS. Included in paid subscription."},
-  {id:"voxtral_stt",name:"Voxtral STT (Mistral)",provider:"mistral",model:"voxtral-mini-transcribe-3",ctx:65536,maxOut:null,free:false,cost:"Paid sub",tools:["stt"],tags:["stt"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"600ms",note:"Mistral STT. Included in paid subscription."},
-  {id:"gemini4argon",name:"Gemini 4 Argon",provider:"gemini",model:"gemini-4-argon",ctx:1048576,maxOut:32768,free:true,cost:"Free",tools:["function_calling","vision","google_search","code_execution"],tags:["1m","vision","search","free"],mmlu:89.1,humaneval:86.2,math:71.8,mtbench:9.0,speed:"~1.2s",note:"Latest Gemini 4. 1M ctx. Vision, Google Search, code execution."},
-  {id:"gemini38",name:"Gemini 3.8 Flash",provider:"gemini",model:"gemini-3.8-flash",ctx:1048576,maxOut:65536,free:true,cost:"Free",tools:["function_calling","vision","google_search","code_execution"],tags:["1m","vision","search","free"],mmlu:88.5,humaneval:84.1,math:70.2,mtbench:8.9,speed:"~800ms",note:"1M ctx. Vision, Google Search, code execution. Free."},
-  {id:"gemini37",name:"Gemini 3.7 Flash",provider:"gemini",model:"gemini-3.7-flash",ctx:1048576,maxOut:65536,free:true,cost:"Free",tools:["function_calling","vision","google_search"],tags:["1m","vision","search","free"],mmlu:87.9,humaneval:83.2,math:69.1,mtbench:8.8,speed:"~750ms",note:"1M ctx. Vision, Google Search. Free."},
-  {id:"gemini35",name:"Gemini 3.5 Flash",provider:"gemini",model:"gemini-3.5-flash",ctx:1048576,maxOut:65536,free:true,cost:"Free",tools:["function_calling","vision","google_search"],tags:["1m","vision","search","free"],mmlu:87.8,humaneval:82.9,math:68.4,mtbench:8.8,speed:"~700ms",note:"1M ctx. Vision, Google Search. Free."},
-  {id:"gemini25",name:"Gemini 2.5 Flash",provider:"gemini",model:"gemini-2.5-flash",ctx:1048576,maxOut:65536,free:true,cost:"Free",tools:["function_calling","vision","google_search","thinking"],tags:["1m","vision","search","thinking","free"],mmlu:87.2,humaneval:81.6,math:67.1,mtbench:8.7,speed:"~900ms",note:"1M ctx. Thinking mode. Vision, Google Search. Free."},
-  {id:"gemma4nv",name:"Gemma 4 31B (NVIDIA)",provider:"nvidia",model:"google/gemma-4-31b-it",ctx:262144,maxOut:32768,free:true,cost:"Free",tools:["function_calling"],tags:["262k","fast","free"],mmlu:87.9,humaneval:82.4,math:68.7,mtbench:8.8,speed:"269ms",note:"Fastest in Argentica (269ms). 262K ctx. NVIDIA inference."},
-  {id:"gemma4gm",name:"Gemma 4 31B (Gemini API)",provider:"gemini",model:"gemma-4-31b-it",ctx:262144,maxOut:32768,free:true,cost:"Free",tools:["function_calling","google_search"],tags:["262k","search","free"],mmlu:87.9,humaneval:82.4,math:68.7,mtbench:8.8,speed:"1014ms",note:"Same model via Gemini API. Google Search grounding."},
-  {id:"gemini_img",name:"Gemini 3.1 Flash Image",provider:"gemini",model:"gemini-3.1-flash-image",ctx:65536,maxOut:65536,free:true,cost:"Free",tools:["image_generation"],tags:["image_gen","free"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~3s",note:"Image generation via Gemini. Free."},
-  {id:"gemini_img_pro",name:"Gemini 3 Pro Image",provider:"gemini",model:"gemini-3-pro-image",ctx:131072,maxOut:32768,free:true,cost:"Free",tools:["image_generation"],tags:["image_gen","free"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~5s",note:"Higher quality Gemini image gen. Free."},
-  {id:"lyria35",name:"Lyria 3.5 (Music)",provider:"gemini",model:"lyria-3.5",ctx:null,maxOut:null,free:true,cost:"Free",tools:["music_generation"],tags:["music","vocals","free"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~5s",note:"Full music with vocals, lyrics, up to 3 min. Free."},
-  {id:"lyria3pro",name:"Lyria 3 Pro (Music)",provider:"gemini",model:"lyria-3-pro-preview",ctx:null,maxOut:null,free:true,cost:"Free",tools:["music_generation"],tags:["music","vocals","free"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~8s",note:"Lyria 3 Pro. Longer compositions. Free."},
-  {id:"gemini_tts",name:"Gemini 3.8 Flash TTS",provider:"gemini",model:"gemini-3.8-flash-tts",ctx:8192,maxOut:16384,free:true,cost:"Free",tools:["tts"],tags:["tts","free"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~1s",note:"Gemini TTS. Voices: Aoede, Puck, Charon, Kore, Fenrir, Leda, Orus, Zephyr. Free."},
-  {id:"gemini_stt",name:"Gemini 3.5 Transcribe",provider:"gemini",model:"gemini-3.5-transcribe",ctx:98304,maxOut:32768,free:true,cost:"Free",tools:["stt"],tags:["stt","free"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~800ms",note:"Gemini audio transcription. Free."},
-  {id:"deepseek",name:"DeepSeek V4 Flash",provider:"deepseek",model:"deepseek-chat",ctx:1048576,maxOut:32768,free:false,cost:"$0.27/M",tools:["function_calling","web_search"],tags:["1m","web"],mmlu:88.5,humaneval:86.2,math:71.3,mtbench:8.9,speed:"~2-3s",note:"DeepSeek V4 Flash. 1M ctx. Native web search. Paid."},
-  {id:"grok47",name:"Grok 4.7",provider:"xai",model:"grok-4.7",ctx:131072,maxOut:32768,free:false,cost:"Paid",tools:["function_calling","vision","realtime_x"],tags:["131k","vision","realtime"],mmlu:87.1,humaneval:83.7,math:69.2,mtbench:8.7,speed:"1405ms",note:"Latest Grok. Real-time X/Twitter data. Vision. Paid."},
-  {id:"grok_image",name:"Grok Image Gen",provider:"xai",model:"grok-imagine-image-2.0",ctx:null,maxOut:null,free:false,cost:"Paid",tools:["image_generation"],tags:["image_gen"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~5s",note:"Grok image generation. Photorealistic."},
-  {id:"grok_video",name:"Grok Video Gen",provider:"xai",model:"grok-imagine-video-1.5",ctx:null,maxOut:null,free:false,cost:"Paid",tools:["video_generation"],tags:["video_gen"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~120s",note:"Grok video generation."},
-  {id:"cohere_aplus",name:"Cohere Command A+",provider:"cohere",model:"command-a-plus-05-2026",ctx:256000,maxOut:32768,free:false,cost:"Paid",tools:["function_calling","rag","web_search"],tags:["256k","rag","web"],mmlu:85.2,humaneval:78.4,math:62.1,mtbench:8.5,speed:"466ms",note:"Latest Command A+. 256K ctx. RAG. Web search."},
-  {id:"cohere_a",name:"Cohere Command A",provider:"cohere",model:"command-a-03-2025",ctx:256000,maxOut:32768,free:false,cost:"Paid",tools:["function_calling","rag"],tags:["256k","rag"],mmlu:84.1,humaneval:76.2,math:60.4,mtbench:8.3,speed:"420ms",note:"Command A. 256K ctx. RAG."},
-  {id:"cohere_rplus",name:"Cohere Command R+",provider:"cohere",model:"command-r-plus-08-2024",ctx:128000,maxOut:4096,free:false,cost:"Paid",tools:["function_calling","rag"],tags:["128k","rag"],mmlu:83.4,humaneval:74.2,math:58.1,mtbench:8.2,speed:"466ms",note:"Proven RAG model. 128K ctx."},
-  {id:"cohere_vision",name:"Cohere Command A Vision",provider:"cohere",model:"command-a-vision-07-2025",ctx:256000,maxOut:32768,free:false,cost:"Paid",tools:["function_calling","vision","rag"],tags:["256k","vision","rag"],mmlu:84.8,humaneval:76.1,math:60.4,mtbench:8.4,speed:"~600ms",note:"Command A with vision. 256K ctx."},
-  {id:"cohere_reason",name:"Cohere Command A Reasoning",provider:"cohere",model:"command-a-reasoning-08-2025",ctx:256000,maxOut:32768,free:false,cost:"Paid",tools:["function_calling","thinking"],tags:["256k","thinking"],mmlu:86.1,humaneval:80.3,math:65.2,mtbench:8.7,speed:"~1.2s",note:"Command A with reasoning/thinking mode."},
-  {id:"gpt_oss_120b",name:"GPT-OSS 120B (Groq)",provider:"groq",model:"openai/gpt-oss-120b",ctx:131072,maxOut:16384,free:true,cost:"Free",tools:["function_calling"],tags:["131k","fast","free"],mmlu:85.2,humaneval:80.1,math:63.4,mtbench:8.5,speed:"~300ms",note:"Meta open-source 120B on Groq hardware. Fast. 131K ctx."},
-  {id:"gpt_oss_20b",name:"GPT-OSS 20B (Groq)",provider:"groq",model:"openai/gpt-oss-20b",ctx:131072,maxOut:16384,free:true,cost:"Free",tools:["function_calling"],tags:["131k","fast","free"],mmlu:81.4,humaneval:74.2,math:58.1,mtbench:8.1,speed:"~150ms",note:"Smaller GPT-OSS on Groq. Very fast. 131K ctx."},
-  {id:"qwen3_27b",name:"Qwen 3.8 27B (Groq)",provider:"groq",model:"qwen/qwen3.8-27b",ctx:131072,maxOut:16384,free:true,cost:"Free",tools:["function_calling"],tags:["131k","fast","free"],mmlu:84.1,humaneval:78.3,math:61.2,mtbench:8.3,speed:"~350ms",note:"Qwen 3.8 27B on Groq. Fast. 131K ctx."},
-  {id:"groq_whisper",name:"Whisper Large v3 (Groq)",provider:"groq",model:"whisper-large-v3",ctx:null,maxOut:null,free:true,cost:"Free",tools:["stt"],tags:["stt","free"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~500ms",note:"OpenAI Whisper on Groq. Free. Multilingual."},
-  {id:"deepseek_nv",name:"DeepSeek V4.1 Flash (NVIDIA)",provider:"nvidia",model:"deepseek-ai/deepseek-v4.1-flash",ctx:131072,maxOut:16384,free:true,cost:"Free",tools:["function_calling"],tags:["131k","fast","free"],mmlu:87.1,humaneval:83.2,math:68.4,mtbench:8.7,speed:"~400ms",note:"DeepSeek V4.1 Flash on NVIDIA. Free."},
-  {id:"llama32_vision",name:"Llama 3.2 90B Vision (NVIDIA)",provider:"nvidia",model:"meta/llama-3.2-90b-vision-instruct",ctx:131072,maxOut:16384,free:true,cost:"Free",tools:["function_calling","vision"],tags:["131k","vision","free"],mmlu:83.7,humaneval:77.4,math:60.1,mtbench:8.3,speed:"~600ms",note:"Llama 3.2 90B with vision on NVIDIA. Free."},
-  {id:"nemotron_ultra",name:"Nemotron Ultra 550B (OpenRouter)",provider:"openrouter",model:"nvidia/nemotron-3-ultra-550b-a55b:free",ctx:1000000,maxOut:32768,free:true,cost:"Free",tools:["function_calling"],tags:["1m","free"],mmlu:90.1,humaneval:88.4,math:74.2,mtbench:9.3,speed:"~3s",note:"Frontier-grade 550B. 1M ctx. Free via OpenRouter."},
-  {id:"nemotron_super",name:"Nemotron 3.5 Super VL (OpenRouter)",provider:"openrouter",model:"nvidia/nemotron-3.5-super-vl:free",ctx:1000000,maxOut:32768,free:true,cost:"Free",tools:["function_calling","vision"],tags:["1m","vision","free"],mmlu:88.9,humaneval:85.7,math:71.2,mtbench:9.0,speed:"~1.5s",note:"Nemotron 3.5 Super VL. 1M ctx. Vision. Free."},
-  {id:"nemotron_light",name:"Nemotron Lightning (OpenRouter)",provider:"openrouter",model:"nvidia/nemotron-3.5-lightning:free",ctx:1000000,maxOut:32768,free:true,cost:"Free",tools:["function_calling"],tags:["1m","fast","free"],mmlu:86.4,humaneval:81.2,math:65.8,mtbench:8.6,speed:"~600ms",note:"Nemotron Lightning. Fast, 1M ctx. Free."},
-  {id:"minimax",name:"MiniMax M3.1 Flash (OpenRouter)",provider:"openrouter",model:"minimax/minimax-m3.1-flash:free",ctx:1000000,maxOut:32768,free:true,cost:"Free",tools:["function_calling"],tags:["1m","free"],mmlu:82.1,humaneval:71.4,math:55.2,mtbench:8.0,speed:"851ms",note:"MiniMax M3.1 Flash. 1M ctx. Free."},
-  {id:"kimi_k2",name:"Kimi K2 (Moonshot)",provider:"kimi",model:"kimi-k2",ctx:131072,maxOut:16384,free:false,cost:"Paid",tools:["function_calling","web_search"],tags:["131k","web"],mmlu:87.4,humaneval:84.1,math:69.8,mtbench:8.8,speed:"~1.5s",note:"Kimi K2. 131K ctx. Web search. Paid."},
-  {id:"moonshot_128k",name:"Moonshot v1 128K",provider:"kimi",model:"moonshot-v1-128k",ctx:131072,maxOut:16384,free:false,cost:"Paid",tools:["function_calling"],tags:["131k"],mmlu:85.2,humaneval:79.3,math:63.1,mtbench:8.4,speed:"~1.2s",note:"Moonshot 128K context model."},
-  {id:"glm47",name:"GLM-4.7 Flash",provider:"zhipu",model:"glm-4.7-flash",ctx:131072,maxOut:16384,free:false,cost:"Paid",tools:["function_calling","web_search"],tags:["131k","web"],mmlu:85.8,humaneval:81.2,math:66.4,mtbench:8.6,speed:"~800ms",note:"GLM-4.7 Flash. 131K ctx. Web search. Paid."},
-  {id:"glm46",name:"GLM-4.6 Flash",provider:"zhipu",model:"glm-4.6-flash",ctx:131072,maxOut:16384,free:false,cost:"Paid",tools:["function_calling"],tags:["131k"],mmlu:84.1,humaneval:78.3,math:63.2,mtbench:8.4,speed:"~700ms",note:"GLM-4.6 Flash. 131K ctx. Paid."},
-  {id:"perplexity_pro",name:"Perplexity Sonar Pro",provider:"perplexity",model:"sonar-pro",ctx:200000,maxOut:8192,free:false,cost:"Paid",tools:["web_search"],tags:["200k","web"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~2s",note:"Always searches the web. Best for research. 200K ctx."},
-  {id:"perplexity_reason",name:"Perplexity Sonar Reasoning Pro",provider:"perplexity",model:"sonar-reasoning-pro",ctx:200000,maxOut:8192,free:false,cost:"Paid",tools:["web_search","thinking"],tags:["200k","web","thinking"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~4s",note:"Reasoning + web search. For complex research."},
-  {id:"chutes_ds",name:"DeepSeek V3 (Chutes)",provider:"chutes",model:"deepseek-ai/DeepSeek-V3-0324",ctx:131072,maxOut:16384,free:true,cost:"Free",tools:["function_calling"],tags:["131k","free"],mmlu:88.1,humaneval:84.7,math:70.1,mtbench:8.8,speed:"~2s",note:"DeepSeek V3 via Chutes. Free."},
-  {id:"chutes_llama",name:"Llama 3.3 70B (Chutes)",provider:"chutes",model:"meta-llama/Llama-3.3-70B-Instruct",ctx:131072,maxOut:16384,free:true,cost:"Free",tools:["function_calling"],tags:["131k","free"],mmlu:84.8,humaneval:79.3,math:61.7,mtbench:8.4,speed:"~1s",note:"Llama 3.3 70B via Chutes. Free."},
-  {id:"nebius_llama",name:"Llama 3.3 70B (Nebius)",provider:"nebius",model:"meta-llama/Llama-3.3-70B-Instruct",ctx:131072,maxOut:16384,free:true,cost:"Free",tools:["function_calling"],tags:["131k","free"],mmlu:84.8,humaneval:79.3,math:61.7,mtbench:8.4,speed:"~800ms",note:"Llama 3.3 70B via Nebius. Free tier."},
-  {id:"nebius_qwen",name:"Qwen 2.5 72B (Nebius)",provider:"nebius",model:"Qwen/Qwen2.5-72B-Instruct",ctx:131072,maxOut:16384,free:true,cost:"Free",tools:["function_calling"],tags:["131k","free"],mmlu:85.4,humaneval:80.1,math:63.2,mtbench:8.5,speed:"~900ms",note:"Qwen 2.5 72B via Nebius. Free tier."},
-  {id:"flux_schnell",name:"Flux Schnell (FAL)",provider:"fal",model:"fal-ai/flux/schnell",ctx:null,maxOut:null,free:false,cost:"$0.003/img",tools:["image_generation"],tags:["image_gen"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~2s",note:"Fastest Flux. Cheapest paid option."},
-  {id:"flux_dev",name:"Flux Dev (FAL)",provider:"fal",model:"fal-ai/flux/dev",ctx:null,maxOut:null,free:false,cost:"$0.025/img",tools:["image_generation"],tags:["image_gen"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~4s",note:"Quality Flux. Good for branded content."},
-  {id:"recraft_v3",name:"Recraft V3 (FAL)",provider:"fal",model:"fal-ai/recraft-v3",ctx:null,maxOut:null,free:false,cost:"$0.04/img",tools:["image_generation"],tags:["image_gen"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~5s",note:"Best for design, illustration, brand assets."},
-  {id:"kling_video",name:"Kling Video (FAL)",provider:"fal",model:"fal-ai/kling-video/v1.6/standard/text-to-video",ctx:null,maxOut:null,free:false,cost:"Paid",tools:["video_generation"],tags:["video_gen"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~60s",note:"Text-to-video. Up to 10s clips."},
-  {id:"pollinations_img",name:"Pollinations Flux (free)",provider:"pollinations",model:"flux",ctx:null,maxOut:null,free:true,cost:"Free",tools:["image_generation"],tags:["image_gen","free"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~3s",note:"Always free. No key. Good quality."},
-  {id:"dg_arcas",name:"Deepgram Aura Arcas (British Male)",provider:"deepgram",model:"aura-arcas-en",ctx:null,maxOut:null,free:false,cost:"Paid",tools:["tts"],tags:["tts","british"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~500ms",note:"British male voice. Recommended for host/narrator."},
-  {id:"dg_asteria",name:"Deepgram Aura Asteria (Female)",provider:"deepgram",model:"aura-asteria-en",ctx:null,maxOut:null,free:false,cost:"Paid",tools:["tts"],tags:["tts"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~500ms",note:"Female voice. Clear, professional."},
-  {id:"dg_zeus",name:"Deepgram Aura Zeus (Deep Male)",provider:"deepgram",model:"aura-zeus-en",ctx:null,maxOut:null,free:false,cost:"Paid",tools:["tts"],tags:["tts"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~500ms",note:"Deep male voice. Authoritative."},
-  {id:"dg_luna",name:"Deepgram Aura Luna (Warm Female)",provider:"deepgram",model:"aura-luna-en",ctx:null,maxOut:null,free:false,cost:"Paid",tools:["tts"],tags:["tts"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~500ms",note:"Warm female voice. Good for conversational content."},
-  {id:"dg_nova3",name:"Deepgram Nova 3 (STT)",provider:"deepgram",model:"nova-3",ctx:null,maxOut:null,free:false,cost:"Paid",tools:["stt"],tags:["stt"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~200ms",note:"Best Deepgram STT. Low WER. Real-time capable."},
-  {id:"cartesia_bm",name:"Cartesia Sonic British Male",provider:"cartesia",model:"a0e99841-438c-4a64-b679-ae501e7d6091",ctx:null,maxOut:null,free:false,cost:"Paid",tools:["tts"],tags:["tts","british"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~300ms",note:"Cartesia Sonic 2. British male. Very fast."},
-  {id:"cartesia_bf",name:"Cartesia Sonic British Female",provider:"cartesia",model:"79a125e8-cd45-4c13-8a67-188112f4dd22",ctx:null,maxOut:null,free:false,cost:"Paid",tools:["tts"],tags:["tts","british"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~300ms",note:"Cartesia Sonic 2. British female."},
-  {id:"pollinations",name:"Pollinations (fallback)",provider:"pollinations",model:"openai",ctx:4096,maxOut:4096,free:true,cost:"Free",tools:[],tags:["unconditional","free"],mmlu:null,humaneval:null,math:null,mtbench:null,speed:"~1s",note:"Always responds. No key required. Last resort only."}
-];
-var DEFAULT_CHAIN_IDS = ["glm53","mistral4","gemma4nv","gemini38","deepseek","cohere_aplus","gpt_oss_120b","nemotron_ultra","minimax","pollinations"];
-var chain = [], selectedAvail = null, selectedChain = null, currentFilter = "all", currentSearch = "";
-var WORKER = "https://prism-api.identitypartners.workers.dev";
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var currentProfile = 'balanced';
+
+var DEFAULT_CHAINS = {
+  balanced: [
+    {id:'glm53', name:'GLM 5.3 via Mistral', provider:'mistral', model:'zai-glm-5-3', enabled:true, badges:['paid','1M','thinking','web']},
+    {id:'mistral-large', name:'Mistral Large Latest', provider:'mistral', model:'mistral-large-latest', enabled:true, badges:['paid','1M','web','vision']},
+    {id:'gemini-flash', name:'Gemini 3.5 Flash', provider:'gemini', model:'gemini-3.5-flash', enabled:true, badges:['free','1M','search']},
+    {id:'gemma4', name:'Gemma 4 31B', provider:'gemini', model:'gemma-4-31b-it', enabled:true, badges:['free','search']},
+    {id:'deepseek', name:'DeepSeek V4 Flash', provider:'deepseek', model:'deepseek-chat', enabled:true, badges:['paid','1M','web']},
+    {id:'gpt-oss-groq', name:'GPT-OSS 120B (Groq)', provider:'groq', model:'openai/gpt-oss-120b', enabled:true, badges:['free','fast']},
+    {id:'gpt-oss-cerebras', name:'GPT-OSS 120B (Cerebras)', provider:'cerebras', model:'gpt-oss-120b', enabled:true, badges:['paid','fast']},
+    {id:'nemotron', name:'Nemotron Ultra 550B', provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', enabled:true, badges:['free','1M']},
+  ],
+  fast: [
+    {id:'gpt-oss-groq', name:'GPT-OSS 120B (Groq)', provider:'groq', model:'openai/gpt-oss-120b', enabled:true, badges:['free','fast']},
+    {id:'gpt-oss-cerebras', name:'GPT-OSS 120B (Cerebras)', provider:'cerebras', model:'gpt-oss-120b', enabled:true, badges:['paid','fast']},
+    {id:'mistral-small', name:'Mistral Small', provider:'mistral', model:'mistral-small-latest', enabled:true, badges:['paid','fast']},
+    {id:'gemma4', name:'Gemma 4 31B', provider:'gemini', model:'gemma-4-31b-it', enabled:true, badges:['free']},
+  ],
+  frontier: [
+    {id:'glm53', name:'GLM 5.3 via Mistral', provider:'mistral', model:'zai-glm-5-3', enabled:true, badges:['paid','1M','thinking','web']},
+    {id:'mistral-large', name:'Mistral Large Latest', provider:'mistral', model:'mistral-large-latest', enabled:true, badges:['paid','1M','web','vision']},
+    {id:'gemini-flash', name:'Gemini 3.5 Flash', provider:'gemini', model:'gemini-3.5-flash', enabled:true, badges:['free','1M','search']},
+    {id:'deepseek', name:'DeepSeek V4 Flash', provider:'deepseek', model:'deepseek-chat', enabled:true, badges:['paid','1M','web']},
+    {id:'nemotron', name:'Nemotron Ultra 550B', provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', enabled:true, badges:['free','1M']},
+  ]
+};
+
+var PROFILE_DESCS = {
+  balanced: 'Best quality with reliable fallbacks. GLM 5.3 → Mistral Large → Gemini → DeepSeek → GPT-OSS → Cerebras',
+  fast: 'Lowest latency. GPT-OSS Groq → Cerebras → Mistral Small → Gemma 4',
+  frontier: 'Maximum capability. GLM 5.3 → Mistral Large → Gemini → DeepSeek → Nemotron Ultra'
+};
+
+var chains = {};
+
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
   if (mount && typeof buildSidebar === 'function') {
@@ -261,166 +147,139 @@ document.addEventListener('DOMContentLoaded', function() {
     mount.parentNode.removeChild(mount);
   }
   loadSettings();
-  renderBenchmarks();
 });
 
 function loadSettings() {
   fetch(WORKER + '/api/kv/get?key=orchestrator:settings')
-    .then(function(r){return r.json();})
-    .then(function(d){
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
       if (d.value) {
         try {
-          var s = JSON.parse(d.value);
-          if (s.chainIds) chain = s.chainIds.map(function(id){return MODEL_CATALOGUE.find(function(m){return m.id===id;});}).filter(Boolean);
-          if (s.systemPrompt) document.getElementById('system-prompt').value = s.systemPrompt;
-          if (s.searchEnabled !== undefined) document.getElementById('search-enabled').checked = s.searchEnabled;
-          if (s.searchProvider) document.getElementById('search-provider').value = s.searchProvider;
-          if (s.searchKeywords) document.getElementById('search-keywords').value = s.searchKeywords;
-          if (s.defaultProfile) document.getElementById('default-profile').value = s.defaultProfile;
+          var settings = JSON.parse(d.value);
+          if (settings.chains) chains = settings.chains;
+          if (settings.systemPrompt) document.getElementById('system-prompt').value = settings.systemPrompt;
+          if (settings.timeoutConnect) document.getElementById('timeout-connect').value = settings.timeoutConnect;
+          if (settings.timeoutGenerate) document.getElementById('timeout-generate').value = settings.timeoutGenerate;
         } catch(e) {}
       }
-      if (!chain.length) chain = DEFAULT_CHAIN_IDS.map(function(id){return MODEL_CATALOGUE.find(function(m){return m.id===id;});}).filter(Boolean);
+      // Fill in defaults for missing profiles
+      ['balanced','fast','frontier'].forEach(function(p) {
+        if (!chains[p]) chains[p] = JSON.parse(JSON.stringify(DEFAULT_CHAINS[p]));
+      });
       if (!document.getElementById('system-prompt').value) {
-        document.getElementById('system-prompt').value = "You are Gerald, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English. Never fabricate.";
+        document.getElementById('system-prompt').value = "You are Gerald, the Orchestrator for Argentica — the personal AI operating environment of Simon Johnson / Identity Partners. You address Simon as 'sir'. You are sardonic, precise, and devastatingly competent. British English. Never sycophantic. Never fabricate.";
       }
-      renderAvailable();
       renderChain();
-    }).catch(function(){
-      chain = DEFAULT_CHAIN_IDS.map(function(id){return MODEL_CATALOGUE.find(function(m){return m.id===id;});}).filter(Boolean);
-      document.getElementById('system-prompt').value = "You are Gerald, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English. Never fabricate.";
-      renderAvailable();
+    })
+    .catch(function() {
+      chains = JSON.parse(JSON.stringify(DEFAULT_CHAINS));
       renderChain();
     });
 }
 
-function getFilteredModels() {
-  var chainIds = chain.map(function(m){return m.id;});
-  return MODEL_CATALOGUE.filter(function(m) {
-    if (chainIds.includes(m.id)) return false;
-    var q = currentSearch.toLowerCase();
-    if (q && !m.name.toLowerCase().includes(q) && !m.model.toLowerCase().includes(q) && !m.provider.toLowerCase().includes(q)) return false;
-    if (currentFilter === 'free') return m.free;
-    if (currentFilter === 'fast') return m.tags && m.tags.includes('fast');
-    if (currentFilter === 'vision') return m.tools && m.tools.includes('vision');
-    if (currentFilter === 'search') return m.tools && (m.tools.includes('web_search') || m.tools.includes('google_search'));
-    if (currentFilter === 'thinking') return m.tools && m.tools.includes('thinking');
-    if (currentFilter === '1m') return m.ctx >= 900000;
-    if (currentFilter === 'tts') return m.tools && m.tools.includes('tts');
-    if (currentFilter === 'stt') return m.tools && m.tools.includes('stt');
-    if (currentFilter === 'image_gen') return m.tools && m.tools.includes('image_generation');
-    if (currentFilter === 'music') return m.tools && m.tools.includes('music_generation');
-    if (currentFilter === 'video_gen') return m.tools && m.tools.includes('video_generation');
-    if (currentFilter === 'ocr') return m.tools && m.tools.includes('ocr');
-    return true;
-  });
-}
-
-function renderAvailable() {
-  var filtered = getFilteredModels();
-  document.getElementById('avail-count').textContent = filtered.length + ' models';
-  var list = document.getElementById('avail-list');
-  list.innerHTML = '';
-  filtered.forEach(function(m) {
-    var div = document.createElement('div');
-    div.className = 'model-row' + (selectedAvail === m.id ? ' selected' : '');
-    div.onclick = (function(mid){return function(){selectedAvail=mid;renderAvailable();};})(m.id);
-    div.ondblclick = (function(mid){return function(){selectedAvail=mid;addSelected();};})(m.id);
-    var ctxStr = m.ctx >= 1000000 ? '1M' : m.ctx >= 100000 ? Math.round(m.ctx/1000)+'K' : m.ctx ? m.ctx+'' : '-';
-    var tagHtml = (m.tags||[]).slice(0,2).map(function(t){
-      var cls = t==='free'?'tag-free':t==='fast'?'tag-fast':t==='vision'?'tag-vision':t==='search'?'tag-search':t==='thinking'?'tag-thinking':t==='tts'?'tag-tts':t==='stt'?'tag-stt':t==='music'?'tag-music':t==='image_gen'?'tag-image_gen':t==='video_gen'?'tag-video_gen':t==='ocr'?'tag-ocr':'';
-      return '<span class="tag '+cls+'">'+t+'</span>';
-    }).join('');
-    div.innerHTML = '<span class="model-name" title="'+m.model+'">'+m.name+'</span><span class="model-ctx">'+ctxStr+'</span><span class="model-tags">'+tagHtml+'</span>';
-    list.appendChild(div);
-  });
+function switchProfile(profile, btn) {
+  currentProfile = profile;
+  document.querySelectorAll('.profile-tab').forEach(function(t) { t.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById('chain-profile-label').textContent = btn.textContent;
+  document.getElementById('profile-desc').textContent = PROFILE_DESCS[profile];
+  renderChain();
 }
 
 function renderChain() {
-  document.getElementById('chain-count').textContent = chain.length + ' in chain';
   var list = document.getElementById('chain-list');
+  var chain = chains[currentProfile] || [];
   list.innerHTML = '';
-  chain.forEach(function(m, idx) {
+  chain.forEach(function(item, idx) {
     var div = document.createElement('div');
-    div.className = 'chain-row' + (selectedChain === m.id ? ' selected' : '');
+    div.className = 'chain-item';
     div.draggable = true;
-    div.onclick = (function(mid){return function(){selectedChain=mid;renderChain();};})(m.id);
-    div.ondragstart = function(e){e.dataTransfer.setData('text/plain',idx);};
-    div.ondragover = function(e){e.preventDefault();div.style.background='var(--bg-sunken)';};
-    div.ondragleave = function(){div.style.background='';};
-    div.ondrop = (function(toIdx){return function(e){
-      e.preventDefault();div.style.background='';
-      var from=parseInt(e.dataTransfer.getData('text/plain'));
-      if(from===toIdx)return;
-      var item=chain.splice(from,1)[0];
-      chain.splice(toIdx,0,item);
+    div.dataset.idx = idx;
+    div.ondragstart = function(e) { e.dataTransfer.setData('text/plain', idx); };
+    div.ondragover = function(e) { e.preventDefault(); div.style.borderColor = 'var(--accent)'; };
+    div.ondragleave = function() { div.style.borderColor = 'var(--border)'; };
+    div.ondrop = function(e) {
+      e.preventDefault();
+      div.style.borderColor = 'var(--border)';
+      var fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      var toIdx = idx;
+      if (fromIdx === toIdx) return;
+      var moved = chain.splice(fromIdx, 1)[0];
+      chain.splice(toIdx, 0, moved);
       renderChain();
-    };})(idx);
-    div.innerHTML = '<span class="chain-drag">&#x2807;</span><span class="chain-num">'+(idx+1)+'</span><span class="chain-name" title="'+m.model+'">'+m.name+'</span><span class="chain-provider">'+m.provider+'</span><div class="reorder-btns"><button class="reorder-btn" onclick="moveUp('+idx+',event)">&#x25B2;</button><button class="reorder-btn" onclick="moveDown('+idx+',event)">&#x25BC;</button><button class="reorder-btn" onclick="removeAt('+idx+',event)" style="color:#dc2626;">&#x2715;</button></div>';
+    };
+    var badgeHtml = (item.badges || []).map(function(b) {
+      var cls = b === 'free' ? 'badge-free' : b === 'fast' ? 'badge-fast' : b === '1M' ? 'badge-1m' : 'badge-paid';
+      return '<span class="badge ' + cls + '">' + b + '</span>';
+    }).join(' ');
+    div.innerHTML = '<span class="chain-drag">⠿</span>' +
+      '<div class="chain-num">' + (idx+1) + '</div>' +
+      '<div class="chain-info">' +
+        '<div class="chain-name">' + item.name + '</div>' +
+        '<div class="chain-detail">' + item.provider + ' / ' + item.model + ' ' + badgeHtml + '</div>' +
+      '</div>' +
+      '<div class="chain-toggle"><input type="checkbox" ' + (item.enabled ? 'checked' : '') + ' onchange="toggleModel(' + idx + ',this.checked)"></div>';
     list.appendChild(div);
   });
 }
 
-function addSelected(){if(!selectedAvail)return;var m=MODEL_CATALOGUE.find(function(m){return m.id===selectedAvail;});if(m&&!chain.find(function(c){return c.id===m.id;})){chain.push(m);selectedAvail=null;renderAvailable();renderChain();}}
-function addAll(){getFilteredModels().forEach(function(m){if(!chain.find(function(c){return c.id===m.id;}))chain.push(m);});renderAvailable();renderChain();}
-function removeSelected(){if(!selectedChain)return;chain=chain.filter(function(m){return m.id!==selectedChain;});selectedChain=null;renderAvailable();renderChain();}
-function removeAt(idx,e){e.stopPropagation();chain.splice(idx,1);renderAvailable();renderChain();}
-function clearChain(){if(!confirm('Clear chain?'))return;chain=[];renderAvailable();renderChain();}
-function moveUp(idx,e){e.stopPropagation();if(idx===0)return;var t=chain[idx-1];chain[idx-1]=chain[idx];chain[idx]=t;renderChain();}
-function moveDown(idx,e){e.stopPropagation();if(idx>=chain.length-1)return;var t=chain[idx+1];chain[idx+1]=chain[idx];chain[idx]=t;renderChain();}
-function setFilter(f,btn){currentFilter=f;document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');renderAvailable();}
-function filterModels(q){currentSearch=q;renderAvailable();}
-function selectProfile(el){document.querySelectorAll('.profile-card').forEach(function(c){c.classList.remove('active');});el.classList.add('active');}
-
-function renderBenchmarks() {
-  var tbody = document.getElementById('bench-tbody');
-  tbody.innerHTML = '';
-  var bm = MODEL_CATALOGUE.filter(function(m){return m.mmlu;}).sort(function(a,b){return (b.mmlu||0)-(a.mmlu||0);});
-  bm.forEach(function(m) {
-    var toolHtml = (m.tools||[]).map(function(t){
-      var label = t==='web_search'?'Web':t==='google_search'?'GSearch':t==='vision'?'Vision':t==='thinking'?'Think':t==='rag'?'RAG':t==='realtime_x'?'X/RT':t==='function_calling'?'Fn':t;
-      var cls = t.includes('search')?'tool-web':t==='vision'?'tool-vision':t==='thinking'?'tool-thinking':t==='rag'?'tool-rag':'tool-realtime';
-      return '<span class="tool-badge '+cls+'">'+label+'</span>';
-    }).join('');
-    var ctxStr = m.ctx>=1000000?'1M':m.ctx>=100000?Math.round(m.ctx/1000)+'K':(m.ctx||'-')+'';
-    var maxOutStr = m.maxOut>=1000?Math.round(m.maxOut/1000)+'K':(m.maxOut||'-')+'';
-    var tr = document.createElement('tr');
-    tr.innerHTML = '<td><strong>'+m.name+'</strong><br><span style="font-size:10px;color:var(--fg-muted);">'+m.provider+' / '+m.model.substring(0,35)+'</span></td><td>'+m.mmlu+'</td><td>'+(m.humaneval||'-')+'</td><td>'+(m.math||'-')+'</td><td>'+(m.mtbench?m.mtbench+'/10':'-')+'</td><td>'+toolHtml+'</td><td>'+ctxStr+'</td><td>'+maxOutStr+'</td><td>'+m.speed+'</td><td>'+(m.free?'<span style="color:#16a34a;font-weight:600;">Free</span>':m.cost)+'</td>';
-    tbody.appendChild(tr);
-  });
+function toggleModel(idx, enabled) {
+  if (chains[currentProfile] && chains[currentProfile][idx]) {
+    chains[currentProfile][idx].enabled = enabled;
+  }
 }
 
-function saveChain(){saveSettings();alert('Chain saved.');}
-function saveSystemPrompt(){saveSettings();alert('System prompt saved.');}
-function saveSearchSettings(){saveSettings();alert('Search settings saved.');}
-function saveProfiles(){saveSettings();alert('Profiles saved.');}
+function saveChain() {
+  saveSettings();
+  Toast.success('Chain saved. Takes effect on next chat.');
+}
 
-function saveSettings() {
-  var settings = {
-    chainIds: chain.map(function(m){return m.id;}),
-    systemPrompt: document.getElementById('system-prompt').value,
-    searchEnabled: document.getElementById('search-enabled').checked,
-    searchProvider: document.getElementById('search-provider').value,
-    searchKeywords: document.getElementById('search-keywords').value,
-    defaultProfile: document.getElementById('default-profile').value,
-    updated: new Date().toISOString()
-  };
-  fetch(WORKER+'/api/kv/set',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'orchestrator:settings',value:JSON.stringify(settings)})}).catch(function(){});
+function resetChain() {
+  chains[currentProfile] = JSON.parse(JSON.stringify(DEFAULT_CHAINS[currentProfile]));
+  renderChain();
+  Toast.info('Reset to default chain.');
 }
 
 function testChain() {
   var resultEl = document.getElementById('test-result');
   resultEl.style.display = 'block';
-  resultEl.textContent = 'Testing...';
-  fetch(WORKER+'/api/champion/test-providers',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
-  .then(function(r){return r.json();})
-  .then(function(d){
-    var lines = ['Results ('+d.ok+'/'+d.tested+' OK):'];
-    (d.results||[]).forEach(function(r){
-      lines.push((r.status==='ok'?'OK':'FAIL')+' '+r.name+': '+r.status+(r.ms?' ('+r.ms+'ms)':'')+(r.error?' - '+r.error:''));
-    });
-    resultEl.textContent = lines.join('\n');
+  resultEl.textContent = 'Testing chain...';
+  fetch(WORKER + '/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages: [{ role: 'user', content: 'Say OK in one word' }], profile: currentProfile })
   })
-  .catch(function(e){resultEl.textContent='Error: '+e.message;});
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    resultEl.textContent = 'Provider: ' + (d.provider || '?') + '\nModel: ' + (d.model || '?') + '\nResponse: ' + (d.content || d.error || '?').substring(0, 100);
+    if (d.routingLog) resultEl.textContent += '\n\nRouting log:\n' + d.routingLog.join('\n');
+  })
+  .catch(function(e) { resultEl.textContent = 'Error: ' + e.message; });
+}
+
+function saveSystemPrompt() {
+  saveSettings();
+  Toast.success('System prompt saved.');
+}
+
+function saveTimeouts() {
+  saveSettings();
+  Toast.success('Timeouts saved.');
+}
+
+function saveSettings() {
+  var settings = {
+    chains: chains,
+    systemPrompt: document.getElementById('system-prompt').value,
+    timeoutConnect: parseInt(document.getElementById('timeout-connect').value),
+    timeoutGenerate: parseInt(document.getElementById('timeout-generate').value),
+    updated: new Date().toISOString()
+  };
+  fetch(WORKER + '/api/kv/set', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: 'orchestrator:settings', value: JSON.stringify(settings) })
+  }).catch(function() {});
 }
 </script>
 </body>
