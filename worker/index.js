@@ -3394,42 +3394,40 @@ export default {
         const clientSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || '';
         if (!code) return json({error:'No code provided'}, 400, origin);
         // Try EU endpoint first, then COM
-        const endpoints = ['https://accounts.zoho.eu/oauth/v2/token','https://accounts.zoho.com/oauth/v2/token'];
-        let lastError = '';
-        for (const endpoint of endpoints) {
-          try {
-            const params = new URLSearchParams({
-              grant_type: 'authorization_code',
-              client_id: clientId,
-              client_secret: clientSecret,
-              redirect_uri: redirectUri,
-              code: code,
-            });
-            const resp = await fetch(endpoint, {
-              method: 'POST',
-              headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-              body: params.toString(),
-            });
-            const data = await resp.json();
-            if (data.access_token) {
-              // Store tokens in KV
-              const tokenData = {
-                access_token: data.access_token,
-                refresh_token: data.refresh_token || '',
-                expires_in: data.expires_in || 3600,
-                api_domain: data.api_domain || 'https://www.zohoapis.eu',
-                stored_at: Date.now(),
-              };
-              if (env.PRISM_KV) {
-                await env.PRISM_KV.put('zoho:calendar:token', JSON.stringify(tokenData));
-                await env.PRISM_KV.put('zoho:mail:token', JSON.stringify(tokenData));
-              }
-              return json({success:true, api_domain:tokenData.api_domain}, 200, origin);
+        // EU endpoint ONLY — Zoho account is on .eu
+        const endpoint = 'https://accounts.zoho.eu/oauth/v2/token';
+        try {
+          const params = new URLSearchParams({
+            grant_type: 'authorization_code',
+            client_id: clientId,
+            client_secret: clientSecret,
+            redirect_uri: redirectUri,
+            code: code,
+          });
+          const resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: params.toString(),
+          });
+          const data = await resp.json();
+          if (data.access_token) {
+            const tokenData = {
+              access_token: data.access_token,
+              refresh_token: data.refresh_token || '',
+              expires_in: data.expires_in || 3600,
+              api_domain: data.api_domain || 'https://www.zohoapis.eu',
+              stored_at: Date.now(),
+            };
+            if (env.PRISM_KV) {
+              await env.PRISM_KV.put('zoho:calendar:token', JSON.stringify(tokenData));
+              await env.PRISM_KV.put('zoho:mail:token', JSON.stringify(tokenData));
             }
-            lastError = JSON.stringify(data).substring(0,100);
-          } catch(e) { lastError = e.message; }
+            return json({success:true, api_domain:tokenData.api_domain}, 200, origin);
+          }
+          return json({error:'Token exchange failed: '+JSON.stringify(data).substring(0,200)}, 500, origin);
+        } catch(e) {
+          return json({error:'Exchange error: '+e.message}, 500, origin);
         }
-        return json({error:'Token exchange failed: '+lastError}, 500, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
