@@ -193,176 +193,351 @@ async function callProvider(env, provider, key, model, messages) {
 }
 
 
-async function orchestrate(env, messages, profile = 'balanced') {
-  const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
-  const KEYS = {
-    mistral:    k(env, ['mistral_api_key', 'MISTRAL_API_KEY']),
-    deepseek:   k(env, ['deepseek_paid', 'DEEPSEEK_PAID', 'deepseek_free_1', 'DEEPSEEK_FREE_1']),
-    groq:       k(env, ['groq_free_1', 'GROQ_FREE_1', 'GROQ_FREE_2', 'groq_free_2']),
-    xai:        k(env, ['xai_api_key', 'XAI_API_KEY']),
-    cohere:     k(env, ['cohere_api_key', 'COHERE_API_KEY']),
-    nvidia:     k(env, ['nvidia_build_api_key', 'NVIDIA_BUILD_API_KEY']),
-    openrouter: k(env, ['openrouter_api_key', 'OPENROUTER_API_KEY']),
-    perplexity: k(env, ['perplexity', 'perplexity_api_key', 'PERPLEXITY_API_KEY']),
-    // Note: Cerebras key is stored as CEREBRAS_FREE_1 in CF secrets
-    cerebras:   k(env, ['CEREBRAS_FREE_1', 'cerebras_free_1', 'CEREBRAS_PAID', 'cerebras_paid']),
-    zhipu:      k(env, ['zhipu_api_key', 'ZHIPU_API_KEY', 'glm_api_key']),
-    kimi:       k(env, ['kimi_api_key', 'KIMI_API_KEY']),
-    github:     k(env, ['github_token', 'GITHUB_TOKEN']),
-    fal:        k(env, ['fal_api_key', 'FAL_API_KEY']),
+async function orchestrate(messages, env, options = {}) {
+  const profile = options.profile || 'balanced';
+  const providerOverride = options.providerOverride;
+  const modelOverride = options.modelOverride;
+  const threadId = options.threadId;
+
+  // Helper to get key
+  const k = (env, names) => { for (const n of names) { if (env[n]) return env[n]; } return null; };
+
+  // Keys
+  const MISTRAL_KEY = k(env, ['mistral_api_key', 'MISTRAL_API_KEY']);
+  const GEMINI_KEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']);
+  const DEEPSEEK_KEY = k(env, ['deepseek_paid', 'DEEPSEEK_PAID', 'deepseek_free_1']);
+  const GROQ_KEY = k(env, ['groq_free_1', 'GROQ_FREE_1', 'groq_free_2', 'GROQ_FREE_2']);
+  const OPENROUTER_KEY = k(env, ['openrouter_api_key', 'OPENROUTER_API_KEY']);
+  const CEREBRAS_KEY = k(env, ['CEREBRAS_FREE_1', 'cerebras_free_1', 'CEREBRAS_PAID']);
+  const ZAI_KEY = k(env, ['zai_api_key', 'ZAI_API_KEY']);
+
+  // Routing chains — ordered by reliability (confirmed working)
+  const CHAINS = {
+    balanced: [
+      // Mistral paid — most reliable, web search built in
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY},
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-2', key:MISTRAL_KEY},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY},
+      // Gemini free — good quality, 1M context
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash', key:GEMINI_KEY},
+      GEMINI_KEY && {provider:'gemini', model:'gemma-4-31b-it', key:GEMINI_KEY},
+      // DeepSeek paid — 1M context, web search
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY},
+      // Groq free — fast
+      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY},
+      // Nemotron via OpenRouter — free frontier
+      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY},
+      // Pollinations — unconditional fallback
+      {provider:'pollinations', model:'openai', key:null},
+    ],
+    fast: [
+      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY},
+      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY},
+      GEMINI_KEY && {provider:'gemini', model:'gemma-4-31b-it', key:GEMINI_KEY},
+      {provider:'pollinations', model:'openai', key:null},
+    ],
+    frontier: [
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY},
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-2', key:MISTRAL_KEY},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash', key:GEMINI_KEY},
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY},
+      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY},
+      {provider:'pollinations', model:'openai', key:null},
+    ],
   };
 
-  // Build chain based on profile
-  // Simon's preferred order: GLM 5.3, Mistral Large 4, Gemma 4 (NVIDIA), Gemini 3.8, DeepSeek, Cohere A+, GPT-OSS, Nemotron, MiniMax, Pollinations
-  const chain = [];
-
-  if (profile === 'fast') {
-    // Fast: GPT-OSS Groq → Gemma NVIDIA → Qwen Groq → Pollinations
-    if (KEYS.groq)   chain.push({ p: 'groq',   key: KEYS.groq,   m: 'openai/gpt-oss-120b',  note: 'GPT-OSS 120B Groq' });
-    // NVIDIA endpoint timing out - skipped
-    if (KEYS.groq)   chain.push({ p: 'groq',   key: KEYS.groq,   m: 'qwen/qwen3.8-27b',     note: 'Qwen 3.8 Groq' });
-    if (KEYS.cerebras) chain.push({ p: 'cerebras', key: KEYS.cerebras, m: 'gpt-oss-120b',   note: 'GPT-OSS Cerebras' });
-
-  } else if (profile === 'frontier') {
-    // Frontier: GLM 5.3 → Mistral Large 4 → Gemini 3.8 → DeepSeek → Nemotron Ultra
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-2',                          note: 'GLM 5.2 via Mistral' });
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-latest',                      note: 'Mistral Large Latest' });
-    if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemini-3.5-flash',                     note: 'Gemini 3.5 Flash' });
-    if (KEYS.deepseek)   chain.push({ p: 'deepseek',   key: KEYS.deepseek,   m: 'deepseek-chat',                        note: 'DeepSeek V4 Flash' });
-    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3-ultra-550b-a55b:free', note: 'Nemotron Ultra 550B' });
-    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3.5-super-vl:free', note: 'Nemotron 3.5 Super VL' });
-
-  } else {
-    // Balanced (default): quality first, speed as fallback
-    // 1. GLM 5.3 via Mistral — FREE, 1M ctx, thinking, web search
-    // BALANCED CHAIN: Mistral Large → GLM 5.3 → Gemini 2.5 Flash → Gemma 4 → DeepSeek → GPT-OSS → Pollinations
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-latest',
-                                      note: 'Mistral Large Latest -- paid, 262K ctx, web search, vision, thinking' });
-    if (KEYS.mistral)    chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',
-                                      note: 'GLM 5.3 via Mistral -- paid, 1M ctx, web search, thinking' });
-    if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemini-2.5-flash',
-                                      note: 'Gemini 2.5 Flash -- free, 1M ctx, thinking, Google Search' });
-    if (GKEY)            chain.push({ p: 'gemini',     key: GKEY,            m: 'gemma-4-31b-it',
-                                      note: 'Gemma 4 31B -- free, 262K ctx, Google Search grounding' });
-    if (KEYS.deepseek)   chain.push({ p: 'deepseek',   key: KEYS.deepseek,   m: 'deepseek-chat',
-                                      note: 'DeepSeek V4 Flash -- paid, 1M ctx, built-in web search' });
-    if (KEYS.groq)       chain.push({ p: 'groq',       key: KEYS.groq,       m: 'openai/gpt-oss-120b',
-                                      note: 'GPT-OSS 120B Groq -- free, 131K ctx, ~300ms' });
-    if (KEYS.groq)       chain.push({ p: 'groq',       key: KEYS.groq,       m: 'meta-llama/llama-4-scout-17b-16e-instruct',
-                                      note: 'Llama 4 Scout -- free, 131K ctx' });
-    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'minimax/minimax-m3.1-flash:free',
-                                      note: 'MiniMax M3.1 -- free, 1M ctx' });
-  }
-  // Unconditional fallback — always responds
-  chain.push({ p: 'pollinations', key: null, m: 'openai', note: 'Pollinations' });
-
-  // RAG context injection
-  if (env.PRISM_D1 && messages.length > 0) {
-    try {
-      const lastUser = messages.filter(m => m.role === 'user').pop()?.content?.substring(0, 500) || '';
-      if (lastUser.length > 10 && GKEY) {
-        const embResp = await fetch(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent',
-          { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GKEY },
-            body: JSON.stringify({ model: 'models/gemini-embedding-001', content: { parts: [{ text: lastUser }] }, taskType: 'RETRIEVAL_QUERY' }) }
-        ).then(r => r.json()).catch(() => ({}));
-        if (embResp.embedding?.values) {
-          const qv = embResp.embedding.values;
-          const rows = await env.PRISM_D1.prepare('SELECT doc_name,chunk_text,embedding FROM rag_chunks ORDER BY rowid DESC LIMIT 100').all().catch(() => ({ results: [] }));
-          const scored = (rows.results || []).map(function(row) {
-            try {
-              const v = JSON.parse(row.embedding);
-              // Fast dot product only (skip sqrt normalisation for speed)
-              let dot = 0;
-              const len = Math.min(v.length, qv.length, 256); // Only use first 256 dims for speed
-              for (let i = 0; i < len; i++) { dot += qv[i] * v[i]; }
-              return { text: row.chunk_text, doc: row.doc_name, score: dot };
-            } catch(e) { return { text: row.chunk_text, doc: row.doc_name, score: 0 }; }
-          }).sort(function(a, b) { return b.score - a.score; }).filter(function(c) { return c.score > 0; }).slice(0, 3);
-          if (scored.length > 0) {
-            const ragCtx = '\n\n[RELEVANT CONTEXT FROM YOUR DOCUMENTS]\n' +
-              scored.map(c => `From '${c.doc}':\n${c.text}`).join('\n\n---\n\n') +
-              '\n[END CONTEXT]\n';
-            const lastUserIdx = messages.map(m => m.role).lastIndexOf('user');
-            if (lastUserIdx !== -1) {
-              messages = [...messages];
-              messages[lastUserIdx] = { ...messages[lastUserIdx], content: messages[lastUserIdx].content + ragCtx };
-            }
-          }
-        }
-      }
-    } catch { /* RAG errors are non-fatal */ }
-  }
-
-  // Web search injection for time-sensitive queries
-  const lastUserContent = messages.filter(m => m.role === 'user').pop()?.content || '';
-  const needsSearch = /\b(latest|recent|today|current|news|2024|2025|2026|who is|what is|when did|report|study|paper|findings|published|review|this week|past week|last week)\b/i.test(lastUserContent);
-  if (needsSearch) {
-    const tavilyKey = k(env, ['tavily_api_key', 'TAVILY_API_KEY']);
-    const braveKey = k(env, ['brave_api_key', 'BRAVE_API_KEY']);
-    if (tavilyKey) {
-      try {
-        const sr = await fetch('https://api.tavily.com/search', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ api_key: tavilyKey, query: lastUserContent.substring(0, 200), max_results: 5, include_answer: true }),
-        });
-        if (sr.ok) {
-          const sd = await sr.json();
-          const searchCtx = '\n\n[WEB SEARCH RESULTS]\n' +
-            (sd.answer ? `Summary: ${sd.answer}\n\n` : '') +
-            (sd.results || []).slice(0, 3).map(r => `${r.title}: ${r.url}\n${r.content?.substring(0, 200)}`).join('\n\n') +
-            '\n[END SEARCH]\n';
-          const lastUserIdx = messages.map(m => m.role).lastIndexOf('user');
-          if (lastUserIdx !== -1) {
-            messages = [...messages];
-            messages[lastUserIdx] = { ...messages[lastUserIdx], content: messages[lastUserIdx].content + searchCtx };
-          }
-        }
-      } catch { /* search errors non-fatal */ }
-    }
+  // If provider/model override specified, try that first
+  let chain = (CHAINS[profile] || CHAINS.balanced).filter(Boolean);
+  if (providerOverride && modelOverride) {
+    const overrideEntry = {provider:providerOverride, model:modelOverride, key:
+      providerOverride==='mistral' ? MISTRAL_KEY :
+      providerOverride==='gemini' ? GEMINI_KEY :
+      providerOverride==='deepseek' ? DEEPSEEK_KEY :
+      providerOverride==='groq' ? GROQ_KEY :
+      providerOverride==='openrouter' ? OPENROUTER_KEY :
+      providerOverride==='cerebras' ? CEREBRAS_KEY :
+      providerOverride==='zai' ? ZAI_KEY : null
+    };
+    chain = [overrideEntry, ...chain];
   }
 
   const log = [];
-  const t0 = Date.now();
-  const FAST_PROVIDERS = ['cerebras', 'groq', 'pollinations'];
-  // Thinking providers get extra time (GLM 5.3 ~7.5s, Nemotron ~15-20s, Magistral ~10s)
-  const THINKING_PROVIDERS = ['zai-glm-5-2', 'magistral-medium-latest', 'nvidia/nemotron-3-ultra-550b-a55b:free', 'nvidia/nemotron-3.5-super-vl:free'];
+  let lastError = '';
 
   for (const entry of chain) {
-    if (!entry.key && entry.p !== 'pollinations') { log.push(`${entry.note}:no key`); continue; }
-    // Yield to event loop between providers to avoid CPU limit
-    await new Promise(function(r) { setTimeout(r, 0); });
-    const ta = Date.now();
-    const isThinking = THINKING_PROVIDERS.includes(entry.m);
-    // Response timeout: how long to wait for the full response
-    // Connection timeout is handled by AbortController (5s to connect)
-    // Once connected, we wait as long as needed for thinking models
-    const responseTimeout = FAST_PROVIDERS.includes(entry.p) ? 20000 : isThinking ? 120000 : 60000;
-    // Fast: 20s | Thinking (GLM, Nemotron, Magistral): 120s | Others: 60s
+    if (!entry) continue;
+    const {provider, model, key} = entry;
+    const t0 = Date.now();
     try {
-      const result = await Promise.race([
-        callProvider(env, entry.p, entry.key, entry.m, messages),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), responseTimeout)),
-      ]);
-      if (result?.content) {
-        const formatted = formatResponse(stripTropes(result.content));
-        if (!formatted || formatted.length < 2) { log.push(`${entry.note}:empty`); continue; }
-        return { ...result, content: formatted, routingLog: [...log, `${entry.note}:OK(${Date.now()-ta}ms)`] };
+      const result = await callModel(provider, model, key, messages, env);
+      const ms = Date.now() - t0;
+      if (result.content) {
+        log.push(`${provider}/${model}: OK (${ms}ms)`);
+        // Save to thread if threadId provided
+        if (threadId && env.PRISM_KV) {
+          try {
+            const threadKey = 'thread:' + threadId;
+            const raw = await env.PRISM_KV.get(threadKey);
+            const thread = raw ? JSON.parse(raw) : {id:threadId, messages:[], created:new Date().toISOString()};
+            // Add user message if not already there
+            const lastMsg = messages[messages.length-1];
+            if (lastMsg && lastMsg.role === 'user') {
+              thread.messages.push({...lastMsg, ts:Date.now()});
+            }
+            thread.messages.push({role:'assistant', content:result.content, provider, model, ts:Date.now()});
+            thread.updated = new Date().toISOString();
+            thread.messageCount = thread.messages.length;
+            // Auto-title from first user message
+            if (!thread.title) {
+              const firstUser = thread.messages.find(m => m.role === 'user');
+              if (firstUser) thread.title = firstUser.content.substring(0, 60);
+            }
+            await env.PRISM_KV.put(threadKey, JSON.stringify(thread), {expirationTtl: 86400 * 90});
+          } catch(e) {}
+        }
+        return {...result, provider, model, routingLog: log};
       }
-      log.push(`${entry.note}:empty(${Date.now()-ta}ms)`);
-    } catch (e) {
-      const ms = Date.now() - ta;
-      const reason = e.message.includes('timeout') ? `timeout(${Math.round(timeout/1000)}s)` :
-        e.message.includes('401') ? 'auth' : e.message.includes('429') ? 'rate-limit' : e.message.substring(0, 40);
-      log.push(`${entry.note}:${reason}(${ms}ms)`);
+      log.push(`${provider}/${model}: empty (${Date.now()-t0}ms)`);
+    } catch(e) {
+      const ms = Date.now() - t0;
+      log.push(`${provider}/${model}: ${e.message.substring(0,60)} (${ms}ms)`);
+      lastError = e.message;
     }
-    if (Date.now() - t0 > 58000) { log.push('CPU limit'); break; }
   }
 
-  return { content: `All providers unavailable. Log: ${log.slice(-5).join(' | ')}`, provider: 'none', error: true, routingLog: log };
+  return {content: null, error: 'All providers unavailable. Log: ' + log.join(' | '), routingLog: log};
 }
 
-// ── MAIN FETCH HANDLER ────────────────────────────────────────────────────────
+async function callModel(provider, model, key, messages, env) {
+  // Inject web search context for time-sensitive queries
+  const lastUserMsg = messages.filter(m => m.role === 'user').pop();
+  const needsSearch = lastUserMsg && /latest|recent|today|current|news|2024|2025|2026|who is|what is|when did|report|study|paper|findings|published|review|this week|past week|last week/i.test(lastUserMsg.content);
+
+  // Tavily search injection (if needed and available)
+  let searchContext = '';
+  if (needsSearch) {
+    const tavilyKey = env.tavily_api_key || env.TAVILY_API_KEY || env.tavily;
+    if (tavilyKey) {
+      try {
+        const searchResp = await fetch('https://api.tavily.com/search', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tavilyKey},
+          body: JSON.stringify({query: lastUserMsg.content.substring(0, 200), max_results: 3, search_depth: 'basic'})
+        });
+        if (searchResp.ok) {
+          const searchData = await searchResp.json();
+          const results = (searchData.results || []).slice(0, 3);
+          if (results.length > 0) {
+            searchContext = '\n\n[Web search results for context:\n' +
+              results.map(r => `- ${r.title}: ${r.content?.substring(0,200)}`).join('\n') +
+              '\nUse these results to inform your answer. Today is ' + new Date().toISOString().split('T')[0] + '.]';
+          }
+        }
+      } catch(e) {}
+    }
+  }
+
+  // Inject search context into last user message if found
+  let augmentedMessages = messages;
+  if (searchContext) {
+    augmentedMessages = messages.map((m, i) => {
+      if (i === messages.length - 1 && m.role === 'user') {
+        return {...m, content: m.content + searchContext};
+      }
+      return m;
+    });
+  }
+
+  if (provider === 'mistral') {
+    // Mistral: supports web_search tool natively
+    const body = {
+      model,
+      messages: augmentedMessages,
+      max_tokens: 8192,
+      temperature: 0.7,
+    };
+    // Add web search tool for Mistral models that support it
+    if (needsSearch && (model.includes('large') || model.includes('medium') || model.includes('glm'))) {
+      body.tools = [{type: 'function', function: {name: 'web_search', description: 'Search the web', parameters: {type: 'object', properties: {query: {type: 'string'}}, required: ['query']}}}];
+      body.tool_choice = 'auto';
+    }
+    const resp = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key},
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`Mistral ${resp.status}: ${err.substring(0, 100)}`);
+    }
+    const data = await resp.json();
+    const msg = data.choices?.[0]?.message;
+    let content = msg?.content || '';
+    // Handle tool calls — if Mistral used web_search, get the result
+    if (!content && msg?.tool_calls?.length > 0) {
+      // Model wants to search — extract query and search ourselves
+      const toolCall = msg.tool_calls[0];
+      const query = JSON.parse(toolCall.function?.arguments || '{}').query || lastUserMsg?.content || '';
+      const tavilyKey = env.tavily_api_key || env.TAVILY_API_KEY || env.tavily;
+      if (tavilyKey) {
+        try {
+          const sr = await fetch('https://api.tavily.com/search', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tavilyKey},
+            body: JSON.stringify({query, max_results: 5})
+          });
+          const sd = await sr.json();
+          const searchResults = (sd.results || []).map(r => `${r.title}: ${r.content?.substring(0,300)}`).join('\n\n');
+          // Send back with tool result
+          const followUp = await fetch('https://api.mistral.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key},
+            body: JSON.stringify({
+              model,
+              messages: [...augmentedMessages,
+                {role: 'assistant', content: null, tool_calls: msg.tool_calls},
+                {role: 'tool', tool_call_id: toolCall.id, content: searchResults}
+              ],
+              max_tokens: 8192,
+            })
+          });
+          const fd = await followUp.json();
+          content = fd.choices?.[0]?.message?.content || '';
+        } catch(e) {}
+      }
+    }
+    // Extract thinking if present
+    const thinking = msg?.reasoning || '';
+    if (!content) throw new Error('Mistral empty response');
+    return {content, thinking};
+  }
+
+  if (provider === 'gemini') {
+    // Gemini: uses generateContent API, different format
+    const geminiMessages = augmentedMessages
+      .filter(m => m.role !== 'system')
+      .map(m => ({role: m.role === 'assistant' ? 'model' : 'user', parts: [{text: m.content}]}));
+    const systemMsg = augmentedMessages.find(m => m.role === 'system');
+    const body = {
+      contents: geminiMessages,
+      generationConfig: {maxOutputTokens: 8192, temperature: 0.7},
+    };
+    if (systemMsg) {
+      body.systemInstruction = {parts: [{text: systemMsg.content}]};
+    }
+    // Gemini uses googleSearch grounding (only for Gemini models, not Gemma)
+    if (needsSearch && model.includes('gemini')) {
+      body.tools = [{googleSearch: {}}];
+    }
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'x-goog-api-key': key},
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`Gemini ${resp.status}: ${err.substring(0, 100)}`);
+    }
+    const data = await resp.json();
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const content = parts.map(p => p.text || '').join('').trim();
+    if (!content) throw new Error('Gemini empty response');
+    return {content};
+  }
+
+  if (provider === 'deepseek') {
+    const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key},
+      body: JSON.stringify({model: 'deepseek-chat', messages: augmentedMessages, max_tokens: 8192, temperature: 0.7})
+    });
+    if (!resp.ok) throw new Error(`DeepSeek ${resp.status}: ${(await resp.text()).substring(0,100)}`);
+    const data = await resp.json();
+    const msg = data.choices?.[0]?.message;
+    const content = msg?.content || msg?.reasoning_content || '';
+    if (!content) throw new Error('DeepSeek empty response');
+    return {content, thinking: msg?.reasoning_content || ''};
+  }
+
+  if (provider === 'groq') {
+    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key},
+      body: JSON.stringify({model, messages: augmentedMessages, max_tokens: 8192, temperature: 0.7})
+    });
+    if (!resp.ok) throw new Error(`Groq ${resp.status}: ${(await resp.text()).substring(0,100)}`);
+    const data = await resp.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    if (!content) throw new Error('Groq empty response');
+    return {content};
+  }
+
+  if (provider === 'cerebras') {
+    const resp = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key},
+      body: JSON.stringify({model, messages: augmentedMessages, max_tokens: 8192, temperature: 0.7})
+    });
+    if (!resp.ok) throw new Error(`Cerebras ${resp.status}: ${(await resp.text()).substring(0,100)}`);
+    const data = await resp.json();
+    const msg = data.choices?.[0]?.message;
+    const content = msg?.content || msg?.reasoning || '';
+    if (!content) throw new Error('Cerebras empty response');
+    return {content, thinking: msg?.reasoning || ''};
+  }
+
+  if (provider === 'openrouter') {
+    const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + key,
+        'HTTP-Referer': 'https://prism.identitypartners.uk',
+        'X-Title': 'Argentica'
+      },
+      body: JSON.stringify({model, messages: augmentedMessages, max_tokens: 8192, temperature: 0.7})
+    });
+    if (!resp.ok) throw new Error(`OpenRouter ${resp.status}: ${(await resp.text()).substring(0,100)}`);
+    const data = await resp.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    if (!content) throw new Error('OpenRouter empty response');
+    return {content};
+  }
+
+  if (provider === 'zai') {
+    const resp = await fetch('https://api.z.ai/api/paas/v4/chat/completions', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key},
+      body: JSON.stringify({model: 'glm-5-3', messages: augmentedMessages, max_tokens: 8192, temperature: 0.7})
+    });
+    if (!resp.ok) throw new Error(`Z.AI ${resp.status}: ${(await resp.text()).substring(0,100)}`);
+    const data = await resp.json();
+    const msg = data.choices?.[0]?.message;
+    const content = msg?.content || msg?.reasoning_content || '';
+    if (!content) throw new Error('Z.AI empty response');
+    return {content, thinking: msg?.reasoning_content || ''};
+  }
+
+  if (provider === 'pollinations') {
+    // Unconditional fallback — no key needed
+    const resp = await fetch('https://text.pollinations.ai/openai', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({model: model || 'openai', messages: augmentedMessages, max_tokens: 4096})
+    });
+    if (!resp.ok) throw new Error(`Pollinations ${resp.status}`);
+    const data = await resp.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    if (!content) throw new Error('Pollinations empty response');
+    return {content};
+  }
+
+  throw new Error(`Unknown provider: ${provider}`);
+}
+
+
 async function generateCanvasHtml(text, templateId, env) {
   // Full canvas template system per Simon's brief
   // Templates: block-colour, image-bg, dual-panel, post-type, testimonial
@@ -3588,6 +3763,112 @@ export default {
         const nextWeekEvents = allEvents.filter(e => e.start && new Date(e.start) > weekEnd && new Date(e.start) <= nextWeekEnd);
         return json({today:todayEvents, week:weekEvents, next_week:nextWeekEvents, status:'ok', calendarCount:calendarIds.length}, 200, origin);
       } catch(e) { return json({today:[],week:[],next_week:[],status:'api_error',error:e.message}, 200, origin); }
+    }
+
+
+    // ── OneDrive upload via MSGraph ────────────────────────────────────────────
+    if (path === '/api/onedrive/upload' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const fileName = body.fileName || ('file-'+Date.now());
+        const content = body.content || '';
+        const folder = body.folder || 'Argentica';
+        const tenantId = env.msgraph_tenant || env.MSGRAPH_TENANT || 'b7e964ca-731c-477c-b858-99dc3f1a9f7c';
+        const clientId = env.msgraph_client || env.MSGRAPH_CLIENT || '3e538e01-5ebf-44f1-879b-0fdde667d914';
+        const clientSecret = env.msgraph_secret || env.MSGRAPH_SECRET || '29547bf3-d22a-4df9-9195-07b5a2e20405';
+
+        // Get access token
+        const tokenResp = await fetch(
+          `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({
+              grant_type: 'client_credentials',
+              client_id: clientId,
+              client_secret: clientSecret,
+              scope: 'https://graph.microsoft.com/.default'
+            }).toString()
+          }
+        );
+        const tokenData = await tokenResp.json();
+        const accessToken = tokenData.access_token;
+        if (!accessToken) return json({error: 'Could not get MSGraph token: '+JSON.stringify(tokenData).substring(0,100)}, 500, origin);
+
+        // Upload file to OneDrive
+        const fileContent = typeof content === 'string' ? new TextEncoder().encode(content) : content;
+        const uploadResp = await fetch(
+          `https://graph.microsoft.com/v1.0/me/drive/root:/${folder}/${encodeURIComponent(fileName)}:/content`,
+          {
+            method: 'PUT',
+            headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': 'text/plain'},
+            body: fileContent
+          }
+        );
+        const uploadData = await uploadResp.json();
+        if (!uploadResp.ok) return json({error: 'OneDrive upload failed: '+JSON.stringify(uploadData).substring(0,100)}, 500, origin);
+
+        // Create sharing link
+        const shareResp = await fetch(
+          `https://graph.microsoft.com/v1.0/me/drive/items/${uploadData.id}/createLink`,
+          {
+            method: 'POST',
+            headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': 'application/json'},
+            body: JSON.stringify({type: 'view', scope: 'anonymous'})
+          }
+        );
+        const shareData = await shareResp.json();
+        const shareUrl = shareData.link?.webUrl || uploadData.webUrl || '';
+
+        return json({
+          success: true,
+          fileId: uploadData.id,
+          fileName: uploadData.name,
+          shareUrl,
+          officeOnlineUrl: shareUrl ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(shareUrl)}` : '',
+          googleDocsUrl: shareUrl ? `https://docs.google.com/viewer?url=${encodeURIComponent(shareUrl)}&embedded=true` : '',
+        }, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── PDF to Markdown via Gemini Vision ─────────────────────────────────────
+    if (path === '/api/pdf/to-markdown' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const fileUrl = body.url || '';
+        const b64Content = body.content || '';
+        const GKEY = env.gemini_api_key || env.GEMINI_API_KEY || '';
+        if (!GKEY) return json({error: 'Gemini key not configured'}, 400, origin);
+
+        let pdfB64 = b64Content;
+        if (fileUrl && !pdfB64) {
+          const resp = await fetch(fileUrl);
+          if (!resp.ok) return json({error: 'Could not fetch PDF'}, 400, origin);
+          const buf = await resp.arrayBuffer();
+          pdfB64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+        }
+        if (!pdfB64) return json({error: 'No PDF content provided'}, 400, origin);
+
+        // Use Gemini to extract text from PDF
+        const gemResp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GKEY}`,
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              contents: [{parts: [
+                {text: 'Extract ALL text from this PDF document. Return in clean Markdown format. Preserve headings (use # ## ###), lists, tables, and paragraph structure. Include every word — do not summarise or skip any content.'},
+                {inline_data: {mime_type: 'application/pdf', data: pdfB64.substring(0, 1000000)}}
+              ]}],
+              generationConfig: {maxOutputTokens: 8192}
+            })
+          }
+        );
+        const gemData = await gemResp.json();
+        const markdown = gemData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!markdown) return json({error: 'No text extracted', raw: JSON.stringify(gemData).substring(0,200)}, 500, origin);
+        return json({success: true, markdown, wordCount: markdown.split(/\s+/).length}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
     }
 
 return json({ error: 'Not found', path }, 404, origin);
