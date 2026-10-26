@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
-<!-- cache-bust-1793022436 -->
+<!-- cache-bust-1793022486 -->
 <style>
 .hub-shell{display:flex;height:100vh;overflow:hidden;}
 .hub-tree{width:260px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-surface);overflow:hidden;}
@@ -324,6 +324,13 @@ function renderOverview(body) {
       el.onmouseleave = function() { el.style.borderColor = 'var(--border)'; };
       grid.appendChild(el);
     });
+    var addCardEl = document.createElement('div');
+    addCardEl.style.cssText = 'background:var(--bg-elevated);border:2px dashed var(--border);border-radius:10px;padding:14px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--fg-muted);font-size:13px;transition:all 0.15s;';
+    addCardEl.innerHTML = '<span style="font-size:24px;">+</span><span>Add Card</span>';
+    addCardEl.onmouseenter = function(){addCardEl.style.borderColor='var(--accent)';addCardEl.style.color='var(--accent)';};
+    addCardEl.onmouseleave = function(){addCardEl.style.borderColor='var(--border)';addCardEl.style.color='var(--fg-muted)';};
+    addCardEl.onclick = addCustomCard;
+    grid.appendChild(addCardEl);
     body.appendChild(grid);
   } else {
     var weekHdr = document.createElement('div');
@@ -388,6 +395,7 @@ function renderResources(body) {
   resources.forEach(function(r) {
     var item = document.createElement('div');
     item.className = 'res-item';
+    item.onclick = (function(rid){return function(){openResource(rid);};})(r.id);
     item.innerHTML = '<div class="res-icon">' + (icons[r.type] || '\uD83D\uDCC4') + '</div>' +
       '<div class="res-info"><div class="res-title">' + r.title.replace(/</g, '&lt;') + '</div>' +
       '<div class="res-meta"><span class="res-type type-' + (r.type || 'link') + '">' + (r.type || 'link') + '</span>' +
@@ -396,6 +404,7 @@ function renderResources(body) {
       '<div style="display:flex;gap:4px;flex-shrink:0;">' +
       '<button class="tts-btn" onclick="event.stopPropagation();readAloud(\'' + r.id + '\')" title="Read aloud">\uD83D\uDD0A</button>' +
       '<button class="tts-btn" onclick="event.stopPropagation();askAboutResource(\'' + r.id + '\')" title="Ask AI">\uD83D\uDCAC</button>' +
+      '<button class="tts-btn" onclick="event.stopPropagation();crossLinkResource(\'' + r.id + '\')" title="Link to another week">\uD83D\uDD17</button>' +
       '<button class="del-btn" onclick="event.stopPropagation();deleteResource(\'' + r.id + '\')" title="Delete">\u2715</button>' +
       '</div>';
     body.appendChild(item);
@@ -408,6 +417,66 @@ function deleteResource(id) {
   saveModules();
   renderResources(document.getElementById('hub-body'));
 }
+function crossLinkResource(id) {
+  var resource = currentWeek ? (currentWeek.resources || []).find(function(r) { return r.id === id; }) : null;
+  if (!resource) return;
+  var options = [];
+  modules.forEach(function(mod) {
+    (mod.weeks || []).forEach(function(week) {
+      if (!(currentModule && mod.id === currentModule.id && currentWeek && week.id === currentWeek.id)) {
+        options.push({label: mod.name + ' > ' + week.name, modId: mod.id, weekId: week.id});
+      }
+    });
+  });
+  if (!options.length) { alert('No other weeks to link to.'); return; }
+  var optList = options.map(function(o, i) { return (i + 1) + '. ' + o.label; }).join(', ');
+  var choice = prompt('Link to which week? Enter number: ' + optList);
+  var idx = parseInt(choice) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= options.length) return;
+  var target = options[idx];
+  var targetMod = modules.find(function(m) { return m.id === target.modId; });
+  var targetWeek = targetMod && (targetMod.weeks || []).find(function(w) { return w.id === target.weekId; });
+  if (!targetWeek) return;
+  if (!targetWeek.resources) targetWeek.resources = [];
+  targetWeek.resources.push({
+    id: 'ref-' + Date.now(),
+    type: resource.type,
+    title: resource.title + ' [linked from ' + (currentModule ? currentModule.name : '') + ']',
+    url: resource.url || null,
+    content: resource.content || null,
+    tags: resource.tags || [],
+    added: new Date().toISOString()
+  });
+  saveModules();
+  alert('Linked to ' + target.label);
+}
+
+function openResource(id) {
+  var resource = currentWeek ? (currentWeek.resources || []).find(function(r) { return r.id === id; }) : null;
+  if (!resource) return;
+  if (resource.url) {
+    var params = new URLSearchParams({id: resource.id, name: resource.title, type: resource.type, url: resource.url});
+    window.open('/doc-viewer/?' + params.toString(), '_blank');
+  } else if (resource.content) {
+    try { sessionStorage.setItem('doc-viewer-content-' + resource.id, resource.content); } catch(e) {}
+    var params2 = new URLSearchParams({id: resource.id, name: resource.title, type: resource.type});
+    window.open('/doc-viewer/?' + params2.toString(), '_blank');
+  } else {
+    alert('No content or URL for this resource.');
+  }
+}
+
+function addCustomCard() {
+  var name = prompt('Card name (e.g. "Themes", "Arguments", "Key Quotes"):');
+  if (!name) return;
+  var target = currentWeek || currentModule;
+  if (!target) return;
+  if (!target.customCards) target.customCards = [];
+  target.customCards.push({id: 'cc-' + Date.now(), name: name, items: []});
+  saveModules();
+  switchTab('overview');
+}
+
 
 function readAloud(id) {
   var resource = currentWeek ? (currentWeek.resources || []).find(function(r) { return r.id === id; }) : null;
