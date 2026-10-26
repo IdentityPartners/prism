@@ -4659,6 +4659,306 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── STT: Groq Whisper (best free STT) ────────────────────────────────────
+    if (path === '/api/stt/transcribe' && request.method === 'POST') {
+      try {
+        const formData = await request.formData();
+        const audioFile = formData.get('audio');
+        const model = formData.get('model') || 'whisper-large-v3';
+        const language = formData.get('language') || 'en';
+        const groqKey = env.groq_free_1 || env.GROQ_FREE_1 || '';
+        if (!groqKey) return json({ error: 'Groq key not configured' }, 400, origin);
+        const outForm = new FormData();
+        outForm.append('file', audioFile, 'audio.webm');
+        outForm.append('model', model);
+        outForm.append('language', language);
+        outForm.append('response_format', 'verbose_json');
+        const resp = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${groqKey}` },
+          body: outForm
+        });
+        const data = await resp.json();
+        return json({ text: data.text || '', segments: data.segments || [], language: data.language || language, provider: 'groq-whisper' }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // ── TTS: Deepgram Aura (British voices, fast) ─────────────────────────────
+    if (path === '/api/tts/speak' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = (body.text || '').substring(0, 5000);
+        const voice = body.voice || 'aura-arcas-en';
+        const provider = body.provider || 'deepgram';
+        if (!text) return json({ error: 'No text provided' }, 400, origin);
+        if (provider === 'deepgram') {
+          const dgKey = env.deepgram || env.DEEPGRAM_API_KEY || '';
+          if (!dgKey) return json({ error: 'Deepgram key not configured' }, 400, origin);
+          const resp = await fetch(`https://api.deepgram.com/v1/speak?model=${voice}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Token ${dgKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+          });
+          if (!resp.ok) return json({ error: `Deepgram error: ${resp.status}` }, 500, origin);
+          const audio = await resp.arrayBuffer();
+          return new Response(audio, { headers: { 'Content-Type': 'audio/mpeg', 'Access-Control-Allow-Origin': origin } });
+        }
+        if (provider === 'cartesia') {
+          const cartKey = env.cartesia || env.CARTESIA_API_KEY || '';
+          if (!cartKey) return json({ error: 'Cartesia key not configured' }, 400, origin);
+          const resp = await fetch('https://api.cartesia.ai/tts/bytes', {
+            method: 'POST',
+            headers: { 'X-API-Key': cartKey, 'Content-Type': 'application/json', 'Cartesia-Version': '2024-06-10' },
+            body: JSON.stringify({ model_id: 'sonic-2', transcript: text, voice: { mode: 'id', id: voice }, output_format: { container: 'mp3', encoding: 'mp3', sample_rate: 44100 } })
+          });
+          if (!resp.ok) return json({ error: `Cartesia error: ${resp.status}` }, 500, origin);
+          const audio = await resp.arrayBuffer();
+          return new Response(audio, { headers: { 'Content-Type': 'audio/mpeg', 'Access-Control-Allow-Origin': origin } });
+        }
+        if (provider === 'gemini') {
+          const gKey = env.gemini_api_key || env.GEMINI_API_KEY || '';
+          const voiceName = body.gemini_voice || 'Puck';
+          const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${gKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } } } })
+          });
+          const data = await resp.json();
+          const audioData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+          if (!audioData) return json({ error: 'Gemini TTS empty response' }, 500, origin);
+          const buf = Uint8Array.from(atob(audioData), c => c.charCodeAt(0));
+          return new Response(buf, { headers: { 'Content-Type': 'audio/mpeg', 'Access-Control-Allow-Origin': origin } });
+        }
+        return json({ error: `Unknown TTS provider: ${provider}` }, 400, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // ── Streaming chat with thinking traces ───────────────────────────────────
+    if (path === '/api/chat/stream' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const messages = body.messages || [];
+        const profile = body.profile || 'balanced';
+        const providerOverride = body.providerOverride || '';
+        const modelOverride = body.modelOverride || '';
+        const threadId = body.threadId || null;
+        const encoder = new TextEncoder();
+        const { readable, writable } = new TransformStream();
+        const writer = writable.getWriter();
+        const send = async (event, data) => {
+          await writer.write(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        };
+        // Run async
+        (async () => {
+          try {
+            await send('status', { status: 'connecting', message: 'Connecting to model...' });
+            // Build chain based on profile
+            const GKEY = env.gemini_api_key || env.GEMINI_API_KEY || '';
+            const MKEY = env.mistral_api_key || env.MISTRAL_API_KEY || '';
+            const DKEY = env.deepseek_paid || env.DEEPSEEK_PAID || '';
+            const NKEY = env.nvidia_build_api_key || env.NVIDIA_BUILD_API_KEY || '';
+            const GROQ = env.groq_free_1 || env.GROQ_FREE_1 || '';
+            const CEREBRAS = env.CEREBRAS_FREE_1 || env.cerebras_free_1 || '';
+            let chain = [];
+            if (providerOverride && modelOverride) {
+              const keyMap = { mistral: MKEY, gemini: GKEY, deepseek: DKEY, nvidia: NKEY, groq: GROQ, cerebras: CEREBRAS };
+              chain = [{ provider: providerOverride, model: modelOverride, key: keyMap[providerOverride] || '' }];
+            } else if (profile === 'fast') {
+              chain = [
+                { provider: 'cerebras', model: 'gpt-oss-120b', key: CEREBRAS },
+                { provider: 'groq', model: 'openai/gpt-oss-120b', key: GROQ },
+                { provider: 'gemini', model: 'gemma-4-31b-it', key: GKEY },
+              ];
+            } else if (profile === 'frontier') {
+              chain = [
+                { provider: 'mistral', model: 'mistral-large-latest', key: MKEY },
+                { provider: 'mistral', model: 'zai-glm-5-3', key: MKEY },
+                { provider: 'gemini', model: 'gemini-2.5-flash', key: GKEY },
+                { provider: 'deepseek', model: 'deepseek-reasoner', key: DKEY },
+              ];
+            } else {
+              // balanced
+              chain = [
+                { provider: 'mistral', model: 'mistral-large-latest', key: MKEY },
+                { provider: 'mistral', model: 'zai-glm-5-3', key: MKEY },
+                { provider: 'gemini', model: 'gemini-2.5-flash', key: GKEY },
+                { provider: 'gemini', model: 'gemma-4-31b-it', key: GKEY },
+                { provider: 'deepseek', model: 'deepseek-chat', key: DKEY },
+                { provider: 'groq', model: 'openai/gpt-oss-120b', key: GROQ },
+              ];
+            }
+            let responded = false;
+            for (const { provider, model, key } of chain) {
+              if (!key) continue;
+              try {
+                await send('status', { status: 'connecting', provider, model });
+                const result = await callModel(env, provider, key, model, messages, 60000);
+                if (result.content) {
+                  await send('status', { status: 'connected', provider, model });
+                  // Stream thinking first if present
+                  if (result.thinking) {
+                    await send('thinking', { text: result.thinking });
+                  }
+                  // Stream content in chunks
+                  const words = result.content.split(' ');
+                  let chunk = '';
+                  for (let i = 0; i < words.length; i++) {
+                    chunk += (i > 0 ? ' ' : '') + words[i];
+                    if (chunk.length > 50 || i === words.length - 1) {
+                      await send('token', { text: chunk });
+                      chunk = '';
+                      if (i < words.length - 1) await new Promise(r => setTimeout(r, 5));
+                    }
+                  }
+                  // Save thread
+                  if (threadId && env.PRISM_KV) {
+                    try {
+                      const threadKey = `thread:${threadId}`;
+                      const existing = await env.PRISM_KV.get(threadKey);
+                      const thread = existing ? JSON.parse(existing) : { id: threadId, messages: [], created: new Date().toISOString() };
+                      const lastUser = messages[messages.length - 1];
+                      if (lastUser) thread.messages.push({ ...lastUser, ts: Date.now() });
+                      thread.messages.push({ role: 'assistant', content: result.content, provider, model, ts: Date.now() });
+                      thread.updated = new Date().toISOString();
+                      thread.messageCount = thread.messages.length;
+                      if (!thread.title) thread.title = (lastUser?.content || '').substring(0, 60);
+                      await env.PRISM_KV.put(threadKey, JSON.stringify(thread), { expirationTtl: 86400 * 90 });
+                    } catch(e) {}
+                  }
+                  await send('done', { content: result.content, provider, model, thinking: result.thinking || null });
+                  responded = true;
+                  break;
+                }
+              } catch(e) {
+                await send('error', { provider, model, error: e.message });
+              }
+            }
+            if (!responded) {
+              await send('error', { error: 'All providers unavailable' });
+            }
+          } catch(e) {
+            await send('error', { error: e.message });
+          } finally {
+            await writer.close();
+          }
+        })();
+        return new Response(readable, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Access-Control-Allow-Origin': origin,
+            'X-Accel-Buffering': 'no',
+          }
+        });
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // ── Gemini Live (audio-to-audio) session init ─────────────────────────────
+    if (path === '/api/live/session' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const model = body.model || 'gemini-2.0-flash-live-001';
+        const gKey = env.gemini_api_key || env.GEMINI_API_KEY || '';
+        if (!gKey) return json({ error: 'Gemini key not configured' }, 400, origin);
+        // Return WebSocket URL for client to connect directly to Gemini Live
+        const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${gKey}`;
+        return json({
+          wsUrl,
+          model,
+          instructions: 'Connect to wsUrl with WebSocket. Send setup message first, then audio chunks as base64.',
+          setup: {
+            model: `models/${model}`,
+            generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: body.voice || 'Puck' } } } },
+            systemInstruction: { parts: [{ text: body.systemPrompt || "You are Gerald, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English." }] }
+          }
+        }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // ── Orchestrator config: save/load routing chain ──────────────────────────
+    if (path === '/api/orchestrator/config' && request.method === 'GET') {
+      try {
+        const raw = env.PRISM_KV ? await env.PRISM_KV.get('orchestrator:config') : null;
+        const defaultConfig = {
+          balanced: [
+            { provider: 'mistral', model: 'mistral-large-latest', label: 'Mistral Large Latest', ctx: 262144, thinking: true, web_search: true },
+            { provider: 'mistral', model: 'zai-glm-5-3', label: 'GLM 5.3 via Mistral', ctx: 1048576, thinking: true, web_search: true },
+            { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', ctx: 1048576, thinking: true, web_search: true },
+            { provider: 'gemini', model: 'gemma-4-31b-it', label: 'Gemma 4 31B', ctx: 262144, thinking: false, web_search: true },
+            { provider: 'deepseek', model: 'deepseek-chat', label: 'DeepSeek V4 Flash', ctx: 65536, thinking: false, web_search: true },
+            { provider: 'groq', model: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B (Groq)', ctx: 131072, thinking: false, web_search: false },
+            { provider: 'cerebras', model: 'gpt-oss-120b', label: 'GPT-OSS 120B (Cerebras)', ctx: 8192, thinking: false, web_search: false },
+          ],
+          fast: [
+            { provider: 'cerebras', model: 'gpt-oss-120b', label: 'GPT-OSS 120B (Cerebras)', ctx: 8192, thinking: false, web_search: false },
+            { provider: 'groq', model: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B (Groq)', ctx: 131072, thinking: false, web_search: false },
+            { provider: 'gemini', model: 'gemma-4-31b-it', label: 'Gemma 4 31B', ctx: 262144, thinking: false, web_search: true },
+          ],
+          frontier: [
+            { provider: 'mistral', model: 'mistral-large-latest', label: 'Mistral Large Latest', ctx: 262144, thinking: true, web_search: true },
+            { provider: 'mistral', model: 'zai-glm-5-3', label: 'GLM 5.3 via Mistral', ctx: 1048576, thinking: true, web_search: true },
+            { provider: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', ctx: 1048576, thinking: true, web_search: true },
+            { provider: 'deepseek', model: 'deepseek-reasoner', label: 'DeepSeek R1 (Reasoner)', ctx: 65536, thinking: true, web_search: false },
+            { provider: 'openrouter', model: 'nvidia/nemotron-3-ultra-550b-a55b:free', label: 'Nemotron Ultra 550B', ctx: 1048576, thinking: true, web_search: false },
+          ]
+        };
+        const config = raw ? JSON.parse(raw) : defaultConfig;
+        return json({ config, benchmarks: {
+          'mistral-large-latest': { mmlu: 88.7, humaneval: 85.3, math: 70.1, speed: '~573ms', ctx: '262K', max_out: '32K', tools: 'web_search, vision, function_calling' },
+          'zai-glm-5-3': { mmlu: 89.2, humaneval: 87.1, math: 72.4, speed: '~419ms', ctx: '1M', max_out: '32K', tools: 'web_search, thinking, function_calling' },
+          'gemini-2.5-flash': { mmlu: 89.0, humaneval: 86.0, math: 71.0, speed: '~1-3s', ctx: '1M', max_out: '65K', tools: 'google_search, vision, thinking, code_execution' },
+          'gemini-2.5-pro': { mmlu: 91.0, humaneval: 90.0, math: 78.0, speed: '~3-8s', ctx: '1M', max_out: '65K', tools: 'google_search, vision, thinking, code_execution' },
+          'gemma-4-31b-it': { mmlu: 87.9, humaneval: 82.4, math: 68.7, speed: '~1s', ctx: '262K', max_out: '8K', tools: 'google_search, vision' },
+          'deepseek-chat': { mmlu: 88.5, humaneval: 86.2, math: 71.3, speed: '~2s', ctx: '65K', max_out: '8K', tools: 'web_search, function_calling' },
+          'deepseek-reasoner': { mmlu: 90.8, humaneval: 92.0, math: 90.2, speed: '~5-30s', ctx: '65K', max_out: '32K', tools: 'thinking (full trace)' },
+          'openai/gpt-oss-120b': { mmlu: 85.2, humaneval: 80.1, math: 63.4, speed: '~300ms', ctx: '131K', max_out: '16K', tools: 'function_calling' },
+          'nvidia/nemotron-3-ultra-550b-a55b:free': { mmlu: 90.1, humaneval: 88.4, math: 74.2, speed: '~20-60s', ctx: '1M', max_out: '32K', tools: 'thinking (full trace)' },
+        }}, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    if (path === '/api/orchestrator/config' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        if (env.PRISM_KV) await env.PRISM_KV.put('orchestrator:config', JSON.stringify(body.config));
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
+    // ── Multi-model simultaneous call ─────────────────────────────────────────
+    if (path === '/api/chat/multi' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const messages = body.messages || [];
+        const models = body.models || [];
+        if (!models.length) return json({ error: 'No models specified' }, 400, origin);
+        const keyMap = {
+          mistral: env.mistral_api_key || env.MISTRAL_API_KEY || '',
+          gemini: env.gemini_api_key || env.GEMINI_API_KEY || '',
+          deepseek: env.deepseek_paid || env.DEEPSEEK_PAID || '',
+          nvidia: env.nvidia_build_api_key || env.NVIDIA_BUILD_API_KEY || '',
+          groq: env.groq_free_1 || env.GROQ_FREE_1 || '',
+          cerebras: env.CEREBRAS_FREE_1 || env.cerebras_free_1 || '',
+          openrouter: env.openrouter_api_key || env.OPENROUTER_API_KEY || '',
+        };
+        const results = await Promise.allSettled(
+          models.map(async ({ provider, model, label }) => {
+            const key = keyMap[provider] || '';
+            if (!key) return { provider, model, label, error: 'No key configured', content: null };
+            try {
+              const result = await callModel(env, provider, key, model, messages, 45000);
+              return { provider, model, label, content: result.content, thinking: result.thinking || null, error: null };
+            } catch(e) {
+              return { provider, model, label, content: null, error: e.message };
+            }
+          })
+        );
+        const responses = results.map(r => r.status === 'fulfilled' ? r.value : { error: r.reason?.message || 'Failed' });
+        return json({ responses }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
