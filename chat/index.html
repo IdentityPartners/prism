@@ -2,7 +2,8 @@
 
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1793022383 -->
+<!-- cache-bust-1793034135 -->
+
 
 
 
@@ -227,38 +228,41 @@
 <div class="chat-right">
 <div class="right-sec">
 <h4>Model</h4>
-<select class="model-select" id="model-select" onchange="setModelOverride(this.value)" title="Select a specific model, or leave on Balanced profile for auto-routing">
-<optgroup label="✓ Mistral Paid — Reliable">
-<option value="mistral:mistral-medium-3.5">Mistral Medium 3.5 · 262K · web · vision · ~416ms</option>
-<option value="mistral:mistral-large-latest">Mistral Large Latest · 262K · web · vision · ~573ms</option>
-<option value="mistral:mistral-small-latest">Mistral Small · 262K · vision · ~310ms</option>
-<option value="mistral:zai-glm-5-2">GLM 5.2 via Mistral · 1M · web · ~419ms</option>
-<option value="mistral:magistral-medium-latest">Magistral Medium · 262K · thinking · web</option>
-</optgroup>
-<optgroup label="Gemini / Gemma — Free">
-<option value="gemini:gemini-3.5-flash">Gemini 3.5 Flash · 1M · vision · Google Search</option>
-<option value="gemini:gemma-4-31b-it">Gemma 4 31B · 262K · Google Search</option>
-<option value="gemini:gemini-2.5-flash">Gemini 2.5 Flash · 1M · thinking</option>
-</optgroup>
-<optgroup label="DeepSeek — Paid">
-<option value="deepseek:deepseek-chat">DeepSeek V4 Flash · 1M · web search</option>
-</optgroup>
-<optgroup label="Kimi — Paid">
-<option value="kimi:kimi-k2">Kimi K2 · 131K · web search</option>
-<option value="kimi:kimi-k3">Kimi K3 · 131K · latest</option>
-</optgroup>
-<optgroup label="Groq — Free">
-<option value="groq:openai/gpt-oss-120b">GPT-OSS 120B · 131K · ~300ms</option>
-<option value="groq:qwen/qwen3.8-27b">Qwen 3.8 27B · 131K · ~350ms</option>
-</optgroup>
-<optgroup label="Cerebras — Paid credits">
-<option value="cerebras:gpt-oss-120b">GPT-OSS 120B Cerebras · 8K · fast</option>
-</optgroup>
-<optgroup label="OpenRouter — Free">
-<option value="openrouter:nvidia/nemotron-3-ultra-550b-a55b:free">Nemotron Ultra 550B · 1M · reasoning · slow</option>
-<option value="openrouter:minimax/minimax-m3.1-flash:free">MiniMax M3.1 · 1M · free</option>
-</optgroup>
-</select>
+<select class="model-select" id="model-select" onchange="setModelOverride(this.value)">
+      <optgroup label="✓ Mistral Paid — GLM 5.3 &amp; Large (Reliable)">
+        <option value="mistral:zai-glm-5-3">GLM 5.3 via Mistral · 1M ctx · thinking · web</option>
+        <option value="mistral:mistral-large-4">Mistral Large 4 · 1M ctx · thinking · web</option>
+        <option value="mistral:mistral-large-latest">Mistral Large Latest · 262K ctx · web</option>
+        <option value="mistral:magistral-medium-latest">Magistral Medium · 262K ctx · thinking</option>
+        <option value="mistral:mistral-medium-3.5">Mistral Medium 3.5 · 262K ctx · web</option>
+        <option value="mistral:ministral-8b-latest">Ministral 8B · 262K ctx · fast</option>
+        <option value="mistral:mistral-small-latest">Mistral Small · 262K ctx · fast</option>
+      </optgroup>
+      <optgroup label="Google AI Studio — Free Tier">
+        <option value="gemini:gemini-3.5-flash">Gemini 3.5 Flash · 1M ctx · Google Search · free</option>
+        <option value="gemini:gemini-3.8-flash">Gemini 3.8 Flash · 1M ctx · free</option>
+        <option value="gemini:gemini-3.7-flash">Gemini 3.7 Flash · 1M ctx · free</option>
+        <option value="gemini:gemini-2.5-flash">Gemini 2.5 Flash · 1M ctx · thinking · free</option>
+        <option value="gemini:gemini-2.5-pro">Gemini 2.5 Pro · 1M ctx · thinking · free</option>
+        <option value="gemini:gemma-4-31b-it">Gemma 4 31B · 262K ctx · Google Search · free</option>
+        <option value="gemini:gemma-4-26b-a4b-it">Gemma 4 26B · 262K ctx · free</option>
+        <option value="gemini:gemini-3.5-flash-lite">Gemini 3.5 Flash Lite · 1M ctx · free</option>
+      </optgroup>
+      <optgroup label="DeepSeek — Paid">
+        <option value="deepseek:deepseek-chat">DeepSeek V4 Flash · 1M ctx · built-in web</option>
+      </optgroup>
+      <optgroup label="Groq — Free">
+        <option value="groq:openai/gpt-oss-120b">GPT-OSS 120B · 131K ctx · ~300ms · free</option>
+        <option value="groq:meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout · 131K ctx · free</option>
+      </optgroup>
+      <optgroup label="Cerebras — Paid Credits">
+        <option value="cerebras:gpt-oss-120b">GPT-OSS 120B Cerebras · 8K ctx · very fast</option>
+      </optgroup>
+      <optgroup label="OpenRouter — Free">
+        <option value="openrouter:nvidia/nemotron-3-ultra-550b-a55b:free">Nemotron Ultra 550B · 1M ctx · reasoning · slow · free</option>
+        <option value="openrouter:minimax/minimax-m3.1-flash:free">MiniMax M3.1 Flash · 1M ctx · free</option>
+      </optgroup>
+    </select>
 <div class="model-info" id="model-info">Auto: tries Mistral Medium 3.5 first, falls through chain if unavailable.</div>
 </div>
 <div class="right-sec">
@@ -299,20 +303,27 @@ var allConversations = [];
 var isStreaming = false;
 
 var MODEL_INFO = {
-  '': 'Auto: Mistral Large → GLM 5.3 → Gemini 2.5 Flash → Gemma 4 → DeepSeek → GPT-OSS → Pollinations',
-  'mistral:mistral-large-latest': {ctx:'262K',out:'32K',tools:'web search, vision, thinking',speed:'~573ms',cost:'Paid subscription — PRIMARY'},
-  'mistral:zai-glm-5-2': {ctx:'1M',out:'32K',tools:'web search, thinking',speed:'~419ms',cost:'Paid via Mistral'},
-  'mistral:mistral-medium-3.5': {ctx:'262K',out:'32K',tools:'web search, vision',speed:'~416ms',cost:'Paid subscription'},
-  'mistral:magistral-medium-latest': {ctx:'262K',out:'32K',tools:'web search, thinking',speed:'~2-5s',cost:'Paid subscription'},
-  'gemini:gemini-2.5-flash': {ctx:'1M',out:'65K',tools:'thinking, Google Search, vision',speed:'~1-3s',cost:'Free (your credits)'},
-  'gemini:gemma-4-31b-it': {ctx:'262K',out:'32K',tools:'Google Search grounding',speed:'~1s',cost:'Free'},
-  'gemini:gemini-3.5-flash': {ctx:'1M',out:'65K',tools:'Google Search, vision',speed:'~1s',cost:'Free'},
-  'deepseek:deepseek-chat': {ctx:'1M',out:'32K',tools:'built-in web search',speed:'~2-3s',cost:'Paid'},
-  'groq:openai/gpt-oss-120b': {ctx:'131K',out:'16K',tools:'none',speed:'~300ms',cost:'Free'},
-  'groq:meta-llama/llama-4-scout-17b-16e-instruct': {ctx:'131K',out:'16K',tools:'none',speed:'~400ms',cost:'Free'},
-  'cerebras:gpt-oss-120b': {ctx:'8K',out:'8K',tools:'none',speed:'~200ms',cost:'Paid credits'},
-  'openrouter:nvidia/nemotron-3-ultra-550b-a55b:free': {ctx:'1M',out:'32K',tools:'reasoning',speed:'~20-60s',cost:'Free'},
-  'openrouter:minimax/minimax-m3.1-flash:free': {ctx:'1M',out:'32K',tools:'none',speed:'~1-2s',cost:'Free'},
+  'mistral:zai-glm-5-3': 'GLM 5.3 · 1M context · 32K output · thinking mode · web search · paid Mistral subscription',
+  'mistral:mistral-large-4': 'Mistral Large 4 · 1M context · 32K output · thinking mode · web search · paid subscription',
+  'mistral:mistral-large-latest': 'Mistral Large Latest · 262K context · 32K output · web search · paid subscription',
+  'mistral:magistral-medium-latest': 'Magistral Medium · 262K context · thinking mode · web search · paid subscription',
+  'mistral:mistral-medium-3.5': 'Mistral Medium 3.5 · 262K context · web search · paid subscription',
+  'mistral:ministral-8b-latest': 'Ministral 8B · 262K context · fast · paid subscription',
+  'mistral:mistral-small-latest': 'Mistral Small · 262K context · fast · paid subscription',
+  'gemini:gemini-3.5-flash': 'Gemini 3.5 Flash · 1M context · 65K output · Google Search grounding · free tier',
+  'gemini:gemini-3.8-flash': 'Gemini 3.8 Flash · 1M context · 65K output · free tier',
+  'gemini:gemini-3.7-flash': 'Gemini 3.7 Flash · 1M context · 65K output · free tier',
+  'gemini:gemini-2.5-flash': 'Gemini 2.5 Flash · 1M context · 65K output · thinking mode · free tier',
+  'gemini:gemini-2.5-pro': 'Gemini 2.5 Pro · 1M context · 65K output · thinking mode · free tier',
+  'gemini:gemma-4-31b-it': 'Gemma 4 31B · 262K context · 32K output · Google Search · free tier',
+  'gemini:gemma-4-26b-a4b-it': 'Gemma 4 26B · 262K context · 32K output · free tier',
+  'gemini:gemini-3.5-flash-lite': 'Gemini 3.5 Flash Lite · 1M context · 65K output · free tier',
+  'deepseek:deepseek-chat': 'DeepSeek V4 Flash · 1M context · 32K output · built-in web search · paid',
+  'groq:openai/gpt-oss-120b': 'GPT-OSS 120B · 131K context · 16K output · ~300ms · free',
+  'groq:meta-llama/llama-4-scout-17b-16e-instruct': 'Llama 4 Scout · 131K context · 16K output · free',
+  'cerebras:gpt-oss-120b': 'GPT-OSS 120B Cerebras · 8K context · very fast · paid credits',
+  'openrouter:nvidia/nemotron-3-ultra-550b-a55b:free': 'Nemotron Ultra 550B · 1M context · reasoning · slow (20-60s) · free',
+  'openrouter:minimax/minimax-m3.1-flash:free': 'MiniMax M3.1 Flash · 1M context · free',
 };
 
 document.addEventListener('DOMContentLoaded', function() {
