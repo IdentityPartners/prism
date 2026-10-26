@@ -201,50 +201,106 @@ async function orchestrate(messages, env, options = {}) {
   const ZAI_KEY = k(env, ['zai_api_key', 'ZAI_API_KEY']);
 
   // Routing chains — hierarchical: Best quality first, fast fallback
-  // ── Model chain — updated with full capability audit ─────────────────────────
-    // Priority: Mistral Large 4 (1M, vision, tools) → GLM 5.3 (1M) → Gemini 3.8 Flash (1M, free)
-    // → Gemma 4 NVIDIA (fast, free) → DeepSeek V4.1 → Magistral (thinking) → Groq/Cerebras fallbacks
+  // Tier 1 (Best): GLM 5.3 + Mistral Large (paid Mistral subscription)
+  // Tier 2 (Fast+capable): Gemini 3.8 Flash, Gemini 3.5 Flash
+  // Tier 3 (Fast free): GPT-OSS Groq, GPT-OSS Cerebras
+  // Tier 4 (Paid): DeepSeek V4 Flash
+  // Tier 5 (Free OpenRouter): Nemotron Ultra, MiniMax
+  // Unconditional fallback: Pollinations
+  const CHAINS = {
+    balanced: [
+      // Tier 1: Mistral paid subscription — GLM 5.3 first (1M ctx, thinking, web)
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 via Mistral (1M, thinking, web)'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large Latest (262K, web, vision)'},
+      // Tier 2: Google free — Gemini 3.8 Flash (1M, Google Search)
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (1M, Google Search, vision)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash', key:GEMINI_KEY, note:'Gemini 3.5 Flash (1M, Google Search)'},
+      // Tier 3: Fast free — GPT-OSS on Groq (~300ms) then Cerebras
+      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY, note:'GPT-OSS 120B Groq (~300ms, free)'},
+      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY, note:'GPT-OSS 120B Cerebras (very fast)'},
+      // Tier 4: DeepSeek paid (1M context, built-in web search)
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V4 Flash (1M, web search)'},
+      // Tier 5: OpenRouter free models
+      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY, note:'Nemotron Ultra 550B (1M, reasoning, slow)'},
+      OPENROUTER_KEY && {provider:'openrouter', model:'minimax/minimax-m3.1-flash:free', key:OPENROUTER_KEY, note:'MiniMax M3.1 Flash (1M, free)'},
+      // Unconditional fallback
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+    ].filter(Boolean),
 
-    // 1. Mistral Large 4 — 1M ctx, vision, tools, web search, BEST quality
-    if (KEYS.mistral)   chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'mistral-large-4',                note: 'Mistral Large 4 (1M ctx, vision, web search)' });
+    fast: [
+      // Fast: Cerebras first (fastest), then Groq, then Gemma
+      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY, note:'GPT-OSS Cerebras (~200ms)'},
+      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY, note:'GPT-OSS Groq (~300ms)'},
+      GROQ_KEY && {provider:'groq', model:'meta-llama/llama-4-scout-17b-16e-instruct', key:GROQ_KEY, note:'Llama 4 Scout Groq (131K)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemma-4-31b-it', key:GEMINI_KEY, note:'Gemma 4 31B (Google Search)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash-lite', key:GEMINI_KEY, note:'Gemini 3.5 Flash Lite (fastest Google)'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-latest', key:MISTRAL_KEY, note:'Mistral Small (fast, paid)'},
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+    ].filter(Boolean),
 
-    // 2. GLM 5.3 via Mistral — 1M ctx, tools, web search
-    if (KEYS.mistral)   chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3',                   note: 'GLM 5.3 via Mistral (1M ctx)' });
+    frontier: [
+      // Frontier: Best quality, no speed compromise
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 via Mistral (1M, thinking)'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large Latest (262K, thinking)'},
+      MISTRAL_KEY && {provider:'mistral', model:'magistral-medium-latest', key:MISTRAL_KEY, note:'Magistral Medium (thinking, web)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro (1M, thinking, best Google)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-flash', key:GEMINI_KEY, note:'Gemini 2.5 Flash (1M, thinking)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (1M, Google Search)'},
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V4 Flash (1M, web)'},
+      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY, note:'Nemotron Ultra 550B (reasoning)'},
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+    ].filter(Boolean),
 
-    // 3. Gemini 3.8 Flash — 1M ctx, Google Search grounding, FREE
-    if (KEYS.gemini)    chain.push({ p: 'gemini',     key: KEYS.gemini,     m: 'gemini-3.8-flash',              note: 'Gemini 3.8 Flash (1M ctx, Google Search, free)' });
+    research: [
+      // Research: Web search + large context
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 (1M, web search)'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large (web search)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (Google Search grounding)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro (1M, best for long docs)'},
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek (built-in web search)'},
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+    ].filter(Boolean),
 
-    // 4. Gemma 4 31B via NVIDIA — fast, free, Google Search
-    if (KEYS.nvidia)    chain.push({ p: 'nvidia',     key: KEYS.nvidia,     m: 'google/gemma-4-31b-it',         note: 'Gemma 4 31B NVIDIA (fast, free)' });
+    coding: [
+      // Coding: Best code models
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large (excellent at code)'},
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 (strong code + reasoning)'},
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek (top code benchmark)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro (code + reasoning)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (fast code)'},
+      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY, note:'GPT-OSS 120B (fast code)'},
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+    ].filter(Boolean),
 
-    // 5. DeepSeek V4.1 Flash via NVIDIA — 1M ctx, fast
-    if (KEYS.nvidia)    chain.push({ p: 'nvidia',     key: KEYS.nvidia,     m: 'deepseek-ai/deepseek-v4.1-flash', note: 'DeepSeek V4.1 Flash NVIDIA (1M ctx)' });
+    vision: [
+      // Vision: Models with image understanding
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large (vision)'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY, note:'Mistral Medium 3.5 (vision)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (vision + Google Search)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro (best vision)'},
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+    ].filter(Boolean),
+  };
 
-    // 6. DeepSeek direct — 1M ctx, built-in web search
-    if (KEYS.deepseek)  chain.push({ p: 'deepseek',  key: KEYS.deepseek,   m: 'deepseek-chat',                 note: 'DeepSeek V4 Flash direct (1M ctx, web search)' });
+  // If provider/model override specified, try that first
+  let chain = (CHAINS[profile] || CHAINS.balanced).filter(Boolean);
+  if (providerOverride && modelOverride) {
+    const overrideEntry = {provider:providerOverride, model:modelOverride, key:
+      providerOverride==='mistral' ? MISTRAL_KEY :
+      providerOverride==='gemini' ? GEMINI_KEY :
+      providerOverride==='deepseek' ? DEEPSEEK_KEY :
+      providerOverride==='groq' ? GROQ_KEY :
+      providerOverride==='openrouter' ? OPENROUTER_KEY :
+      providerOverride==='cerebras' ? CEREBRAS_KEY :
+      providerOverride==='zai' ? ZAI_KEY : null
+    };
+    chain = [overrideEntry, ...chain];
+  }
 
-    // 7. Magistral Medium — thinking model via Mistral
-    if (KEYS.mistral)   chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'magistral-medium-latest',       note: 'Magistral Medium (thinking, web search)' });
+  const log = [];
+  let lastError = '';
 
-    // 8. Gemini 2.5 Flash — 1M ctx, free
-    if (KEYS.gemini)    chain.push({ p: 'gemini',     key: KEYS.gemini,     m: 'gemini-2.5-flash',              note: 'Gemini 2.5 Flash (1M ctx, free)' });
-
-    // 9. GLM 5.3 Flash with vision via Mistral
-    if (KEYS.mistral)   chain.push({ p: 'mistral',    key: KEYS.mistral,    m: 'zai-glm-5-3-flash',             note: 'GLM 5.3 Flash (1M ctx, vision)' });
-
-    // 10. GPT-OSS 120B via Groq — fast, free
-    if (KEYS.groq)      chain.push({ p: 'groq',       key: KEYS.groq,       m: 'openai/gpt-oss-120b',           note: 'GPT-OSS 120B Groq (131K ctx, fast, free)' });
-
-    // 11. GPT-OSS via Cerebras — very fast
-    if (KEYS.cerebras)  chain.push({ p: 'cerebras',   key: KEYS.cerebras,   m: 'gpt-oss-120b',                  note: 'GPT-OSS 120B Cerebras (8K ctx, very fast)' });
-
-    // 12. Nemotron Ultra via OpenRouter — frontier reasoning, free
-    if (KEYS.openrouter) chain.push({ p: 'openrouter', key: KEYS.openrouter, m: 'nvidia/nemotron-3-ultra-550b-a55b:free', note: 'Nemotron Ultra 550B (1M ctx, reasoning, free)' });
-
-    // 13. Pollinations — unconditional fallback, no key needed
-    chain.push({ p: 'pollinations', key: null, m: 'openai', note: 'Pollinations fallback (always responds)' });
-
-for (const entry of chain) {
+  for (const entry of chain) {
     if (!entry) continue;
     const {provider, model, key} = entry;
     const t0 = Date.now();
@@ -4587,144 +4643,6 @@ data: ${JSON.stringify(data)}
           chunk_text:r.chunk_text, score:r.score, workspace_id:r.workspace_id
         }))}, 200, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
-    }
-
-
-    // ── Mistral OCR — extract text from images/PDFs ───────────────────────────
-    if (path === '/api/ocr/mistral' && request.method === 'POST') {
-      try {
-        const body = await request.json();
-        const imageB64 = body.image || '';
-        const mimeType = body.mime_type || 'image/png';
-        const mistralKey = k(env, ['mistral_api_key', 'MISTRAL_API_KEY']) || '';
-        if (!mistralKey) return json({error: 'Mistral key not configured'}, 400, origin);
-        const resp = await fetch('https://api.mistral.ai/v1/ocr', {
-          method: 'POST',
-          headers: {'Authorization': `Bearer ${mistralKey}`, 'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            model: 'mistral-ocr-latest',
-            document: {type: 'image_url', image_url: `data:${mimeType};base64,${imageB64}`}
-          })
-        });
-        const data = await resp.json();
-        const text = data.pages?.map(p => p.markdown || '').join('\n\n') || data.text || '';
-        return json({success: true, text, provider: 'mistral-ocr'}, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
-    }
-
-    // ── Voxtral STT — speech to text via Mistral ──────────────────────────────
-    if (path === '/api/stt/voxtral' && request.method === 'POST') {
-      try {
-        const body = await request.json();
-        const audioB64 = body.audio || '';
-        const mimeType = body.mime_type || 'audio/webm';
-        const mistralKey = k(env, ['mistral_api_key', 'MISTRAL_API_KEY']) || '';
-        if (!mistralKey) return json({error: 'Mistral key not configured'}, 400, origin);
-        // Use Voxtral for transcription
-        const resp = await fetch('https://api.mistral.ai/v1/audio/transcriptions', {
-          method: 'POST',
-          headers: {'Authorization': `Bearer ${mistralKey}`},
-          body: (() => {
-            const fd = new FormData();
-            const audioBytes = Uint8Array.from(atob(audioB64), c => c.charCodeAt(0));
-            fd.append('file', new Blob([audioBytes], {type: mimeType}), 'audio.webm');
-            fd.append('model', 'voxtral-small-latest');
-            return fd;
-          })()
-        });
-        const data = await resp.json();
-        return json({success: true, text: data.text || '', provider: 'voxtral'}, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
-    }
-
-    // ── Voxtral TTS — text to speech via Mistral ──────────────────────────────
-    if (path === '/api/tts/voxtral' && request.method === 'POST') {
-      try {
-        const body = await request.json();
-        const text = (body.text || '').substring(0, 4000);
-        const mistralKey = k(env, ['mistral_api_key', 'MISTRAL_API_KEY']) || '';
-        if (!mistralKey) return json({error: 'Mistral key not configured'}, 400, origin);
-        const resp = await fetch('https://api.mistral.ai/v1/audio/speech', {
-          method: 'POST',
-          headers: {'Authorization': `Bearer ${mistralKey}`, 'Content-Type': 'application/json'},
-          body: JSON.stringify({model: 'voxtral-mini-tts-latest', input: text, voice: 'alloy'})
-        });
-        if (!resp.ok) return json({error: `Voxtral TTS error: ${resp.status}`}, 500, origin);
-        const audio = await resp.arrayBuffer();
-        return new Response(audio, {headers: {'Content-Type': 'audio/mpeg', 'Access-Control-Allow-Origin': origin}});
-      } catch(e) { return json({error: e.message}, 500, origin); }
-    }
-
-    // ── Gemini Live — audio-to-audio (WebSocket) ──────────────────────────────
-    // Note: Gemini Live uses WebSocket (bidiGenerateContent) — not HTTP
-    // This route returns connection info for the client to establish WebSocket
-    if (path === '/api/gemini/live/info' && request.method === 'GET') {
-      const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
-      return json({
-        available: !!GKEY,
-        models: [
-          {id: 'gemini-3.8-live', name: 'Gemini 3.8 Live', desc: 'Audio-to-audio, real-time'},
-          {id: 'gemini-3.8-live-extended-thinking', name: 'Gemini 3.8 Live + Thinking', desc: 'Audio-to-audio with extended thinking'},
-          {id: 'gemini-3.1-flash-live-preview', name: 'Gemini 3.1 Flash Live', desc: 'Fast audio-to-audio'},
-        ],
-        wsUrl: `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GKEY}`,
-        note: 'Connect via WebSocket from client. Send audio chunks, receive audio responses.'
-      }, 200, origin);
-    }
-
-    // ── Gemini Embedding — for RAG ────────────────────────────────────────────
-    if (path === '/api/embed/gemini' && request.method === 'POST') {
-      try {
-        const body = await request.json();
-        const text = body.text || '';
-        const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
-        if (!GKEY) return json({error: 'Gemini key not configured'}, 400, origin);
-        const resp = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${GKEY}`,
-          {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({content: {parts: [{text}]}, taskType: 'RETRIEVAL_DOCUMENT'})
-          }
-        );
-        const data = await resp.json();
-        const embedding = data.embedding?.values || [];
-        return json({success: true, embedding, dimensions: embedding.length, model: 'gemini-embedding-2'}, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
-    }
-
-    // ── Document annotation save/load ─────────────────────────────────────────
-    if (path.startsWith('/api/annotations/') && request.method === 'GET') {
-      try {
-        const docId = path.replace('/api/annotations/', '');
-        const raw = env.PRISM_KV ? await env.PRISM_KV.get(`annotations:${docId}`) : null;
-        return json({annotations: raw ? JSON.parse(raw) : [], docId}, 200, origin);
-      } catch(e) { return json({annotations: []}, 200, origin); }
-    }
-
-    if (path.startsWith('/api/annotations/') && request.method === 'POST') {
-      try {
-        const docId = path.replace('/api/annotations/', '');
-        const body = await request.json();
-        const annotations = body.annotations || [];
-        if (env.PRISM_KV) {
-          await env.PRISM_KV.put(`annotations:${docId}`, JSON.stringify(annotations), {expirationTtl: 86400 * 365});
-        }
-        return json({success: true, count: annotations.length}, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
-    }
-
-    // ── Document category assignment ──────────────────────────────────────────
-    if (path === '/api/study/categorise' && request.method === 'POST') {
-      try {
-        const body = await request.json();
-        const {moduleId, weekId, resourceId, category, subcategory} = body;
-        const key = `study:category:${moduleId}:${weekId}:${resourceId}`;
-        if (env.PRISM_KV) {
-          await env.PRISM_KV.put(key, JSON.stringify({category, subcategory, updated: new Date().toISOString()}));
-        }
-        return json({success: true}, 200, origin);
-      } catch(e) { return json({error: e.message}, 500, origin); }
     }
 
 return json({ error: 'Not found', path }, 404, origin);
