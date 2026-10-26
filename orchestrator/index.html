@@ -3,34 +3,48 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Orchestrator — Argentica</title>
+<title>Orchestrator &mdash; Argentica</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<!-- cache-bust-1793044552 -->
 <style>
-.orch-shell { display:flex; height:100vh; overflow:hidden; }
-.orch-main { flex:1; overflow-y:auto; padding:20px; max-width:900px; }
-.orch-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px; }
-.orch-card h3 { font-size:14px; font-weight:700; margin:0 0 12px; }
-.chain-item { display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; margin-bottom:6px; background:var(--bg); cursor:grab; }
-.chain-item:active { cursor:grabbing; }
-.chain-num { width:22px; height:22px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
-.chain-info { flex:1; }
-.chain-name { font-size:13px; font-weight:600; }
-.chain-detail { font-size:11px; color:var(--fg-muted); }
-.chain-toggle { flex-shrink:0; }
-.chain-toggle input { cursor:pointer; width:16px; height:16px; }
-.chain-drag { color:var(--fg-muted); cursor:grab; font-size:16px; }
-.profile-tabs { display:flex; gap:6px; margin-bottom:12px; }
-.profile-tab { padding:6px 14px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:13px; background:var(--bg); color:var(--fg-muted); }
-.profile-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-.save-btn { padding:8px 18px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-family:inherit; font-weight:600; }
-.save-btn:hover { opacity:0.85; }
-.test-result { font-size:12px; font-family:monospace; background:var(--bg-sunken); border-radius:6px; padding:10px; margin-top:8px; max-height:120px; overflow-y:auto; white-space:pre-wrap; }
-.badge { padding:2px 7px; border-radius:8px; font-size:10px; font-weight:600; }
-.badge-free { background:rgba(22,163,74,0.1); color:#16a34a; }
-.badge-paid { background:rgba(245,158,11,0.1); color:#f59e0b; }
-.badge-fast { background:rgba(45,106,159,0.1); color:var(--accent); }
-.badge-1m { background:rgba(124,58,237,0.1); color:#7c3aed; }
+.orch-shell{display:flex;height:100vh;overflow:hidden;}
+.orch-body{flex:1;overflow-y:auto;padding:16px 20px;max-width:1100px;}
+.orch-hdr{margin-bottom:16px;}
+.orch-hdr h2{font-size:20px;font-weight:700;margin:0 0 4px;}
+.orch-hdr p{font-size:13px;color:var(--fg-muted);margin:0;}
+.card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden;}
+.card-hdr{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.card-hdr h3{font-size:13px;font-weight:700;margin:0;}
+.card-body{padding:12px 14px;}
+.profile-tabs{display:flex;gap:4px;margin-bottom:12px;}
+.profile-tab{padding:5px 14px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg-muted);font-family:inherit;}
+.profile-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.chain-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:5px;background:var(--bg);cursor:grab;}
+.chain-item:active{cursor:grabbing;}
+.chain-num{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
+.chain-info{flex:1;min-width:0;}
+.chain-name{font-size:13px;font-weight:600;}
+.chain-detail{font-size:11px;color:var(--fg-muted);}
+.chain-badges{display:flex;gap:3px;flex-wrap:wrap;margin-top:2px;}
+.badge{padding:1px 6px;border-radius:6px;font-size:10px;font-weight:600;}
+.badge-thinking{background:rgba(124,58,237,0.1);color:#7c3aed;}
+.badge-web{background:rgba(45,106,159,0.1);color:var(--accent);}
+.badge-1m{background:rgba(220,38,38,0.1);color:#dc2626;}
+.reorder-btns{display:flex;flex-direction:column;gap:2px;}
+.reorder-btn{padding:1px 5px;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-size:10px;background:var(--bg);font-family:inherit;}
+.bench-table{width:100%;border-collapse:collapse;font-size:12px;}
+.bench-table th{padding:5px 8px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);border-bottom:2px solid var(--border);white-space:nowrap;}
+.bench-table td{padding:6px 8px;border-bottom:1px solid var(--border);}
+.bench-table tr:hover td{background:var(--bg-sunken);}
+.bench-bar{display:inline-block;height:5px;border-radius:3px;background:var(--accent);vertical-align:middle;margin-left:4px;}
+.save-btn{padding:6px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;font-weight:600;}
+.test-btn{padding:5px 12px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);font-family:inherit;}
+.test-result{font-size:11px;font-family:monospace;background:var(--bg-sunken);border-radius:5px;padding:7px 10px;margin-top:7px;max-height:80px;overflow-y:auto;white-space:pre-wrap;display:none;}
+.cap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
+.cap-card{padding:10px;border:1px solid var(--border);border-radius:8px;}
+.cap-card h4{font-size:13px;font-weight:600;margin:0 0 4px;}
+.cap-card p{font-size:11px;color:var(--fg-muted);margin:0;line-height:1.5;}
 </style>
 </head>
 <body>
@@ -38,106 +52,67 @@
 <div id="sidebar-mount"></div>
 <div id="main-content">
 <div class="orch-shell">
-<div class="orch-main">
-
-  <h2 style="font-size:20px;font-weight:700;margin:0 0 16px;">⚙ Orchestrator</h2>
-
-  <!-- Profile selector -->
-  <div class="orch-card">
-    <h3>Routing Profile</h3>
-    <div class="profile-tabs">
-      <div class="profile-tab active" id="tab-balanced" onclick="switchProfile('balanced',this)">Balanced</div>
-      <div class="profile-tab" id="tab-fast" onclick="switchProfile('fast',this)">Fast</div>
-      <div class="profile-tab" id="tab-frontier" onclick="switchProfile('frontier',this)">Frontier</div>
-    </div>
-    <p style="font-size:12px;color:var(--fg-muted);margin:0 0 10px;" id="profile-desc">
-      Balanced: Best quality with reliable fallbacks. GLM 5.3 → Mistral Large → Gemini → DeepSeek → GPT-OSS → Cerebras
-    </p>
+<div class="orch-body">
+  <div class="orch-hdr">
+    <h2>&#x2699; Orchestrator</h2>
+    <p>Configure routing chains, view benchmarks, and test providers. Changes take effect immediately.</p>
   </div>
 
-  <!-- Chain editor -->
-  <div class="orch-card">
-    <h3>Model Chain — <span id="chain-profile-label">Balanced</span></h3>
-    <p style="font-size:12px;color:var(--fg-muted);margin:0 0 10px;">Drag to reorder. Toggle to enable/disable. Chain tries each model in order until one responds.</p>
-    <div id="chain-list"></div>
-    <div style="display:flex;gap:8px;margin-top:12px;">
-      <button class="save-btn" onclick="saveChain()">Save Chain</button>
-      <button class="save-btn" style="background:var(--bg);color:var(--fg);border:1px solid var(--border);" onclick="resetChain()">Reset to Default</button>
-      <button class="save-btn" style="background:var(--bg);color:var(--fg);border:1px solid var(--border);" onclick="testChain()">▶ Test Chain</button>
-    </div>
-    <div id="test-result" class="test-result" style="display:none;"></div>
-  </div>
-
-  <!-- System prompt -->
-  <div class="orch-card">
-    <h3>Gerald System Prompt</h3>
-    <textarea id="system-prompt" style="width:100%;min-height:120px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);resize:vertical;box-sizing:border-box;line-height:1.5;"></textarea>
-    <div style="margin-top:8px;">
-      <button class="save-btn" onclick="saveSystemPrompt()">Save Prompt</button>
-    </div>
-  </div>
-
-  <!-- Timeout settings -->
-  <div class="orch-card">
-    <h3>Timeout Settings</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      <div>
-        <label style="font-size:12px;font-weight:600;color:var(--fg-muted);display:block;margin-bottom:4px;">Connection timeout (ms)</label>
-        <input type="number" id="timeout-connect" value="8000" min="1000" max="30000" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg);color:var(--fg);">
-        <p style="font-size:11px;color:var(--fg-muted);margin:3px 0 0;">Time to wait for model to respond at all</p>
-      </div>
-      <div>
-        <label style="font-size:12px;font-weight:600;color:var(--fg-muted);display:block;margin-bottom:4px;">Generation timeout (ms)</label>
-        <input type="number" id="timeout-generate" value="120000" min="10000" max="300000" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg);color:var(--fg);">
-        <p style="font-size:11px;color:var(--fg-muted);margin:3px 0 0;">Total time to wait for full response</p>
+  <div class="card">
+    <div class="card-hdr">
+      <h3>Routing Chain</h3>
+      <div style="display:flex;gap:6px;">
+        <button class="test-btn" onclick="testChain()">&#x25B6; Test Chain</button>
+        <button class="save-btn" onclick="saveChain()">Save Chain</button>
       </div>
     </div>
-    <div style="margin-top:10px;">
-      <button class="save-btn" onclick="saveTimeouts()">Save Timeouts</button>
+    <div class="card-body">
+      <div class="profile-tabs" id="profile-tabs">
+        <button class="profile-tab active" onclick="switchProfile('balanced',this)">Balanced</button>
+        <button class="profile-tab" onclick="switchProfile('fast',this)">Fast</button>
+        <button class="profile-tab" onclick="switchProfile('frontier',this)">Frontier</button>
+      </div>
+      <p style="font-size:11px;color:var(--fg-muted);margin:0 0 10px;">Drag to reorder. Models tried in order until one responds.</p>
+      <div id="chain-list"><div style="font-size:12px;color:var(--fg-muted);">Loading...</div></div>
+      <div id="test-result" class="test-result"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><h3>Model Benchmarks</h3><span style="font-size:11px;color:var(--fg-muted);">MMLU &middot; HumanEval &middot; MATH &middot; Context &middot; Speed &middot; Tools</span></div>
+    <div class="card-body" style="overflow-x:auto;">
+      <table class="bench-table">
+        <thead><tr><th>Model</th><th>MMLU</th><th>HumanEval</th><th>MATH</th><th>Context</th><th>Max Out</th><th>Speed</th><th>Tools</th><th>Cost</th></tr></thead>
+        <tbody id="bench-tbody"><tr><td colspan="9" style="color:var(--fg-muted);font-size:12px;">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><h3>Non-Chat Capabilities</h3></div>
+    <div class="card-body">
+      <div class="cap-grid">
+        <div class="cap-card"><h4>&#x1F50A; TTS</h4><p>Deepgram Aura (British voices)<br>Cartesia Sonic 2 (ultra-low latency)<br>Gemini 2.5 Flash TTS<br>Mistral TTS-1</p></div>
+        <div class="cap-card"><h4>&#x1F3A4; STT / Transcription</h4><p>Groq Whisper Large v3 (fast)<br>Deepgram Nova-3 (real-time streaming)<br>Gemini 2.0 Flash (multimodal)</p></div>
+        <div class="cap-card"><h4>&#x1F5BC; Image Generation</h4><p>Gemini 3.1 Flash Image (free)<br>Gemini 3 Pro Image (free)<br>Stability SD 3.5<br>FAL Flux Schnell / Dev / Pro</p></div>
+        <div class="cap-card"><h4>&#x1F3B5; Music</h4><p>Gemini Lyria 3.5 (vocals + full songs)<br>Lyria 3 Pro (up to 3 min)<br>Lyria 3 Clip (30s, fastest)</p></div>
+        <div class="cap-card"><h4>&#x1F4DE; Live Audio (voice call)</h4><p>Gemini 2.0 Flash Live<br>Gemini 2.0 Flash Live Extended Thinking<br>Gemini 3.1 Flash Live Preview</p></div>
+        <div class="cap-card"><h4>&#x1F4C4; Embeddings / RAG</h4><p>Google text-embedding-004 (2048 dim)<br>Mistral mistral-embed<br>NVIDIA nv-embedqa-e5-v5<br>Cohere embed-v4</p></div>
+        <div class="cap-card"><h4>&#x1F441; Vision / OCR</h4><p>Mistral Large 4 (vision)<br>Gemini 3.5 Flash (vision + search)<br>GLM 5.3 via Mistral (vision)<br>Llama 4 Scout (vision)</p></div>
+        <div class="cap-card"><h4>&#x1F3AC; Video</h4><p>Gemini Veo 2 (text-to-video)<br>Gemini Veo 3 (with audio)<br>CogView-4 (Z.AI)</p></div>
+      </div>
     </div>
   </div>
 
 </div>
 </div>
 </div>
-
 <script>
+
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var config = null;
+var benchmarks = null;
 var currentProfile = 'balanced';
-
-var DEFAULT_CHAINS = {
-  balanced: [
-    {id:'glm53', name:'GLM 5.3 via Mistral', provider:'mistral', model:'zai-glm-5-3', enabled:true, badges:['paid','1M','thinking','web']},
-    {id:'mistral-large', name:'Mistral Large Latest', provider:'mistral', model:'mistral-large-latest', enabled:true, badges:['paid','1M','web','vision']},
-    {id:'gemini-flash', name:'Gemini 3.5 Flash', provider:'gemini', model:'gemini-3.5-flash', enabled:true, badges:['free','1M','search']},
-    {id:'gemma4', name:'Gemma 4 31B', provider:'gemini', model:'gemma-4-31b-it', enabled:true, badges:['free','search']},
-    {id:'deepseek', name:'DeepSeek V4 Flash', provider:'deepseek', model:'deepseek-chat', enabled:true, badges:['paid','1M','web']},
-    {id:'gpt-oss-groq', name:'GPT-OSS 120B (Groq)', provider:'groq', model:'openai/gpt-oss-120b', enabled:true, badges:['free','fast']},
-    {id:'gpt-oss-cerebras', name:'GPT-OSS 120B (Cerebras)', provider:'cerebras', model:'gpt-oss-120b', enabled:true, badges:['paid','fast']},
-    {id:'nemotron', name:'Nemotron Ultra 550B', provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', enabled:true, badges:['free','1M']},
-  ],
-  fast: [
-    {id:'gpt-oss-groq', name:'GPT-OSS 120B (Groq)', provider:'groq', model:'openai/gpt-oss-120b', enabled:true, badges:['free','fast']},
-    {id:'gpt-oss-cerebras', name:'GPT-OSS 120B (Cerebras)', provider:'cerebras', model:'gpt-oss-120b', enabled:true, badges:['paid','fast']},
-    {id:'mistral-small', name:'Mistral Small', provider:'mistral', model:'mistral-small-latest', enabled:true, badges:['paid','fast']},
-    {id:'gemma4', name:'Gemma 4 31B', provider:'gemini', model:'gemma-4-31b-it', enabled:true, badges:['free']},
-  ],
-  frontier: [
-    {id:'glm53', name:'GLM 5.3 via Mistral', provider:'mistral', model:'zai-glm-5-3', enabled:true, badges:['paid','1M','thinking','web']},
-    {id:'mistral-large', name:'Mistral Large Latest', provider:'mistral', model:'mistral-large-latest', enabled:true, badges:['paid','1M','web','vision']},
-    {id:'gemini-flash', name:'Gemini 3.5 Flash', provider:'gemini', model:'gemini-3.5-flash', enabled:true, badges:['free','1M','search']},
-    {id:'deepseek', name:'DeepSeek V4 Flash', provider:'deepseek', model:'deepseek-chat', enabled:true, badges:['paid','1M','web']},
-    {id:'nemotron', name:'Nemotron Ultra 550B', provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', enabled:true, badges:['free','1M']},
-  ]
-};
-
-var PROFILE_DESCS = {
-  balanced: 'Best quality with reliable fallbacks. GLM 5.3 → Mistral Large → Gemini → DeepSeek → GPT-OSS → Cerebras',
-  fast: 'Lowest latency. GPT-OSS Groq → Cerebras → Mistral Small → Gemma 4',
-  frontier: 'Maximum capability. GLM 5.3 → Mistral Large → Gemini → DeepSeek → Nemotron Ultra'
-};
-
-var chains = {};
 
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
@@ -146,49 +121,34 @@ document.addEventListener('DOMContentLoaded', function() {
     mount.parentNode.insertBefore(sb, mount);
     mount.parentNode.removeChild(mount);
   }
-  loadSettings();
+  loadConfig();
 });
 
-function loadSettings() {
-  fetch(WORKER + '/api/kv/get?key=orchestrator:settings')
+function loadConfig() {
+  fetch(WORKER + '/api/orchestrator/config')
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      if (d.value) {
-        try {
-          var settings = JSON.parse(d.value);
-          if (settings.chains) chains = settings.chains;
-          if (settings.systemPrompt) document.getElementById('system-prompt').value = settings.systemPrompt;
-          if (settings.timeoutConnect) document.getElementById('timeout-connect').value = settings.timeoutConnect;
-          if (settings.timeoutGenerate) document.getElementById('timeout-generate').value = settings.timeoutGenerate;
-        } catch(e) {}
-      }
-      // Fill in defaults for missing profiles
-      ['balanced','fast','frontier'].forEach(function(p) {
-        if (!chains[p]) chains[p] = JSON.parse(JSON.stringify(DEFAULT_CHAINS[p]));
-      });
-      if (!document.getElementById('system-prompt').value) {
-        document.getElementById('system-prompt').value = "You are Gerald, the Orchestrator for Argentica — the personal AI operating environment of Simon Johnson / Identity Partners. You address Simon as 'sir'. You are sardonic, precise, and devastatingly competent. British English. Never sycophantic. Never fabricate.";
-      }
+      config = d.config;
+      benchmarks = d.benchmarks;
       renderChain();
+      renderBenchmarks();
     })
-    .catch(function() {
-      chains = JSON.parse(JSON.stringify(DEFAULT_CHAINS));
-      renderChain();
+    .catch(function(e) {
+      document.getElementById('chain-list').innerHTML = '<div style="color:#dc2626;font-size:12px;">Error loading config: ' + e.message + '</div>';
     });
 }
 
 function switchProfile(profile, btn) {
   currentProfile = profile;
-  document.querySelectorAll('.profile-tab').forEach(function(t) { t.classList.remove('active'); });
-  btn.classList.add('active');
-  document.getElementById('chain-profile-label').textContent = btn.textContent;
-  document.getElementById('profile-desc').textContent = PROFILE_DESCS[profile];
+  document.querySelectorAll('.profile-tab').forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
   renderChain();
 }
 
 function renderChain() {
+  if (!config) return;
+  var chain = config[currentProfile] || [];
   var list = document.getElementById('chain-list');
-  var chain = chains[currentProfile] || [];
   list.innerHTML = '';
   chain.forEach(function(item, idx) {
     var div = document.createElement('div');
@@ -198,89 +158,111 @@ function renderChain() {
     div.ondragstart = function(e) { e.dataTransfer.setData('text/plain', idx); };
     div.ondragover = function(e) { e.preventDefault(); div.style.borderColor = 'var(--accent)'; };
     div.ondragleave = function() { div.style.borderColor = 'var(--border)'; };
-    div.ondrop = function(e) {
-      e.preventDefault();
-      div.style.borderColor = 'var(--border)';
-      var fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
-      var toIdx = idx;
-      if (fromIdx === toIdx) return;
-      var moved = chain.splice(fromIdx, 1)[0];
+    div.ondrop = (function(toIdx) { return function(e) {
+      e.preventDefault(); div.style.borderColor = 'var(--border)';
+      var from = parseInt(e.dataTransfer.getData('text/plain'));
+      if (from === toIdx) return;
+      var moved = chain.splice(from, 1)[0];
       chain.splice(toIdx, 0, moved);
       renderChain();
-    };
-    var badgeHtml = (item.badges || []).map(function(b) {
-      var cls = b === 'free' ? 'badge-free' : b === 'fast' ? 'badge-fast' : b === '1M' ? 'badge-1m' : 'badge-paid';
-      return '<span class="badge ' + cls + '">' + b + '</span>';
-    }).join(' ');
-    div.innerHTML = '<span class="chain-drag">⠿</span>' +
+    }; })(idx);
+    var badges = '';
+    if (item.thinking) badges += '<span class="badge badge-thinking">thinking</span>';
+    if (item.web_search) badges += '<span class="badge badge-web">web</span>';
+    if (item.ctx >= 900000) badges += '<span class="badge badge-1m">1M ctx</span>';
+    var bench = benchmarks && benchmarks[item.model];
+    var detail = item.provider + ' / ' + item.model;
+    if (bench) detail += ' \u00b7 ' + bench.ctx + ' ctx \u00b7 ' + bench.speed;
+    div.innerHTML = '<span style="color:var(--fg-muted);font-size:14px;cursor:grab;">&#x2807;</span>' +
       '<div class="chain-num">' + (idx+1) + '</div>' +
-      '<div class="chain-info">' +
-        '<div class="chain-name">' + item.name + '</div>' +
-        '<div class="chain-detail">' + item.provider + ' / ' + item.model + ' ' + badgeHtml + '</div>' +
-      '</div>' +
-      '<div class="chain-toggle"><input type="checkbox" ' + (item.enabled ? 'checked' : '') + ' onchange="toggleModel(' + idx + ',this.checked)"></div>';
+      '<div class="chain-info"><div class="chain-name">' + item.label + '</div>' +
+      '<div class="chain-detail">' + detail + '</div>' +
+      '<div class="chain-badges">' + badges + '</div></div>' +
+      '<div class="reorder-btns">' +
+        '<button class="reorder-btn" onclick="moveUp(' + idx + ')" title="Move up">&#x25B2;</button>' +
+        '<button class="reorder-btn" onclick="moveDown(' + idx + ')" title="Move down">&#x25BC;</button>' +
+        '<button class="reorder-btn" onclick="removeItem(' + idx + ')" title="Remove" style="color:#dc2626;">&#x2715;</button>' +
+      '</div>';
     list.appendChild(div);
   });
 }
 
-function toggleModel(idx, enabled) {
-  if (chains[currentProfile] && chains[currentProfile][idx]) {
-    chains[currentProfile][idx].enabled = enabled;
-  }
+function moveUp(idx) {
+  var chain = config[currentProfile];
+  if (idx === 0) return;
+  var tmp = chain[idx-1]; chain[idx-1] = chain[idx]; chain[idx] = tmp;
+  renderChain();
+}
+function moveDown(idx) {
+  var chain = config[currentProfile];
+  if (idx >= chain.length-1) return;
+  var tmp = chain[idx+1]; chain[idx+1] = chain[idx]; chain[idx] = tmp;
+  renderChain();
+}
+function removeItem(idx) {
+  config[currentProfile].splice(idx, 1);
+  renderChain();
 }
 
 function saveChain() {
-  saveSettings();
-  Toast.success('Chain saved. Takes effect on next chat.');
-}
-
-function resetChain() {
-  chains[currentProfile] = JSON.parse(JSON.stringify(DEFAULT_CHAINS[currentProfile]));
-  renderChain();
-  Toast.info('Reset to default chain.');
+  fetch(WORKER + '/api/orchestrator/config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ config: config })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) alert('Chain saved. Takes effect on next chat.');
+    else alert('Save failed: ' + JSON.stringify(d));
+  });
 }
 
 function testChain() {
   var resultEl = document.getElementById('test-result');
   resultEl.style.display = 'block';
   resultEl.textContent = 'Testing chain...';
-  fetch(WORKER + '/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: [{ role: 'user', content: 'Say OK in one word' }], profile: currentProfile })
+  fetch(WORKER + '/api/champion/test-providers', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
-    resultEl.textContent = 'Provider: ' + (d.provider || '?') + '\nModel: ' + (d.model || '?') + '\nResponse: ' + (d.content || d.error || '?').substring(0, 100);
-    if (d.routingLog) resultEl.textContent += '\n\nRouting log:\n' + d.routingLog.join('\n');
+    var results = d.results || [];
+    var lines = ['Results (' + d.ok + '/' + d.tested + ' OK):'];
+    results.forEach(function(r) {
+      var icon = r.status === 'ok' ? 'OK' : 'FAIL';
+      var line = icon + ' ' + r.name + ': ' + r.status;
+      if (r.ms) line += ' (' + r.ms + 'ms)';
+      if (r.error) line += ' - ' + r.error;
+      lines.push(line);
+    });
+    resultEl.textContent = lines.join('\n');
   })
   .catch(function(e) { resultEl.textContent = 'Error: ' + e.message; });
 }
 
-function saveSystemPrompt() {
-  saveSettings();
-  Toast.success('System prompt saved.');
+function renderBenchmarks() {
+  if (!benchmarks) return;
+  var tbody = document.getElementById('bench-tbody');
+  tbody.innerHTML = '';
+  var models = Object.keys(benchmarks);
+  models.sort(function(a, b) { return (benchmarks[b].mmlu || 0) - (benchmarks[a].mmlu || 0); });
+  models.forEach(function(model) {
+    var b = benchmarks[model];
+    var tr = document.createElement('tr');
+    var mmluBar = b.mmlu ? '<span class="bench-bar" style="width:' + Math.round((b.mmlu-75)/20*60) + 'px;"></span>' : '';
+    tr.innerHTML = '<td><strong>' + model + '</strong></td>' +
+      '<td>' + (b.mmlu || '-') + mmluBar + '</td>' +
+      '<td>' + (b.humaneval || '-') + '</td>' +
+      '<td>' + (b.math || '-') + '</td>' +
+      '<td>' + (b.ctx || '-') + '</td>' +
+      '<td>' + (b.max_out || '-') + '</td>' +
+      '<td>' + (b.speed || '-') + '</td>' +
+      '<td style="font-size:10px;color:var(--fg-muted);">' + (b.tools || '-') + '</td>' +
+      '<td>' + (b.cost || 'Free') + '</td>';
+    tbody.appendChild(tr);
+  });
 }
 
-function saveTimeouts() {
-  saveSettings();
-  Toast.success('Timeouts saved.');
-}
-
-function saveSettings() {
-  var settings = {
-    chains: chains,
-    systemPrompt: document.getElementById('system-prompt').value,
-    timeoutConnect: parseInt(document.getElementById('timeout-connect').value),
-    timeoutGenerate: parseInt(document.getElementById('timeout-generate').value),
-    updated: new Date().toISOString()
-  };
-  fetch(WORKER + '/api/kv/set', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key: 'orchestrator:settings', value: JSON.stringify(settings) })
-  }).catch(function() {});
-}
 </script>
 </body>
 </html>
