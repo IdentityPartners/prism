@@ -3062,63 +3062,107 @@ export default {
 
 
 
-    // ── Canvas SVG generation ─────────────────────────────────────────────────
+    // ── Canvas: shared theme/text logic (Nemotron architecture) ─────────────
+    function buildCanvasSvg(text, template, bgImageB64, bgMimeType, includeLogo, logoB64) {
+      const themes = {
+        'quote-teal':    {bg:'#0f3b3a', fg:'#ffffff', accent:'#7ecfcd'},
+        'quote-rose':    {bg:'#5c2d3f', fg:'#ffffff', accent:'#d4899a'},
+        'quote-ivory':   {bg:'#f7f3e9', fg:'#1c1a17', accent:'#5c2d3f'},
+        'quote-dark':    {bg:'#111111', fg:'#ffffff', accent:'#ddd0c8'},
+        'quote-slate':   {bg:'#1e2a3a', fg:'#ffffff', accent:'#90cdf4'},
+        'quote-stone':   {bg:'#2c2825', fg:'#ffffff', accent:'#d6d3d1'},
+        'quote-forest':  {bg:'#0f2318', fg:'#ffffff', accent:'#86efac'},
+        'quote-coastal': {bg:'#0a1f35', fg:'#ffffff', accent:'#7dd3fc'},
+        'quote-dawn':    {bg:'#4a1505', fg:'#ffffff', accent:'#fed7aa'},
+        'quote-dusk':    {bg:'#1a0a35', fg:'#ffffff', accent:'#d8b4fe'},
+        'quote-parchment':{bg:'#f5f0e8',fg:'#1c1a17', accent:'#8b4513'},
+        'quote-midnight':{bg:'#050d1a', fg:'#ffffff', accent:'#4a9fd4'},
+        'ip-teal-rose':  {bg:'#0f3b3a', fg:'#ffffff', accent:'#d4899a'},
+        'ip-minimal':    {bg:'#fafafa', fg:'#0f3b3a', accent:'#5c2d3f'},
+        'ip-bold':       {bg:'#0f3b3a', fg:'#ffffff', accent:'#d4899a'},
+        'post-research': {bg:'#0f1f3d', fg:'#ffffff', accent:'#93c5fd'},
+        'post-quote':    {bg:'#f7f3e9', fg:'#1c1a17', accent:'#5c2d3f'},
+        'post-stat':     {bg:'#0f3b3a', fg:'#ffffff', accent:'#7ecfcd'},
+        'post-news':     {bg:'#0d0d1a', fg:'#ffffff', accent:'#a78bfa'},
+      };
+      const t = themes[template] || themes['quote-teal'];
+      const isDark = t.fg === '#ffffff';
+
+      // Word-wrap text
+      const safe = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const words = safe.split(' ');
+      const lines = [];
+      let line = '';
+      words.forEach(w => {
+        if ((line + ' ' + w).trim().length > 26 && line) { lines.push(line.trim()); line = w; }
+        else { line = (line + ' ' + w).trim(); }
+      });
+      if (line) lines.push(line.trim());
+      if (lines.length > 7) { lines.splice(6); lines[5] += '...'; }
+
+      const lineH = 72;
+      const startY = Math.max(220, 540 - (lines.length * lineH) / 2);
+      const attrY = startY + lines.length * lineH + 50;
+
+      const textEls = lines.map((l, i) =>
+        '<text x="540" y="' + (startY + i * lineH) + '" ' +
+        'font-family="Playfair Display,Georgia,serif" ' +
+        'font-size="52" font-weight="600" ' +
+        'fill="' + t.fg + '" text-anchor="middle">' + l + '</text>'
+      ).join('\n  ');
+
+      const bgEl = bgImageB64
+        ? '<image href="data:' + bgMimeType + ';base64,' + bgImageB64 + '" x="0" y="0" width="1080" height="1080" preserveAspectRatio="xMidYMid slice"/>\n  <rect width="1080" height="1080" fill="' + t.bg + '" opacity="' + (isDark ? '0.55' : '0.40') + '"/>'
+        : '<rect width="1080" height="1080" fill="' + t.bg + '"/>';
+
+      // Logo: only included when requested (download/post), not preview
+      const logoEl = (includeLogo && logoB64)
+        ? '<image href="data:image/png;base64,' + logoB64 + '" x="810" y="920" width="230" height="80" preserveAspectRatio="xMidYMid meet" style="mix-blend-mode:' + (isDark ? 'screen' : 'multiply') + '"/>'
+        : '';
+
+      return '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1080" viewBox="0 0 1080 1080">' +
+        bgEl +
+        '<rect x="0" y="0" width="1080" height="8" fill="' + t.accent + '" opacity="0.95"/>' +
+        '<rect x="0" y="1072" width="1080" height="8" fill="' + t.accent + '" opacity="0.95"/>' +
+        textEls +
+        '<line x1="340" y1="' + attrY + '" x2="740" y2="' + attrY + '" stroke="' + t.accent + '" stroke-width="1.5" opacity="0.7"/>' +
+        '<text x="540" y="' + (attrY + 36) + '" font-family="Playfair Display,Georgia,serif" font-size="17" fill="' + t.fg + '" text-anchor="middle" opacity="0.85">Identity Partners</text>' +
+        logoEl +
+        '<text x="540" y="1050" font-family="Inter,Arial,sans-serif" font-size="14" fill="' + t.fg + '" text-anchor="middle" opacity="0.75">identitypartners.uk \u00b7 hello@identitypartners.uk \u00b7 @identitypartners</text>' +
+        '</svg>';
+    }
+
+    // POST /api/canvas/preview — tiny SVG, NO logo, instant browser render
+    if (path === '/api/canvas/preview' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const svg = buildCanvasSvg(
+          (body.text || 'Identity Partners').substring(0, 300),
+          body.template || 'quote-teal',
+          '', '', false, null
+        );
+        return new Response(svg, {headers: {'Content-Type':'image/svg+xml','Access-Control-Allow-Origin':origin}});
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // POST /api/canvas/generate — full SVG with logo + optional Pexels bg
+    // Returns dataUrl for download, uploads to ImgBB for posting
     if (path === '/api/canvas/generate' && request.method === 'POST') {
       try {
         const body = await request.json();
         const text = (body.text || 'Identity Partners').substring(0, 300);
         const template = body.template || 'quote-teal';
         const bgQuery = body.bgQuery || '';
+        const forPosting = body.forPosting || false;
         const pexelsKey = k(env, ['pexels_api_key','PEXELS_API_KEY','pexels']) || '';
+        const imgbbKey = k(env, ['imgbb_api_key','IMGBB_API_KEY']) || '';
 
-        const themes = {
-          'quote-teal':    {bg:'#0f3b3a', fg:'#ffffff', accent:'#7ecfcd'},
-          'quote-rose':    {bg:'#5c2d3f', fg:'#ffffff', accent:'#d4899a'},
-          'quote-ivory':   {bg:'#f7f3e9', fg:'#1c1a17', accent:'#5c2d3f'},
-          'quote-dark':    {bg:'#111111', fg:'#ffffff', accent:'#ddd0c8'},
-          'quote-slate':   {bg:'#1e2a3a', fg:'#ffffff', accent:'#90cdf4'},
-          'quote-stone':   {bg:'#2c2825', fg:'#ffffff', accent:'#d6d3d1'},
-          'quote-forest':  {bg:'#0f2318', fg:'#ffffff', accent:'#86efac'},
-          'quote-coastal': {bg:'#0a1f35', fg:'#ffffff', accent:'#7dd3fc'},
-          'quote-dawn':    {bg:'#4a1505', fg:'#ffffff', accent:'#fed7aa'},
-          'quote-dusk':    {bg:'#1a0a35', fg:'#ffffff', accent:'#d8b4fe'},
-          'quote-parchment':{bg:'#f5f0e8',fg:'#1c1a17', accent:'#8b4513'},
-          'quote-midnight':{bg:'#050d1a', fg:'#ffffff', accent:'#4a9fd4'},
-          'ip-teal-rose':  {bg:'#0f3b3a', fg:'#ffffff', accent:'#d4899a'},
-          'ip-minimal':    {bg:'#fafafa', fg:'#0f3b3a', accent:'#5c2d3f'},
-          'ip-bold':       {bg:'#0f3b3a', fg:'#ffffff', accent:'#d4899a'},
-          'post-research': {bg:'#0f1f3d', fg:'#ffffff', accent:'#93c5fd'},
-          'post-quote':    {bg:'#f7f3e9', fg:'#1c1a17', accent:'#5c2d3f'},
-          'post-stat':     {bg:'#0f3b3a', fg:'#ffffff', accent:'#7ecfcd'},
-          'post-news':     {bg:'#0d0d1a', fg:'#ffffff', accent:'#a78bfa'},
-        };
-        const t = themes[template] || themes['quote-teal'];
-        const isDark = t.fg === '#ffffff';
+        // Get logo from KV (pre-loaded)
+        const logoB64 = env.PRISM_KV ? await env.PRISM_KV.get('asset:logo-rect-right', 'text') : null;
 
-        // Get IP logo from KV (pre-loaded, no external fetch needed)
-        let logoB64 = env.PRISM_KV ? await env.PRISM_KV.get('asset:logo-rect-right', 'text') : null;
-        
-        // Fallback: fetch from R2 public bucket
-        if (!logoB64) {
-          try {
-            const r2Resp = await fetch('https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/logo-rect-right.png');
-            if (r2Resp.ok) {
-              const buf = await r2Resp.arrayBuffer();
-              logoB64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-              if (env.PRISM_KV) await env.PRISM_KV.put('asset:logo-rect-right', logoB64, {expirationTtl: 86400 * 30});
-            }
-          } catch(e) {}
-        }
-
-        // Logo element: mix-blend-mode makes white background transparent
-        // screen = white→transparent on dark; multiply = white→transparent on light
-        const logoEl = logoB64
-          ? '<image href="data:image/png;base64,' + logoB64 + '" x="810" y="920" width="230" height="80" preserveAspectRatio="xMidYMid meet" style="mix-blend-mode:' + (isDark ? 'screen' : 'multiply') + '"/>'
-          : '<text x="900" y="960" font-family="Playfair Display,Georgia,serif" font-size="18" font-weight="700" fill="' + t.fg + '" text-anchor="middle" opacity="0.9">Identity Partners</text>';
-
-        // Fetch Pexels background ONLY if user explicitly requested one
-        let bgImageB64 = '';
-        let bgMimeType = 'image/jpeg';
+        // Fetch Pexels background only if requested
+        let bgImageB64 = '', bgMimeType = 'image/jpeg';
         if (bgQuery && pexelsKey) {
           try {
             const pexResp = await fetch(
@@ -3141,55 +3185,40 @@ export default {
           } catch(e) {}
         }
 
-        // Word-wrap text — upright, no italic, no filter
-        const safeText = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        const words = safeText.split(' ');
-        const lines = [];
-        let line = '';
-        words.forEach(w => {
-          if ((line + ' ' + w).trim().length > 26 && line) { lines.push(line.trim()); line = w; }
-          else { line = (line + ' ' + w).trim(); }
-        });
-        if (line) lines.push(line.trim());
-        if (lines.length > 7) { lines.splice(6); lines[5] += '...'; }
-
-        const lineH = 72;
-        const startY = Math.max(220, 540 - (lines.length * lineH) / 2);
-        const attrY = startY + lines.length * lineH + 50;
-
-        const textEls = lines.map((l, i) =>
-          '<text x="540" y="' + (startY + i * lineH) + '" ' +
-          'font-family="Playfair Display,Georgia,serif" ' +
-          'font-size="52" font-weight="600" ' +
-          'fill="' + t.fg + '" text-anchor="middle">' + l + '</text>'
-        ).join('\n  ');
-
-        const bgEl = bgImageB64
-          ? '<image href="data:' + bgMimeType + ';base64,' + bgImageB64 + '" x="0" y="0" width="1080" height="1080" preserveAspectRatio="xMidYMid slice"/>\n  <rect width="1080" height="1080" fill="' + t.bg + '" opacity="' + (isDark ? '0.55' : '0.40') + '"/>'
-          : '<rect width="1080" height="1080" fill="' + t.bg + '"/>';
-
-        const svg = '<?xml version="1.0" encoding="UTF-8"?>' +
-          '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1080" viewBox="0 0 1080 1080">' +
-          bgEl +
-          '<rect x="0" y="0" width="1080" height="8" fill="' + t.accent + '" opacity="0.95"/>' +
-          '<rect x="0" y="1072" width="1080" height="8" fill="' + t.accent + '" opacity="0.95"/>' +
-          textEls +
-          '<line x1="340" y1="' + attrY + '" x2="740" y2="' + attrY + '" stroke="' + t.accent + '" stroke-width="1.5" opacity="0.7"/>' +
-          '<text x="540" y="' + (attrY + 36) + '" font-family="Playfair Display,Georgia,serif" font-size="17" fill="' + t.fg + '" text-anchor="middle" opacity="0.85">Identity Partners</text>' +
-          logoEl +
-          '<text x="540" y="1050" font-family="Inter,Arial,sans-serif" font-size="14" fill="' + t.fg + '" text-anchor="middle" opacity="0.75">identitypartners.uk \u00b7 hello@identitypartners.uk \u00b7 @identitypartners</text>' +
-          '</svg>';
-
+        const svg = buildCanvasSvg(text, template, bgImageB64, bgMimeType, true, logoB64);
         const svgB64 = btoa(unescape(encodeURIComponent(svg)));
         const dataUrl = 'data:image/svg+xml;base64,' + svgB64;
 
+        // Upload to ImgBB for public URL (used for social posting)
+        let publicUrl = null;
+        if (forPosting && imgbbKey) {
+          try {
+            const form = new FormData();
+            form.append('image', svgB64);
+            const imgbbResp = await fetch('https://api.imgbb.com/1/upload?key=' + imgbbKey, {method:'POST', body:form});
+            if (imgbbResp.ok) {
+              const imgbbData = await imgbbResp.json();
+              publicUrl = imgbbData.data?.url || null;
+            }
+          } catch(e) {}
+        }
+
+        // Also store in R2 if available
         if (env.PRISM_ASSETS) {
           const key = 'canvas-' + Date.now() + '.svg';
           await env.PRISM_ASSETS.put(key, svg, {httpMetadata:{contentType:'image/svg+xml'}, expirationTtl:86400*30});
-          const r2Url = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + key;
-          return json({success:true, url:r2Url, dataUrl, format:'svg', template, hasBackground:!!bgImageB64, hasLogo:!!logoB64}, 200, origin);
+          if (!publicUrl) publicUrl = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + key;
         }
-        return json({success:true, dataUrl, format:'svg', template, hasBackground:!!bgImageB64, hasLogo:!!logoB64}, 200, origin);
+
+        return json({
+          success: true,
+          dataUrl,
+          url: publicUrl,
+          format: 'svg',
+          template,
+          hasBackground: !!bgImageB64,
+          hasLogo: !!logoB64
+        }, 200, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
