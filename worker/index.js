@@ -200,42 +200,86 @@ async function orchestrate(messages, env, options = {}) {
   const CEREBRAS_KEY = k(env, ['CEREBRAS_FREE_1', 'cerebras_free_1', 'CEREBRAS_PAID']);
   const ZAI_KEY = k(env, ['zai_api_key', 'ZAI_API_KEY']);
 
-  // Routing chains — ordered by reliability (confirmed working)
+  // Routing chains — hierarchical: Best quality first, fast fallback
+  // Tier 1 (Best): GLM 5.3 + Mistral Large (paid Mistral subscription)
+  // Tier 2 (Fast+capable): Gemini 3.8 Flash, Gemini 3.5 Flash
+  // Tier 3 (Fast free): GPT-OSS Groq, GPT-OSS Cerebras
+  // Tier 4 (Paid): DeepSeek V4 Flash
+  // Tier 5 (Free OpenRouter): Nemotron Ultra, MiniMax
+  // Unconditional fallback: Pollinations
   const CHAINS = {
     balanced: [
-      // 1. GLM 5.3 via Mistral paid — 1M context, web search, thinking
-      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY},
-      // 2. Mistral Large Latest — paid, web search, vision, 1M context
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY},
-      // 3. Gemini 3.5 Flash — free tier, 1M context, Google Search grounding
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash', key:GEMINI_KEY},
-      // 4. Gemma 4 31B — free tier, Google Search
-      GEMINI_KEY && {provider:'gemini', model:'gemma-4-31b-it', key:GEMINI_KEY},
-      // 5. DeepSeek V4 Flash — paid, 1M context, built-in web search
-      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY},
-      // 6. GPT-OSS 120B via Groq — free, fast ~300ms
-      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY},
-      // 7. GPT-OSS 120B via Cerebras — paid credits, very fast
-      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY},
-      // 8. Nemotron Ultra 550B via OpenRouter — free frontier, slow but capable
-      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY},
-      // NO Pollinations for text — we have real providers
-    ],
+      // Tier 1: Mistral paid subscription — GLM 5.3 first (1M ctx, thinking, web)
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 via Mistral (1M, thinking, web)'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large Latest (262K, web, vision)'},
+      // Tier 2: Google free — Gemini 3.8 Flash (1M, Google Search)
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (1M, Google Search, vision)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash', key:GEMINI_KEY, note:'Gemini 3.5 Flash (1M, Google Search)'},
+      // Tier 3: Fast free — GPT-OSS on Groq (~300ms) then Cerebras
+      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY, note:'GPT-OSS 120B Groq (~300ms, free)'},
+      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY, note:'GPT-OSS 120B Cerebras (very fast)'},
+      // Tier 4: DeepSeek paid (1M context, built-in web search)
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V4 Flash (1M, web search)'},
+      // Tier 5: OpenRouter free models
+      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY, note:'Nemotron Ultra 550B (1M, reasoning, slow)'},
+      OPENROUTER_KEY && {provider:'openrouter', model:'minimax/minimax-m3.1-flash:free', key:OPENROUTER_KEY, note:'MiniMax M3.1 Flash (1M, free)'},
+      // Unconditional fallback
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+    ].filter(Boolean),
+
     fast: [
-      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY},
-      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY},
-      GEMINI_KEY && {provider:'gemini', model:'gemma-4-31b-it', key:GEMINI_KEY},
-      {provider:'pollinations', model:'openai', key:null},
-    ],
+      // Fast: Cerebras first (fastest), then Groq, then Gemma
+      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY, note:'GPT-OSS Cerebras (~200ms)'},
+      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY, note:'GPT-OSS Groq (~300ms)'},
+      GROQ_KEY && {provider:'groq', model:'meta-llama/llama-4-scout-17b-16e-instruct', key:GROQ_KEY, note:'Llama 4 Scout Groq (131K)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemma-4-31b-it', key:GEMINI_KEY, note:'Gemma 4 31B (Google Search)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash-lite', key:GEMINI_KEY, note:'Gemini 3.5 Flash Lite (fastest Google)'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-latest', key:MISTRAL_KEY, note:'Mistral Small (fast, paid)'},
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+    ].filter(Boolean),
+
     frontier: [
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY},
-      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-2', key:MISTRAL_KEY},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash', key:GEMINI_KEY},
-      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY},
-      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY},
-      {provider:'pollinations', model:'openai', key:null},
-    ],
+      // Frontier: Best quality, no speed compromise
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 via Mistral (1M, thinking)'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large Latest (262K, thinking)'},
+      MISTRAL_KEY && {provider:'mistral', model:'magistral-medium-latest', key:MISTRAL_KEY, note:'Magistral Medium (thinking, web)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro (1M, thinking, best Google)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-flash', key:GEMINI_KEY, note:'Gemini 2.5 Flash (1M, thinking)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (1M, Google Search)'},
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V4 Flash (1M, web)'},
+      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY, note:'Nemotron Ultra 550B (reasoning)'},
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+    ].filter(Boolean),
+
+    research: [
+      // Research: Web search + large context
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 (1M, web search)'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large (web search)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (Google Search grounding)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro (1M, best for long docs)'},
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek (built-in web search)'},
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+    ].filter(Boolean),
+
+    coding: [
+      // Coding: Best code models
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large (excellent at code)'},
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 (strong code + reasoning)'},
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek (top code benchmark)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro (code + reasoning)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (fast code)'},
+      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY, note:'GPT-OSS 120B (fast code)'},
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+    ].filter(Boolean),
+
+    vision: [
+      // Vision: Models with image understanding
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large (vision)'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY, note:'Mistral Medium 3.5 (vision)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (vision + Google Search)'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro (best vision)'},
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+    ].filter(Boolean),
   };
 
   // If provider/model override specified, try that first
