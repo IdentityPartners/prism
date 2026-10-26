@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
-<!-- cache-bust-1793030095 -->
+<!-- cache-bust-1793038775 -->
 <style>
 .hub-shell{display:flex;height:100vh;overflow:hidden;}
 .hub-tree{width:260px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-surface);overflow:hidden;}
@@ -532,6 +532,10 @@ function renderUpload(body) {
   zone.ondrop = function(e) { e.preventDefault(); zone.style.borderColor = 'var(--border)'; handleUpload(e.dataTransfer.files); };
   body.appendChild(zone);
   body.appendChild(fi);
+  var indexStatus = document.createElement('div');
+  indexStatus.id = 'index-status';
+  indexStatus.style.cssText = 'font-size:11px;color:var(--accent);padding:4px 0;';
+  body.appendChild(indexStatus);
   var urlForm = document.createElement('div');
   urlForm.className = 'detail-card';
   urlForm.innerHTML = '<h4>Add by URL</h4>' +
@@ -616,6 +620,85 @@ function renderSearchTab(body) {
 }
 
 function runGlobalSearch() {
+  var q = document.getElementById('global-search').value.trim();
+  var scope = document.getElementById('search-scope').value;
+  if (!q) return;
+  switchTab('search');
+  var body = document.getElementById('hub-body');
+  body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);">Searching...</div>';
+
+  // RAG semantic search
+  fetch(WORKER + '/api/study/search', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({query:q, limit:10})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    var ragResults = d.results || [];
+    // Also do local text search
+    var localResults = [];
+    var ql = q.toLowerCase();
+    modules.forEach(function(mod) {
+      (mod.weeks||[]).forEach(function(week) {
+        (week.resources||[]).forEach(function(res) {
+          if ((res.title+' '+(res.content||'')).toLowerCase().includes(ql)) {
+            localResults.push({title:res.title, excerpt:(res.content||'').substring(0,150), location:mod.name+' > '+week.name, source:'course', url:res.url});
+          }
+        });
+        if (week.notes && week.notes.toLowerCase().includes(ql)) {
+          var ni = week.notes.toLowerCase().indexOf(ql);
+          localResults.push({title:'Notes: '+week.name, excerpt:week.notes.substring(Math.max(0,ni-60),ni+120), location:mod.name+' > '+week.name, source:'note'});
+        }
+      });
+    });
+    renderSearchResults(body, ragResults, localResults, q);
+  })
+  .catch(function(){
+    // Fallback to local only
+    var localResults = [];
+    var ql = q.toLowerCase();
+    modules.forEach(function(mod) {
+      (mod.weeks||[]).forEach(function(week) {
+        (week.resources||[]).forEach(function(res) {
+          if ((res.title+' '+(res.content||'')).toLowerCase().includes(ql)) {
+            localResults.push({title:res.title, excerpt:(res.content||'').substring(0,150), location:mod.name+' > '+week.name, source:'course', url:res.url});
+          }
+        });
+      });
+    });
+    renderSearchResults(body, [], localResults, q);
+  });
+}
+
+function renderSearchResults(body, ragResults, localResults, q) {
+  body.innerHTML = '';
+  var allResults = [];
+  ragResults.forEach(function(r) {
+    allResults.push({title:r.doc_name, excerpt:r.chunk_text.substring(0,200), location:'RAG: '+r.workspace_id, source:'rag', score:r.score});
+  });
+  localResults.forEach(function(r) { allResults.push(r); });
+  if (!allResults.length) {
+    body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);">No results found for "'+q.replace(/</g,'&lt;')+'". Try different keywords.</div>';
+    return;
+  }
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'font-size:12px;color:var(--fg-muted);margin-bottom:12px;';
+  hdr.textContent = allResults.length + ' results for "' + q + '"';
+  body.appendChild(hdr);
+  allResults.forEach(function(r) {
+    var div = document.createElement('div');
+    div.className = 'search-result';
+    var srcClass = r.source==='rag'?'src-paper':r.source==='course'?'src-course':'src-note';
+    var srcLabel = r.source==='rag'?'Semantic':'Course';
+    div.innerHTML = '<div class="search-result-title">'+r.title.replace(/</g,'&lt;')+'</div>'+
+      '<div class="search-result-excerpt">'+r.excerpt.replace(/</g,'&lt;')+'</div>'+
+      '<div class="search-result-meta"><span class="search-source-badge '+srcClass+'">'+srcLabel+'</span>'+
+      '<span>'+r.location+'</span>'+(r.url?'<a href="'+r.url+'" target="_blank" style="color:var(--accent);">Open ↗</a>':'')+'</div>';
+    body.appendChild(div);
+  });
+}
+
+function _runGlobalSearch_old() { return; 
   var q = document.getElementById('global-search').value.trim();
   if (!q) return;
   switchTab('search');
