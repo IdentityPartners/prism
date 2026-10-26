@@ -4223,6 +4223,428 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+
+    // ── PDF to Markdown via Gemini Files API ─────────────────────────────────
+    // Gemini can read PDFs natively — no third-party needed
+    if (path === '/api/pdf/to-markdown' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const pdfB64 = body.content || ''; // base64 PDF
+        const pdfUrl = body.url || '';
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        if (!GKEY) return json({error:'Gemini key not configured'}, 400, origin);
+
+        let fileUri = '';
+        // Upload PDF to Gemini Files API
+        if (pdfB64) {
+          const pdfBytes = Uint8Array.from(atob(pdfB64), c => c.charCodeAt(0));
+          const uploadResp = await fetch(
+            'https://generativelanguage.googleapis.com/upload/v1beta/files?key=' + GKEY,
+            {method:'POST',
+             headers:{'Content-Type':'application/pdf', 'X-Goog-Upload-Protocol':'raw',
+                      'X-Goog-Upload-Command':'start, upload, finalize',
+                      'X-Goog-Upload-Header-Content-Length': pdfBytes.length.toString(),
+                      'X-Goog-Upload-Header-Content-Type': 'application/pdf'},
+             body: pdfBytes}
+          );
+          if (uploadResp.ok) {
+            const uploadData = await uploadResp.json();
+            fileUri = uploadData.file?.uri || '';
+          }
+        }
+
+        // Ask Gemini to extract text as Markdown
+        const parts = fileUri
+          ? [{fileData:{mimeType:'application/pdf', fileUri}}, {text:'Extract ALL text from this PDF. Return clean Markdown. Preserve headings, lists, tables. Include every word.'}]
+          : [{text: 'Extract text from this document and return as Markdown: ' + (pdfUrl || 'no content')}];
+
+        const genResp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GKEY}`,
+          {method:'POST', headers:{'Content-Type':'application/json'},
+           body:JSON.stringify({contents:[{parts}], generationConfig:{maxOutputTokens:8192}})}
+        );
+        const genData = await genResp.json();
+        const markdown = genData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!markdown) return json({error:'No text extracted', raw:JSON.stringify(genData).substring(0,200)}, 500, origin);
+        return json({success:true, markdown, wordCount:markdown.split(/\s+/).length}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── OneDrive upload via MSGraph ───────────────────────────────────────────
+    if (path === '/api/onedrive/upload' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const fileName = body.fileName || ('file-' + Date.now() + '.bin');
+        const contentB64 = body.content || '';
+        const folder = body.folder || 'Argentica';
+        const tenantId = k(env, ['msgraph_tenant','MSGRAPH_TENANT']) || '';
+        const clientId = k(env, ['msgraph_client','MSGRAPH_CLIENT']) || '';
+        const clientSecret = k(env, ['msgraph_secret','MSGRAPH_SECRET']) || '';
+        if (!tenantId || !clientId || !clientSecret) return json({error:'MSGraph credentials not configured'}, 400, origin);
+
+        // Get access token
+        const tokenResp = await fetch(
+          `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+          {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+           body:`grant_type=client_credentials&client_id=${clientId}&client_secret=${encodeURIComponent(clientSecret)}&scope=https://graph.microsoft.com/.default`}
+        );
+        const tokenData = await tokenResp.json();
+        const accessToken = tokenData.access_token;
+        if (!accessToken) return json({error:'MSGraph auth failed: '+JSON.stringify(tokenData).substring(0,100)}, 500, origin);
+
+        // Upload file
+        const fileBytes = Uint8Array.from(atob(contentB64), c => c.charCodeAt(0));
+        const uploadResp = await fetch(
+          `https://graph.microsoft.com/v1.0/me/drive/root:/${folder}/${encodeURIComponent(fileName)}:/content`,
+          {method:'PUT', headers:{'Authorization':'Bearer '+accessToken, 'Content-Type':'application/octet-stream'}, body:fileBytes}
+        );
+        const uploadData = await uploadResp.json();
+        if (!uploadResp.ok) return json({error:'Upload failed: '+JSON.stringify(uploadData).substring(0,100)}, 500, origin);
+
+        // Create sharing link
+        const shareResp = await fetch(
+          `https://graph.microsoft.com/v1.0/me/drive/items/${uploadData.id}/createLink`,
+          {method:'POST', headers:{'Authorization':'Bearer '+accessToken, 'Content-Type':'application/json'},
+           body:JSON.stringify({type:'view', scope:'anonymous'})}
+        );
+        const shareData = await shareResp.json();
+        const shareUrl = shareData.link?.webUrl || uploadData.webUrl || '';
+
+        return json({
+          success:true, fileId:uploadData.id, fileName:uploadData.name,
+          shareUrl, size:uploadData.size,
+          officeViewUrl: shareUrl ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(shareUrl)}` : '',
+          googleViewUrl: shareUrl ? `https://docs.google.com/viewer?url=${encodeURIComponent(shareUrl)}&embedded=true` : '',
+        }, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── OCR: extract text from image ─────────────────────────────────────────
+    if (path === '/api/ocr' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const imageB64 = body.image || '';
+        const mimeType = body.mime_type || 'image/png';
+        const provider = body.provider || 'gemini';
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        const OCRKEY = k(env, ['ocr_space_key','OCR_SPACE_KEY']) || 'K89948141888957';
+
+        if (!imageB64) return json({error:'No image provided'}, 400, origin);
+
+        if (provider === 'gemini' && GKEY) {
+          const resp = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GKEY}`,
+            {method:'POST', headers:{'Content-Type':'application/json'},
+             body:JSON.stringify({contents:[{parts:[
+               {text:'Extract ALL handwritten and printed text from this image. Return only the text, preserving line breaks. No commentary.'},
+               {inline_data:{mime_type:mimeType, data:imageB64}}
+             ]}]})}
+          );
+          const d = await resp.json();
+          const text = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (text) return json({text, provider:'gemini'}, 200, origin);
+        }
+
+        // Fallback: OCR.space
+        const formData = new FormData();
+        formData.append('base64Image', `data:${mimeType};base64,${imageB64}`);
+        formData.append('apikey', OCRKEY);
+        formData.append('language', 'eng');
+        formData.append('isOverlayRequired', 'false');
+        const ocrResp = await fetch('https://api.ocr.space/parse/image', {method:'POST', body:formData});
+        const ocrData = await ocrResp.json();
+        const text = ocrData.ParsedResults?.[0]?.ParsedText || '';
+        return json({text, provider:'ocr.space'}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── TTS: text to speech ───────────────────────────────────────────────────
+    if (path === '/api/tts' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = (body.text || '').substring(0, 5000);
+        const voice = body.voice || 'aura-arcas-en';
+        const provider = body.provider || 'deepgram';
+        const DGKEY = k(env, ['deepgram_api_key','DEEPGRAM_API_KEY']) || '4e223a4cde01180063efa977df7a40f01c4894d1';
+        const CARTKEY = k(env, ['cartesia_api_key','CARTESIA_API_KEY']) || '';
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+
+        if (!text) return json({error:'No text'}, 400, origin);
+
+        if (provider === 'deepgram' && DGKEY) {
+          const resp = await fetch(`https://api.deepgram.com/v1/speak?model=${voice}`, {
+            method:'POST', headers:{'Authorization':'Token '+DGKEY, 'Content-Type':'application/json'},
+            body:JSON.stringify({text})
+          });
+          if (resp.ok) {
+            const audio = await resp.arrayBuffer();
+            return new Response(audio, {headers:{'Content-Type':'audio/mpeg','Access-Control-Allow-Origin':origin}});
+          }
+        }
+
+        if (provider === 'cartesia' && CARTKEY) {
+          const resp = await fetch('https://api.cartesia.ai/tts/bytes', {
+            method:'POST', headers:{'X-API-Key':CARTKEY, 'Content-Type':'application/json', 'Cartesia-Version':'2024-06-10'},
+            body:JSON.stringify({transcript:text, model_id:'sonic-2', voice:{mode:'id', id:voice || 'a0e99841-438c-4a64-b679-ae501e7d6091'}, output_format:{container:'mp3', encoding:'mp3', sample_rate:44100}})
+          });
+          if (resp.ok) {
+            const audio = await resp.arrayBuffer();
+            return new Response(audio, {headers:{'Content-Type':'audio/mpeg','Access-Control-Allow-Origin':origin}});
+          }
+        }
+
+        if (provider === 'gemini' && GKEY) {
+          const gemVoice = body.gemini_voice || 'Puck';
+          const resp = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-tts:generateContent?key=${GKEY}`,
+            {method:'POST', headers:{'Content-Type':'application/json'},
+             body:JSON.stringify({contents:[{parts:[{text}]}], generationConfig:{responseModalities:['AUDIO'], speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:gemVoice}}}}})}
+          );
+          const d = await resp.json();
+          const audioData = d.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+          if (audioData) {
+            const buf = Uint8Array.from(atob(audioData), c => c.charCodeAt(0));
+            return new Response(buf, {headers:{'Content-Type':'audio/mpeg','Access-Control-Allow-Origin':origin}});
+          }
+        }
+
+        return json({error:'All TTS providers failed'}, 500, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── STT: speech to text ───────────────────────────────────────────────────
+    if (path === '/api/stt' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const audioB64 = body.audio || '';
+        const mimeType = body.mime_type || 'audio/webm';
+        const provider = body.provider || 'deepgram';
+        const DGKEY = k(env, ['deepgram_api_key','DEEPGRAM_API_KEY']) || '4e223a4cde01180063efa977df7a40f01c4894d1';
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+
+        if (!audioB64) return json({error:'No audio'}, 400, origin);
+        const audioBytes = Uint8Array.from(atob(audioB64), c => c.charCodeAt(0));
+
+        if (provider === 'deepgram' && DGKEY) {
+          const resp = await fetch('https://api.deepgram.com/v1/listen?model=nova-3&language=en-GB&smart_format=true', {
+            method:'POST', headers:{'Authorization':'Token '+DGKEY, 'Content-Type':mimeType}, body:audioBytes
+          });
+          if (resp.ok) {
+            const d = await resp.json();
+            const transcript = d.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+            return json({transcript, provider:'deepgram', confidence:d.results?.channels?.[0]?.alternatives?.[0]?.confidence}, 200, origin);
+          }
+        }
+
+        if (provider === 'gemini' && GKEY) {
+          const resp = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GKEY}`,
+            {method:'POST', headers:{'Content-Type':'application/json'},
+             body:JSON.stringify({contents:[{parts:[
+               {text:'Transcribe this audio exactly. Return only the transcript, no commentary.'},
+               {inline_data:{mime_type:mimeType, data:audioB64}}
+             ]}]})}
+          );
+          const d = await resp.json();
+          const transcript = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (transcript) return json({transcript, provider:'gemini'}, 200, origin);
+        }
+
+        return json({error:'All STT providers failed'}, 500, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Image generation ──────────────────────────────────────────────────────
+    if (path === '/api/image/generate' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const prompt = body.prompt || 'Abstract art';
+        const model = body.model || 'auto';
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        const FALKEY = k(env, ['fal_api_key','FAL_API_KEY']) || '';
+        const XAIKEY = k(env, ['xai_api_key','XAI_API_KEY']) || '';
+
+        // Try Gemini image gen first (free)
+        if ((model === 'auto' || model.includes('gemini')) && GKEY) {
+          try {
+            const resp = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${GKEY}`,
+              {method:'POST', headers:{'Content-Type':'application/json'},
+               body:JSON.stringify({contents:[{parts:[{text:prompt}]}], generationConfig:{responseModalities:['IMAGE','TEXT']}})}
+            );
+            if (resp.ok) {
+              const d = await resp.json();
+              const parts = d.candidates?.[0]?.content?.parts || [];
+              for (const part of parts) {
+                if (part.inlineData) {
+                  return json({success:true, url:'data:'+part.inlineData.mimeType+';base64,'+part.inlineData.data, provider:'gemini', model:'gemini-3.1-flash-image'}, 200, origin);
+                }
+              }
+            }
+          } catch(e) {}
+        }
+
+        // Pollinations fallback (always free)
+        const polUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&model=flux`;
+        return json({success:true, url:polUrl, provider:'pollinations', model:'flux'}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Video generation ──────────────────────────────────────────────────────
+    if (path === '/api/video/generate' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const prompt = body.prompt || '';
+        const FALKEY = k(env, ['fal_api_key','FAL_API_KEY']) || '';
+        if (!FALKEY) return json({error:'FAL key not configured. Video generation requires FAL.ai.'}, 400, origin);
+        // Submit to FAL queue
+        const resp = await fetch('https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video', {
+          method:'POST', headers:{'Authorization':'Key '+FALKEY, 'Content-Type':'application/json'},
+          body:JSON.stringify({prompt, duration:'5', aspect_ratio:'16:9'})
+        });
+        const d = await resp.json();
+        return json({success:resp.ok, request_id:d.request_id, status_url:d.status_url, provider:'fal/kling'}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Music generation via Lyria ────────────────────────────────────────────
+    if (path === '/api/music/generate' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const prompt = body.prompt || 'Uplifting piano, warm, professional';
+        const lyriaModel = body.model || 'lyria-3.5';
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        if (!GKEY) return json({error:'Gemini key not configured'}, 400, origin);
+
+        const resp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${lyriaModel}:generateContent?key=${GKEY}`,
+          {method:'POST', headers:{'Content-Type':'application/json', 'x-goog-api-key':GKEY},
+           body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})}
+        );
+        const d = await resp.json();
+        const audioPart = d.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+        if (audioPart) {
+          const buf = Uint8Array.from(atob(audioPart.inlineData.data), c => c.charCodeAt(0));
+          return new Response(buf, {headers:{'Content-Type':'audio/mpeg','Access-Control-Allow-Origin':origin}});
+        }
+        return json({error:'No audio generated', raw:JSON.stringify(d).substring(0,200)}, 500, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Study Hub: auto-index uploaded document ───────────────────────────────
+    if (path === '/api/study/index-document' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const content = body.content || '';
+        const fileName = body.fileName || 'document';
+        const moduleId = body.moduleId || '';
+        const weekId = body.weekId || '';
+        const resourceId = body.resourceId || ('res-' + Date.now());
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+
+        if (!content || !GKEY) return json({error:'No content or Gemini key'}, 400, origin);
+
+        // Chunk the document
+        const chunkSize = 1500;
+        const overlap = 150;
+        const chunks = [];
+        for (let i = 0; i < content.length; i += chunkSize - overlap) {
+          chunks.push(content.substring(i, i + chunkSize));
+        }
+
+        // Embed each chunk
+        let indexed = 0;
+        for (let i = 0; i < Math.min(chunks.length, 50); i++) {
+          try {
+            const embResp = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${GKEY}`,
+              {method:'POST', headers:{'Content-Type':'application/json'},
+               body:JSON.stringify({model:'models/text-embedding-004', content:{parts:[{text:chunks[i]}]}})}
+            );
+            if (embResp.ok) {
+              const embData = await embResp.json();
+              const embedding = embData.embedding?.values || [];
+              if (embedding.length > 0 && env.PRISM_D1) {
+                await env.PRISM_D1.prepare(
+                  'INSERT OR REPLACE INTO rag_chunks (id, doc_id, doc_name, workspace_id, chunk_idx, chunk_text, embedding_json, tags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                ).bind(
+                  resourceId+'_'+i, resourceId, fileName,
+                  moduleId || 'study', i, chunks[i],
+                  JSON.stringify(embedding),
+                  JSON.stringify([moduleId, weekId, 'study'].filter(Boolean)),
+                  new Date().toISOString()
+                ).run();
+                indexed++;
+              }
+            }
+          } catch(e) { continue; }
+        }
+
+        // Also store in KV for quick retrieval
+        if (env.PRISM_KV) {
+          await env.PRISM_KV.put(`study:doc:${resourceId}`, JSON.stringify({
+            fileName, moduleId, weekId, resourceId,
+            preview: content.substring(0, 500),
+            chunks: chunks.length, indexed,
+            created: new Date().toISOString()
+          }));
+        }
+
+        return json({success:true, chunks_total:chunks.length, chunks_indexed:indexed, resourceId}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Study Hub: semantic search across all documents ───────────────────────
+    if (path === '/api/study/search' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const query = body.query || '';
+        const moduleId = body.moduleId || null;
+        const limit = body.limit || 8;
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+
+        if (!query || !GKEY) return json({results:[]}, 200, origin);
+
+        // Embed query
+        const qResp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${GKEY}`,
+          {method:'POST', headers:{'Content-Type':'application/json'},
+           body:JSON.stringify({model:'models/text-embedding-004', content:{parts:[{text:query}]}})}
+        );
+        if (!qResp.ok) return json({results:[], error:'Query embedding failed'}, 200, origin);
+        const qData = await qResp.json();
+        const queryEmbedding = qData.embedding?.values || [];
+        if (!queryEmbedding.length) return json({results:[]}, 200, origin);
+
+        // Search D1
+        if (!env.PRISM_D1) return json({results:[], error:'D1 not configured'}, 200, origin);
+        const wsFilter = moduleId ? `WHERE workspace_id = '${moduleId}'` : '';
+        const rows = await env.PRISM_D1.prepare(
+          `SELECT id, doc_id, doc_name, workspace_id, chunk_idx, chunk_text, embedding_json FROM rag_chunks ${wsFilter} LIMIT 1000`
+        ).all();
+
+        function cosineSim(a, b) {
+          let dot = 0, normA = 0, normB = 0;
+          for (let i = 0; i < Math.min(a.length, b.length); i++) {
+            dot += a[i]*b[i]; normA += a[i]*a[i]; normB += b[i]*b[i];
+          }
+          return dot / (Math.sqrt(normA)*Math.sqrt(normB) + 1e-10);
+        }
+
+        const scored = (rows.results || []).map(row => {
+          try {
+            const emb = JSON.parse(row.embedding_json || '[]');
+            return {...row, score: cosineSim(queryEmbedding, emb)};
+          } catch { return {...row, score:0}; }
+        }).sort((a,b) => b.score - a.score).slice(0, limit);
+
+        return json({results: scored.map(r => ({
+          doc_id:r.doc_id, doc_name:r.doc_name, chunk_idx:r.chunk_idx,
+          chunk_text:r.chunk_text, score:r.score, workspace_id:r.workspace_id
+        }))}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
