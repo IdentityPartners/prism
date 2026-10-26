@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
-<!-- cache-bust-1793022486 -->
+<!-- cache-bust-1793029392 -->
 <style>
 .hub-shell{display:flex;height:100vh;overflow:hidden;}
 .hub-tree{width:260px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-surface);overflow:hidden;}
@@ -561,6 +561,20 @@ function handleUpload(files) {
       saveModules();
       renderTree();
       switchTab('resources');
+      // Auto-upload to Macro for public URL (enables doc viewer)
+      if (resource.content) {
+        fetch(WORKER + '/api/macro/upload', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({fileName:resource.title, content:resource.content})
+        }).then(function(r){return r.json();})
+        .then(function(d){
+          if (d.url || d.id) {
+            resource.url = d.url || ('https://macro.com/app/docs/' + d.id);
+            resource.macroId = d.id;
+            saveModules();
+          }
+        }).catch(function(){});
+      }
     };
     reader.readAsText(file);
   });
