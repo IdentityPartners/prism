@@ -3348,6 +3348,90 @@ export default {
       } catch(e) { return json({status:'error', error:e.message, today:[], week:[], next_week:[]}, 200, origin); }
     }
 
+
+    // ── Zoho OAuth token exchange ─────────────────────────────────────────────
+    if (path === '/api/zoho/exchange' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const code = body.code || '';
+        const redirectUri = body.redirect_uri || '';
+        const clientId = k(env, ['zoho_client_id','ZOHO_CLIENT_ID']) || '1000.BXJ9CZSVLMX25OO9L0KKG95KR8Y05P';
+        const clientSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || '';
+        if (!code) return json({error:'No code provided'}, 400, origin);
+        // Try EU endpoint first, then COM
+        const endpoints = ['https://accounts.zoho.eu/oauth/v2/token','https://accounts.zoho.com/oauth/v2/token'];
+        let lastError = '';
+        for (const endpoint of endpoints) {
+          try {
+            const params = new URLSearchParams({
+              grant_type: 'authorization_code',
+              client_id: clientId,
+              client_secret: clientSecret,
+              redirect_uri: redirectUri,
+              code: code,
+            });
+            const resp = await fetch(endpoint, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+              body: params.toString(),
+            });
+            const data = await resp.json();
+            if (data.access_token) {
+              // Store tokens in KV
+              const tokenData = {
+                access_token: data.access_token,
+                refresh_token: data.refresh_token || '',
+                expires_in: data.expires_in || 3600,
+                api_domain: data.api_domain || 'https://www.zohoapis.eu',
+                stored_at: Date.now(),
+              };
+              if (env.PRISM_KV) {
+                await env.PRISM_KV.put('zoho:calendar:token', JSON.stringify(tokenData));
+                await env.PRISM_KV.put('zoho:mail:token', JSON.stringify(tokenData));
+              }
+              return json({success:true, api_domain:tokenData.api_domain}, 200, origin);
+            }
+            lastError = JSON.stringify(data).substring(0,100);
+          } catch(e) { lastError = e.message; }
+        }
+        return json({error:'Token exchange failed: '+lastError}, 500, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    // ── Zoho token refresh ────────────────────────────────────────────────────
+    if (path === '/api/zoho/refresh' && request.method === 'POST') {
+      try {
+        const raw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
+        if (!raw) return json({error:'No token stored'}, 400, origin);
+        const tokenData = JSON.parse(raw);
+        if (!tokenData.refresh_token) return json({error:'No refresh token'}, 400, origin);
+        const clientId = k(env, ['zoho_client_id','ZOHO_CLIENT_ID']) || '1000.BXJ9CZSVLMX25OO9L0KKG95KR8Y05P';
+        const clientSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || '';
+        const params = new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: tokenData.refresh_token,
+        });
+        const resp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: params.toString(),
+        });
+        const data = await resp.json();
+        if (data.access_token) {
+          tokenData.access_token = data.access_token;
+          tokenData.stored_at = Date.now();
+          if (env.PRISM_KV) {
+            await env.PRISM_KV.put('zoho:calendar:token', JSON.stringify(tokenData));
+            await env.PRISM_KV.put('zoho:mail:token', JSON.stringify(tokenData));
+          }
+          return json({success:true}, 200, origin);
+        }
+        return json({error:'Refresh failed: '+JSON.stringify(data).substring(0,100)}, 500, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
