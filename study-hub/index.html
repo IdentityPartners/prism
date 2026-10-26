@@ -1,825 +1,480 @@
 <!DOCTYPE html>
-
 <html lang="en-GB">
 <head>
-<!-- cache-bust-1792952001 -->
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Study Hub — Argentica</title>
-<link href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E" rel="icon" type="image/svg+xml"/>
-<link href="/shared/prism.css" rel="stylesheet"/>
-<link href="/shared/themes.css" rel="stylesheet"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Study Hub &mdash; Argentica</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<!-- cache-bust-1793016624 -->
 <style>
-/* ── Layout ── */
-.hub-shell { display:flex; height:100vh; overflow:hidden; }
-.hub-tree { width:260px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-surface); overflow:hidden; }
-.hub-main { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; max-width:100%; }
-.hub-right { width:320px; flex-shrink:0; border-left:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-surface); overflow:hidden; }
-@media(max-width:1200px){.hub-right{display:none;}}
-@media(max-width:900px){.hub-tree{display:none;}}
-
-/* ── Tree panel ── */
-.tree-hdr { padding:10px 12px 8px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
-.tree-hdr h3 { font-size:13px; font-weight:700; margin:0; }
-.tree-search { padding:6px 10px; border-bottom:1px solid var(--border); flex-shrink:0; }
-.tree-search input { width:100%; padding:5px 9px; border:1px solid var(--border); border-radius:6px; font-size:12px; background:var(--bg); color:var(--fg); box-sizing:border-box; }
-.tree-body { flex:1; overflow-y:auto; padding:6px; }
-
-/* Tree nodes */
-.tree-module { margin-bottom:4px; }
-.tree-module-hdr { display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600; color:var(--fg); transition:background 0.1s; }
-.tree-module-hdr:hover { background:var(--bg-sunken); }
-.tree-module-hdr.active { background:var(--accent-light,#e8f0f8); color:var(--accent); }
-.tree-module-icon { font-size:14px; flex-shrink:0; }
-.tree-module-toggle { margin-left:auto; font-size:10px; color:var(--fg-muted); }
-.tree-weeks { padding-left:16px; display:none; }
-.tree-weeks.open { display:block; }
-.tree-week { display:flex; align-items:center; gap:6px; padding:4px 8px; border-radius:5px; cursor:pointer; font-size:12px; color:var(--fg-muted); transition:background 0.1s; }
-.tree-week:hover { background:var(--bg-sunken); }
-.tree-week.active { background:var(--accent); color:#fff; }
-.tree-week-badge { margin-left:auto; font-size:9px; padding:1px 5px; border-radius:8px; background:var(--bg-sunken); color:var(--fg-muted); }
-.tree-week.active .tree-week-badge { background:rgba(255,255,255,0.2); color:#fff; }
-
-/* ── Main content ── */
-.hub-hdr { padding:10px 16px; border-bottom:1px solid var(--border); background:var(--bg-elevated); display:flex; align-items:center; gap:10px; flex-shrink:0; }
-.hub-hdr h2 { font-size:16px; font-weight:700; margin:0; flex:1; }
-.hub-tabs { display:flex; border-bottom:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; overflow-x:auto; }
-.hub-tab { padding:8px 14px; font-size:12px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; color:var(--fg-muted); white-space:nowrap; flex-shrink:0; }
-.hub-tab.active { border-bottom-color:var(--accent); color:var(--accent); }
-.hub-body { flex:1; overflow-y:auto; padding:16px; }
-
-/* ── Week view ── */
-.week-section { margin-bottom:20px; }
-.week-section-hdr { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--fg-muted); margin-bottom:8px; display:flex; align-items:center; gap:8px; }
-.week-section-hdr::after { content:''; flex:1; height:1px; background:var(--border); }
-
-/* Resource cards */
-.resource-card { background:var(--bg-elevated); border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:8px; display:flex; gap:10px; align-items:flex-start; cursor:pointer; transition:border-color 0.15s; }
-.resource-card:hover { border-color:var(--accent); }
-.resource-card.selected { border-color:var(--accent); background:var(--accent-light,#e8f0f8); }
-.resource-icon { font-size:20px; flex-shrink:0; margin-top:2px; }
-.resource-info { flex:1; min-width:0; }
-.resource-title { font-size:13.5px; font-weight:600; color:var(--fg); margin-bottom:3px; }
-.resource-meta { font-size:11px; color:var(--fg-muted); display:flex; gap:8px; flex-wrap:wrap; }
-.resource-type { padding:1px 7px; border-radius:8px; font-size:10px; font-weight:600; }
-.type-ppt { background:rgba(220,38,38,0.1); color:#dc2626; }
-.type-pdf { background:rgba(220,38,38,0.1); color:#dc2626; }
-.type-reading { background:rgba(45,106,159,0.1); color:var(--accent); }
-.type-news { background:rgba(245,158,11,0.1); color:#f59e0b; }
-.type-paper { background:rgba(22,163,74,0.1); color:#16a34a; }
-.type-note { background:rgba(124,58,237,0.1); color:#7c3aed; }
-.type-link { background:rgba(15,59,58,0.1); color:#0f3b3a; }
-.resource-actions { display:flex; gap:4px; flex-shrink:0; }
-.res-btn { padding:3px 8px; border:1px solid var(--border); border-radius:5px; cursor:pointer; font-size:10px; background:var(--bg); color:var(--fg-muted); font-family:inherit; }
-.res-btn:hover { border-color:var(--accent); color:var(--accent); }
-
-/* Add resource form */
-.add-resource-form { background:var(--bg-elevated); border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:12px; }
-.add-resource-form h4 { font-size:12px; font-weight:700; margin:0 0 10px; text-transform:uppercase; letter-spacing:0.4px; color:var(--fg-muted); }
-.form-row { display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
-.form-input { flex:1; min-width:140px; padding:6px 9px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; background:var(--bg); color:var(--fg); }
-.form-select { padding:6px 9px; border:1px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; background:var(--bg); color:var(--fg); cursor:pointer; }
-.form-btn { padding:6px 14px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-family:inherit; font-weight:600; }
-
-/* ── Search results ── */
-.search-result { padding:10px 12px; border:1px solid var(--border); border-radius:8px; margin-bottom:6px; background:var(--bg-elevated); }
-.search-result-title { font-size:13px; font-weight:600; margin-bottom:3px; }
-.search-result-excerpt { font-size:12px; color:var(--fg-muted); line-height:1.5; }
-.search-result-meta { font-size:10px; color:var(--fg-muted); margin-top:4px; display:flex; gap:8px; }
-.search-source-badge { padding:1px 6px; border-radius:6px; font-size:9px; font-weight:700; text-transform:uppercase; }
-.src-course { background:rgba(45,106,159,0.15); color:var(--accent); }
-.src-web { background:rgba(245,158,11,0.15); color:#f59e0b; }
-.src-paper { background:rgba(22,163,74,0.15); color:#16a34a; }
-.src-note { background:rgba(124,58,237,0.15); color:#7c3aed; }
-
-/* ── Right panel: AI chat ── */
-.ai-hdr { padding:10px 12px; border-bottom:1px solid var(--border); font-size:12px; font-weight:700; display:flex; align-items:center; gap:8px; flex-shrink:0; }
-.ai-messages { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:8px; }
-.ai-msg { padding:8px 10px; border-radius:8px; font-size:12.5px; line-height:1.5; }
-.ai-msg.user { background:var(--accent); color:#fff; align-self:flex-end; max-width:85%; border-radius:10px 4px 10px 10px; }
-.ai-msg.assistant { background:var(--bg-elevated); border:1px solid var(--border); color:var(--fg); align-self:flex-start; max-width:95%; border-radius:4px 10px 10px 10px; }
-.ai-msg.system { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:var(--fg); font-size:11px; font-style:italic; }
-.ai-input-area { border-top:1px solid var(--border); padding:8px 10px; flex-shrink:0; }
-.ai-quick { display:flex; gap:3px; flex-wrap:wrap; margin-bottom:6px; }
-.ai-quick-btn { padding:2px 8px; border:1px solid var(--border); border-radius:8px; font-size:10px; cursor:pointer; background:var(--bg); color:var(--fg-muted); font-family:inherit; }
-.ai-quick-btn:hover { border-color:var(--accent); color:var(--accent); }
-.ai-textarea { width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:7px; font-size:12.5px; font-family:inherit; resize:none; min-height:50px; max-height:100px; background:var(--bg); color:var(--fg); box-sizing:border-box; }
-.ai-send { width:100%; padding:6px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-family:inherit; font-weight:600; margin-top:5px; }
-.ai-provider { font-size:10px; color:var(--fg-muted); text-align:right; margin-top:3px; }
-
-/* ── Notes editor ── */
-.notes-editor { width:100%; min-height:200px; padding:12px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; resize:vertical; background:var(--bg); color:var(--fg); line-height:1.7; box-sizing:border-box; }
-
-/* ── Upload zone ── */
-.upload-zone { border:2px dashed var(--border); border-radius:10px; padding:24px; text-align:center; cursor:pointer; transition:all 0.15s; }
-.upload-zone:hover { border-color:var(--accent); background:var(--accent-light,#e8f0f8); }
-.upload-zone.drag { border-color:var(--accent); background:var(--accent-light,#e8f0f8); }
-
-/* ── Global search bar ── */
-.global-search { padding:10px 16px; border-bottom:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; }
-.global-search-row { display:flex; gap:8px; }
-.global-search-input { flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; background:var(--bg); color:var(--fg); }
-.global-search-input:focus { outline:none; border-color:var(--accent); }
-.search-scope { padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:12px; background:var(--bg); color:var(--fg); cursor:pointer; }
-.search-btn { padding:8px 16px; background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-family:inherit; font-weight:600; }
+.hub-shell{display:flex;height:100vh;overflow:hidden;}
+.hub-tree{width:260px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-surface);overflow:hidden;}
+.hub-main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+.tree-hdr{padding:10px 12px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.tree-hdr h3{font-size:14px;font-weight:700;margin:0;}
+.tree-search{padding:6px 10px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.tree-search input{width:100%;padding:5px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--fg);box-sizing:border-box;}
+.tree-body{flex:1;overflow-y:auto;padding:6px;}
+.mod-item{padding:8px 10px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;color:var(--fg);transition:background 0.1s;display:flex;align-items:center;gap:8px;margin-bottom:2px;}
+.mod-item:hover{background:var(--bg-sunken);}
+.mod-item.active{background:var(--accent-light,#e8f0f8);color:var(--accent);}
+.week-item{padding:5px 10px 5px 28px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--fg-muted);transition:background 0.1s;display:flex;align-items:center;gap:6px;}
+.week-item:hover{background:var(--bg-sunken);}
+.week-item.active{background:var(--accent);color:#fff;}
+.hub-hdr{padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-elevated);display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.hub-hdr h2{font-size:16px;font-weight:700;margin:0;flex:1;}
+.hub-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg-elevated);flex-shrink:0;overflow-x:auto;}
+.hub-tab{padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--fg-muted);white-space:nowrap;flex-shrink:0;}
+.hub-tab.active{border-bottom-color:var(--accent);color:var(--accent);}
+.hub-body{flex:1;overflow-y:auto;padding:16px;}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px;}
+.card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all 0.15s;position:relative;overflow:hidden;}
+.card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.1);}
+.card-icon{font-size:26px;margin-bottom:8px;}
+.card-label{font-size:13px;font-weight:700;color:var(--fg);margin-bottom:3px;}
+.card-count{font-size:22px;font-weight:700;}
+.card-bar{position:absolute;bottom:0;left:0;right:0;height:3px;opacity:0.5;}
+.detail-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;}
+.detail-card h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin:0 0 10px;}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.field-group{display:flex;flex-direction:column;gap:3px;}
+.field-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);}
+.field-input{padding:6px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);}
+.field-textarea{padding:6px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);resize:vertical;min-height:60px;}
+.save-btn{padding:7px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:600;}
+.week-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
+.week-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all 0.15s;}
+.week-card h4{font-size:14px;font-weight:700;margin:0 0 4px;}
+.week-card p{font-size:12px;color:var(--fg-muted);margin:0;}
+.res-item{display:flex;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg-elevated);cursor:pointer;transition:border-color 0.15s;}
+.res-item:hover{border-color:var(--accent);}
+.res-icon{font-size:20px;flex-shrink:0;margin-top:2px;}
+.res-info{flex:1;min-width:0;}
+.res-title{font-size:13px;font-weight:600;color:var(--fg);margin-bottom:2px;}
+.res-meta{font-size:11px;color:var(--fg-muted);display:flex;gap:8px;}
+.res-type{padding:1px 7px;border-radius:8px;font-size:10px;font-weight:600;}
+.type-ppt{background:rgba(220,38,38,0.1);color:#dc2626;}
+.type-reading{background:rgba(45,106,159,0.1);color:var(--accent);}
+.type-paper{background:rgba(22,163,74,0.1);color:#16a34a;}
+.type-news{background:rgba(245,158,11,0.1);color:#f59e0b;}
+.type-note{background:rgba(124,58,237,0.1);color:#7c3aed;}
+.type-link{background:rgba(15,59,58,0.1);color:#0f3b3a;}
+.upload-zone{border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:all 0.15s;margin-bottom:12px;}
+.upload-zone:hover{border-color:var(--accent);background:var(--accent-light,#e8f0f8);}
+.form-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+.form-input{flex:1;min-width:120px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);}
+.form-select{padding:6px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);cursor:pointer;}
+.form-btn{padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:600;}
+.notes-ta{width:100%;min-height:200px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--fg);resize:vertical;line-height:1.7;box-sizing:border-box;}
+.search-bar{display:flex;gap:8px;margin-bottom:12px;}
+.search-input{flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--fg);}
+.search-btn{padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:600;}
+.search-result{padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg-elevated);}
+.search-result-title{font-size:13px;font-weight:600;margin-bottom:3px;}
+.search-result-excerpt{font-size:12px;color:var(--fg-muted);line-height:1.5;}
+.search-result-meta{font-size:10px;color:var(--fg-muted);margin-top:4px;display:flex;gap:8px;}
+.src-badge{padding:1px 6px;border-radius:6px;font-size:9px;font-weight:700;text-transform:uppercase;}
+.src-course{background:rgba(45,106,159,0.15);color:var(--accent);}
+.src-note{background:rgba(124,58,237,0.15);color:#7c3aed;}
+.empty-state{text-align:center;padding:60px 20px;color:var(--fg-muted);}
+.empty-state .icon{font-size:48px;margin-bottom:12px;}
+.tts-btn{padding:4px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);color:var(--fg-muted);font-family:inherit;}
+.tts-btn:hover{border-color:var(--accent);color:var(--accent);}
+.del-btn{padding:4px 8px;border:1px solid #dc2626;border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);color:#dc2626;font-family:inherit;}
+.global-search{padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-elevated);flex-shrink:0;}
 </style>
 </head>
 <body>
-<script src="/shared/prism.js">
-function showWeekOverview(week, mod) {
-  if (!week || !mod) return;
-  document.getElementById('hub-title').textContent = mod.name + ' — ' + week.name;
-  document.getElementById('hub-subtitle').textContent = (week.resources||[]).length + ' resources';
-  var body = document.getElementById('hub-body');
-  body.innerHTML = '';
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="hub-shell">
+<div class="hub-tree">
+  <div class="tree-hdr">
+    <h3>&#x1F4DA; Study Hub</h3>
+    <button onclick="openAddModule()" style="padding:3px 8px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">+ Module</button>
+  </div>
+  <div class="tree-search">
+    <input type="text" id="tree-search" placeholder="Filter modules..." oninput="filterTree(this.value)">
+  </div>
+  <div class="tree-body" id="tree-body">
+    <div style="padding:20px;text-align:center;font-size:13px;color:var(--fg-muted);">Loading...</div>
+  </div>
+</div>
+<div class="hub-main">
+  <div class="global-search">
+    <div class="search-bar">
+      <input class="search-input" id="global-search" type="text" placeholder="Search everything: course material, notes, papers, web..." onkeydown="if(event.key==='Enter')runGlobalSearch()">
+      <button class="search-btn" onclick="runGlobalSearch()">&#x1F50D; Search</button>
+    </div>
+  </div>
+  <div class="hub-hdr">
+    <h2 id="hub-title">Select a module</h2>
+    <div style="display:flex;gap:6px;">
+      <button onclick="addResource()" style="padding:5px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">+ Add Resource</button>
+      <button onclick="exportWeek()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;background:var(--bg);">&#x2B07; Export</button>
+    </div>
+  </div>
+  <div class="hub-tabs">
+    <div class="hub-tab active" id="tab-overview" onclick="switchTab('overview',this)">&#x1F3E0; Overview</div>
+    <div class="hub-tab" id="tab-resources" onclick="switchTab('resources',this)">&#x1F4CB; Resources</div>
+    <div class="hub-tab" id="tab-notes" onclick="switchTab('notes',this)">&#x270D; My Notes</div>
+    <div class="hub-tab" id="tab-search" onclick="switchTab('search',this)">&#x1F50D; Search</div>
+    <div class="hub-tab" id="tab-upload" onclick="switchTab('upload',this)">&#x2B06; Upload</div>
+  </div>
+  <div class="hub-body" id="hub-body">
+    <div class="empty-state">
+      <div class="icon">&#x1F4DA;</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:8px;">Select a module from the left</div>
+      <div style="font-size:13px;">Or use the search bar above to find anything.</div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+<script>
 
-  // Module details strip
-  var detailsCard = document.createElement('div');
-  detailsCard.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;';
-  detailsCard.innerHTML = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:10px;">Week Details</div>' +
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
-    '<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;">Week Name</label>' +
-    '<div style="display:flex;gap:6px;"><input id="week-name-input" type="text" value="' + (week.name||'') + '" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--fg);" onkeydown="if(event.key==='Enter')saveWeekDetails()"><button id="week-save-btn" onclick="saveWeekDetails()" style="padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">Save</button></div></div>' +
-    '<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;">VLE Link</label>' +
-    '<input id="week-vle-input" type="url" value="' + (week.vle_url||'') + '" placeholder="https://learn.gold.ac.uk/..." style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--fg);box-sizing:border-box;"></div>' +
-    '</div>';
-  body.appendChild(detailsCard);
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var modules = [];
+var currentModule = null;
+var currentWeek = null;
+var currentTab = 'overview';
 
-  // Resource cards
-  var resources = week.resources || [];
-  var COURSE_TYPES = ['ppt','pptx','reading','recommended','further','sample','markscheme','handout','lecture'];
-  var SELF_TYPES = ['news','paper','blog','report','podcast','video','link'];
-  var courseCount = resources.filter(function(r){return COURSE_TYPES.indexOf(r.type)!==-1;}).length;
-  var selfCount = resources.filter(function(r){return SELF_TYPES.indexOf(r.type)!==-1;}).length;
-  var noteCount = week.notes && week.notes.trim() ? 1 : 0;
-
-  var cardDefs = [
-    {label:'Course Material', count:courseCount, colour:'#2d6a9f', tab:'resources', filter:'course'},
-    {label:'Self-Sourced', count:selfCount, colour:'#f59e0b', tab:'resources', filter:'self'},
-    {label:'My Notes', count:noteCount, colour:'#7c3aed', tab:'notes', filter:null},
-    {label:'All Resources', count:resources.length, colour:'#16a34a', tab:'resources', filter:null},
-    {label:'Upload', count:0, colour:'#6b7280', tab:'upload', filter:null},
-    {label:'Search', count:0, colour:'#0f3b3a', tab:'search', filter:null},
-  ];
-
-  var cardGrid = document.createElement('div');
-  cardGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px;';
-
-  cardDefs.forEach(function(card) {
-    var el = document.createElement('div');
-    el.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;transition:all 0.15s;';
-    el.onmouseenter = function(){el.style.borderColor=card.colour;el.style.transform='translateY(-2px)';};
-    el.onmouseleave = function(){el.style.borderColor='var(--border)';el.style.transform='';};
-    el.onclick = (function(t,f){return function(){currentTab=t;if(f)currentResourceFilter=f;switchTab(t,null);};})(card.tab, card.filter||null);
-    var labelEl = document.createElement('div');
-    labelEl.style.cssText = 'font-size:12px;font-weight:600;color:var(--fg);margin-bottom:4px;';
-    labelEl.textContent = card.label;
-    var countEl = document.createElement('div');
-    countEl.style.cssText = 'font-size:22px;font-weight:700;color:'+card.colour+';';
-    countEl.textContent = card.count;
-    el.appendChild(labelEl);
-    el.appendChild(countEl);
-    cardGrid.appendChild(el);
-  });
-  body.appendChild(cardGrid);
-
-  // Weeks section
-  showWeeksGrid(mod, body);
-}
-
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/study-hub/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  loadModules();
+});
 
 function loadModules() {
-  // Try KV first, fall back to localStorage
   fetch(WORKER + '/api/kv/get?key=study:modules')
-    .then(function(r){return r.json();})
-    .then(function(d){
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
       if (d.value) {
         try { modules = JSON.parse(d.value); } catch(e) {}
       }
-      if (!modules.length) {
-        // Default modules
-        modules = [
-          { id:'qrm', name:'Quant Research Methods', icon:'📊', colour:'#2d6a9f', weeks:[] },
-          { id:'mn', name:'Methodology Now', icon:'🔬', colour:'#0f3b3a', weeks:[] },
-          { id:'rp', name:'Research Project', icon:'📝', colour:'#5c2d3f', weeks:[] },
-          { id:'diss', name:'Dissertation', icon:'🎓', colour:'#16a34a', weeks:[] },
-          { id:'concepts', name:'Concepts & Thinkers', icon:'🧠', colour:'#7c3aed', weeks:[] },
-          { id:'phd', name:'PhD Material', icon:'📖', colour:'#f59e0b', weeks:[] },
-        ];
-        saveModules();
-      }
+      if (!modules.length) initDefaultModules();
       renderTree();
     })
-    .catch(function(){
-      try { modules = JSON.parse(localStorage.getItem('study:modules') || '[]'); } catch(e) { modules = []; }
-      if (!modules.length) {
-        modules = [
-          { id:'qrm', name:'Quant Research Methods', icon:'📊', colour:'#2d6a9f', weeks:[] },
-          { id:'mn', name:'Methodology Now', icon:'🔬', colour:'#0f3b3a', weeks:[] },
-          { id:'rp', name:'Research Project', icon:'📝', colour:'#5c2d3f', weeks:[] },
-          { id:'diss', name:'Dissertation', icon:'🎓', colour:'#16a34a', weeks:[] },
-          { id:'concepts', name:'Concepts & Thinkers', icon:'🧠', colour:'#7c3aed', weeks:[] },
-          { id:'phd', name:'PhD Material', icon:'📖', colour:'#f59e0b', weeks:[] },
-        ];
-      }
+    .catch(function() {
+      try { modules = JSON.parse(localStorage.getItem('study:modules') || '[]'); } catch(e) {}
+      if (!modules.length) initDefaultModules();
       renderTree();
     });
+}
+
+function initDefaultModules() {
+  modules = [
+    {id:'qrm', name:'Quant Research Methods', icon:'\uD83D\uDCCA', colour:'#2d6a9f', weeks:[], researchQ:'', lecturer:'', vle:''},
+    {id:'mn',  name:'Methodology Now',         icon:'\uD83D\uDD2C', colour:'#0f3b3a', weeks:[], researchQ:'', lecturer:'', vle:''},
+    {id:'rp',  name:'Research Project',        icon:'\uD83D\uDCDD', colour:'#5c2d3f', weeks:[], researchQ:'', lecturer:'', vle:''},
+    {id:'diss',name:'Dissertation',            icon:'\uD83C\uDF93', colour:'#16a34a', weeks:[], researchQ:'', lecturer:'', vle:''},
+    {id:'con', name:'Concepts & Thinkers',     icon:'\uD83E\uDDE0', colour:'#7c3aed', weeks:[], researchQ:'', lecturer:'', vle:''},
+    {id:'phd', name:'PhD Material',            icon:'\uD83D\uDCD6', colour:'#f59e0b', weeks:[], researchQ:'', lecturer:'', vle:''},
+  ];
+  saveModules();
 }
 
 function saveModules() {
   var json = JSON.stringify(modules);
   try { localStorage.setItem('study:modules', json); } catch(e) {}
   fetch(WORKER + '/api/kv/set', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({key:'study:modules', value:json})
-  }).catch(function(){});
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({key: 'study:modules', value: json})
+  }).catch(function() {});
 }
 
-// ── Tree rendering ────────────────────────────────────────────────────────────
-function renderTree() {
+function renderTree(filter) {
   var body = document.getElementById('tree-body');
+  if (!body) return;
   body.innerHTML = '';
-  modules.forEach(function(mod) {
-    var modDiv = document.createElement('div');
-    modDiv.className = 'tree-module';
-    modDiv.id = 'mod-' + mod.id;
-
-    var hdr = document.createElement('div');
-    hdr.className = 'tree-module-hdr' + (currentModule && currentModule.id === mod.id ? ' active' : '');
-        var modIcon = document.createElement('span');
-    modIcon.className = 'tree-module-icon';
-    modIcon.innerHTML = mod.icon || '&#x1F4D3;';
-    var modLabel = document.createElement('span');
-    modLabel.style.cssText = 'flex:1;outline:none;border-radius:3px;padding:1px 3px;';
-    modLabel.textContent = mod.name;
-    var modEditBtn = document.createElement('button');
-    modEditBtn.innerHTML = '✏';
-    modEditBtn.title = 'Edit module';
-    modEditBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:13px;padding:2px 5px;border-radius:4px;';
-    modEditBtn.onmouseenter = function() { modEditBtn.style.color = 'var(--accent)'; };
-    modEditBtn.onmouseleave = function() { modEditBtn.style.color = 'var(--fg-muted)'; };
-    modEditBtn.onclick = (function(mId) { return function(e) { e.stopPropagation(); openEditModule(mId); }; })(mod.id);
-    var modToggle = document.createElement('span');
-    modToggle.className = 'tree-module-toggle';
-    modToggle.innerHTML = '▸';
-    hdr.appendChild(modIcon);
-    hdr.appendChild(modLabel);
-    hdr.appendChild(modEditBtn);
-    hdr.appendChild(modToggle);
-    hdr.onclick = function() { toggleModule(mod.id); };
-    modDiv.appendChild(hdr);
-
-    var weeks = document.createElement('div');
-    weeks.className = 'tree-weeks' + (currentModule && currentModule.id === mod.id ? ' open' : '');
-    weeks.id = 'weeks-' + mod.id;
-
-    (mod.weeks || []).forEach(function(week) {
-      var weekDiv = document.createElement('div');
-      weekDiv.className = 'tree-week' + (currentWeek && currentWeek.id === week.id ? ' active' : '');
-      weekDiv.id = 'tw-' + week.id;
-      var resCount = (week.resources || []).length;
-            // Build week item with DOM (avoids nested quote issues)
-      var wIcon = document.createElement('span');
-      wIcon.innerHTML = '📅';
-      var wLabel = document.createElement('span');
-      wLabel.className = 'week-name-label';
-      wLabel.style.cssText = 'flex:1;outline:none;border-radius:3px;padding:1px 3px;';
-      wLabel.textContent = week.name;
-      wLabel.title = 'Click to select week. Click again to edit name.';
-      var wEditBtn = document.createElement('button');
-      wEditBtn.innerHTML = '✏';
-      wEditBtn.title = 'Edit week';
-      wEditBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:12px;padding:1px 4px;border-radius:3px;flex-shrink:0;';
-      wEditBtn.onmouseenter = function() { wEditBtn.style.color = 'var(--accent)'; };
-      wEditBtn.onmouseleave = function() { wEditBtn.style.color = 'var(--fg-muted)'; };
-      wEditBtn.onclick = (function(mId, wId) { return function(e) { e.stopPropagation(); openEditWeek(mId, wId); }; })(mod.id, week.id);
-      var wBadge = document.createElement('span');
-      wBadge.className = 'tree-week-badge';
-      wBadge.textContent = resCount;
-      weekDiv.appendChild(wIcon);
-      weekDiv.appendChild(wLabel);
-      weekDiv.appendChild(wEditBtn);
-      weekDiv.appendChild(wBadge);
-      // Use data attributes to avoid closure issues
-      weekDiv.setAttribute('data-mod-id', mod.id);
-      weekDiv.setAttribute('data-week-id', week.id);
-      weekDiv.onclick = function(e) {
-        var mId = e.currentTarget.getAttribute('data-mod-id');
-        var wId = e.currentTarget.getAttribute('data-week-id');
-        selectWeek(mId, wId);
-      };
-      weeks.appendChild(weekDiv);
-    });
-
-    // Add week button
-    var addWeek = document.createElement('div');
-    addWeek.style.cssText = 'padding:3px 8px;font-size:11px;color:var(--fg-muted);cursor:pointer;';
-    addWeek.textContent = '+ Add week';
-    addWeek.onclick = function(e) { e.stopPropagation(); addWeekToModule(mod.id); };
-    weeks.appendChild(addWeek);
-
-    modDiv.appendChild(weeks);
-    body.appendChild(modDiv);
+  var list = filter ? modules.filter(function(m) { return m.name.toLowerCase().includes(filter.toLowerCase()); }) : modules;
+  list.forEach(function(mod) {
+    var el = document.createElement('div');
+    el.className = 'mod-item' + (currentModule && currentModule.id === mod.id ? ' active' : '');
+    el.innerHTML = '<span>' + (mod.icon || '\uD83D\uDCDA') + '</span><span style="flex:1;">' + mod.name + '</span>';
+    el.onclick = (function(m) { return function() { selectModule(m); }; })(mod);
+    body.appendChild(el);
+    if (currentModule && currentModule.id === mod.id) {
+      (mod.weeks || []).forEach(function(week) {
+        var we = document.createElement('div');
+        we.className = 'week-item' + (currentWeek && currentWeek.id === week.id ? ' active' : '');
+        we.innerHTML = '<span>\uD83D\uDCC5</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + week.name + '</span><span style="font-size:10px;background:var(--bg-sunken);padding:1px 5px;border-radius:8px;">' + (week.resources || []).length + '</span>';
+        we.onclick = (function(m, w) { return function(e) { e.stopPropagation(); selectWeek(m, w); }; })(mod, week);
+        body.appendChild(we);
+      });
+      var addW = document.createElement('div');
+      addW.style.cssText = 'padding:4px 10px 4px 28px;font-size:11px;color:var(--fg-muted);cursor:pointer;';
+      addW.textContent = '+ Add week';
+      addW.onclick = (function(mid) { return function(e) { e.stopPropagation(); addWeekToModule(mid); }; })(mod.id);
+      body.appendChild(addW);
+    }
   });
 }
 
-function toggleModule(modId) {
-  var mod = modules.find(function(m){return m.id===modId;});
-  if (!mod) return;
+function filterTree(q) { renderTree(q); }
+
+function selectModule(mod) {
   currentModule = mod;
   currentWeek = null;
-
-  // Toggle weeks panel open/closed in tree
-  var weeksEl = document.getElementById('weeks-' + modId);
-  var isOpen = weeksEl && weeksEl.classList.contains('open');
-  document.querySelectorAll('.tree-weeks').forEach(function(el){el.classList.remove('open');});
-  document.querySelectorAll('.tree-module-hdr').forEach(function(el){el.classList.remove('active');});
-  if (!isOpen && weeksEl) {
-    weeksEl.classList.add('open');
-    var hdrEl = document.querySelector('#mod-' + modId + ' .tree-module-hdr');
-    if (hdrEl) hdrEl.classList.add('active');
-  }
-
-  // Show module overview in main area
   document.getElementById('hub-title').textContent = mod.name;
-  document.getElementById('hub-subtitle').textContent = (mod.weeks||[]).length + ' weeks';
-
-  // Switch to overview tab
-  currentTab = 'overview';
-  document.querySelectorAll('.hub-tab').forEach(function(t){t.classList.remove('active');});
-  var ovTab = document.getElementById('tab-overview');
-  if (ovTab) ovTab.classList.add('active');
-
-  showModuleOverview(mod);
+  renderTree();
+  switchTab('overview');
 }
 
-function showModuleOverview(mod) {
-  document.getElementById('hub-title').textContent = mod.name;
-  document.getElementById('hub-subtitle').textContent = (mod.weeks||[]).length + ' weeks · click a card to open';
-  var body = document.getElementById('hub-body');
-  body.innerHTML = '';
-
-  // ── Module details strip ──────────────────────────────────────────────────
-  var detailsCard = document.createElement('div');
-  detailsCard.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;';
-  detailsCard.innerHTML = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:10px;">Module Details</div>' +
-    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">' +
-    '<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;">Research Question</label>' +
-    '<textarea id="mod-rq" placeholder="Your research question or module focus..." style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;resize:none;min-height:52px;background:var(--bg);color:var(--fg);box-sizing:border-box;">' + (mod.researchQ||'') + '</textarea></div>' +
-    '<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;">Lecturer / Professor</label>' +
-    '<input type="text" id="mod-lec" value="' + (mod.lecturer||'') + '" placeholder="Dr / Prof name..." style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);box-sizing:border-box;margin-bottom:6px;">' +
-    '<label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);display:block;margin-bottom:3px;">VLE URL</label>' +
-    '<input type="url" id="mod-vle" value="' + (mod.vle||'') + '" placeholder="https://learn.gold.ac.uk/..." style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--fg);box-sizing:border-box;"></div>' +
-    '<div style="display:flex;flex-direction:column;justify-content:flex-end;">' +
-    '<button data-modid="' + mod.id + '" onclick="saveModuleDetails(this.dataset.modid,this)" style="padding:8px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;">Save Details</button>' +
-    '</div></div>';
-  body.appendChild(detailsCard);
-
-  // ── Card grid ─────────────────────────────────────────────────────────────
-  var cardDefs = [
-    { id:'weeks',    icon:'📅', label:'Weeks',          count:(mod.weeks||[]).length,          colour:'#2d6a9f', action:function(){showWeeksGrid(mod);} },
-    { id:'files',    icon:'📎', label:'Files',           count:countResources(mod,'pdf,ppt,docx'), colour:'#dc2626', action:function(){currentTab='upload';var t=document.querySelector('.hub-tab[onclick*="upload"]');switchTab('upload',t);} },
-    { id:'notes',    icon:'✍️', label:'My Notes',        count:countNotes(mod),                 colour:'#7c3aed', action:function(){currentTab='notes';var t=document.querySelector('.hub-tab[onclick*="notes"]');switchTab('notes',t);} },
-    { id:'sources',  icon:'📰', label:'Sources',         count:countResources(mod,'news,paper,link'), colour:'#f59e0b', action:function(){currentTab='resources';var t=document.querySelector('.hub-tab[onclick*="resources"]');switchTab('resources',t);} },
-    { id:'themes',   icon:'🧠', label:'Themes',          count:0,                               colour:'#0f3b3a', action:function(){currentTab='concepts';var t=document.querySelector('.hub-tab[onclick*="concepts"]');switchTab('concepts',t);} },
-    { id:'chats',    icon:'💬', label:'Chats',           count:0,                               colour:'#5c2d3f', action:function(){window.location.href='/chat/';} },
-    { id:'audio',    icon:'🎧', label:'Audio',           count:countResources(mod,'audio'),     colour:'#16a34a', action:function(){window.location.href='/creator/podcasts/';} },
-    { id:'agents',   icon:'🤖', label:'Agents',          count:0,                               colour:'#1a5550', action:function(){window.location.href='/agenti/agent-builder/';} },
-    { id:'research', icon:'🔍', label:'Research Runs',   count:0,                               colour:'#2d6a9f', action:function(){window.location.href='/research/';} },
-    { id:'course',   icon:'🎓', label:'Course Material', count:countResources(mod,'ppt,reading,recommended'), colour:'#7a4254', action:function(){currentTab='resources';var t=document.querySelector('.hub-tab[onclick*="resources"]');switchTab('resources',t);} },
-  ];
-
-  var grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:14px;';
-
-  cardDefs.forEach(function(card) {
-    var el = document.createElement('div');
-    el.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all 0.15s;position:relative;overflow:hidden;';
-    el.onmouseenter = function() { el.style.borderColor = card.colour; el.style.transform = 'translateY(-2px)'; el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; };
-    el.onmouseleave = function() { el.style.borderColor = 'var(--border)'; el.style.transform = ''; el.style.boxShadow = ''; };
-    el.onclick = card.action;
-    el.innerHTML = '<div style="font-size:28px;margin-bottom:8px;">' + card.icon + '</div>' +
-      '<div style="font-size:14px;font-weight:700;color:var(--fg);margin-bottom:3px;">' + card.label + '</div>' +
-      '<div style="font-size:20px;font-weight:700;color:' + card.colour + ';">' + card.count + '</div>' +
-      '<div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:' + card.colour + ';opacity:0.4;"></div>';
-    grid.appendChild(el);
-  });
-  body.appendChild(grid);
-
-  // ── Weeks grid ────────────────────────────────────────────────────────────
-  showWeeksGrid(mod, body);
-}
-
-function countResources(mod, types) {
-  var typeList = types.split(',');
-  var count = 0;
-  (mod.weeks||[]).forEach(function(w) {
-    (w.resources||[]).forEach(function(r) {
-      if (typeList.some(function(t){return r.type && r.type.includes(t.trim());})) count++;
-    });
-  });
-  return count;
-}
-
-function countNotes(mod) {
-  var count = 0;
-  (mod.weeks||[]).forEach(function(w) { if (w.notes && w.notes.trim()) count++; });
-  return count;
-}
-
-function showWeeksGrid(mod, container) {
-  var body = container || document.getElementById('hub-body');
-  var existing = body.querySelector('.weeks-grid-section');
-  if (existing) existing.remove();
-
-  var section = document.createElement('div');
-  section.className = 'weeks-grid-section';
-
-  var hdr = document.createElement('div');
-  hdr.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;';
-  var hdrLabel = document.createElement('span');
-  hdrLabel.textContent = 'Weeks (' + (mod.weeks||[]).length + ')';
-  var addBtn = document.createElement('button');
-  addBtn.textContent = '+ Add Week';
-  addBtn.dataset.modid = mod.id;
-  addBtn.style.cssText = 'padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12px;';
-  addBtn.onclick = function() { addWeekToModule(addBtn.dataset.modid); };
-  hdr.appendChild(hdrLabel);
-  hdr.appendChild(addBtn);
-  section.appendChild(hdr);
-
-  var grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;';
-
-  (mod.weeks||[]).forEach(function(week) {
-    var card = document.createElement('div');
-    card.style.cssText = 'background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all 0.15s;';
-    card.onmouseenter = function() { card.style.borderColor = 'var(--accent)'; card.style.transform = 'translateY(-1px)'; };
-    card.onmouseleave = function() { card.style.borderColor = 'var(--border)'; card.style.transform = ''; };
-    card.dataset.modid = mod.id;
-    card.dataset.weekid = week.id;
-    card.onclick = (function(mId, wId) {
-      return function() { selectWeek(mId, wId); };
-    })(mod.id, week.id);
-    var resCount = (week.resources||[]).length;
-    var hasNotes = !!(week.notes && week.notes.trim());
-    card.innerHTML = '<div style="font-size:15px;font-weight:700;margin-bottom:4px;color:var(--fg);">' + week.name + '</div>' +
-      '<div style="font-size:12px;color:var(--fg-muted);margin-bottom:8px;">' + resCount + ' resources' + (hasNotes?' · notes':'') + '</div>' +
-      '<div style="display:flex;gap:4px;flex-wrap:wrap;">' +
-      (resCount>0?'<span style="padding:2px 7px;background:rgba(45,106,159,0.1);color:var(--accent);border-radius:8px;font-size:10px;font-weight:600;">'+resCount+' files</span>':'') +
-      (hasNotes?'<span style="padding:2px 7px;background:rgba(124,58,237,0.1);color:#7c3aed;border-radius:8px;font-size:10px;font-weight:600;">notes</span>':'') +
-      (week.vle_url?'<span style="padding:2px 7px;background:rgba(22,163,74,0.1);color:#16a34a;border-radius:8px;font-size:10px;font-weight:600;">VLE</span>':'') +
-      '</div>';
-    grid.appendChild(card);
-  });
-
-  if (!(mod.weeks||[]).length) {
-    var empty = document.createElement('div');
-    empty.style.cssText = 'text-align:center;padding:30px;color:var(--fg-muted);font-size:13px;border:2px dashed var(--border);border-radius:10px;grid-column:1/-1;';
-    empty.textContent = 'No weeks yet. Click "+ Add Week" to get started.';
-    grid.appendChild(empty);
-  }
-
-  section.appendChild(grid);
-  body.appendChild(section);
-}
-
-function saveModuleDetails(modId, btn) {
-  var mod = modules.find(function(m){return m.id===modId;});
-  if (!mod) return;
-  var rqEl = document.getElementById('mod-rq');
-  var lecEl = document.getElementById('mod-lec');
-  var vleEl = document.getElementById('mod-vle');
-  if (rqEl) mod.researchQ = rqEl.value;
-  if (lecEl) mod.lecturer = lecEl.value;
-  if (vleEl) mod.vle = vleEl.value;
-  saveModules();
-  if (btn) { btn.textContent = 'Saved ✓'; setTimeout(function(){btn.textContent='Save Details';}, 2000); }
-}
-
-
-function selectWeek(modId, weekId) {
-  console.log('selectWeek called:', modId, weekId, 'modules:', modules.length);
-  var mod = modules.find(function(m){return m.id===modId;});
-  if (!mod) { console.error('Module not found:', modId); return; }
-  var week = (mod.weeks||[]).find(function(w){return w.id===weekId;});
-  if (!week) { console.error('Week not found:', weekId, 'in', mod.weeks); return; }
-  console.log('Opening week:', week.name);
+function selectWeek(mod, week) {
   currentModule = mod;
   currentWeek = week;
-  // Always show resources when opening a week — never use currentTab
-  // (currentTab may be 'overview' from module click, which would show module overview again)
-  currentTab = 'overview';
+  document.getElementById('hub-title').textContent = mod.name + ' \u2014 ' + week.name;
   renderTree();
-  document.getElementById('hub-title').textContent = mod.name + ' — ' + week.name;
-  var editBtn = document.getElementById('hub-edit-btn');
-  if (editBtn) editBtn.style.display = 'inline-block';
-  document.getElementById('hub-subtitle').textContent = (week.vle_url ? 'VLE: ' + week.vle_url : '') + ' · ' + (week.resources||[]).length + ' resources';
-  // Show Overview tab with editable fields
-  document.querySelectorAll('.hub-tab').forEach(function(t){t.classList.remove('active');});
-  var ovTab = document.getElementById('tab-overview');
-  if (ovTab) ovTab.classList.add('active');
-  var body = document.getElementById('hub-body');
-  showWeekOverview(week, mod);
-}
-
-
-var _hubEditOpen = false;
-function toggleHubEdit() {
-  _hubEditOpen = !_hubEditOpen;
-  var fields = document.getElementById('hub-edit-fields');
-  var btn = document.getElementById('hub-edit-btn');
-  if (!fields) return;
-  fields.style.display = _hubEditOpen ? 'block' : 'none';
-  if (btn) btn.textContent = _hubEditOpen ? '✕ Cancel' : '✏ Edit';
-  if (_hubEditOpen && currentWeek) {
-    document.getElementById('hub-edit-name').value = currentWeek.name || '';
-    document.getElementById('hub-edit-topic').value = currentWeek.topic || '';
-    document.getElementById('hub-edit-vle').value = currentWeek.vle_url || '';
-    document.getElementById('hub-edit-name').focus();
-  }
-}
-
-function saveHubEdit() {
-  if (!currentWeek || !currentModule) return;
-  var name = document.getElementById('hub-edit-name').value.trim();
-  var topic = document.getElementById('hub-edit-topic').value;
-  var vle = document.getElementById('hub-edit-vle').value;
-  if (name) currentWeek.name = name;
-  currentWeek.topic = topic;
-  currentWeek.vle_url = vle;
-  saveModules();
-  renderTree();
-  document.getElementById('hub-title').textContent = currentModule.name + ' — ' + currentWeek.name;
-  document.getElementById('hub-subtitle').textContent = (vle ? 'VLE: ' + vle : '') + ' · ' + (currentWeek.resources||[]).length + ' resources';
-  _hubEditOpen = false;
-  var fields = document.getElementById('hub-edit-fields');
-  if (fields) fields.style.display = 'none';
-  var btn = document.getElementById('hub-edit-btn');
-  if (btn) btn.textContent = '\u270F Edit';
-}
-
-function addWeekToModule(modId) {
-  var name = prompt('Week name (e.g. "Week 1: Introduction to Quantitative Methods"):');
-  if (!name) return;
-  var vle = prompt('VLE link (optional):') || '';
-  var mod = modules.find(function(m){return m.id===modId;});
-  if (!mod) return;
-  if (!mod.weeks) mod.weeks = [];
-  var week = { id:'w-'+Date.now(), name:name, vle_url:vle, resources:[], notes:'', created:new Date().toISOString() };
-  mod.weeks.push(week);
-  saveModules();
-  renderTree();
-  selectWeek(modId, week.id);
+  switchTab('overview');
 }
 
 function openAddModule() {
   var name = prompt('Module name:');
   if (!name) return;
-  var icons = ['📊','&#x1F52C;','&#x1F4DD;','&#x1F393;','🧠','📖'];
-  var colours = ['#2d6a9f','#0f3b3a','#5c2d3f','#16a34a','#7c3aed','#f59e0b'];
+  var icons = ['\uD83D\uDCCA', '\uD83D\uDD2C', '\uD83D\uDCDD', '\uD83C\uDF93', '\uD83E\uDDE0', '\uD83D\uDCD6'];
+  var colours = ['#2d6a9f', '#0f3b3a', '#5c2d3f', '#16a34a', '#7c3aed', '#f59e0b'];
   var idx = modules.length % icons.length;
-  modules.push({ id:'mod-'+Date.now(), name:name, icon:icons[idx], colour:colours[idx], weeks:[] });
+  modules.push({id: 'mod-' + Date.now(), name: name, icon: icons[idx], colour: colours[idx], weeks: [], researchQ: '', lecturer: '', vle: ''});
   saveModules();
   renderTree();
 }
 
-function filterTree(q) {
-  var ql = q.toLowerCase();
-  document.querySelectorAll('.tree-module').forEach(function(el) {
-    var name = el.querySelector('.tree-module-hdr span:nth-child(2)').textContent.toLowerCase();
-    el.style.display = !q || name.includes(ql) ? '' : 'none';
-  });
+function addWeekToModule(modId) {
+  var name = prompt('Week name (e.g. "Week 1: Introduction"):');
+  if (!name) return;
+  var mod = modules.find(function(m) { return m.id === modId; });
+  if (!mod) return;
+  if (!mod.weeks) mod.weeks = [];
+  var week = {id: 'w-' + Date.now(), name: name, vle_url: '', topic: '', notes: '', resources: [], created: new Date().toISOString()};
+  mod.weeks.push(week);
+  saveModules();
+  selectWeek(mod, week);
 }
 
-// ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(tab, btn) {
   currentTab = tab;
-  document.querySelectorAll('.hub-tab').forEach(function(t){t.classList.remove('active');});
-  if (btn) { btn.classList.add('active'); } else {
-    document.querySelectorAll('.hub-tab').forEach(function(t){
-      if (t.textContent.toLowerCase().includes(tab)) t.classList.add('active');
-    });
-  }
+  document.querySelectorAll('.hub-tab').forEach(function(t) { t.classList.remove('active'); });
+  var tabEl = document.getElementById('tab-' + tab);
+  if (tabEl) tabEl.classList.add('active');
   var body = document.getElementById('hub-body');
-  if (!currentWeek && tab !== 'search') {
-    body.innerHTML = '<div style="text-align:center;padding:60px;color:var(--fg-muted);"><div style="font-size:48px;margin-bottom:12px;">&#x1F4DA;</div><div style="font-size:16px;font-weight:600;">Select a module and week from the left</div></div>';
+  if (!currentModule && tab !== 'search') {
+    body.innerHTML = '<div class="empty-state"><div class="icon">\uD83D\uDCDA</div><div style="font-size:16px;font-weight:600;">Select a module from the left</div></div>';
     return;
   }
-      if (tab === 'overview') {
-    if (currentWeek && currentModule) {
-      showWeekOverview(currentWeek, currentModule);
-    } else if (currentModule) {
-      showModuleOverview(currentModule);
-    } else {
-      body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--fg-muted);">Select a module from the left.</div>';
-    }
-  }
+  if (tab === 'overview') renderOverview(body);
   else if (tab === 'resources') renderResources(body);
   else if (tab === 'notes') renderNotes(body);
-  else if (tab === 'search') renderSearchResults(body);
+  else if (tab === 'search') renderSearchTab(body);
   else if (tab === 'upload') renderUpload(body);
-  else if (tab === 'concepts') renderConcepts(body);
 }
 
-// ── Resources tab ─────────────────────────────────────────────────────────────
-function renderResources(body) {
-  var resources = currentWeek ? (currentWeek.resources || []) : [];
+function renderOverview(body) {
   body.innerHTML = '';
+  var target = currentWeek || currentModule;
+  var resources = currentWeek ? (currentWeek.resources || []) : getAllResources();
 
-  // Group by type
-  var groups = {
-    ppt: { label:'Slides / Presentations', icon:'📊', items:[] },
-    reading: { label:'Essential Reading', icon:'📖', items:[] },
-    recommended: { label:'Recommended Reading', icon:'📕', items:[] },
-    paper: { label:'Research Papers', icon:'📄', items:[] },
-    news: { label:'News & Current Affairs', icon:'📰', items:[] },
-    note: { label:'My Notes', icon:'✍', items:[] },
-    link: { label:'Links & Other', icon:'&#x1F517;', items:[] },
-  };
-
-  resources.forEach(function(r) {
-    var g = groups[r.type] || groups.link;
-    g.items.push(r);
-  });
-
-  // VLE link if present
-  if (currentWeek && currentWeek.vle_url) {
-    var vleDiv = document.createElement('div');
-    vleDiv.style.cssText = 'padding:8px 12px;background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:8px;margin-bottom:12px;font-size:12px;display:flex;align-items:center;gap:8px;';
-    vleDiv.innerHTML = '<span>&#x1F517;</span><span>VLE: </span><a href="' + currentWeek.vle_url + '" target="_blank" style="color:var(--accent);">' + currentWeek.vle_url + '</a>';
-    body.appendChild(vleDiv);
-  }
-
-  var hasAny = false;
-  Object.keys(groups).forEach(function(key) {
-    var g = groups[key];
-    if (!g.items.length) return;
-    hasAny = true;
-    var section = document.createElement('div');
-    section.className = 'week-section';
-    var hdr = document.createElement('div');
-    hdr.className = 'week-section-hdr';
-    hdr.innerHTML = g.icon + ' ' + g.label + ' (' + g.items.length + ')';
-    section.appendChild(hdr);
-    g.items.forEach(function(r) {
-      section.appendChild(makeResourceCard(r));
-    });
-    body.appendChild(section);
-  });
-
-  if (!hasAny) {
-    var empty = document.createElement('div');
-    empty.style.cssText = 'text-align:center;padding:40px;color:var(--fg-muted);';
-    empty.innerHTML = '<div style="font-size:32px;margin-bottom:8px;">&#x1F4C2;</div><div style="font-size:14px;font-weight:600;margin-bottom:6px;">No resources yet</div><div style="font-size:12px;">Click "+ Add Resource" to add slides, readings, papers, or links.</div>';
-    body.appendChild(empty);
-  }
-}
-
-function makeResourceCard(r) {
-  var icons = {ppt:'📊',pdf:'📄',reading:'📖',recommended:'📕',paper:'📄',news:'📰',note:'✍',link:'&#x1F517;'};
-  var card = document.createElement('div');
-  card.className = 'resource-card';
-  card.onclick = function() { openResource(r); };
-  card.innerHTML = '<div class="resource-icon">' + (icons[r.type]||'📄') + '</div>' +
-    '<div class="resource-info">' +
-      '<div class="resource-title">' + r.title.replace(/</g,'&lt;') + '</div>' +
-      '<div class="resource-meta">' +
-        '<span class="resource-type type-' + r.type + '">' + r.type + '</span>' +
-        (r.url ? '<a href="' + r.url + '" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent);font-size:11px;">Open &#x2197;</a>' : '') +
-        (r.tags && r.tags.length ? '<span>' + r.tags.join(', ') + '</span>' : '') +
+  var detailCard = document.createElement('div');
+  detailCard.className = 'detail-card';
+  detailCard.innerHTML = '<h4>' + (currentWeek ? 'Week Details' : 'Module Details') + '</h4>' +
+    '<div class="field-row">' +
+      '<div class="field-group"><label class="field-label">' + (currentWeek ? 'Week Name' : 'Module Name') + '</label>' +
+      '<input class="field-input" id="edit-name" type="text" value="' + (target.name || '').replace(/"/g, '&quot;') + '"></div>' +
+      '<div class="field-group"><label class="field-label">Lecturer / Professor</label>' +
+      '<input class="field-input" id="edit-lecturer" type="text" value="' + (target.lecturer || '').replace(/"/g, '&quot;') + '" placeholder="Dr / Prof name..."></div>' +
+    '</div>' +
+    '<div class="field-row">' +
+      '<div class="field-group"><label class="field-label">Research Question / Focus</label>' +
+      '<textarea class="field-textarea" id="edit-rq">' + (target.researchQ || '') + '</textarea></div>' +
+      '<div class="field-group"><label class="field-label">VLE URL</label>' +
+      '<input class="field-input" id="edit-vle" type="url" value="' + (target.vle || target.vle_url || '').replace(/"/g, '&quot;') + '" placeholder="https://learn.gold.ac.uk/...">' +
+      (target.vle || target.vle_url ? '<a href="' + (target.vle || target.vle_url) + '" target="_blank" style="font-size:11px;color:var(--accent);display:block;margin-top:4px;">Open VLE \u2197</a>' : '') +
       '</div>' +
     '</div>' +
-    '<div class="resource-actions">' +
-      '<button class="res-btn" onclick="event.stopPropagation();askAbout(\'' + r.id + '\')" title="Ask AI about this">&#x1F4AC;</button>' +
-      '<button class="res-btn" onclick="event.stopPropagation();annotate(\'' + r.id + '\')" title="Annotate">&#x270F;</button>' +
-      '<button class="res-btn" onclick="event.stopPropagation();deleteResource(\'' + r.id + '\')" title="Delete" style="color:#dc2626;">&#x2715;</button>' +
-    '</div>';
-  return card;
+    '<button class="save-btn" onclick="saveDetails()">Save Details</button>' +
+    '<span id="save-status" style="font-size:12px;color:var(--fg-muted);margin-left:10px;"></span>';
+  body.appendChild(detailCard);
+
+  if (currentWeek) {
+    var COURSE = ['ppt','pptx','reading','recommended','further','sample','markscheme','handout','lecture'];
+    var SELF = ['news','paper','blog','report','podcast','video','link'];
+    var cardDefs = [
+      {label:'Course Material', icon:'\uD83D\uDCDA', colour:'#2d6a9f', count:resources.filter(function(r){return COURSE.indexOf(r.type)!==-1;}).length, tab:'resources'},
+      {label:'Self-Sourced',    icon:'\uD83D\uDCF0', colour:'#f59e0b', count:resources.filter(function(r){return SELF.indexOf(r.type)!==-1;}).length,   tab:'resources'},
+      {label:'My Notes',        icon:'\u270D',        colour:'#7c3aed', count:currentWeek.notes&&currentWeek.notes.trim()?1:0,                            tab:'notes'},
+      {label:'All Resources',   icon:'\uD83D\uDCCB', colour:'#16a34a', count:resources.length,                                                           tab:'resources'},
+      {label:'Upload',          icon:'\u2B06',        colour:'#6b7280', count:0,                                                                          tab:'upload'},
+    ];
+    var grid = document.createElement('div');
+    grid.className = 'card-grid';
+    cardDefs.forEach(function(card) {
+      var el = document.createElement('div');
+      el.className = 'card';
+      el.innerHTML = '<div class="card-icon">' + card.icon + '</div><div class="card-label">' + card.label + '</div><div class="card-count" style="color:' + card.colour + ';">' + card.count + '</div><div class="card-bar" style="background:' + card.colour + ';"></div>';
+      el.onclick = (function(t) { return function() { switchTab(t); }; })(card.tab);
+      el.onmouseenter = (function(c, e) { return function() { e.style.borderColor = c; }; })(card.colour, el);
+      el.onmouseleave = function() { el.style.borderColor = 'var(--border)'; };
+      grid.appendChild(el);
+    });
+    body.appendChild(grid);
+  } else {
+    var weekHdr = document.createElement('div');
+    weekHdr.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;';
+    weekHdr.innerHTML = '<span>Weeks (' + (currentModule.weeks || []).length + ')</span><button onclick="addWeekToModule(\'' + currentModule.id + '\')" style="padding:3px 10px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">+ Add Week</button>';
+    body.appendChild(weekHdr);
+    var weekGrid = document.createElement('div');
+    weekGrid.className = 'week-grid';
+    (currentModule.weeks || []).forEach(function(week) {
+      var wc = document.createElement('div');
+      wc.className = 'week-card';
+      var rc = (week.resources || []).length;
+      var hn = !!(week.notes && week.notes.trim());
+      wc.innerHTML = '<h4>' + week.name + '</h4><p>' + rc + ' resources' + (hn ? ' &middot; notes' : '') + '</p>';
+      wc.onclick = (function(m, w) { return function() { selectWeek(m, w); }; })(currentModule, week);
+      wc.onmouseenter = function() { wc.style.borderColor = 'var(--accent)'; };
+      wc.onmouseleave = function() { wc.style.borderColor = 'var(--border)'; };
+      weekGrid.appendChild(wc);
+    });
+    if (!(currentModule.weeks || []).length) {
+      var empty = document.createElement('div');
+      empty.style.cssText = 'text-align:center;padding:30px;color:var(--fg-muted);font-size:13px;border:2px dashed var(--border);border-radius:10px;grid-column:1/-1;';
+      empty.textContent = 'No weeks yet. Click "+ Add Week" to get started.';
+      weekGrid.appendChild(empty);
+    }
+    body.appendChild(weekGrid);
+  }
 }
 
-// ── Notes tab ─────────────────────────────────────────────────────────────────
+function saveDetails() {
+  var target = currentWeek || currentModule;
+  if (!target) return;
+  var n = document.getElementById('edit-name');
+  var l = document.getElementById('edit-lecturer');
+  var rq = document.getElementById('edit-rq');
+  var v = document.getElementById('edit-vle');
+  if (n) target.name = n.value.trim() || target.name;
+  if (l) target.lecturer = l.value;
+  if (rq) target.researchQ = rq.value;
+  if (v) { target.vle = v.value; target.vle_url = v.value; }
+  saveModules();
+  document.getElementById('hub-title').textContent = currentWeek ? (currentModule.name + ' \u2014 ' + target.name) : target.name;
+  renderTree();
+  var s = document.getElementById('save-status');
+  if (s) { s.textContent = '\u2713 Saved'; setTimeout(function() { s.textContent = ''; }, 2000); }
+}
+
+function getAllResources() {
+  var all = [];
+  (currentModule.weeks || []).forEach(function(w) { all = all.concat(w.resources || []); });
+  return all;
+}
+
+function renderResources(body) {
+  body.innerHTML = '';
+  var resources = currentWeek ? (currentWeek.resources || []) : getAllResources();
+  if (!resources.length) {
+    body.innerHTML = '<div class="empty-state"><div class="icon">\uD83D\uDCC2</div><div style="font-size:14px;font-weight:600;margin-bottom:6px;">No resources yet</div><div style="font-size:13px;">Use the Upload tab to add files and links.</div></div>';
+    return;
+  }
+  var icons = {ppt:'\uD83D\uDCCA',pptx:'\uD83D\uDCCA',reading:'\uD83D\uDCD6',recommended:'\uD83D\uDCD5',further:'\uD83D\uDCD4',paper:'\uD83D\uDCC4',news:'\uD83D\uDCF0',note:'\u270D',link:'\uD83D\uDD17',audio:'\uD83C\uDFA7',video:'\uD83C\uDFAC',blog:'\uD83D\uDCDD',report:'\uD83D\uDCCA'};
+  resources.forEach(function(r) {
+    var item = document.createElement('div');
+    item.className = 'res-item';
+    item.innerHTML = '<div class="res-icon">' + (icons[r.type] || '\uD83D\uDCC4') + '</div>' +
+      '<div class="res-info"><div class="res-title">' + r.title.replace(/</g, '&lt;') + '</div>' +
+      '<div class="res-meta"><span class="res-type type-' + (r.type || 'link') + '">' + (r.type || 'link') + '</span>' +
+      (r.url ? '<a href="' + r.url + '" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent);font-size:11px;">Open \u2197</a>' : '') +
+      '</div></div>' +
+      '<div style="display:flex;gap:4px;flex-shrink:0;">' +
+      '<button class="tts-btn" onclick="event.stopPropagation();readAloud(\'' + r.id + '\')" title="Read aloud">\uD83D\uDD0A</button>' +
+      '<button class="tts-btn" onclick="event.stopPropagation();askAboutResource(\'' + r.id + '\')" title="Ask AI">\uD83D\uDCAC</button>' +
+      '<button class="del-btn" onclick="event.stopPropagation();deleteResource(\'' + r.id + '\')" title="Delete">\u2715</button>' +
+      '</div>';
+    body.appendChild(item);
+  });
+}
+
+function deleteResource(id) {
+  if (!currentWeek || !confirm('Delete this resource?')) return;
+  currentWeek.resources = (currentWeek.resources || []).filter(function(r) { return r.id !== id; });
+  saveModules();
+  renderResources(document.getElementById('hub-body'));
+}
+
+function readAloud(id) {
+  var resource = currentWeek ? (currentWeek.resources || []).find(function(r) { return r.id === id; }) : null;
+  if (!resource || !resource.content) { alert('No text content to read.'); return; }
+  fetch(WORKER + '/api/tts/read', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:resource.content.substring(0,5000),voice:'aura-arcas-en',provider:'deepgram'})})
+    .then(function(r) { return r.blob(); })
+    .then(function(blob) { new Audio(URL.createObjectURL(blob)).play(); })
+    .catch(function(e) { alert('TTS error: ' + e.message); });
+}
+
+function askAboutResource(id) {
+  var resource = currentWeek ? (currentWeek.resources || []).find(function(r) { return r.id === id; }) : null;
+  if (!resource) return;
+  var q = 'Tell me about "' + resource.title + '". What are the key arguments, methods, and findings?';
+  window.location.href = '/chat/?q=' + encodeURIComponent(q);
+}
+
 function renderNotes(body) {
   body.innerHTML = '';
-  var notes = currentWeek ? (currentWeek.notes || '') : '';
-  var label = document.createElement('div');
-  label.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);margin-bottom:8px;';
-  label.textContent = 'My notes for ' + (currentWeek ? currentWeek.name : 'this week');
+  var target = currentWeek || currentModule;
+  var lbl = document.createElement('div');
+  lbl.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;color:var(--fg-muted);margin-bottom:8px;';
+  lbl.textContent = 'My notes for ' + target.name;
   var ta = document.createElement('textarea');
-  ta.className = 'notes-editor';
-  ta.value = notes;
+  ta.className = 'notes-ta';
+  ta.value = target.notes || '';
   ta.placeholder = 'Write your notes here... Markdown supported. Auto-saves.';
   ta.oninput = function() {
-    if (currentWeek) {
-      currentWeek.notes = ta.value;
-      clearTimeout(ta._saveTimer);
-      ta._saveTimer = setTimeout(function() { saveModules(); }, 1500);
-    }
+    target.notes = ta.value;
+    clearTimeout(ta._t);
+    ta._t = setTimeout(function() { saveModules(); }, 1500);
   };
-  var aiBtn = document.createElement('button');
-  aiBtn.style.cssText = 'margin-top:8px;padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;';
-  aiBtn.textContent = '&#x2728; Ask AI to improve these notes';
-  aiBtn.onclick = function() {
-    var text = ta.value.trim();
-    if (!text) { alert('Write some notes first.'); return; }
-    aiQuick('Please review and improve these notes, maintaining my voice and adding any missing key points:\n\n' + text.substring(0, 2000));
-  };
-  body.appendChild(label);
+  body.appendChild(lbl);
   body.appendChild(ta);
-  body.appendChild(aiBtn);
 }
 
-// ── Upload tab ────────────────────────────────────────────────────────────────
 function renderUpload(body) {
   body.innerHTML = '';
+  if (!currentWeek) {
+    body.innerHTML = '<div class="empty-state"><div class="icon">\uD83D\uDCC2</div><div style="font-size:14px;font-weight:600;">Select a week first</div></div>';
+    return;
+  }
   var zone = document.createElement('div');
   zone.className = 'upload-zone';
-  zone.innerHTML = '<div style="font-size:40px;margin-bottom:10px;">&#x1F4CE;</div><div style="font-size:15px;font-weight:600;margin-bottom:6px;">Drop files here or click to upload</div><div style="font-size:12px;color:var(--fg-muted);">PDF, PPTX, DOCX, MD, TXT — files are indexed for search and AI retrieval</div>';
-  var fileInput = document.createElement('input');
-  fileInput.type = 'file'; fileInput.multiple = true; fileInput.style.display = 'none';
-  fileInput.accept = '.pdf,.pptx,.ppt,.docx,.doc,.md,.txt,.csv';
-  fileInput.onchange = function() { handleUpload(this.files); };
-  zone.onclick = function() { fileInput.click(); };
-  zone.ondragover = function(e) { e.preventDefault(); zone.classList.add('drag'); };
-  zone.ondragleave = function() { zone.classList.remove('drag'); };
-  zone.ondrop = function(e) { e.preventDefault(); zone.classList.remove('drag'); handleUpload(e.dataTransfer.files); };
+  zone.innerHTML = '<div style="font-size:36px;margin-bottom:8px;">\uD83D\uDCCE</div><div style="font-size:14px;font-weight:600;margin-bottom:4px;">Drop files here or click to upload</div><div style="font-size:12px;color:var(--fg-muted);">PDF, PPTX, DOCX, MD, TXT</div>';
+  var fi = document.createElement('input');
+  fi.type = 'file'; fi.multiple = true; fi.style.display = 'none';
+  fi.accept = '.pdf,.pptx,.ppt,.docx,.doc,.md,.txt,.csv';
+  fi.onchange = function() { handleUpload(this.files); };
+  zone.onclick = function() { fi.click(); };
+  zone.ondragover = function(e) { e.preventDefault(); zone.style.borderColor = 'var(--accent)'; };
+  zone.ondragleave = function() { zone.style.borderColor = 'var(--border)'; };
+  zone.ondrop = function(e) { e.preventDefault(); zone.style.borderColor = 'var(--border)'; handleUpload(e.dataTransfer.files); };
   body.appendChild(zone);
-  body.appendChild(fileInput);
-
-  // Add URL form
+  body.appendChild(fi);
   var urlForm = document.createElement('div');
-  urlForm.style.cssText = 'margin-top:16px;padding:14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;';
-  urlForm.innerHTML = '<div style="font-size:12px;font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);">Add by URL (VLE link, paper, news article)</div>' +
+  urlForm.className = 'detail-card';
+  urlForm.innerHTML = '<h4>Add by URL</h4>' +
     '<div class="form-row">' +
-      '<input class="form-input" id="url-input" type="url" placeholder="https://...">' +
-      '<input class="form-input" id="url-title" type="text" placeholder="Title">' +
-      '<select class="form-select" id="url-type">' +
-        '<optgroup label="Course Material">' +
-          '<option value="ppt">Slides / PPT</option>' +
-          '<option value="reading">Essential Reading</option>' +
-          '<option value="recommended">Recommended Reading</option>' +
-          '<option value="further">Further Reading</option>' +
-          '<option value="sample">Sample Answer</option>' +
-          '<option value="markscheme">Mark Scheme</option>' +
-          '<option value="handout">Handout</option>' +
-          '<option value="lecture">Lecture Notes</option>' +
-        '</optgroup>' +
-        '<optgroup label="Self-Sourced">' +
-          '<option value="news">News Article</option>' +
-          '<option value="paper">Research Paper</option>' +
-          '<option value="blog">Blog / Opinion</option>' +
-          '<option value="report">Report / Policy</option>' +
-          '<option value="podcast">Podcast</option>' +
-          '<option value="video">Video</option>' +
-        '</optgroup>' +
-        '<optgroup label="Other">' +
-          '<option value="link">Link</option>' +
-          '<option value="audio">Audio</option>' +
-        '</optgroup>' +
-      '</select>' +
-      '<button class="form-btn" onclick="addUrlResource()">Add</button>' +
-      '<button class="form-btn" onclick="autoNameResource()" style="background:var(--bg);color:var(--fg);border:1px solid var(--border);" title="Auto-detect title and author">&#x1F916; Auto-name</button>' +
+    '<input class="form-input" id="url-input" type="url" placeholder="https://...">' +
+    '<input class="form-input" id="url-title" type="text" placeholder="Title">' +
+    '<select class="form-select" id="url-type">' +
+    '<optgroup label="Course Material"><option value="ppt">Slides / PPT</option><option value="reading">Essential Reading</option><option value="recommended">Recommended</option><option value="further">Further Reading</option><option value="sample">Sample Answer</option><option value="markscheme">Mark Scheme</option></optgroup>' +
+    '<optgroup label="Self-Sourced"><option value="news">News Article</option><option value="paper">Research Paper</option><option value="blog">Blog / Opinion</option><option value="report">Report / Policy</option></optgroup>' +
+    '<optgroup label="Other"><option value="link">Link</option></optgroup>' +
+    '</select>' +
+    '<button class="form-btn" onclick="addUrlResource()">Add</button>' +
     '</div>';
   body.appendChild(urlForm);
 }
@@ -829,20 +484,12 @@ function handleUpload(files) {
   Array.from(files).forEach(function(file) {
     var reader = new FileReader();
     reader.onload = function(e) {
-      var content = e.target.result;
       var ext = file.name.split('.').pop().toLowerCase();
-      var type = ext === 'pptx' || ext === 'ppt' ? 'ppt' : ext === 'pdf' ? 'pdf' : 'reading';
-      var resource = {
-        id: 'r-' + Date.now() + '-' + Math.random().toString(36).slice(2,6),
-        type: type, title: file.name, url: null,
-        content: content.substring(0, 50000), // Store first 50K chars
-        size: file.size, tags: [], added: new Date().toISOString()
-      };
+      var type = (ext === 'pptx' || ext === 'ppt') ? 'ppt' : ext === 'pdf' ? 'pdf' : 'reading';
+      var resource = {id:'r-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), type:type, title:file.name, url:null, content:e.target.result.substring(0,50000), size:file.size, tags:[], added:new Date().toISOString()};
       if (!currentWeek.resources) currentWeek.resources = [];
       currentWeek.resources.push(resource);
       saveModules();
-      // Index for RAG
-      indexResource(resource);
       renderTree();
       switchTab('resources');
     };
@@ -856,9 +503,8 @@ function addUrlResource() {
   var title = document.getElementById('url-title').value.trim() || url;
   var type = document.getElementById('url-type').value;
   if (!url) { alert('Enter a URL.'); return; }
-  var resource = { id:'r-'+Date.now(), type:type, title:title, url:url, tags:[], added:new Date().toISOString() };
   if (!currentWeek.resources) currentWeek.resources = [];
-  currentWeek.resources.push(resource);
+  currentWeek.resources.push({id:'r-'+Date.now(), type:type, title:title, url:url, tags:[], added:new Date().toISOString()});
   saveModules();
   renderTree();
   switchTab('resources');
@@ -869,304 +515,71 @@ function addResource() {
   switchTab('upload');
 }
 
-function deleteResource(id) {
-  if (!currentWeek || !confirm('Delete this resource?')) return;
-  currentWeek.resources = (currentWeek.resources||[]).filter(function(r){return r.id!==id;});
-  saveModules();
-  renderTree();
-  switchTab('resources');
+function renderSearchTab(body) {
+  body.innerHTML = '<div class="search-bar"><input class="search-input" id="tab-search-input" type="text" placeholder="Search notes, resources..." onkeydown="if(event.key===\'Enter\')runTabSearch()"><button class="search-btn" onclick="runTabSearch()">Search</button></div><div id="search-results"></div>';
 }
 
-function indexResource(resource) {
-  if (!resource.content) return;
-  fetch(WORKER + '/api/rag/index', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      text: resource.content,
-      name: resource.title,
-      doc_id: resource.id,
-      workspace_id: currentModule ? currentModule.id : 'study',
-      tags: [currentModule ? currentModule.name : '', currentWeek ? currentWeek.name : '', resource.type]
-    })
-  }).catch(function(){});
-}
-
-// ── Search ────────────────────────────────────────────────────────────────────
 function runGlobalSearch() {
   var q = document.getElementById('global-search').value.trim();
   if (!q) return;
-  
-  // Detect special search types
-  var authorMatch = q.match(/^(?:by|author|thinker|fonagy|bourdieu|goffman|foucault|said|crenshaw|hooks|freire|bauman|parsons|cohen|hillyard|putnam|hochschild)\b/i);
-  var themeMatch = q.match(/^(?:theme|concept|about|re|regarding):\s*/i);
-  
-  if (authorMatch || themeMatch) {
-    // Search specifically for author/thinker references
-    var searchTerm = q.replace(/^(?:by|author|thinker|theme|concept|about|re|regarding):\s*/i, '').trim();
-    document.getElementById('global-search').value = searchTerm;
-    q = searchTerm;
-  }
-  
-  // Also search AI for related concepts
-  if (q.length > 3) {
-    aiQuick('Search all my reading and notes for references to "' + q + '". Include: direct mentions, related concepts, and any arguments that connect to this. Label each result by source type (course material, self-sourced, my notes).');
-  }
-
-
-  var q = document.getElementById('global-search').value.trim();
-  var scope = document.getElementById('search-scope').value;
-  if (!q) return;
   switchTab('search');
-  var body = document.getElementById('hub-body');
-  body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);">Searching...</div>';
+  var inp = document.getElementById('tab-search-input');
+  if (inp) inp.value = q;
+  runTabSearch();
+}
 
-  var results = [];
-
-  // Search local resources
-  if (scope === 'all' || scope === 'course' || scope === 'notes') {
-    var ql = q.toLowerCase();
-    modules.forEach(function(mod) {
-      (mod.weeks||[]).forEach(function(week) {
-        // Search resources
-        (week.resources||[]).forEach(function(r) {
-          var text = (r.title + ' ' + (r.content||'') + ' ' + (r.tags||[]).join(' ')).toLowerCase();
-          if (text.includes(ql)) {
-            var excerpt = r.content ? r.content.substring(Math.max(0, r.content.toLowerCase().indexOf(ql)-100), r.content.toLowerCase().indexOf(ql)+200) : '';
-            results.push({source:'course', type:r.type, title:r.title, excerpt:excerpt, location:mod.name+' > '+week.name, url:r.url});
-          }
-        });
-        // Search notes
-        if (week.notes && week.notes.toLowerCase().includes(ql)) {
-          var ni = week.notes.toLowerCase().indexOf(ql);
-          results.push({source:'note', type:'note', title:'My notes: '+week.name, excerpt:week.notes.substring(Math.max(0,ni-100),ni+200), location:mod.name+' > '+week.name});
+function runTabSearch() {
+  var inp = document.getElementById('tab-search-input');
+  var q = inp ? inp.value.trim() : '';
+  if (!q) return;
+  var results = document.getElementById('search-results');
+  if (!results) return;
+  var ql = q.toLowerCase();
+  var found = [];
+  modules.forEach(function(mod) {
+    (mod.weeks || []).forEach(function(week) {
+      (week.resources || []).forEach(function(r) {
+        if ((r.title + ' ' + (r.content || '')).toLowerCase().includes(ql)) {
+          found.push({title:r.title, excerpt:(r.content||'').substring(0,150), location:mod.name+' > '+week.name, url:r.url, source:'course'});
         }
       });
-    });
-  }
-
-  // RAG search
-  if (scope === 'all' || scope === 'course' || scope === 'papers') {
-    fetch(WORKER + '/api/rag/search', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({query:q, limit:5})
-    }).then(function(r){return r.json();}).then(function(d){
-      (d.results||[]).forEach(function(r) {
-        results.push({source:'rag', type:'paper', title:r.doc_name, excerpt:r.chunk_text.substring(0,200), location:'RAG Index'});
-      });
-      renderSearchResults(body, results, q);
-    }).catch(function(){
-      renderSearchResults(body, results, q);
-    });
-  } else {
-    renderSearchResults(body, results, q);
-  }
-
-  // Web search via AI
-  if (scope === 'all' || scope === 'web') {
-    aiQuick('Search the web for: ' + q + '. Focus on UK-based academic research, news, and policy documents. Summarise the top 3-5 most relevant results with sources.');
-  }
-}
-
-function renderSearchResults(body, results, q) {
-  body.innerHTML = '';
-  if (!results || !results.length) {
-    body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);">No local results found. Check the AI panel for web results.</div>';
-    return;
-  }
-  var hdr = document.createElement('div');
-  hdr.style.cssText = 'font-size:12px;color:var(--fg-muted);margin-bottom:12px;';
-  hdr.textContent = results.length + ' results found';
-  body.appendChild(hdr);
-  results.forEach(function(r) {
-    var div = document.createElement('div');
-    div.className = 'search-result';
-    var srcClass = r.source === 'course' ? 'src-course' : r.source === 'note' ? 'src-note' : r.source === 'rag' ? 'src-paper' : 'src-web';
-    var srcLabel = r.source === 'course' ? 'Course Material' : r.source === 'note' ? 'My Notes' : r.source === 'rag' ? 'Indexed Document' : 'Web';
-    div.innerHTML = '<div class="search-result-title">' + r.title.replace(/</g,'&lt;') + '</div>' +
-      '<div class="search-result-excerpt">' + (r.excerpt||'').replace(/</g,'&lt;') + '</div>' +
-      '<div class="search-result-meta"><span class="search-source-badge ' + srcClass + '">' + srcLabel + '</span><span>' + (r.location||'') + '</span>' +
-      (r.url ? '<a href="' + r.url + '" target="_blank" style="color:var(--accent);">Open &#x2197;</a>' : '') + '</div>';
-    body.appendChild(div);
-  });
-}
-
-// ── Concepts tab ──────────────────────────────────────────────────────────────
-function renderConcepts(body) {
-  body.innerHTML = '';
-  var conceptsModule = modules.find(function(m){return m.id==='concepts';});
-  var p = document.createElement('p');
-  p.style.cssText = 'font-size:13px;color:var(--fg-muted);margin-bottom:16px;';
-  p.textContent = 'Key concepts and thinkers extracted from your reading. Ask the AI to identify concepts from any week.';
-  body.appendChild(p);
-  var btn = document.createElement('button');
-  btn.style.cssText = 'padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;margin-bottom:16px;';
-  btn.textContent = '&#x1F9E0; Extract concepts from this week\'s reading';
-  btn.onclick = function() {
-    if (!currentWeek) { alert('Select a week first.'); return; }
-    aiQuick('From the reading for ' + (currentWeek ? currentWeek.name : 'this week') + ', identify and briefly explain: (1) the 5 most important theoretical concepts, (2) the key thinkers referenced, (3) the main methodological approaches discussed. Format as a structured list.');
-  };
-  body.appendChild(btn);
-}
-
-// ── AI assistant ──────────────────────────────────────────────────────────────
-function buildContext() {
-  var ctx = 'You are a study assistant for Simon Johnson, a sociology MSc student at Goldsmiths. ';
-  if (currentModule) ctx += 'Current module: ' + currentModule.name + '. ';
-  if (currentWeek) {
-    ctx += 'Current week: ' + currentWeek.name + '. ';
-    var resources = (currentWeek.resources||[]).map(function(r){return r.title + ' (' + r.type + ')';}).join(', ');
-    if (resources) ctx += 'Resources this week: ' + resources + '. ';
-    if (currentWeek.notes) ctx += 'Simon\'s notes: ' + currentWeek.notes.substring(0,500) + '. ';
-  }
-  ctx += 'British English. Be precise, cite sources where possible, help build arguments and identify themes.';
-  return ctx;
-}
-
-function aiQuick(text) {
-  document.getElementById('ai-input').value = text;
-  sendAI();
-}
-
-function sendAI() {
-  var input = document.getElementById('ai-input');
-  var text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-
-  addAIMsg('user', text);
-  aiHistory.push({role:'user', content:text});
-
-  var messages = [{role:'system', content:buildContext()}].concat(aiHistory);
-
-  addAIMsg('system', 'Thinking...');
-
-  fetch(WORKER + '/api/chat', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({messages:messages, profile:'balanced'})
-  })
-  .then(function(r){return r.json();})
-  .then(function(d){
-    // Remove "Thinking..." message
-    var msgs = document.getElementById('ai-messages');
-    var last = msgs.lastChild;
-    if (last && last.classList.contains('system')) last.remove();
-
-    var response = d.content || 'No response.';
-    aiHistory.push({role:'assistant', content:response});
-    addAIMsg('assistant', response);
-    document.getElementById('ai-provider-info').textContent = d.provider ? 'via ' + d.provider + (d.model ? ' / ' + d.model : '') : '';
-    document.getElementById('ai-provider-badge').textContent = d.provider || '';
-  })
-  .catch(function(e){
-    var msgs = document.getElementById('ai-messages');
-    var last = msgs.lastChild;
-    if (last && last.classList.contains('system')) last.remove();
-    addAIMsg('system', 'Error: ' + e.message);
-  });
-}
-
-function addAIMsg(role, text) {
-  var msgs = document.getElementById('ai-messages');
-  var div = document.createElement('div');
-  div.className = 'ai-msg ' + role;
-  div.textContent = text;
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-function readAloud(resourceId, e) {
-  if (e) e.stopPropagation();
-  var resource = null;
-  if (currentWeek) resource = (currentWeek.resources||[]).find(function(r){return r.id===resourceId;});
-  if (!resource) return;
-  var text = resource.content || resource.title || '';
-  if (!text) { alert('No text content to read.'); return; }
-  var btn = e ? e.target : null;
-  if (btn) btn.textContent = '⏳';
-  fetch(WORKER + '/api/tts/read', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({text:text.substring(0,5000), voice:'aura-arcas-en', provider:'deepgram'})
-  })
-  .then(function(r) {
-    if (!r.ok) throw new Error('TTS failed: ' + r.status);
-    return r.blob();
-  })
-  .then(function(blob) {
-    if (btn) btn.textContent = '🔊';
-    var url = URL.createObjectURL(blob);
-    var audio = new Audio(url);
-    audio.play();
-    audio.onended = function() { if (btn) btn.textContent = '🔊'; };
-  })
-  .catch(function(e) {
-    if (btn) btn.textContent = '🔊';
-    alert('TTS error: ' + e.message);
-  });
-}
-
-function askAbout(resourceId) {
-  var resource = null;
-  if (currentWeek) {
-    resource = (currentWeek.resources||[]).find(function(r){return r.id===resourceId;});
-  }
-  if (!resource) return;
-  aiQuick('Tell me about "' + resource.title + '" — what are the key arguments, methods, and findings? How does it relate to the module themes?');
-}
-
-function annotate(resourceId) {
-  var note = prompt('Add annotation:');
-  if (!note || !currentWeek) return;
-  var resource = (currentWeek.resources||[]).find(function(r){return r.id===resourceId;});
-  if (resource) {
-    resource.annotation = (resource.annotation || '') + '\n' + new Date().toLocaleDateString('en-GB') + ': ' + note;
-    saveModules();
-  }
-}
-
-function openResource(r) {
-  // Open in the document viewer
-  var params = new URLSearchParams({
-    id: r.id || '',
-    name: r.name || r.title || 'Document',
-    type: r.type || '',
-    url: r.url || ''
-  });
-  var viewerUrl = '/doc-viewer/?'  + params.toString();
-  
-  // Pass content via postMessage (avoids URL length limits)
-  var win = window.open(viewerUrl, 'doc-viewer-' + (r.id||'doc'), 'width=1200,height=800');
-  if (win && r.content) {
-    // Wait for viewer to load then send content
-    var attempts = 0;
-    var send = setInterval(function() {
-      attempts++;
-      try {
-        win.postMessage({type: 'load-document', doc: r}, '*');
-        clearInterval(send);
-      } catch(e) {
-        if (attempts > 20) clearInterval(send);
+      if (week.notes && week.notes.toLowerCase().includes(ql)) {
+        var ni = week.notes.toLowerCase().indexOf(ql);
+        found.push({title:'Notes: '+week.name, excerpt:week.notes.substring(Math.max(0,ni-60),ni+120), location:mod.name+' > '+week.name, source:'note'});
       }
-    }, 300);
+    });
+  });
+  results.innerHTML = '';
+  if (!found.length) {
+    results.innerHTML = '<div style="padding:12px;color:var(--fg-muted);font-size:13px;">No local results found.</div>';
+  } else {
+    found.forEach(function(r) {
+      var div = document.createElement('div');
+      div.className = 'search-result';
+      div.innerHTML = '<div class="search-result-title">' + r.title.replace(/</g,'&lt;') + '</div>' +
+        '<div class="search-result-excerpt">' + (r.excerpt||'').replace(/</g,'&lt;') + '</div>' +
+        '<div class="search-result-meta"><span class="src-badge ' + (r.source==='course'?'src-course':'src-note') + '">' + (r.source==='course'?'Course':'Notes') + '</span><span>' + r.location + '</span>' +
+        (r.url?'<a href="'+r.url+'" target="_blank" style="color:var(--accent);">Open \u2197</a>':'') + '</div>';
+      results.appendChild(div);
+    });
   }
 }
 
 function exportWeek() {
-  if (!currentWeek) return;
-  var lines = ['# ' + (currentModule ? currentModule.name : '') + ' — ' + currentWeek.name, ''];
-  if (currentWeek.vle_url) lines.push('VLE: ' + currentWeek.vle_url, '');
-  (currentWeek.resources||[]).forEach(function(r) {
-    lines.push('## ' + r.title + ' [' + r.type + ']');
-    if (r.url) lines.push('URL: ' + r.url);
-    if (r.annotation) lines.push('Annotation: ' + r.annotation);
-    lines.push('');
-  });
-  if (currentWeek.notes) { lines.push('## My Notes', currentWeek.notes, ''); }
+  var target = currentWeek || currentModule;
+  if (!target) return;
+  var lines = ['# ' + (currentModule ? currentModule.name : '') + (currentWeek ? ' \u2014 ' + currentWeek.name : ''), ''];
+  if (target.vle || target.vle_url) lines.push('VLE: ' + (target.vle || target.vle_url), '');
+  var resources = currentWeek ? (currentWeek.resources || []) : getAllResources();
+  resources.forEach(function(r) { lines.push('## ' + r.title + ' [' + r.type + ']'); if (r.url) lines.push('URL: ' + r.url); lines.push(''); });
+  if (target.notes) lines.push('## My Notes', '', target.notes, '');
   var blob = new Blob([lines.join('\n')], {type:'text/markdown'});
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = (currentWeek.name || 'week') + '.md';
+  a.download = (target.name || 'export') + '.md';
   a.click();
 }
 
-
-
+</script>
+</body>
+</html>
