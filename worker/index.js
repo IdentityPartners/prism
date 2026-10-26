@@ -4959,6 +4959,150 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({ error: e.message }, 500, origin); }
     }
 
+
+    // ── STT: Speech-to-text via Groq Whisper ─────────────────────────────────
+    if (path === '/api/voice/transcribe' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const audioB64 = body.audio || '';
+        const provider = body.provider || 'groq';
+        const groqKey = k(env, ['groq_free_1', 'GROQ_FREE_1']);
+        const dgKey = k(env, ['deepgram_api_key', 'DEEPGRAM_API_KEY']);
+        if (!audioB64) return json({error: 'No audio data'}, 400, origin);
+        const audioBytes = Uint8Array.from(atob(audioB64), c => c.charCodeAt(0));
+        if (provider === 'groq' && groqKey) {
+          const form = new FormData();
+          form.append('file', new Blob([audioBytes], {type: 'audio/webm'}), 'audio.webm');
+          form.append('model', 'whisper-large-v3');
+          const resp = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+            method: 'POST', headers: {'Authorization': 'Bearer ' + groqKey}, body: form
+          });
+          const d = await resp.json();
+          return json({text: d.text || '', provider: 'groq'}, 200, origin);
+        }
+        if (dgKey) {
+          const resp = await fetch('https://api.deepgram.com/v1/listen?model=nova-3&language=en-GB', {
+            method: 'POST', headers: {'Authorization': 'Token ' + dgKey, 'Content-Type': 'audio/webm'}, body: audioBytes
+          });
+          const d = await resp.json();
+          const text = d.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+          return json({text, provider: 'deepgram'}, 200, origin);
+        }
+        return json({error: 'No STT provider configured'}, 400, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Image multi-model generation ──────────────────────────────────────────
+    if (path === '/api/image/multi' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const prompt = body.prompt || 'abstract art';
+        const models = body.models || ['gemini-image', 'pollinations'];
+        const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
+        const falKey = k(env, ['fal_api_key', 'FAL_API_KEY']);
+        async function genOne(modelId) {
+          try {
+            if (modelId.startsWith('gemini') && GKEY) {
+              const gm = modelId === 'gemini-image-pro' ? 'gemini-3-pro-image' : 'gemini-3.1-flash-image';
+              const gr = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + gm + ':generateContent', {
+                method: 'POST', headers: {'Content-Type': 'application/json', 'x-goog-api-key': GKEY},
+                body: JSON.stringify({contents: [{parts: [{text: prompt}]}], generationConfig: {responseModalities: ['IMAGE', 'TEXT']}})
+              });
+              const gd = await gr.json();
+              const parts = gd.candidates?.[0]?.content?.parts || [];
+              for (const p of parts) {
+                if (p.inlineData) return {model: modelId, url: 'data:' + p.inlineData.mimeType + ';base64,' + p.inlineData.data, provider: 'gemini'};
+              }
+            }
+            if (modelId === 'pollinations') {
+              return {model: modelId, url: 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) + '?width=1024&height=1024&nologo=true&model=flux', provider: 'pollinations'};
+            }
+            return {model: modelId, error: 'No key or unsupported'};
+          } catch(e) { return {model: modelId, error: e.message}; }
+        }
+        const results = await Promise.all(models.map(m => Promise.race([genOne(m), new Promise(res => setTimeout(() => res({model: m, error: 'timeout'}), 20000))])));
+        return json({results, prompt}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Telegram send ─────────────────────────────────────────────────────────
+    if (path === '/api/telegram/send' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const tgToken = k(env, ['telegram_token', 'TELEGRAM_TOKEN']) || '';
+        const chatId = k(env, ['telegram_chat_id', 'TELEGRAM_CHAT_ID']) || body.chatId || '';
+        if (!tgToken || !chatId) return json({error: 'Telegram not configured'}, 400, origin);
+        const resp = await fetch('https://api.telegram.org/bot' + tgToken + '/sendMessage', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({chat_id: chatId, text: body.text || '', parse_mode: 'HTML'})
+        });
+        const d = await resp.json();
+        return json({success: d.ok, messageId: d.result?.message_id}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Agent analyse (chunked document analysis) ─────────────────────────────
+    if (path === '/api/agent/analyse' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const docText = body.document || '';
+        const task = body.task || 'Summarise this document';
+        const docName = body.document_name || 'document';
+        const agentName = body.agent_name || 'Research Agent';
+        const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
+        const mistralKey = k(env, ['mistral_api_key', 'MISTRAL_API_KEY']);
+        if (!docText) return json({error: 'No document text'}, 400, origin);
+        const chunkSize = 12000;
+        const overlap = 500;
+        const chunks = [];
+        let i = 0;
+        while (i < docText.length) { chunks.push({idx: chunks.length, text: docText.substring(i, i + chunkSize)}); i += chunkSize - overlap; }
+        const chunkResults = [];
+        const batchSize = 4;
+        for (let bi = 0; bi < chunks.length; bi += batchSize) {
+          const batch = chunks.slice(bi, bi + batchSize);
+          const batchRes = await Promise.all(batch.map(chunk => {
+            const msgs = [{role: 'system', content: 'You are a meticulous research analyst. Extract ALL relevant information. Never truncate.'}, {role: 'user', content: task + '\n\nSection ' + (chunk.idx + 1) + ' of ' + chunks.length + ':\n\n' + chunk.text}];
+            return Promise.race([
+              callProvider(env, 'gemini', GKEY, 'gemma-4-31b-it', msgs).then(r => ({chunk: chunk.idx + 1, content: r.content, ok: true})).catch(e => ({chunk: chunk.idx + 1, error: e.message, ok: false})),
+              new Promise(res => setTimeout(() => res({chunk: chunk.idx + 1, error: 'timeout', ok: false}), 25000))
+            ]);
+          }));
+          chunkResults.push(...batchRes);
+          if (bi + batchSize < chunks.length) await new Promise(r => setTimeout(r, 300));
+        }
+        const successful = chunkResults.filter(r => r.ok && r.content);
+        const allExtractions = successful.map(r => '=== Section ' + r.chunk + ' ===\n' + r.content).join('\n\n');
+        const synthMsgs = [{role: 'system', content: 'You are a senior research analyst. Synthesise ALL extractions into a comprehensive structured report. Do not omit anything.'}, {role: 'user', content: 'Task: ' + task + '\n\nExtractions:\n\n' + allExtractions.substring(0, 60000)}];
+        const synthesis = await callProvider(env, 'mistral', mistralKey, 'mistral-large-latest', synthMsgs).catch(e => ({content: 'Synthesis failed: ' + e.message}));
+        const resultKey = 'agent-analysis:' + Date.now();
+        if (env.PRISM_KV) await env.PRISM_KV.put(resultKey, JSON.stringify({task, docName, chunks_total: chunks.length, chunks_successful: successful.length, synthesis: synthesis.content, created: new Date().toISOString()}), {expirationTtl: 86400 * 30}).catch(() => {});
+        return json({success: true, agent: agentName, document: docName, chunks_total: chunks.length, chunks_successful: successful.length, synthesis: synthesis.content, result_key: resultKey}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Voice generate (alias for TTS) ────────────────────────────────────────
+    if (path === '/api/voice/generate' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = (body.text || '').substring(0, 5000);
+        const voice = body.voice || 'aura-arcas-en';
+        const provider = body.provider || 'deepgram';
+        const dgKey = k(env, ['deepgram_api_key', 'DEEPGRAM_API_KEY']) || '';
+        if (!text) return json({error: 'No text'}, 400, origin);
+        if (provider === 'deepgram' && dgKey) {
+          const resp = await fetch('https://api.deepgram.com/v1/speak?model=' + voice, {
+            method: 'POST', headers: {'Authorization': 'Token ' + dgKey, 'Content-Type': 'application/json'},
+            body: JSON.stringify({text})
+          });
+          if (!resp.ok) return json({error: 'Deepgram error: ' + resp.status}, 500, origin);
+          const audio = await resp.arrayBuffer();
+          return new Response(audio, {headers: {'Content-Type': 'audio/mpeg', 'Access-Control-Allow-Origin': origin}});
+        }
+        return json({error: 'No TTS provider configured'}, 400, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
