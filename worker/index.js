@@ -858,7 +858,7 @@ export default {
           messages[0] = { ...messages[0], content: messages[0].content + antiRoleplay };
         }
 
-        const result = await orchestrate(env, messages, profile);
+        const result = await orchestrate(messages, env, { profile });
 
         // Save thread to KV
         if (env.PRISM_KV && !result.error) {
