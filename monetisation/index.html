@@ -1,82 +1,471 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Monetisation — Prism</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monetisation — Argentica</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+<style>
+* { box-sizing: border-box; }
+.mon-shell { display: flex; height: 100vh; overflow: hidden; }
+.mon-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.mon-topbar { padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; background: var(--bg-elevated); }
+.mon-topbar h2 { font-size: 1.1rem; font-weight: 700; margin: 0; flex: 1; }
+.mon-body { flex: 1; overflow-y: auto; padding: 20px; }
+.tabs { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 20px; }
+.tab { padding: 8px 16px; font-size: 0.88rem; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; color: var(--fg-muted); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+.card h3 { font-size: 0.95rem; font-weight: 700; margin: 0 0 12px; }
+.btn { padding: 7px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: opacity 0.15s; font-family: inherit; }
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-secondary { background: var(--bg-sunken); color: var(--fg); border: 1px solid var(--border); }
+.btn-rose { background: #5c2d3f; color: #fff; }
+.btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+.platform-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.platform-card { background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+.platform-card .pname { font-size: 0.9rem; font-weight: 700; margin-bottom: 4px; }
+.platform-card .pdesc { font-size: 0.78rem; color: var(--fg-muted); margin-bottom: 8px; }
+.platform-card .pstatus { font-size: 0.75rem; font-weight: 600; }
+.status-ok { color: #16a34a; }
+.status-pending { color: #f59e0b; }
+.status-none { color: #999; }
+.generated-content { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 0.85rem; line-height: 1.6; margin-top: 8px; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+.agent-log { background: #0d1117; color: #7ecfcd; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 0.78rem; line-height: 1.6; max-height: 300px; overflow-y: auto; margin-top: 12px; }
+.field-group { margin-bottom: 10px; }
+.field-group label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 3px; color: var(--fg-muted); }
+.field-group input, .field-group textarea, .field-group select { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.88rem; background: var(--bg); color: var(--fg); font-family: inherit; }
+.field-group textarea { min-height: 80px; resize: vertical; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.post-item { padding: 10px 12px; background: var(--bg-sunken); border-radius: 6px; margin-bottom: 6px; display: flex; align-items: flex-start; gap: 10px; }
+.post-item .post-content { flex: 1; font-size: 0.85rem; }
+.post-item .post-platform { font-size: 0.75rem; font-weight: 700; color: var(--accent); margin-bottom: 3px; }
+</style>
 </head>
 <body>
-<div class="prism-shell">
-  <div id="sidebar-mount"></div>
-  <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Monetisation</div><div class="topbar-actions"><a href="/platform-manager/" class="btn btn-sm btn-secondary" title="Platform Manager">Platform Manager →</a></div></div>
-    <div class="page-content">
-
-      <p style="font-size:13px;color:var(--fg-muted);margin-bottom:20px;">Track revenue across all monetisation platforms. Connect platforms via Settings.</p>
-      <div class="grid-4" style="margin-bottom:24px;">
-        <div class="card" style="text-align:center;"><div style="font-size:28px;font-weight:700;color:var(--accent);font-family:var(--font-heading);">£0</div><div style="font-size:11px;color:var(--fg-muted);margin-top:4px;">This Month</div></div>
-        <div class="card" style="text-align:center;"><div style="font-size:28px;font-weight:700;color:var(--accent);font-family:var(--font-heading);">£0</div><div style="font-size:11px;color:var(--fg-muted);margin-top:4px;">Last Month</div></div>
-        <div class="card" style="text-align:center;"><div style="font-size:28px;font-weight:700;color:var(--accent);font-family:var(--font-heading);">0</div><div style="font-size:11px;color:var(--fg-muted);margin-top:4px;">Active Subscribers</div></div>
-        <div class="card" style="text-align:center;"><div style="font-size:28px;font-weight:700;color:var(--accent);font-family:var(--font-heading);">196</div><div style="font-size:11px;color:var(--fg-muted);margin-top:4px;">Platforms Available</div></div>
-      </div>
-      <div class="grid-3">
-        <div class="card"><div class="card-header"><span class="card-title">Payment Platforms</span></div>
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>💳 Stripe</span><span class="badge badge-muted">Not connected</span></div>
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>💰 PayPal</span><span class="badge badge-muted">Not connected</span></div>
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>☕ Ko-fi</span><span class="badge badge-muted">Not connected</span></div>
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;font-size:13px;"><span>🎁 Patreon</span><span class="badge badge-muted">Not connected</span></div>
-          </div>
-          <a href="/settings/" class="btn btn-sm btn-secondary" style="margin-top:12px;width:100%;" title="Connect platforms in Settings">Connect Platforms →</a>
-        </div>
-        <div class="card"><div class="card-header"><span class="card-title">Booking</span></div>
-          <div style="font-size:13px;color:var(--fg-muted);margin-bottom:12px;">Zoho Bookings integration for session scheduling.</div>
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>📅 Zoho Bookings</span><span class="badge badge-muted">Not connected</span></div>
-          </div>
-          <a href="/oauth/zoho/calendar" class="btn btn-sm btn-secondary" style="margin-top:12px;width:100%;" title="Connect Zoho Calendar">Connect Zoho →</a>
-        </div>
-        <div class="card"><div class="card-header"><span class="card-title">Programmes</span></div>
-          <div style="font-size:13px;color:var(--fg-muted);margin-bottom:12px;">Track programme enrolments and revenue.</div>
-          <button class="btn btn-sm btn-primary" style="width:100%;" onclick="openAddProgramme()" title="Add programme">＋ Add Programme</button>
-<div id="programmes-list" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;"></div>
-
-<!-- Add Programme Modal -->
-<div id="add-programme-modal" style="display:none;position:fixed;inset:0;background:rgba(92,45,63,0.3);z-index:500;display:none;align-items:center;justify-content:center;padding:20px;">
-  <div style="background:#fff;border-radius:12px;padding:24px;max-width:480px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
-    <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:16px;">Add Programme</div>
-    <div class="form-group"><label class="form-label">Programme Name *</label><input class="input" id="prog-name" type="text" placeholder="e.g. 12-Week Recovery Programme"></div>
-    <div class="form-group"><label class="form-label">Type</label>
-      <select class="select" id="prog-type">
-        <option value="individual">Individual Therapy</option>
-        <option value="group">Group Programme</option>
-        <option value="intensive">Intensive Programme</option>
-        <option value="online">Online Course</option>
-        <option value="corporate">Corporate Wellbeing</option>
-      </select></div>
-    <div class="form-group"><label class="form-label">Price (£)</label><input class="input" id="prog-price" type="number" placeholder="0" min="0"></div>
-    <div class="form-group"><label class="form-label">Duration</label><input class="input" id="prog-duration" type="text" placeholder="e.g. 12 weeks, 6 sessions"></div>
-    <div class="form-group"><label class="form-label">Description</label><textarea class="textarea" id="prog-desc" rows="2" placeholder="Brief description…"></textarea></div>
-    <div style="display:flex;gap:8px;margin-top:4px;">
-      <button class="btn btn-primary" style="flex:1;" onclick="saveProgramme()">Save Programme</button>
-      <button class="btn btn-secondary" onclick="document.getElementById('add-programme-modal').style.display='none'">Cancel</button>
-    </div>
-  </div>
-</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 <script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="mon-shell">
+<div class="mon-main">
+  <div class="mon-topbar">
+    <h2><span class="iconify" data-icon="ph:currency-pound-bold" style="vertical-align:middle;margin-right:6px;"></span>Monetisation</h2>
+    <a href="/platform-manager/" class="btn btn-secondary btn-sm">Platform Manager</a>
+    <a href="/atomise/" class="btn btn-secondary btn-sm">Refract</a>
+    <a href="/social-queue/" class="btn btn-secondary btn-sm">Social Queue</a>
+  </div>
+  <div class="mon-body">
+    <div class="tabs">
+      <div class="tab active" onclick="showTab('proliferate',this)">Profile Proliferation</div>
+      <div class="tab" onclick="showTab('post',this)">Post to Platforms</div>
+      <div class="tab" onclick="showTab('queue',this)">Social Queue</div>
+      <div class="tab" onclick="showTab('revenue',this)">Revenue</div>
+    </div>
+
+    <!-- Profile Proliferation tab -->
+    <div id="tab-proliferate">
+      <div class="card">
+        <h3><span class="iconify" data-icon="ph:robot-bold" style="vertical-align:middle;margin-right:6px;"></span>Agentic Profile Proliferation</h3>
+        <p style="font-size:0.85rem;color:var(--fg-muted);margin-bottom:14px;">
+          Write one master profile. The agent generates platform-specific versions for each selected platform, 
+          adapting tone, length, and format automatically. Generated profiles are saved and can be used for signup.
+        </p>
+        <div class="field-row">
+          <div class="field-group">
+            <label>Display Name</label>
+            <input type="text" id="p-name" value="Identity Partners">
+          </div>
+          <div class="field-group">
+            <label>Tagline</label>
+            <input type="text" id="p-tagline" value="Understand your past. Appreciate the present. Define your future.">
+          </div>
+        </div>
+        <div class="field-group">
+          <label>Short Bio (for compact platforms)</label>
+          <textarea id="p-short-bio" rows="2">Non-clinical listening, coaching, mentoring and relational practice for addiction, trauma and mental health recovery.</textarea>
+        </div>
+        <div class="field-group">
+          <label>Full Bio (for detailed platforms)</label>
+          <textarea id="p-full-bio" rows="4">Identity Partners offers non-clinical listening, coaching, mentoring and relational practice. We work with individuals navigating addiction recovery, trauma, and mental health challenges. Our approach is evidence-informed, person-centred, and grounded in lived experience. We believe that understanding your past, appreciating the present, and defining your future is the foundation of lasting change.</textarea>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label>Services & Rates</label>
+            <textarea id="p-services" rows="3">Initial Consultation: Free
+Individual Sessions: £50/hour
+Group Sessions: £25/session
+Monthly Package: £150/month</textarea>
+          </div>
+          <div class="field-group">
+            <label>Keywords</label>
+            <textarea id="p-keywords" rows="3">addiction recovery, trauma-informed, mental health, coaching, mentoring, listening, wellbeing, recovery</textarea>
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:0.82rem;font-weight:600;color:var(--fg-muted);display:block;margin-bottom:6px;">Select platforms to generate profiles for:</label>
+          <div id="platform-selector" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn btn-primary" onclick="proliferateProfiles()">
+            <span class="iconify" data-icon="ph:robot-bold" style="vertical-align:middle;"></span> Generate Platform Profiles
+          </button>
+          <button class="btn btn-secondary" onclick="loadGeneratedProfiles()">Load Saved Profiles</button>
+          <span id="prolif-status" style="font-size:0.82rem;color:var(--fg-muted);"></span>
+        </div>
+        <div class="agent-log" id="prolif-log" style="display:none;"></div>
+      </div>
+      <div id="generated-profiles-grid" class="platform-grid"></div>
+    </div>
+
+    <!-- Post to Platforms tab -->
+    <div id="tab-post" style="display:none;">
+      <div class="card">
+        <h3><span class="iconify" data-icon="ph:paper-plane-tilt-bold" style="vertical-align:middle;margin-right:6px;"></span>Post to Platforms</h3>
+        <p style="font-size:0.85rem;color:var(--fg-muted);margin-bottom:14px;">
+          Post content directly to connected platforms. Use Refract to generate platform-specific content first.
+        </p>
+        <div class="field-group">
+          <label>Content</label>
+          <textarea id="post-content" rows="5" placeholder="Paste your content here, or generate from Refract..."></textarea>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:0.82rem;font-weight:600;color:var(--fg-muted);display:block;margin-bottom:6px;">Post to:</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;" id="post-platform-selector">
+            <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer;"><input type="checkbox" value="bluesky" checked> Bluesky</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer;"><input type="checkbox" value="telegram"> Telegram</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer;"><input type="checkbox" value="instagram"> Instagram (Buffer)</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer;"><input type="checkbox" value="facebook"> Facebook (Buffer)</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer;"><input type="checkbox" value="x"> X/Twitter (Buffer)</label>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" onclick="postNow()">
+            <span class="iconify" data-icon="ph:paper-plane-tilt-bold" style="vertical-align:middle;"></span> Post Now
+          </button>
+          <button class="btn btn-secondary" onclick="addToQueue()">Add to Queue</button>
+          <button class="btn btn-secondary" onclick="generateWithRefract()">Generate with Refract</button>
+        </div>
+        <div id="post-results" style="margin-top:12px;"></div>
+      </div>
+    </div>
+
+    <!-- Social Queue tab -->
+    <div id="tab-queue" style="display:none;">
+      <div class="card">
+        <h3><span class="iconify" data-icon="ph:queue-bold" style="vertical-align:middle;margin-right:6px;"></span>Social Queue</h3>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <button class="btn btn-secondary btn-sm" onclick="loadQueue()">Refresh</button>
+          <button class="btn btn-danger btn-sm" onclick="clearQueue()">Clear Queue</button>
+        </div>
+        <div id="queue-list"><div style="color:var(--fg-muted);font-size:0.85rem;">Loading queue...</div></div>
+      </div>
+    </div>
+
+    <!-- Revenue tab -->
+    <div id="tab-revenue" style="display:none;">
+      <div class="card">
+        <h3>Revenue Tracking</h3>
+        <p style="font-size:0.85rem;color:var(--fg-muted);">Connect platforms via Platform Manager to track revenue. Manual entry available below.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:12px;" id="revenue-grid">
+          <div style="background:var(--bg-sunken);border-radius:8px;padding:12px;text-align:center;">
+            <div style="font-size:1.8rem;font-weight:700;color:var(--accent);">£0</div>
+            <div style="font-size:0.75rem;color:var(--fg-muted);">This Month</div>
+          </div>
+          <div style="background:var(--bg-sunken);border-radius:8px;padding:12px;text-align:center;">
+            <div style="font-size:1.8rem;font-weight:700;color:var(--accent);">£0</div>
+            <div style="font-size:0.75rem;color:var(--fg-muted);">This Year</div>
+          </div>
+          <div style="background:var(--bg-sunken);border-radius:8px;padding:12px;text-align:center;">
+            <div style="font-size:1.8rem;font-weight:700;color:var(--accent);">0</div>
+            <div style="font-size:0.75rem;color:var(--fg-muted);">Active Platforms</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+</div>
+
 <script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+
+var PLATFORMS = [
+  {name:'Bluesky', category:'Social', requirements:'280 chars max. Casual, engaging tone.'},
+  {name:'Instagram', category:'Social', requirements:'Caption up to 2200 chars. Hashtags important. Visual-first.'},
+  {name:'Facebook', category:'Social', requirements:'Longer form OK. Community-focused tone.'},
+  {name:'X/Twitter', category:'Social', requirements:'280 chars. Punchy, direct.'},
+  {name:'LinkedIn', category:'Professional', requirements:'Professional tone. Up to 3000 chars. Thought leadership.'},
+  {name:'Telegram', category:'Messaging', requirements:'Up to 4096 chars. Can use Markdown.'},
+  {name:'Substack', category:'Newsletter', requirements:'Newsletter format. Longer form. Personal voice.'},
+  {name:'Medium', category:'Publishing', requirements:'Article format. 500-2000 words. Thoughtful, evidence-based.'},
+  {name:'Tumblr', category:'Blog', requirements:'Blog post format. Creative, personal.'},
+  {name:'Fiverr', category:'Freelance', requirements:'Service description. Clear deliverables and pricing.'},
+  {name:'Upwork', category:'Freelance', requirements:'Professional profile. Skills and experience focused.'},
+  {name:'Bark', category:'Services', requirements:'Service listing. Local focus. Clear pricing.'},
+  {name:'Noomii', category:'Coaching', requirements:'Coaching profile. Specialisms and approach.'},
+  {name:'Life Coach Directory', category:'Coaching', requirements:'Directory listing. Qualifications and approach.'},
+  {name:'MentorCruise', category:'Mentoring', requirements:'Mentor profile. Experience and what you offer.'},
+  {name:'Mighty Networks', category:'Community', requirements:'Community description. Who it is for and what they get.'},
+  {name:'Whop', category:'Community', requirements:'Product/community listing. Benefits and pricing.'},
+];
+
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
-  if (mount) { var sb = buildSidebar('/monetisation/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/monetisation/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  renderPlatformSelector();
+  loadGeneratedProfiles();
 });
 
+function showTab(tab, btn) {
+  ['proliferate','post','queue','revenue'].forEach(function(t) {
+    var el = document.getElementById('tab-' + t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  if (tab === 'queue') loadQueue();
+}
+
+function renderPlatformSelector() {
+  var sel = document.getElementById('platform-selector');
+  sel.innerHTML = PLATFORMS.map(function(p) {
+    return '<label style="display:flex;align-items:center;gap:4px;font-size:0.82rem;cursor:pointer;padding:3px 8px;background:var(--bg-sunken);border-radius:12px;border:1px solid var(--border);">' +
+      '<input type="checkbox" value="' + p.name + '" checked> ' + p.name + '</label>';
+  }).join('');
+}
+
+function getProfile() {
+  return {
+    name: document.getElementById('p-name').value.trim(),
+    tagline: document.getElementById('p-tagline').value.trim(),
+    bio: document.getElementById('p-short-bio').value.trim(),
+    fullBio: document.getElementById('p-full-bio').value.trim(),
+    services: document.getElementById('p-services').value.trim(),
+    keywords: document.getElementById('p-keywords').value.trim(),
+  };
+}
+
+function proliferateProfiles() {
+  var profile = getProfile();
+  var selected = Array.from(document.querySelectorAll('#platform-selector input:checked')).map(function(cb) { return cb.value; });
+  if (!selected.length) { alert('Select at least one platform.'); return; }
+  var platforms = PLATFORMS.filter(function(p) { return selected.includes(p.name); });
+  var status = document.getElementById('prolif-status');
+  var log = document.getElementById('prolif-log');
+  log.style.display = 'block';
+  log.innerHTML = '';
+  status.textContent = 'Generating ' + platforms.length + ' profiles...';
+  var logLine = function(msg) { log.innerHTML += msg + '\n'; log.scrollTop = log.scrollHeight; };
+  logLine('[' + new Date().toLocaleTimeString('en-GB') + '] Starting profile proliferation for ' + platforms.length + ' platforms...');
+  // Process in batches of 5
+  var batches = [];
+  for (var i = 0; i < platforms.length; i += 5) batches.push(platforms.slice(i, i+5));
+  var allResults = [];
+  var processBatch = function(batchIdx) {
+    if (batchIdx >= batches.length) {
+      status.textContent = 'Done. ' + allResults.filter(function(r){return r.status==='generated';}).length + '/' + platforms.length + ' generated.';
+      renderGeneratedProfiles(allResults);
+      return;
+    }
+    var batch = batches[batchIdx];
+    logLine('[' + new Date().toLocaleTimeString('en-GB') + '] Batch ' + (batchIdx+1) + '/' + batches.length + ': ' + batch.map(function(p){return p.name;}).join(', '));
+    fetch(WORKER + '/api/monetisation/proliferate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({profile: profile, platforms: batch, task: 'profile and bio'})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      (d.results || []).forEach(function(r) {
+        allResults.push(r);
+        logLine('[' + new Date().toLocaleTimeString('en-GB') + '] ' + (r.status === 'generated' ? '\u2713' : '\u2717') + ' ' + r.platform);
+      });
+      setTimeout(function() { processBatch(batchIdx + 1); }, 500);
+    })
+    .catch(function(e) {
+      logLine('[ERROR] ' + e.message);
+      setTimeout(function() { processBatch(batchIdx + 1); }, 500);
+    });
+  };
+  processBatch(0);
+}
+
+function loadGeneratedProfiles() {
+  fetch(WORKER + '/api/monetisation/profiles')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var profiles = d.profiles || {};
+      var results = Object.keys(profiles).map(function(name) {
+        return {platform: name, content: profiles[name].content, status: 'generated', generatedAt: profiles[name].generatedAt};
+      });
+      if (results.length) renderGeneratedProfiles(results);
+    });
+}
+
+function renderGeneratedProfiles(results) {
+  var grid = document.getElementById('generated-profiles-grid');
+  if (!results.length) { grid.innerHTML = ''; return; }
+  grid.innerHTML = results.map(function(r) {
+    return '<div class="platform-card">' +
+      '<div class="pname">' + esc(r.platform) + '</div>' +
+      (r.status === 'generated' ?
+        '<div class="pstatus status-ok">\u2713 Generated</div>' +
+        '<div class="generated-content">' + esc(r.content || '') + '</div>' +
+        '<div style="margin-top:8px;display:flex;gap:4px;">' +
+          '<button class="btn btn-primary btn-sm" onclick="copyProfile(\'' + esc(r.platform) + '\')">Copy</button>' +
+          '<button class="btn btn-secondary btn-sm" onclick="postProfile(\'' + esc(r.platform) + '\')">Post</button>' +
+        '</div>' :
+        '<div class="pstatus" style="color:#dc2626;">\u2717 Failed: ' + esc(r.error||'') + '</div>'
+      ) +
+      '</div>';
+  }).join('');
+}
+
+function copyProfile(platform) {
+  fetch(WORKER + '/api/monetisation/profiles')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var content = (d.profiles || {})[platform];
+      if (content && content.content) {
+        navigator.clipboard.writeText(content.content).then(function() {
+          alert('Copied ' + platform + ' profile to clipboard.');
+        });
+      }
+    });
+}
+
+function postProfile(platform) {
+  fetch(WORKER + '/api/monetisation/profiles')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var content = (d.profiles || {})[platform];
+      if (content && content.content) {
+        document.getElementById('post-content').value = content.content;
+        showTab('post', null);
+      }
+    });
+}
+
+function postNow() {
+  var content = document.getElementById('post-content').value.trim();
+  if (!content) { alert('Enter content to post.'); return; }
+  var platforms = Array.from(document.querySelectorAll('#post-platform-selector input:checked')).map(function(cb) { return cb.value; });
+  if (!platforms.length) { alert('Select at least one platform.'); return; }
+  var results = document.getElementById('post-results');
+  results.innerHTML = '<div style="color:var(--fg-muted);font-size:0.85rem;">Posting...</div>';
+  // Post to each platform
+  var promises = [];
+  if (platforms.includes('bluesky') || platforms.includes('telegram')) {
+    promises.push(
+      fetch(WORKER + '/api/monetisation/post', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({platform: 'all', content: content})
+      }).then(function(r) { return r.json(); })
+    );
+  }
+  if (platforms.some(function(p) { return ['instagram','facebook','x'].includes(p); })) {
+    promises.push(
+      fetch(WORKER + '/api/social/post-with-canvas', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text: content, platforms: platforms.filter(function(p) { return ['instagram','facebook','x'].includes(p); })})
+      }).then(function(r) { return r.json(); })
+    );
+  }
+  Promise.all(promises).then(function(responses) {
+    var html = '<div style="margin-top:8px;">';
+    responses.forEach(function(d) {
+      var res = d.results || {};
+      Object.keys(res).forEach(function(platform) {
+        var r = res[platform];
+        html += '<div style="font-size:0.82rem;padding:4px 0;">' +
+          (r.success ? '\u2713' : '\u2717') + ' ' + platform + ': ' + (r.success ? 'Posted' : (r.error || 'Failed')) +
+          '</div>';
+      });
+    });
+    html += '</div>';
+    results.innerHTML = html;
+  }).catch(function(e) {
+    results.innerHTML = '<div style="color:#dc2626;font-size:0.85rem;">Error: ' + e.message + '</div>';
+  });
+}
+
+function addToQueue() {
+  var content = document.getElementById('post-content').value.trim();
+  if (!content) { alert('Enter content first.'); return; }
+  var platforms = Array.from(document.querySelectorAll('#post-platform-selector input:checked')).map(function(cb) { return cb.value; });
+  var promises = platforms.map(function(platform) {
+    return fetch(WORKER + '/api/social/queue', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({platform: platform, content: content})
+    }).then(function(r) { return r.json(); });
+  });
+  Promise.all(promises).then(function() {
+    alert(platforms.length + ' items added to queue.');
+  });
+}
+
+function generateWithRefract() {
+  window.location.href = '/atomise/';
+}
+
+function loadQueue() {
+  var list = document.getElementById('queue-list');
+  if (!list) return;
+  list.innerHTML = '<div style="color:var(--fg-muted);font-size:0.85rem;">Loading...</div>';
+  fetch(WORKER + '/api/social/queue')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var queue = d.queue || [];
+      if (!queue.length) { list.innerHTML = '<div style="color:var(--fg-muted);font-size:0.85rem;">Queue is empty.</div>'; return; }
+      list.innerHTML = queue.map(function(item) {
+        return '<div class="post-item">' +
+          '<div class="post-content">' +
+            '<div class="post-platform">' + esc(item.platform) + '</div>' +
+            '<div>' + esc((item.content||'').substring(0,150)) + '</div>' +
+            '<div style="font-size:0.75rem;color:var(--fg-muted);margin-top:3px;">' + new Date(item.createdAt).toLocaleString('en-GB') + '</div>' +
+          '</div>' +
+          '<button class="btn btn-primary btn-sm" onclick="postQueueItem(\'' + esc(item.id) + '\',\'' + esc(item.platform) + '\',\'' + esc((item.content||'').replace(/'/g,"\\'").substring(0,200)) + '\')">Post Now</button>' +
+          '</div>';
+      }).join('');
+    });
+}
+
+function postQueueItem(id, platform, content) {
+  fetch(WORKER + '/api/monetisation/post', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({platform: platform, content: content})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    var res = d.results || {};
+    var ok = Object.values(res).some(function(r) { return r.success; });
+    alert(ok ? 'Posted to ' + platform + '!' : 'Post failed. Check platform connection.');
+    if (ok) loadQueue();
+  });
+}
+
+function clearQueue() {
+  if (!confirm('Clear the entire social queue?')) return;
+  fetch(WORKER + '/api/social/queue/clear', {method:'POST'})
+    .then(function() { loadQueue(); });
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 </script>
 </body>
 </html>
