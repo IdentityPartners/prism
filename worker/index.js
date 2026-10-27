@@ -3782,7 +3782,8 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success: false, error: e.message}, 500, origin); }
     }
 
-  // ── Daily pipeline cron handler (D2) ─────────────────────────────────────────if (path === '/api/pipeline/morning' && (request.method === 'POST' || request.method === 'GET')) {
+  // ── Daily pipeline cron handler (D2) ─────────────────────────────────────────
+    if (path === '/api/pipeline/morning' && (request.method === 'POST' || request.method === 'GET')) {
       try {
         const h = new Date().getUTCHours();
         const slot = h < 11 ? 'morning' : h < 16 ? 'lunchtime' : 'evening';
