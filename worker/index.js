@@ -308,7 +308,10 @@ async function orchestrate(messages, env, options = {}) {
     local: [
       {provider:'ollama', model:'llama3.1', key:null, note:'Ollama local (requires Cloudflare Tunnel)'},
     ],
-  };
+  }
+  CHAINS.frontier = CHAINS.balanced;
+  CHAINS.research_deep = CHAINS.research;
+;
 
   // If provider/model override specified, try that first
   let chain = (CHAINS[profile] || CHAINS.balanced).filter(Boolean);
@@ -4450,6 +4453,48 @@ data: ${JSON.stringify(data)}
           query: q
         }, 200, origin);
       } catch(e) { return json({results:[], error:e.message}, 200, origin); }
+    }
+
+
+    if (path === '/api/social/post-with-canvas' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = body.text || '';
+        const platforms = body.platforms || ['bluesky'];
+        const TAGS = '#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Wellbeing';
+        const FOOTER = 'hello@identitypartners.uk | www.identitypartners.uk/contact';
+        const fullText = text + '\n\n' + TAGS + '\n' + FOOTER;
+        const templateIdx = Math.floor(Math.random() * 150);
+        const imageUrl = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-' + templateIdx + '.png';
+        const results = {};
+        if (platforms.includes('bluesky')) {
+          const bskyHandle = k(env, ['bluesky_handle','BLUESKY_HANDLE']) || '@identitypartners.bsky.social';
+          const bskyPass = k(env, ['bluesky_password','BLUESKY_PASSWORD','bluesky_app_password']) || '';
+          if (bskyHandle && bskyPass) {
+            try {
+              const sr = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({identifier:bskyHandle,password:bskyPass})});
+              if (sr.ok) {
+                const session = await sr.json();
+                const pr = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.accessJwt},body:JSON.stringify({repo:session.did,collection:'app.bsky.feed.post',record:{text:fullText.substring(0,300),createdAt:new Date().toISOString(),langs:['en-GB']}})});
+                results.bluesky = {success:pr.ok,status:pr.status};
+              }
+            } catch(e) { results.bluesky = {success:false,error:e.message}; }
+          }
+        }
+        const bufferKey = k(env, ['buffer','BUFFER_API_KEY','buffer_api_key']) || '';
+        if (bufferKey && imageUrl) {
+          const channelMap = {instagram:k(env,['buffer_ig_channel','BUFFER_IG_CHANNEL'])||'',facebook:k(env,['buffer_fb_channel','BUFFER_FB_CHANNEL'])||'',x:k(env,['buffer_x_channel','BUFFER_X_CHANNEL'])||''};
+          for (const [platform, channelId] of Object.entries(channelMap)) {
+            if (!channelId || !platforms.includes(platform)) continue;
+            try {
+              const br = await fetch('https://api.bufferapp.com/graphql',{method:'POST',headers:{'Authorization':'Bearer '+bufferKey,'Content-Type':'application/json'},body:JSON.stringify({query:'mutation CreateIdea($input:IdeaCreateInput!){ideaCreate(input:$input){idea{id}}}',variables:{input:{channelId,text:fullText,mediaUrls:[imageUrl]}}})});
+              results[platform] = {success:br.ok,status:br.status};
+            } catch(e) { results[platform] = {success:false,error:e.message}; }
+          }
+        }
+        if (env.PRISM_KV) await env.PRISM_KV.put('social:last-post',JSON.stringify({text:text.substring(0,100),imageUrl,results,timestamp:new Date().toISOString()}));
+        return json({success:true,results,imageUrl,text:text.substring(0,100)+'...'},200,origin);
+      } catch(e) { return json({success:false,error:e.message},500,origin); }
     }
 
     return json({ error: 'Not found', path }, 404, origin);
