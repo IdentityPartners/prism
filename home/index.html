@@ -50,13 +50,13 @@
 /* Hero */
 .home-hero {
   border-radius: 10px;
-  padding: 20px;
+  padding: 20px 24px;
   color: #f7f3e9;
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
-  min-height: 120px;
-  background: #0f3b3a;
+  min-height: 110px;
+  background: linear-gradient(135deg, #0f3b3a 0%, #1a5c5a 50%, #5c2d3f 100%);
 }
 .home-hero-bg {
   position: absolute;
@@ -164,13 +164,25 @@
 <!-- ── LEFT ── -->
 <div class="home-col home-left">
 
-  <div class="home-hero">
-    <div class="hero-ip">
-      <div class="hero-ip-name"><span>Identity</span><span>Partners</span></div>
+  <div class="home-hero" id="home-hero">
+    <!-- Rotating landscape background -->
+    <div class="home-hero-bg" id="hero-bg" style="opacity:0.25;"></div>
+    <div class="home-hero-overlay" style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(15,59,58,0.85) 0%,rgba(92,45,63,0.7) 100%);"></div>
+    <!-- IP logo mark (2×2 grid) -->
+    <div style="position:relative;z-index:1;display:flex;align-items:center;gap:14px;">
+      <svg width="36" height="36" viewBox="0 0 36 36" style="flex-shrink:0;">
+        <rect width="36" height="36" rx="7" fill="rgba(255,255,255,0.1)"/>
+        <rect x="4" y="4" width="13" height="13" rx="3" fill="#7ecfcd"/>
+        <rect x="19" y="4" width="13" height="13" rx="3" fill="#d4899a"/>
+        <rect x="4" y="19" width="13" height="13" rx="3" fill="#d4899a"/>
+        <rect x="19" y="19" width="13" height="13" rx="3" fill="#7ecfcd"/>
+      </svg>
+      <div>
+        <div class="hero-greeting" id="hero-greeting" style="font-size:1.3rem;font-weight:700;line-height:1.2;">Good morning, Simon.</div>
+        <div class="hero-date" id="hero-date" style="font-size:0.85rem;opacity:0.8;margin-top:2px;"></div>
+      </div>
     </div>
-    <div class="hero-greeting" id="hero-greeting">Good morning, Simon.</div>
-    <div class="hero-date" id="hero-date"></div>
-    <div class="hero-tagline">Understand your past · Appreciate the present · Define your future</div>
+    <div class="hero-tagline" style="position:relative;z-index:1;margin-top:10px;font-size:0.8rem;opacity:0.75;letter-spacing:0.3px;">Understand your past · Appreciate the present · Define your future</div>
   </div>
 
   <!-- Calendar -->
@@ -614,6 +626,94 @@ function loadSocialQueue() {
     if (el) el.textContent = pending > 0 ? pending + ' post(s) pending approval' : 'Queue clear';
   }).catch(function(){});
 }
+
+
+// ── Hero background rotation ──────────────────────────────────────────────────
+(function() {
+  var BG_QUERIES = ['landscape vista', 'nature scenery', 'sunrise horizon', 'mountain landscape', 'coastal scenery'];
+  var PEXELS_KEY = ''; // Loaded from worker
+  function loadHeroBg() {
+    var heroEl = document.getElementById('hero-bg');
+    if (!heroEl) return;
+    // Use a curated Pexels landscape via worker
+    fetch('https://prism-api.identitypartners.workers.dev/api/image-search?q=' + encodeURIComponent(BG_QUERIES[Math.floor(Math.random() * BG_QUERIES.length)]) + '&source=pexels&limit=5')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var results = data.results || [];
+        if (results.length) {
+          var img = results[Math.floor(Math.random() * results.length)];
+          heroEl.style.backgroundImage = 'url(' + img.url + ')';
+          heroEl.style.backgroundSize = 'cover';
+          heroEl.style.backgroundPosition = 'center';
+        }
+      })
+      .catch(function() {});
+  }
+  document.addEventListener('DOMContentLoaded', loadHeroBg);
+})();
+
+// ── Calendar events ───────────────────────────────────────────────────────────
+function loadHomeCalendar() {
+  var el = document.getElementById('home-calendar-events');
+  if (!el) return;
+  fetch('https://prism-api.identitypartners.workers.dev/api/calendar/events')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.status === 'not_connected') {
+        el.innerHTML = '<div style="color:#999;font-size:0.85rem;padding:8px 0;">Calendar not connected. <a href="/comms/" style="color:var(--accent);">Connect →</a></div>';
+        return;
+      }
+      var events = (data.today || []).concat(data.week || []).slice(0, 4);
+      if (!events.length) {
+        el.innerHTML = '<div style="color:#999;font-size:0.85rem;padding:8px 0;">No upcoming events.</div>';
+        return;
+      }
+      el.innerHTML = events.map(function(ev) {
+        var dt = ev.start ? new Date(ev.start) : null;
+        var dtStr = dt ? dt.toLocaleDateString('en-GB', {weekday:'short',day:'numeric',month:'short'}) + ' ' + dt.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'}) : '';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--bg-sunken);border-radius:7px;">' +
+          '<div style="width:4px;height:36px;background:var(--accent);border-radius:2px;flex-shrink:0;"></div>' +
+          '<div><div style="font-size:0.9rem;font-weight:600;">' + (ev.title || 'Event') + '</div>' +
+          '<div style="font-size:0.78rem;color:#666;">' + dtStr + (ev.location ? ' · ' + ev.location : '') + '</div></div>' +
+          '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      el.innerHTML = '<div style="color:#999;font-size:0.85rem;">Calendar unavailable.</div>';
+    });
+}
+
+// ── WIP jobs ──────────────────────────────────────────────────────────────────
+function loadHomeWIP() {
+  fetch('https://prism-api.identitypartners.workers.dev/api/jobs')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var jobs = data.jobs || [];
+      var section = document.getElementById('home-wip-section');
+      var el = document.getElementById('home-wip-jobs');
+      if (!el || !section) return;
+      if (!jobs.length) { section.style.display = 'none'; return; }
+      section.style.display = 'block';
+      el.innerHTML = jobs.slice(0, 3).map(function(job) {
+        var pct = job.total > 0 ? Math.round((job.progress / job.total) * 100) : 0;
+        return '<div style="padding:6px 10px;background:var(--bg-sunken);border-radius:7px;">' +
+          '<div style="display:flex;justify-content:space-between;margin-bottom:4px;">' +
+          '<span style="font-size:0.88rem;font-weight:600;">' + (job.label || job.type) + '</span>' +
+          '<span style="font-size:0.78rem;color:var(--accent);">' + pct + '%</span></div>' +
+          '<div style="font-size:0.78rem;color:#666;margin-bottom:4px;">' + (job.phase || 'running') + '</div>' +
+          '<div style="height:3px;background:var(--border);border-radius:2px;"><div style="height:100%;width:' + pct + '%;background:var(--accent);border-radius:2px;"></div></div>' +
+          '</div>';
+      }).join('');
+    })
+    .catch(function() {});
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadHomeCalendar();
+  loadHomeWIP();
+  setInterval(loadHomeWIP, 15000);
+});
+
 </script>
 </body>
 </html>
