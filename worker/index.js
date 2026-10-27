@@ -3792,7 +3792,7 @@ data: ${JSON.stringify(data)}
           evening: 'Write an engaging question-driven post about defining your future. Connect to themes of personal growth, recovery, and identity. British English. 2-3 sentences max.',
         };
         const msgs = [
-          {role:'system', content:'You are a compassionate content writer for Identity Partners, a mental health and recovery organisation. British English only. No sycophancy. No AI tropes. Be concise.'},
+          {role:'system', content:'You are a compassionate content writer for Identity Partners. British English only. Be concise.'},
           {role:'user', content:prompts[slot]}
         ];
         const mistralKey = k(env, ['mistral_api_key','MISTRAL_API_KEY','mistral_p']);
@@ -3806,16 +3806,19 @@ data: ${JSON.stringify(data)}
           const model = mistralKey ? 'mistral-small-latest' : 'deepseek-chat';
           const resp = await fetch(endpoint, {
             method: 'POST',
-            headers: {'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json'},
+            headers: {'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'},
             body: JSON.stringify({model, messages: msgs, max_tokens: 150, temperature: 0.8})
           });
           if (resp.ok) {
             const data = await resp.json();
-            postText = data.choices?.[0]?.message?.content || '';
+            postText = data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : '';
           }
-        } catch(e) {}
-        if (!postText) postText = 'Understand your past. Appreciate the present. Define your future. That is what we are here for. identitypartners.uk/contact';
-        const fullText = postText + '\n\n' + TAGS + '\n' + FOOTER;
+        } catch(llmErr) {}
+        if (!postText) postText = 'Understand your past. Appreciate the present. Define your future. identitypartners.uk/contact';
+        const fullText = postText + '
+
+' + TAGS + '
+' + FOOTER;
         const results = {};
         const bskyHandle = k(env, ['bluesky_handle','BLUESKY_HANDLE']) || '@identitypartners.bsky.social';
         const bskyPass = k(env, ['bluesky_password','BLUESKY_PASSWORD']) || '';
@@ -3829,12 +3832,12 @@ data: ${JSON.stringify(data)}
               const session = await sessionResp.json();
               const postResp = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${session.accessJwt}`},
+                headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.accessJwt},
                 body: JSON.stringify({repo: session.did, collection: 'app.bsky.feed.post', record: {text: fullText.substring(0, 300), createdAt: new Date().toISOString(), langs: ['en-GB']}})
               });
               results.bluesky = {success: postResp.ok, status: postResp.status};
             }
-          } catch(e) { results.bluesky = {success: false, error: e.message}; }
+          } catch(bskyErr) { results.bluesky = {success: false, error: bskyErr.message}; }
         }
         if (env.PRISM_KV) {
           await env.PRISM_KV.put('pipeline:last-run', JSON.stringify({slot, text: postText.substring(0,100), results, timestamp: new Date().toISOString()}));
