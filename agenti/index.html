@@ -1,50 +1,468 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agenti City — Prism</title>
-<link rel="stylesheet" href="/shared/prism.css">
-<link rel="stylesheet" href="/shared/themes.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agenti City — Argentica</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
+<script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+<script src="/shared/prism.js"></script>
+<style>
+:root {
+  --teal: #0f3b3a; --rose: #5c2d3f; --ivory: #f7f3e9; --grey: #ddd0c8;
+  --bg: var(--ivory); --fg: #1a1a1a; --border: var(--grey);
+  --bg-card: #fff; --bg-sunken: #f0ece0;
+  font-size: 16px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Inter, sans-serif; background: var(--bg); color: var(--fg); min-height: 100vh; }
+.page-wrap { display: flex; flex-direction: column; min-height: 100vh; }
+.page-header { background: var(--teal); color: #fff; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+.page-header h1 { font-size: 1.4rem; font-weight: 700; }
+.page-header .subtitle { font-size: 0.85rem; opacity: 0.75; }
+.tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); background: var(--bg-card); padding: 0 24px; }
+.tab { padding: 10px 18px; font-size: 0.9rem; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; color: #666; transition: all 0.15s; }
+.tab.active { color: var(--teal); border-bottom-color: var(--teal); }
+.tab:hover { color: var(--teal); }
+.content { padding: 24px; flex: 1; }
+.section-title { font-size: 1.1rem; font-weight: 700; color: var(--teal); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.agent-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; cursor: pointer; transition: box-shadow 0.15s; }
+.agent-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.agent-card .agent-name { font-size: 1rem; font-weight: 700; color: var(--teal); margin-bottom: 4px; }
+.agent-card .agent-persona { font-size: 0.82rem; color: #666; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-card .agent-meta { font-size: 0.78rem; color: #999; display: flex; gap: 8px; }
+.agent-card .agent-actions { display: flex; gap: 6px; margin-top: 10px; }
+.btn { padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.82rem; font-weight: 600; transition: opacity 0.15s; }
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: var(--teal); color: #fff; }
+.btn-secondary { background: var(--bg-sunken); color: var(--fg); border: 1px solid var(--border); }
+.btn-danger { background: #fee2e2; color: #dc2626; }
+.btn-sm { padding: 4px 8px; font-size: 0.78rem; }
+.add-card { background: var(--bg-sunken); border: 2px dashed var(--border); border-radius: 10px; padding: 24px; text-align: center; cursor: pointer; color: #888; transition: all 0.15s; }
+.add-card:hover { border-color: var(--teal); color: var(--teal); background: #f0f8f7; }
+.add-card .iconify { font-size: 2rem; display: block; margin-bottom: 8px; }
+/* WIP Panel */
+.wip-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 24px; }
+.wip-empty { color: #999; font-size: 0.88rem; text-align: center; padding: 16px; }
+.wip-job { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.wip-job:last-child { border-bottom: none; }
+.wip-job .job-label { flex: 1; font-size: 0.88rem; font-weight: 600; }
+.wip-job .job-phase { font-size: 0.78rem; color: #666; }
+.wip-job .job-progress { font-size: 0.78rem; color: var(--teal); font-weight: 700; }
+.progress-bar { height: 4px; background: var(--border); border-radius: 2px; margin-top: 4px; }
+.progress-fill { height: 100%; background: var(--teal); border-radius: 2px; transition: width 0.3s; }
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--bg-card); border-radius: 12px; padding: 24px; width: 520px; max-width: 95vw; max-height: 85vh; overflow-y: auto; }
+.modal h2 { font-size: 1.2rem; font-weight: 700; color: var(--teal); margin-bottom: 16px; }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; color: #444; }
+.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: var(--bg); color: var(--fg); font-family: inherit; }
+.form-group textarea { min-height: 80px; resize: vertical; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+/* Sub-nav links */
+.subnav { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.subnav a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; text-decoration: none; color: var(--fg); font-size: 0.88rem; font-weight: 600; transition: all 0.15s; }
+.subnav a:hover { background: var(--teal); color: #fff; border-color: var(--teal); }
+.empty-state { text-align: center; padding: 48px 24px; color: #999; }
+.empty-state .iconify { font-size: 3rem; display: block; margin-bottom: 12px; color: var(--grey); }
+</style>
 </head>
 <body>
-<div class="prism-shell">
-  <div id="sidebar-mount"></div>
-  <div class="main-content" id="main-content">
-    <div class="topbar"><div class="topbar-title">Agenti City</div></div>
-    <div class="page-content">
-      <p style="font-size:13px;color:var(--fg-muted);margin-bottom:20px;">Build, configure, and deploy AI agents for every task.</p>
-      <div class="grid-2" style="gap:20px;">
-        <a href="/agenti/agent-builder/" class="card" style="text-decoration:none;display:block;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Agent Builder">
-          <div style="font-size:32px;margin-bottom:10px;">🤖</div>
-          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:6px;">Agent Builder</div>
-          <div style="font-size:13px;color:var(--fg-muted);">Create custom AI agents with specific system prompts, tools, and routing profiles.</div>
-        </a>
-        <a href="/agenti/persona-maker/" class="card" style="text-decoration:none;display:block;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Persona Maker">
-          <div style="font-size:32px;margin-bottom:10px;">🎭</div>
-          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:6px;">Persona Maker</div>
-          <div style="font-size:13px;color:var(--fg-muted);">Design chat personas with distinct voices, avatars, and system prompts.</div>
-        </a>
-        <a href="/agenti/round-table/" class="card" style="text-decoration:none;display:block;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Round Table">
-          <div style="font-size:32px;margin-bottom:10px;">🪑</div>
-          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:6px;">Round Table</div>
-          <div style="font-size:13px;color:var(--fg-muted);">Send the same prompt to multiple models simultaneously and compare responses.</div>
-        </a>
-        <a href="/agenti/workflow-wizard/" class="card" style="text-decoration:none;display:block;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Workflow Wizard">
-          <div style="font-size:32px;margin-bottom:10px;">⚡</div>
-          <div style="font-family:var(--font-heading);font-size:16px;font-weight:600;margin-bottom:6px;">Workflow Wizard</div>
-          <div style="font-size:13px;color:var(--fg-muted);">Build automated multi-step workflows that chain AI calls, searches, and actions.</div>
-        </a>
-      </div></div>
+<div class="page-wrap">
+<div id="sidebar-mount"></div>
+
+<div class="page-header">
+  <span class="iconify" data-icon="ph:robot-bold" style="font-size:1.8rem;"></span>
+  <div>
+    <h1>Agenti City</h1>
+    <div class="subtitle">Agent library, workflows, and job spool</div>
   </div>
 </div>
-<script src="/shared/prism.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  var mount = document.getElementById('sidebar-mount');
-  if (mount) { var sb = buildSidebar('/agenti/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
-  
-});
 
+<div class="tabs">
+  <div class="tab active" onclick="showTab('agents')">
+    <span class="iconify" data-icon="ph:robot" style="vertical-align:middle;margin-right:4px;"></span>Agents
+  </div>
+  <div class="tab" onclick="showTab('workflows')">
+    <span class="iconify" data-icon="ph:flow-arrow" style="vertical-align:middle;margin-right:4px;"></span>Workflows
+  </div>
+  <div class="tab" onclick="showTab('wip')">
+    <span class="iconify" data-icon="ph:spinner-gap-bold" style="vertical-align:middle;margin-right:4px;"></span>WIP Spool
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- Sub-navigation to sub-modules -->
+  <div class="subnav">
+    <a href="/agenti/agent-builder/"><span class="iconify" data-icon="ph:wrench-bold"></span>Agent Builder</a>
+    <a href="/agenti/workflow-wizard/"><span class="iconify" data-icon="ph:magic-wand-bold"></span>Workflow Wizard</a>
+    <a href="/agenti/persona-maker/"><span class="iconify" data-icon="ph:user-circle-bold"></span>Persona Maker</a>
+    <a href="/agenti/round-table/"><span class="iconify" data-icon="ph:users-three-bold"></span>Round Table</a>
+  </div>
+
+  <!-- Agents tab -->
+  <div id="tab-agents">
+    <div class="section-title">
+      <span class="iconify" data-icon="ph:robot-bold"></span>
+      Saved Agents
+      <button class="btn btn-primary btn-sm" onclick="openAgentModal()" style="margin-left:auto;">
+        <span class="iconify" data-icon="ph:plus-bold" style="vertical-align:middle;"></span> New Agent
+      </button>
+    </div>
+    <div class="agent-grid" id="agents-grid">
+      <div class="empty-state" id="agents-empty">
+        <span class="iconify" data-icon="ph:robot"></span>
+        <div>No agents yet. Create your first agent.</div>
+        <button class="btn btn-primary" style="margin-top:12px;" onclick="openAgentModal()">Create Agent</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workflows tab -->
+  <div id="tab-workflows" style="display:none;">
+    <div class="section-title">
+      <span class="iconify" data-icon="ph:flow-arrow-bold"></span>
+      Saved Workflows
+      <button class="btn btn-primary btn-sm" onclick="openWorkflowModal()" style="margin-left:auto;">
+        <span class="iconify" data-icon="ph:plus-bold" style="vertical-align:middle;"></span> New Workflow
+      </button>
+    </div>
+    <div class="agent-grid" id="workflows-grid">
+      <div class="empty-state" id="workflows-empty">
+        <span class="iconify" data-icon="ph:flow-arrow"></span>
+        <div>No workflows yet. Create your first workflow.</div>
+        <button class="btn btn-primary" style="margin-top:12px;" onclick="openWorkflowModal()">Create Workflow</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIP Spool tab -->
+  <div id="tab-wip" style="display:none;">
+    <div class="section-title">
+      <span class="iconify" data-icon="ph:spinner-gap-bold"></span>
+      Work In Progress
+      <button class="btn btn-secondary btn-sm" onclick="loadJobs()" style="margin-left:auto;">
+        <span class="iconify" data-icon="ph:arrows-clockwise" style="vertical-align:middle;"></span> Refresh
+      </button>
+    </div>
+    <div class="wip-panel" id="wip-panel">
+      <div class="wip-empty" id="wip-empty">No active jobs.</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- Agent Modal -->
+<div class="modal-overlay" id="agent-modal">
+  <div class="modal">
+    <h2 id="agent-modal-title">New Agent</h2>
+    <div class="form-group">
+      <label>Agent Name</label>
+      <input type="text" id="agent-name" placeholder="e.g. Daily News Agent">
+    </div>
+    <div class="form-group">
+      <label>Persona / System Prompt</label>
+      <textarea id="agent-persona" placeholder="Describe the agent's role, tone, and behaviour..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Tools (comma-separated)</label>
+      <input type="text" id="agent-tools" placeholder="e.g. web-search, rss, bluesky-post">
+    </div>
+    <div class="form-group">
+      <label>Data Sources (comma-separated)</label>
+      <input type="text" id="agent-sources" placeholder="e.g. guardian-rss, semantic-scholar">
+    </div>
+    <div class="form-group">
+      <label>Output Actions (comma-separated)</label>
+      <input type="text" id="agent-outputs" placeholder="e.g. post-bluesky, save-to-workspace">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeAgentModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAgent()">Save Agent</button>
+    </div>
+  </div>
+</div>
+
+<!-- Workflow Modal -->
+<div class="modal-overlay" id="workflow-modal">
+  <div class="modal">
+    <h2 id="workflow-modal-title">New Workflow</h2>
+    <div class="form-group">
+      <label>Workflow Name</label>
+      <input type="text" id="wf-name" placeholder="e.g. Morning News Pipeline">
+    </div>
+    <div class="form-group">
+      <label>Steps (one per line)</label>
+      <textarea id="wf-steps" placeholder="1. Fetch RSS feeds&#10;2. Summarise with LLM&#10;3. Post to Bluesky" style="min-height:120px;"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Trigger</label>
+      <select id="wf-trigger">
+        <option value="manual">Manual</option>
+        <option value="cron-morning">Daily 08:00 UTC</option>
+        <option value="cron-lunchtime">Daily 13:00 UTC</option>
+        <option value="cron-evening">Daily 20:00 UTC</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeWorkflowModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveWorkflow()">Save Workflow</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var editingAgentId = null;
+var editingWorkflowId = null;
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function showTab(tab) {
+  ['agents','workflows','wip'].forEach(function(t) {
+    var el = document.getElementById('tab-' + t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach(function(btn, i) {
+    btn.classList.toggle('active', ['agents','workflows','wip'][i] === tab);
+  });
+  if (tab === 'wip') loadJobs();
+}
+
+// ── Agents ────────────────────────────────────────────────────────────────────
+function loadAgents() {
+  fetch(WORKER + '/api/agents')
+    .then(function(r) { return r.json(); })
+    .then(function(data) { renderAgents(data.agents || []); })
+    .catch(function(e) { console.error('Agents load error:', e); });
+}
+
+function renderAgents(agents) {
+  var grid = document.getElementById('agents-grid');
+  var empty = document.getElementById('agents-empty');
+  if (!agents.length) {
+    if (empty) empty.style.display = 'block';
+    // Remove existing cards
+    grid.querySelectorAll('.agent-card').forEach(function(c) { c.remove(); });
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  grid.querySelectorAll('.agent-card').forEach(function(c) { c.remove(); });
+  agents.forEach(function(agent) {
+    var card = document.createElement('div');
+    card.className = 'agent-card';
+    card.innerHTML =
+      '<div class="agent-name">' + esc(agent.name) + '</div>' +
+      '<div class="agent-persona">' + esc((agent.persona || '').substring(0, 80)) + '</div>' +
+      '<div class="agent-meta">' +
+        '<span><span class="iconify" data-icon="ph:wrench" style="vertical-align:middle;"></span> ' + (agent.tools || []).length + ' tools</span>' +
+        '<span><span class="iconify" data-icon="ph:database" style="vertical-align:middle;"></span> ' + (agent.dataSources || []).length + ' sources</span>' +
+      '</div>' +
+      '<div class="agent-actions">' +
+        '<button class="btn btn-secondary btn-sm" onclick="editAgent('' + agent.id + '')">Edit</button>' +
+        '<button class="btn btn-primary btn-sm" onclick="runAgent('' + agent.id + '')">Run</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteAgent('' + agent.id + '')">Delete</button>' +
+      '</div>';
+    grid.appendChild(card);
+  });
+  if (typeof Iconify !== 'undefined') Iconify.scan(grid);
+}
+
+function openAgentModal(agent) {
+  editingAgentId = agent ? agent.id : null;
+  document.getElementById('agent-modal-title').textContent = agent ? 'Edit Agent' : 'New Agent';
+  document.getElementById('agent-name').value = agent ? agent.name : '';
+  document.getElementById('agent-persona').value = agent ? (agent.persona || '') : '';
+  document.getElementById('agent-tools').value = agent ? (agent.tools || []).join(', ') : '';
+  document.getElementById('agent-sources').value = agent ? (agent.dataSources || []).join(', ') : '';
+  document.getElementById('agent-outputs').value = agent ? (agent.outputActions || []).join(', ') : '';
+  document.getElementById('agent-modal').classList.add('open');
+}
+
+function closeAgentModal() {
+  document.getElementById('agent-modal').classList.remove('open');
+  editingAgentId = null;
+}
+
+function saveAgent() {
+  var name = document.getElementById('agent-name').value.trim();
+  if (!name) { alert('Agent name is required.'); return; }
+  var agent = {
+    id: editingAgentId || ('agent-' + Date.now()),
+    name: name,
+    persona: document.getElementById('agent-persona').value.trim(),
+    tools: document.getElementById('agent-tools').value.split(',').map(function(s) { return s.trim(); }).filter(Boolean),
+    dataSources: document.getElementById('agent-sources').value.split(',').map(function(s) { return s.trim(); }).filter(Boolean),
+    outputActions: document.getElementById('agent-outputs').value.split(',').map(function(s) { return s.trim(); }).filter(Boolean),
+  };
+  var method = editingAgentId ? 'PUT' : 'POST';
+  var url = WORKER + '/api/agents' + (editingAgentId ? '/' + editingAgentId : '');
+  fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(agent) })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) { closeAgentModal(); loadAgents(); }
+      else { alert('Save failed: ' + (data.error || 'Unknown error')); }
+    })
+    .catch(function(e) { alert('Save error: ' + e.message); });
+}
+
+function editAgent(id) {
+  fetch(WORKER + '/api/agents')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var agent = (data.agents || []).find(function(a) { return a.id === id; });
+      if (agent) openAgentModal(agent);
+    });
+}
+
+function deleteAgent(id) {
+  if (!confirm('Delete this agent?')) return;
+  fetch(WORKER + '/api/agents/' + id, { method: 'DELETE' })
+    .then(function() { loadAgents(); });
+}
+
+function runAgent(id) {
+  alert('Agent run functionality coming soon. Agent ID: ' + id);
+}
+
+// ── Workflows ─────────────────────────────────────────────────────────────────
+function loadWorkflows() {
+  fetch(WORKER + '/api/workflows')
+    .then(function(r) { return r.json(); })
+    .then(function(data) { renderWorkflows(data.workflows || []); })
+    .catch(function(e) { console.error('Workflows load error:', e); });
+}
+
+function renderWorkflows(workflows) {
+  var grid = document.getElementById('workflows-grid');
+  var empty = document.getElementById('workflows-empty');
+  if (!workflows.length) {
+    if (empty) empty.style.display = 'block';
+    grid.querySelectorAll('.agent-card').forEach(function(c) { c.remove(); });
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  grid.querySelectorAll('.agent-card').forEach(function(c) { c.remove(); });
+  workflows.forEach(function(wf) {
+    var card = document.createElement('div');
+    card.className = 'agent-card';
+    card.innerHTML =
+      '<div class="agent-name">' + esc(wf.name) + '</div>' +
+      '<div class="agent-persona">Trigger: ' + esc(wf.trigger || 'manual') + '</div>' +
+      '<div class="agent-meta"><span>' + (wf.steps || []).length + ' steps</span></div>' +
+      '<div class="agent-actions">' +
+        '<button class="btn btn-secondary btn-sm" onclick="editWorkflow('' + wf.id + '')">Edit</button>' +
+        '<button class="btn btn-primary btn-sm" onclick="runWorkflow('' + wf.id + '')">Run</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteWorkflow('' + wf.id + '')">Delete</button>' +
+      '</div>';
+    grid.appendChild(card);
+  });
+}
+
+function openWorkflowModal(wf) {
+  editingWorkflowId = wf ? wf.id : null;
+  document.getElementById('workflow-modal-title').textContent = wf ? 'Edit Workflow' : 'New Workflow';
+  document.getElementById('wf-name').value = wf ? wf.name : '';
+  document.getElementById('wf-steps').value = wf ? (wf.steps || []).join('\n') : '';
+  document.getElementById('wf-trigger').value = wf ? (wf.trigger || 'manual') : 'manual';
+  document.getElementById('workflow-modal').classList.add('open');
+}
+
+function closeWorkflowModal() {
+  document.getElementById('workflow-modal').classList.remove('open');
+  editingWorkflowId = null;
+}
+
+function saveWorkflow() {
+  var name = document.getElementById('wf-name').value.trim();
+  if (!name) { alert('Workflow name is required.'); return; }
+  var wf = {
+    id: editingWorkflowId || ('wf-' + Date.now()),
+    name: name,
+    steps: document.getElementById('wf-steps').value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean),
+    trigger: document.getElementById('wf-trigger').value,
+  };
+  var method = editingWorkflowId ? 'PUT' : 'POST';
+  var url = WORKER + '/api/workflows' + (editingWorkflowId ? '/' + editingWorkflowId : '');
+  fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(wf) })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) { closeWorkflowModal(); loadWorkflows(); }
+      else { alert('Save failed: ' + (data.error || 'Unknown error')); }
+    });
+}
+
+function editWorkflow(id) {
+  fetch(WORKER + '/api/workflows')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var wf = (data.workflows || []).find(function(w) { return w.id === id; });
+      if (wf) openWorkflowModal(wf);
+    });
+}
+
+function deleteWorkflow(id) {
+  if (!confirm('Delete this workflow?')) return;
+  fetch(WORKER + '/api/workflows/' + id, { method: 'DELETE' })
+    .then(function() { loadWorkflows(); });
+}
+
+function runWorkflow(id) {
+  alert('Workflow run functionality coming soon. Workflow ID: ' + id);
+}
+
+// ── WIP Jobs ──────────────────────────────────────────────────────────────────
+function loadJobs() {
+  fetch(WORKER + '/api/jobs')
+    .then(function(r) { return r.json(); })
+    .then(function(data) { renderJobs(data.jobs || []); })
+    .catch(function(e) { console.error('Jobs load error:', e); });
+}
+
+function renderJobs(jobs) {
+  var panel = document.getElementById('wip-panel');
+  var empty = document.getElementById('wip-empty');
+  if (!jobs.length) {
+    panel.innerHTML = '<div class="wip-empty">No active jobs.</div>';
+    return;
+  }
+  panel.innerHTML = '';
+  jobs.forEach(function(job) {
+    var pct = job.total > 0 ? Math.round((job.progress / job.total) * 100) : 0;
+    var div = document.createElement('div');
+    div.className = 'wip-job';
+    div.innerHTML =
+      '<span class="iconify" data-icon="ph:spinner-gap-bold" style="color:var(--teal);font-size:1.2rem;"></span>' +
+      '<div style="flex:1;">' +
+        '<div class="job-label">' + esc(job.label || job.type) + '</div>' +
+        '<div class="job-phase">' + esc(job.phase || 'running') + (job.total > 0 ? ' (' + job.progress + '/' + job.total + ')' : '') + '</div>' +
+        '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%;"></div></div>' +
+      '</div>' +
+      '<span class="job-progress">' + pct + '%</span>';
+    panel.appendChild(div);
+  });
+  if (typeof Iconify !== 'undefined') Iconify.scan(panel);
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  loadAgents();
+  loadWorkflows();
+  // Auto-refresh WIP every 10s
+  setInterval(function() {
+    var wipTab = document.getElementById('tab-wip');
+    if (wipTab && wipTab.style.display !== 'none') loadJobs();
+  }, 10000);
+});
 </script>
 </body>
 </html>
