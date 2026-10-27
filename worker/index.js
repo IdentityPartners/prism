@@ -1564,14 +1564,9 @@ export default {
     // ── Macro list docs ───────────────────────────────────────────────────────
     if (path === '/api/macro/list' && request.method === 'GET') {
       try {
-        const macroKey = k(env, ['macro_api_key','MACRO_API_KEY']) || '';
-        if (!macroKey) return json({docs:[]}, 200, origin);
-        const resp = await fetch('https://api.macro.com/v1/docs', {
-          headers: {'Authorization': 'Bearer '+macroKey}
-        });
-        const data = await resp.json();
-        return json({docs: data.docs || data.items || data || []}, 200, origin);
-      } catch(e) { return json({docs:[], error:e.message}, 200, origin); }
+        const list = env.PRISM_KV ? await env.PRISM_KV.get('macros:list', 'json') : null;
+        return json({ macros: list || [], docs: list || [], success: true }, 200, origin);
+      } catch(e) { return json({ macros: [], docs: [], error: e.message }, 200, origin); }
     }
 
     // ── Zoho: list all calendars (to find the right one) ─────────────────────
@@ -3787,26 +3782,66 @@ data: ${JSON.stringify(data)}
     } catch(e) { return json({success: false, error: e.message}, 500, origin); }
   }
 
-  // ── Daily pipeline cron handler (D2) ─────────────────────────────────────────
-  if (path === '/api/pipeline/morning' && request.method === 'POST') {
-    try {
-      const slot = new Date().getUTCHours() < 11 ? 'morning' : new Date().getUTCHours() < 16 ? 'lunchtime' : 'evening';
-      const prompts = {
-        morning: 'Write a thought-provoking post about understanding your past and how it shapes your present. Focus on recovery, mental health, and personal growth. British English. 2-3 sentences.',
-        lunchtime: 'Write a reflective post about appreciating the present moment. Connect to themes of wellbeing, recovery, and identity. British English. 2-3 sentences.',
-        evening: 'Write an engaging question-driven post about defining your future. Connect to themes of personal growth, recovery, and identity. British English. 2-3 sentences.',
-      };
-      const msgs = [{role:'system', content:'You are a compassionate content writer for Identity Partners, a mental health and recovery organisation. British English only. No sycophancy. No AI tropes.'}, {role:'user', content:prompts[slot]}];
-      const result = await orchestrate(msgs, env, {profile:'balanced'});
-      const postText = result.content || 'Understand your past. Appreciate the present. Define your future. That is what we are here for. Book an exploratory call today: identitypartners.uk/contact';
-      const postResp = await fetch(`${new URL(request.url).origin}/api/pipeline/unified`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({text: postText, platforms: ['bluesky', 'instagram', 'facebook', 'x']})
-      });
-      const postResult = await postResp.json();
-      return json({success: true, slot, text: postText.substring(0, 100), results: postResult.results}, 200, origin);
-    } catch(e) { return json({success: false, error: e.message}, 500, origin); }
-  }
+  // ── Daily pipeline cron handler (D2) ─────────────────────────────────────────if (path === '/api/pipeline/morning' && (request.method === 'POST' || request.method === 'GET')) {
+      try {
+        const h = new Date().getUTCHours();
+        const slot = h < 11 ? 'morning' : h < 16 ? 'lunchtime' : 'evening';
+        const prompts = {
+          morning: 'Write a thought-provoking post about understanding your past and how it shapes your present. Focus on recovery, mental health, and personal growth. British English. 2-3 sentences max.',
+          lunchtime: 'Write a reflective post about appreciating the present moment. Connect to themes of wellbeing, recovery, and identity. British English. 2-3 sentences max.',
+          evening: 'Write an engaging question-driven post about defining your future. Connect to themes of personal growth, recovery, and identity. British English. 2-3 sentences max.',
+        };
+        const msgs = [
+          {role:'system', content:'You are a compassionate content writer for Identity Partners, a mental health and recovery organisation. British English only. No sycophancy. No AI tropes. Be concise.'},
+          {role:'user', content:prompts[slot]}
+        ];
+        const mistralKey = k(env, ['mistral_api_key','MISTRAL_API_KEY','mistral_p']);
+        const deepseekKey = k(env, ['deepseek_paid','DEEPSEEK_PAID','deepseek_p']);
+        const TAGS = '#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Wellbeing';
+        const FOOTER = 'hello@identitypartners.uk | www.identitypartners.uk/contact';
+        let postText = '';
+        try {
+          const key = mistralKey || deepseekKey;
+          const endpoint = mistralKey ? 'https://api.mistral.ai/v1/chat/completions' : 'https://api.deepseek.com/chat/completions';
+          const model = mistralKey ? 'mistral-small-latest' : 'deepseek-chat';
+          const resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: {'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json'},
+            body: JSON.stringify({model, messages: msgs, max_tokens: 150, temperature: 0.8})
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            postText = data.choices?.[0]?.message?.content || '';
+          }
+        } catch(e) {}
+        if (!postText) postText = 'Understand your past. Appreciate the present. Define your future. That is what we are here for. identitypartners.uk/contact';
+        const fullText = postText + '\n\n' + TAGS + '\n' + FOOTER;
+        const results = {};
+        const bskyHandle = k(env, ['bluesky_handle','BLUESKY_HANDLE']) || '@identitypartners.bsky.social';
+        const bskyPass = k(env, ['bluesky_password','BLUESKY_PASSWORD']) || '';
+        if (bskyHandle && bskyPass) {
+          try {
+            const sessionResp = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
+              method: 'POST', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({identifier: bskyHandle, password: bskyPass})
+            });
+            if (sessionResp.ok) {
+              const session = await sessionResp.json();
+              const postResp = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${session.accessJwt}`},
+                body: JSON.stringify({repo: session.did, collection: 'app.bsky.feed.post', record: {text: fullText.substring(0, 300), createdAt: new Date().toISOString(), langs: ['en-GB']}})
+              });
+              results.bluesky = {success: postResp.ok, status: postResp.status};
+            }
+          } catch(e) { results.bluesky = {success: false, error: e.message}; }
+        }
+        if (env.PRISM_KV) {
+          await env.PRISM_KV.put('pipeline:last-run', JSON.stringify({slot, text: postText.substring(0,100), results, timestamp: new Date().toISOString()}));
+        }
+        return json({success: true, slot, text: postText.substring(0, 100) + '...', results}, 200, origin);
+      } catch(e) { return json({success: false, error: e.message}, 500, origin); }
+    }
 
   // ── Site crawl (A3) ───────────────────────────────────────────────────────────
   if (path === '/api/site/crawl' && request.method === 'POST') {
