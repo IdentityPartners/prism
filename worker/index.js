@@ -4010,11 +4010,7 @@ data: ${JSON.stringify(data)}
         const ocrData = await ocrResp.json();
         // Extract markdown from pages
         const pages = ocrData.pages || [];
-        const markdown = pages.map(function(p) { return p.markdown || ''; }).join('
-
----
-
-');
+        const markdown = pages.map(function(p) { return p.markdown || ''; }).join('\n\n---\n\n');
         return json({success: true, markdown, pages: pages.length, model: 'mistral-ocr-latest'}, 200, origin);
       } catch(e) { return json({error: e.message}, 500, origin); }
     }
