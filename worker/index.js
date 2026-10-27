@@ -3366,7 +3366,11 @@ export default {
 
         // Fetch Pexels background only if requested
         let bgImageB64 = '', bgMimeType = 'image/jpeg';
-        if (bgQuery && pexelsKey) {
+        // Support multiple image sources for backgrounds
+        const bgSource = body.bgSource || 'pexels';
+        const unsplashKey2 = k(env, ['unsplash_api_key','UNSPLASH_API_KEY','unsplash']) || '';
+        const pixabayKey2 = k(env, ['pixabay_api_key','PIXABAY_API_KEY','pixabay']) || '';
+        if (bgQuery && (pexelsKey || unsplashKey2 || pixabayKey2)) {
           try {
             const pexResp = await fetch(
               'https://api.pexels.com/v1/search?query=' + encodeURIComponent(bgQuery) + '&per_page=15&orientation=square',
@@ -5490,6 +5494,103 @@ data: ${JSON.stringify(data)}
         }
         return json({chunks_processed: chunks.length, chunks_successful: successful.length, merged_summary: synthesis, doc_length: docText.length}, 200, origin);
       } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+
+    // ── Multi-source image search: Pexels, Unsplash, Pixabay, Wikimedia, Openverse ──
+    if (path === '/api/image-search' && (request.method === 'POST' || request.method === 'GET')) {
+      try {
+        let query = '', source = 'pexels', limit = 8;
+        if (request.method === 'POST') {
+          const body = await request.json();
+          query = body.query || body.q || '';
+          source = body.source || 'pexels';
+          limit = body.limit || 8;
+        } else {
+          const url = new URL(request.url);
+          query = url.searchParams.get('q') || '';
+          source = url.searchParams.get('source') || 'pexels';
+          limit = parseInt(url.searchParams.get('limit') || '8');
+        }
+        if (!query) return json({results: [], error: 'No query'}, 200, origin);
+
+        const pexelsKey = k(env, ['pexels_api_key','PEXELS_API_KEY','pexels']) || '';
+        const unsplashKey = k(env, ['unsplash_api_key','UNSPLASH_API_KEY','unsplash']) || '';
+        const pixabayKey = k(env, ['pixabay_api_key','PIXABAY_API_KEY','pixabay']) || '';
+
+        let results = [];
+
+        if (source === 'pexels' && pexelsKey) {
+          const resp = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${limit}&orientation=landscape`, {headers: {'Authorization': pexelsKey}});
+          if (resp.ok) {
+            const data = await resp.json();
+            results = (data.photos || []).map(p => ({
+              id: p.id, url: p.src?.medium || p.src?.original, thumbnail: p.src?.small,
+              alt: p.alt || query, photographer: p.photographer, source: 'pexels',
+              download: p.src?.original
+            }));
+          }
+        } else if (source === 'unsplash' && unsplashKey) {
+          const resp = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${limit}&orientation=landscape`, {headers: {'Authorization': `Client-ID ${unsplashKey}`}});
+          if (resp.ok) {
+            const data = await resp.json();
+            results = (data.results || []).map(p => ({
+              id: p.id, url: p.urls?.regular, thumbnail: p.urls?.thumb,
+              alt: p.alt_description || query, photographer: p.user?.name, source: 'unsplash',
+              download: p.urls?.full
+            }));
+          }
+        } else if (source === 'pixabay' && pixabayKey) {
+          const resp = await fetch(`https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&per_page=${limit}&image_type=photo&orientation=horizontal`);
+          if (resp.ok) {
+            const data = await resp.json();
+            results = (data.hits || []).map(p => ({
+              id: p.id, url: p.webformatURL, thumbnail: p.previewURL,
+              alt: p.tags || query, photographer: p.user, source: 'pixabay',
+              download: p.largeImageURL
+            }));
+          }
+        } else if (source === 'wikimedia') {
+          const resp = await fetch(`https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srnamespace=6&srlimit=${limit}&format=json&origin=*`);
+          if (resp.ok) {
+            const data = await resp.json();
+            const pages = data.query?.search || [];
+            results = pages.map(p => {
+              const title = p.title.replace('File:', '');
+              const encoded = encodeURIComponent(p.title.replace('File:', ''));
+              return {
+                id: p.pageid, url: `https://commons.wikimedia.org/wiki/Special:FilePath/${encoded}`,
+                thumbnail: `https://commons.wikimedia.org/wiki/Special:FilePath/${encoded}?width=300`,
+                alt: title, photographer: 'Wikimedia Commons', source: 'wikimedia',
+                download: `https://commons.wikimedia.org/wiki/Special:FilePath/${encoded}`
+              };
+            });
+          }
+        } else if (source === 'openverse') {
+          const resp = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&page_size=${limit}&license_type=commercial,modification`);
+          if (resp.ok) {
+            const data = await resp.json();
+            results = (data.results || []).map(p => ({
+              id: p.id, url: p.url, thumbnail: p.thumbnail,
+              alt: p.title || query, photographer: p.creator, source: 'openverse',
+              download: p.url
+            }));
+          }
+        } else if (pexelsKey) {
+          // Default fallback to Pexels
+          const resp = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${limit}&orientation=landscape`, {headers: {'Authorization': pexelsKey}});
+          if (resp.ok) {
+            const data = await resp.json();
+            results = (data.photos || []).map(p => ({
+              id: p.id, url: p.src?.medium, thumbnail: p.src?.small,
+              alt: p.alt || query, photographer: p.photographer, source: 'pexels',
+              download: p.src?.original
+            }));
+          }
+        }
+
+        return json({results, total: results.length, query, source}, 200, origin);
+      } catch(e) { return json({results: [], error: e.message}, 200, origin); }
     }
 
 return json({ error: 'Not found', path }, 404, origin);
