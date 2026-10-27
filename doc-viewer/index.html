@@ -125,6 +125,7 @@ var aiHistory = [];
 var hwStrokes = [];
 var hwCurrent = null;
 var hwDrawing = false;
+var hwSessionId = 'hw-' + Date.now();
 var hwTool = 'pen';
 var hwColor = '#dc2626';
 var hwSize = 3;
@@ -551,7 +552,10 @@ function hwPos(e) {
 }
 function hwStart(e) { e.preventDefault(); hwDrawing = true; hwCurrent = {tool: hwTool, col: hwColor, sz: hwSize, pts: [hwPos(e)]}; }
 function hwMove(e) { if (!hwDrawing || !hwCurrent) return; e.preventDefault(); hwCurrent.pts.push(hwPos(e)); hwDrawStroke(hwCurrent, true); }
-function hwEnd(e) { if (!hwDrawing || !hwCurrent) return; hwDrawing = false; if (hwCurrent.pts.length > 1) hwStrokes.push(hwCurrent); hwCurrent = null; }
+function hwEnd(e) { if (!hwDrawing || !hwCurrent) return; hwDrawing = false; if (hwCurrent.pts.length > 1) hwStrokes.push(hwCurrent); hwCurrent = null; 
+  // Auto-save after each stroke
+  if (hwStrokes.length > 0) hwSave(true);
+}
 function hwDrawStroke(stroke, inc) {
   var c = document.getElementById('hw-annot-canvas');
   if (!c) return;
@@ -577,13 +581,23 @@ function hwRedraw() {
 }
 function hwSetTool(t) { hwTool = t; }
 function hwClear() { hwStrokes = []; hwRedraw(); }
-function hwSave() {
+function hwSave(silent) {
   var c = document.getElementById('hw-annot-canvas');
   if (!c) return;
   var dataUrl = c.toDataURL('image/png');
-  annotations.push({id: 'hw-' + Date.now(), type: 'drawing', dataUrl: dataUrl, created: new Date().toISOString()});
+  // Update existing drawing annotation or add new one
+  var existing = annotations.findIndex(function(a) { return a.type === 'drawing' && a.session === hwSessionId; });
+  if (existing >= 0) {
+    annotations[existing].dataUrl = dataUrl;
+    annotations[existing].updated = new Date().toISOString();
+  } else {
+    annotations.push({id: 'hw-' + Date.now(), type: 'drawing', dataUrl: dataUrl, session: hwSessionId, created: new Date().toISOString()});
+  }
   saveAnnotations();
-  alert('Handwriting annotation saved.');
+  if (!silent) {
+    var btn = document.getElementById('hw-save-btn');
+    if (btn) { btn.textContent = '\u2713 Saved'; setTimeout(function() { btn.textContent = '\uD83D\uDCBE Save'; }, 1500); }
+  }
 }
 
 // ── TTS ───────────────────────────────────────────────────────────────────────
