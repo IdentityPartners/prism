@@ -4233,6 +4233,225 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({status:'error', error:e.message, today:[], week:[]}, 200, origin); }
     }
 
+
+    // ── Native CRM — Contacts ─────────────────────────────────────────────────────
+    if (path === '/api/crm/contacts' && request.method === 'GET') {
+      try {
+        const q = url.searchParams.get('q') || '';
+        const limit = parseInt(url.searchParams.get('limit') || '50');
+        let contacts;
+        if (q) {
+          contacts = await env.PRISM_D1.prepare(
+            "SELECT * FROM crm_contacts WHERE name LIKE ? OR email LIKE ? OR company LIKE ? OR tags LIKE ? ORDER BY updated_at DESC LIMIT ?"
+          ).bind('%'+q+'%', '%'+q+'%', '%'+q+'%', '%'+q+'%', limit).all();
+        } else {
+          contacts = await env.PRISM_D1.prepare(
+            "SELECT * FROM crm_contacts ORDER BY updated_at DESC LIMIT ?"
+          ).bind(limit).all();
+        }
+        return json({contacts: contacts.results || [], total: (contacts.results || []).length}, 200, origin);
+      } catch(e) {
+        // Table may not exist yet — return empty
+        return json({contacts: [], total: 0, note: 'Run /api/crm/init to create tables'}, 200, origin);
+      }
+    }
+
+    if (path === '/api/crm/contacts' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('c-' + Date.now());
+        const now = new Date().toISOString();
+        await env.PRISM_D1.prepare(
+          "INSERT OR REPLACE INTO crm_contacts (id, name, email, phone, company, role, tags, notes, source, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+        ).bind(id, body.name||'', body.email||'', body.phone||'', body.company||'', body.role||'', JSON.stringify(body.tags||[]), body.notes||'', body.source||'manual', body.created_at||now, now).run();
+        return json({success:true, id}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
+    if (path.startsWith('/api/crm/contacts/') && request.method === 'PUT') {
+      try {
+        const id = path.replace('/api/crm/contacts/', '');
+        const body = await request.json();
+        const now = new Date().toISOString();
+        await env.PRISM_D1.prepare(
+          "UPDATE crm_contacts SET name=?, email=?, phone=?, company=?, role=?, tags=?, notes=?, updated_at=? WHERE id=?"
+        ).bind(body.name||'', body.email||'', body.phone||'', body.company||'', body.role||'', JSON.stringify(body.tags||[]), body.notes||'', now, id).run();
+        return json({success:true}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
+    if (path.startsWith('/api/crm/contacts/') && request.method === 'DELETE') {
+      try {
+        const id = path.replace('/api/crm/contacts/', '');
+        await env.PRISM_D1.prepare("DELETE FROM crm_contacts WHERE id=?").bind(id).run();
+        await env.PRISM_D1.prepare("DELETE FROM crm_interactions WHERE contact_id=?").bind(id).run();
+        return json({success:true}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
+    // ── Native CRM — Companies ────────────────────────────────────────────────────
+    if (path === '/api/crm/companies' && request.method === 'GET') {
+      try {
+        const q = url.searchParams.get('q') || '';
+        const limit = parseInt(url.searchParams.get('limit') || '50');
+        let companies;
+        if (q) {
+          companies = await env.PRISM_D1.prepare(
+            "SELECT * FROM crm_companies WHERE name LIKE ? OR domain LIKE ? OR tags LIKE ? ORDER BY updated_at DESC LIMIT ?"
+          ).bind('%'+q+'%', '%'+q+'%', '%'+q+'%', limit).all();
+        } else {
+          companies = await env.PRISM_D1.prepare("SELECT * FROM crm_companies ORDER BY updated_at DESC LIMIT ?").bind(limit).all();
+        }
+        return json({companies: companies.results || [], total: (companies.results || []).length}, 200, origin);
+      } catch(e) { return json({companies: [], total: 0}, 200, origin); }
+    }
+
+    if (path === '/api/crm/companies' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('co-' + Date.now());
+        const now = new Date().toISOString();
+        await env.PRISM_D1.prepare(
+          "INSERT OR REPLACE INTO crm_companies (id, name, domain, industry, size, tags, notes, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)"
+        ).bind(id, body.name||'', body.domain||'', body.industry||'', body.size||'', JSON.stringify(body.tags||[]), body.notes||'', now, now).run();
+        return json({success:true, id}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
+    // ── Native CRM — Interactions (log) ──────────────────────────────────────────
+    if (path === '/api/crm/interactions' && request.method === 'GET') {
+      try {
+        const contactId = url.searchParams.get('contact_id') || '';
+        const limit = parseInt(url.searchParams.get('limit') || '50');
+        let interactions;
+        if (contactId) {
+          interactions = await env.PRISM_D1.prepare(
+            "SELECT * FROM crm_interactions WHERE contact_id=? ORDER BY created_at DESC LIMIT ?"
+          ).bind(contactId, limit).all();
+        } else {
+          interactions = await env.PRISM_D1.prepare(
+            "SELECT * FROM crm_interactions ORDER BY created_at DESC LIMIT ?"
+          ).bind(limit).all();
+        }
+        return json({interactions: interactions.results || []}, 200, origin);
+      } catch(e) { return json({interactions: []}, 200, origin); }
+    }
+
+    if (path === '/api/crm/interactions' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = 'i-' + Date.now();
+        const now = new Date().toISOString();
+        await env.PRISM_D1.prepare(
+          "INSERT INTO crm_interactions (id, contact_id, type, summary, notes, created_at) VALUES (?,?,?,?,?,?)"
+        ).bind(id, body.contact_id||'', body.type||'note', body.summary||'', body.notes||'', now).run();
+        return json({success:true, id}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
+    // ── Native CRM — Calendar events (D1-backed) ──────────────────────────────────
+    if (path === '/api/crm/calendar' && request.method === 'GET') {
+      try {
+        const now = new Date().toISOString();
+        const weekEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+        const events = await env.PRISM_D1.prepare(
+          "SELECT * FROM crm_events WHERE starts_at >= ? AND starts_at <= ? ORDER BY starts_at ASC LIMIT 20"
+        ).bind(now, weekEnd).all();
+        const todayEnd = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate(), 23, 59, 59).toISOString();
+        const all = events.results || [];
+        return json({
+          status: 'ok',
+          today: all.filter(function(e) { return e.starts_at <= todayEnd; }),
+          week: all.filter(function(e) { return e.starts_at > todayEnd; }),
+          total: all.length
+        }, 200, origin);
+      } catch(e) { return json({status:'ok', today:[], week:[], total:0}, 200, origin); }
+    }
+
+    if (path === '/api/crm/calendar' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('ev-' + Date.now());
+        const now = new Date().toISOString();
+        await env.PRISM_D1.prepare(
+          "INSERT OR REPLACE INTO crm_events (id, title, starts_at, ends_at, location, description, contact_id, created_at) VALUES (?,?,?,?,?,?,?,?)"
+        ).bind(id, body.title||'Event', body.starts_at||now, body.ends_at||'', body.location||'', body.description||'', body.contact_id||'', now).run();
+        return json({success:true, id}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
+    // ── Native CRM — Init tables ──────────────────────────────────────────────────
+    if (path === '/api/crm/init' && request.method === 'POST') {
+      try {
+        await env.PRISM_D1.prepare(`CREATE TABLE IF NOT EXISTS crm_contacts (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL DEFAULT '',
+          email TEXT DEFAULT '',
+          phone TEXT DEFAULT '',
+          company TEXT DEFAULT '',
+          role TEXT DEFAULT '',
+          tags TEXT DEFAULT '[]',
+          notes TEXT DEFAULT '',
+          source TEXT DEFAULT 'manual',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )`).run();
+        await env.PRISM_D1.prepare(`CREATE TABLE IF NOT EXISTS crm_companies (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL DEFAULT '',
+          domain TEXT DEFAULT '',
+          industry TEXT DEFAULT '',
+          size TEXT DEFAULT '',
+          tags TEXT DEFAULT '[]',
+          notes TEXT DEFAULT '',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )`).run();
+        await env.PRISM_D1.prepare(`CREATE TABLE IF NOT EXISTS crm_interactions (
+          id TEXT PRIMARY KEY,
+          contact_id TEXT NOT NULL,
+          type TEXT DEFAULT 'note',
+          summary TEXT DEFAULT '',
+          notes TEXT DEFAULT '',
+          created_at TEXT NOT NULL
+        )`).run();
+        await env.PRISM_D1.prepare(`CREATE TABLE IF NOT EXISTS crm_events (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL DEFAULT '',
+          starts_at TEXT NOT NULL,
+          ends_at TEXT DEFAULT '',
+          location TEXT DEFAULT '',
+          description TEXT DEFAULT '',
+          contact_id TEXT DEFAULT '',
+          created_at TEXT NOT NULL
+        )`).run();
+        await env.PRISM_D1.prepare("CREATE INDEX IF NOT EXISTS idx_contacts_email ON crm_contacts(email)").run();
+        await env.PRISM_D1.prepare("CREATE INDEX IF NOT EXISTS idx_interactions_contact ON crm_interactions(contact_id)").run();
+        await env.PRISM_D1.prepare("CREATE INDEX IF NOT EXISTS idx_events_starts ON crm_events(starts_at)").run();
+        return json({success:true, message:'CRM tables created: crm_contacts, crm_companies, crm_interactions, crm_events'}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
+    // ── Native CRM — AI search (Gerald can call this) ─────────────────────────────
+    if (path === '/api/crm/search' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const q = body.query || body.q || '';
+        if (!q) return json({results:[]}, 200, origin);
+        const [contacts, companies, interactions] = await Promise.all([
+          env.PRISM_D1.prepare("SELECT id, name, email, company, role, tags, notes FROM crm_contacts WHERE name LIKE ? OR email LIKE ? OR company LIKE ? OR notes LIKE ? LIMIT 10").bind('%'+q+'%','%'+q+'%','%'+q+'%','%'+q+'%').all(),
+          env.PRISM_D1.prepare("SELECT id, name, domain, industry, notes FROM crm_companies WHERE name LIKE ? OR domain LIKE ? OR notes LIKE ? LIMIT 5").bind('%'+q+'%','%'+q+'%','%'+q+'%').all(),
+          env.PRISM_D1.prepare("SELECT id, contact_id, type, summary, notes, created_at FROM crm_interactions WHERE summary LIKE ? OR notes LIKE ? ORDER BY created_at DESC LIMIT 10").bind('%'+q+'%','%'+q+'%').all(),
+        ]);
+        return json({
+          contacts: contacts.results || [],
+          companies: companies.results || [],
+          interactions: interactions.results || [],
+          query: q
+        }, 200, origin);
+      } catch(e) { return json({results:[], error:e.message}, 200, origin); }
+    }
+
     return json({ error: 'Not found', path }, 404, origin);
   },
 
