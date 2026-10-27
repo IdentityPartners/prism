@@ -103,8 +103,28 @@ async function callProvider(env, provider, key, model, messages) {
   }
 
   // ── Cohere v2 ───────────────────────────────────────────────────────────────
+  // ── Cohere ──────────────────────────────────────────────────────────────────
   if (provider === 'cohere') {
-    throw new Error('Cohere disabled - billing issue');
+    const cohereKey = key || k(env, ['cohere_paid', 'cohere_free', 'cohere', 'COHERE_API_KEY']);
+    if (!cohereKey) throw new Error('Cohere: no key');
+    const cohereBody = {
+      model: model || 'command-r-plus',
+      message: messages[messages.length - 1]?.content || '',
+      chat_history: messages.slice(0, -1).map(m => ({role: m.role === 'assistant' ? 'CHATBOT' : 'USER', message: m.content})),
+      preamble: messages.find(m => m.role === 'system')?.content || undefined,
+      temperature: 0.7,
+    };
+    const cohereResp = await fetch('https://api.cohere.com/v1/chat', {
+      method: 'POST',
+      headers: {'Authorization': `Bearer ${cohereKey}`, 'Content-Type': 'application/json'},
+      body: JSON.stringify(cohereBody)
+    });
+    if (!cohereResp.ok) {
+      const err = await cohereResp.text();
+      throw new Error(`Cohere ${cohereResp.status}: ${err.substring(0,200)}`);
+    }
+    const cohereData = await cohereResp.json();
+    return {content: cohereData.text || '', model: model, provider: 'cohere'};
   }
 
   // ── OpenAI-compatible (Mistral, DeepSeek, Cerebras, Groq, xAI, NVIDIA, OpenRouter) ──
@@ -113,17 +133,16 @@ async function callProvider(env, provider, key, model, messages) {
     deepseek: 'https://api.deepseek.com/chat/completions',
     cerebras: 'https://api.cerebras.ai/v1/chat/completions',
     groq: 'https://api.groq.com/openai/v1/chat/completions',
-    xai: 'https://api.x.ai/v1/chat/completions',
+    kimi: 'https://api.moonshot.cn/v1/chat/completions',
+    glm: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
     nvidia: 'https://integrate.api.nvidia.com/v1/chat/completions',
-    openrouter: 'https://openrouter.ai/api/v1/chat/completions',
+    xai: 'https://api.x.ai/v1/chat/completions',
+    fireworks: 'https://api.fireworks.ai/inference/v1/chat/completions',
+    sambanova: 'https://api.sambanova.ai/v1/chat/completions',
+    anyapi: 'https://api.anyapi.io/v1/chat/completions',
     together: 'https://api.together.xyz/v1/chat/completions',
-    kimi: 'https://api.moonshot.cn/v1/chat/completions',
-    zai: 'https://api.z.ai/api/paas/v4/chat/completions',
-    zhipu: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+    openrouter: 'https://openrouter.ai/api/v1/chat/completions',
     perplexity: 'https://api.perplexity.ai/chat/completions',
-    kimi: 'https://api.moonshot.cn/v1/chat/completions',
-    chutes: 'https://llm.chutes.ai/v1/chat/completions',
-    nebius: 'https://api.studio.nebius.com/v1/chat/completions',
   };
 
   const url = OAI_PROVIDERS[provider];
@@ -191,14 +210,22 @@ async function orchestrate(messages, env, options = {}) {
   // Helper to get key
   const k = (env, names) => { for (const n of names) { if (env[n]) return env[n]; } return null; };
 
-  // Keys
-  const MISTRAL_KEY = k(env, ['mistral_api_key', 'MISTRAL_API_KEY']);
-  const GEMINI_KEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']);
-  const DEEPSEEK_KEY = k(env, ['deepseek_paid', 'DEEPSEEK_PAID', 'deepseek_free_1']);
-  const GROQ_KEY = k(env, ['groq_free_1', 'GROQ_FREE_1', 'groq_free_2', 'GROQ_FREE_2']);
-  const OPENROUTER_KEY = k(env, ['openrouter_api_key', 'OPENROUTER_API_KEY']);
-  const CEREBRAS_KEY = k(env, ['CEREBRAS_FREE_1', 'cerebras_free_1', 'CEREBRAS_PAID']);
-  const ZAI_KEY = k(env, ['zai_api_key', 'ZAI_API_KEY']);
+  // Keys — canonical names from API register (2026-10-27)
+  const MISTRAL_KEY = k(env, ['mistral_api_key', 'MISTRAL_API_KEY', 'mistral_p', 'mistral_f']);
+  const GEMINI_KEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY', 'gemini_p', 'gemini_f']);
+  const DEEPSEEK_KEY = k(env, ['deepseek_paid', 'DEEPSEEK_PAID', 'deepseek_p', 'deepseek_f1', 'deepseek_f2']);
+  const GROQ_KEY = k(env, ['groq_f1', 'groq_f2', 'groq_f3', 'GROQ_F1', 'groq_free_1', 'GROQ_FREE_1']);
+  const OPENROUTER_KEY = k(env, ['openrouter', 'openrouter_api_key', 'OPENROUTER_API_KEY']);
+  const CEREBRAS_KEY = k(env, ['cerebras_p1', 'cerebras_p2', 'cerebras_f1', 'cerebras_f2', 'cerebras_f3', 'cerebras_f4', 'CEREBRAS_FREE_1', 'cerebras_free_1']);
+  const ZAI_KEY = k(env, ['glm_api_key', 'GLM_API_KEY', 'zai_api_key', 'ZAI_API_KEY']);
+  const KIMI_KEY = k(env, ['kimi', 'kimi_p', 'kimi_f', 'kimi_api_key', 'KIMI_API_KEY']);
+  const COHERE_KEY = k(env, ['cohere_paid', 'cohere_free', 'cohere', 'COHERE_API_KEY', 'cohere_api_key']);
+  const NVIDIA_KEY = k(env, ['nvidia1', 'nvidia2', 'nvidia_api_key', 'NVIDIA_API_KEY']);
+  const XAI_KEY = k(env, ['xai', 'xai_api_key', 'XAI_API_KEY']);
+  const TOGETHER_KEY = k(env, ['together', 'together_api_key', 'TOGETHER_API_KEY']);
+  const FIREWORKS_KEY = k(env, ['fireworks', 'fireworks_api_key', 'FIREWORKS_API_KEY']);
+  const SAMBANOVA_KEY = k(env, ['sambanova', 'sambanova_api_key', 'SAMBANOVA_API_KEY']);
+  const ANYAPI_KEY = k(env, ['anyapi', 'anyapi_api_key', 'ANYAPI_API_KEY']);
 
   // Routing chains — hierarchical: Best quality first, fast fallback
   // Tier 1 (Best): GLM 5.3 + Mistral Large (paid Mistral subscription)
@@ -209,21 +236,28 @@ async function orchestrate(messages, env, options = {}) {
   // Unconditional fallback: Pollinations
   const CHAINS = {
     balanced: [
-      // Tier 1: Mistral paid subscription — GLM 5.3 first (1M ctx, thinking, web)
-      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 via Mistral (1M, thinking, web)'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large Latest (262K, web, vision)'},
-      // Tier 2: Google free — Gemini 3.8 Flash (1M, Google Search)
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (1M, Google Search, vision)'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash', key:GEMINI_KEY, note:'Gemini 3.5 Flash (1M, Google Search)'},
-      // Tier 3: Fast free — GPT-OSS on Groq (~300ms) then Cerebras
-      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY, note:'GPT-OSS 120B Groq (~300ms, free)'},
-      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY, note:'GPT-OSS 120B Cerebras (very fast)'},
-      // Tier 4: DeepSeek paid (1M context, built-in web search)
-      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V4 Flash (1M, web search)'},
-      // Tier 5: OpenRouter free models
-      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY, note:'Nemotron Ultra 550B (1M, reasoning, slow)'},
-      OPENROUTER_KEY && {provider:'openrouter', model:'minimax/minimax-m3.1-flash:free', key:OPENROUTER_KEY, note:'MiniMax M3.1 Flash (1M, free)'},
-      // Unconditional fallback
+      // Tier 1 — Quality reasoning (health-adjacent, nuanced content)
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 (1M ctx, web search, reasoning)'},
+      KIMI_KEY && {provider:'kimi', model:'moonshot-v1-128k', key:KIMI_KEY, note:'Kimi Moonshot (128K, strong reasoning)'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large (262K, paid subscription)'},
+      ZAI_KEY && {provider:'glm', model:'glm-4-plus', key:ZAI_KEY, note:'GLM 4 Plus via Z.AI (1M, thinking, web)'},
+      COHERE_KEY && {provider:'cohere', model:'command-r-plus', key:COHERE_KEY, note:'Cohere Command R+ (128K, RAG-optimised)'},
+      // Tier 2 — Fast chat (low latency, open-source)
+      CEREBRAS_KEY && {provider:'cerebras', model:'llama3.1-70b', key:CEREBRAS_KEY, note:'Llama 70B Cerebras (300-780 tok/s)'},
+      GROQ_KEY && {provider:'groq', model:'llama-3.1-70b-versatile', key:GROQ_KEY, note:'Llama 70B Groq (~300ms)'},
+      CEREBRAS_KEY && {provider:'cerebras', model:'llama3.1-8b', key:CEREBRAS_KEY, note:'Llama 8B Cerebras (very fast fallback)'},
+      // Tier 3 — Paid frontier
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.0-flash', key:GEMINI_KEY, note:'Gemini 2.0 Flash (1M, Google Search, vision)'},
+      NVIDIA_KEY && {provider:'nvidia', model:'meta/llama-3.1-70b-instruct', key:NVIDIA_KEY, note:'Llama 70B NVIDIA NIM'},
+      ANYAPI_KEY && {provider:'anyapi', model:'gpt-4o-mini', key:ANYAPI_KEY, note:'AnyAPI GPT-4o-mini'},
+      XAI_KEY && {provider:'xai', model:'grok-beta', key:XAI_KEY, note:'xAI Grok (real-time data)'},
+      SAMBANOVA_KEY && {provider:'sambanova', model:'Meta-Llama-3.1-70B-Instruct', key:SAMBANOVA_KEY, note:'SambaNova Llama 70B'},
+      FIREWORKS_KEY && {provider:'fireworks', model:'accounts/fireworks/models/llama-v3p1-70b-instruct', key:FIREWORKS_KEY, note:'Fireworks Llama 70B'},
+      // Tier 4 — Free tiers
+      GEMINI_KEY && {provider:'gemini', model:'gemini-1.5-flash', key:GEMINI_KEY, note:'Gemini 1.5 Flash (free tier)'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-latest', key:MISTRAL_KEY, note:'Mistral Small (free tier)'},
+      OPENROUTER_KEY && {provider:'openrouter', model:'meta-llama/llama-3.1-8b-instruct:free', key:OPENROUTER_KEY, note:'Llama 8B OpenRouter free'},
+      // Tier 5 — Unconditional fallback (no key, always responds)
       {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
     ].filter(Boolean),
 
@@ -3417,6 +3451,397 @@ data: ${JSON.stringify(data)}
         return json({results, total: results.length, query}, 200, origin);
       } catch(e) { return json({error: e.message, results: []}, 200, origin); }
     }
+
+
+  // ── Agent CRUD (B1) ──────────────────────────────────────────────────────────
+  if (path === '/api/agents' && request.method === 'GET') {
+    try {
+      const list = env.PRISM_KV ? await env.PRISM_KV.get('agents:list', 'json') : null;
+      return json({ agents: list || [] }, 200, origin);
+    } catch(e) { return json({ agents: [], error: e.message }, 200, origin); }
+  }
+  if (path === '/api/agents' && request.method === 'POST') {
+    try {
+      const body = await request.json();
+      const id = body.id || ('agent-' + Date.now());
+      const agent = { id, name: body.name || 'Unnamed Agent', persona: body.persona || '', tools: body.tools || [], dataSources: body.dataSources || [], outputActions: body.outputActions || [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      if (env.PRISM_KV) {
+        const list = await env.PRISM_KV.get('agents:list', 'json') || [];
+        const existing = list.findIndex(a => a.id === id);
+        if (existing >= 0) list[existing] = agent; else list.push(agent);
+        await env.PRISM_KV.put('agents:list', JSON.stringify(list));
+        await env.PRISM_KV.put(`agents:${id}`, JSON.stringify(agent));
+      }
+      return json({ success: true, agent }, 200, origin);
+    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+  }
+  if (path.startsWith('/api/agents/') && request.method === 'PUT') {
+    try {
+      const id = path.replace('/api/agents/', '');
+      const body = await request.json();
+      const agent = { ...body, id, updatedAt: new Date().toISOString() };
+      if (env.PRISM_KV) {
+        const list = await env.PRISM_KV.get('agents:list', 'json') || [];
+        const idx = list.findIndex(a => a.id === id);
+        if (idx >= 0) list[idx] = agent; else list.push(agent);
+        await env.PRISM_KV.put('agents:list', JSON.stringify(list));
+        await env.PRISM_KV.put(`agents:${id}`, JSON.stringify(agent));
+      }
+      return json({ success: true, agent }, 200, origin);
+    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+  }
+  if (path.startsWith('/api/agents/') && request.method === 'DELETE') {
+    try {
+      const id = path.replace('/api/agents/', '');
+      if (env.PRISM_KV) {
+        const list = (await env.PRISM_KV.get('agents:list', 'json') || []).filter(a => a.id !== id);
+        await env.PRISM_KV.put('agents:list', JSON.stringify(list));
+        await env.PRISM_KV.delete(`agents:${id}`);
+      }
+      return json({ success: true }, 200, origin);
+    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+  }
+
+  // ── Workflow CRUD (B2) ────────────────────────────────────────────────────────
+  if (path === '/api/workflows' && request.method === 'GET') {
+    try {
+      const list = env.PRISM_KV ? await env.PRISM_KV.get('workflows:list', 'json') : null;
+      return json({ workflows: list || [] }, 200, origin);
+    } catch(e) { return json({ workflows: [], error: e.message }, 200, origin); }
+  }
+  if (path === '/api/workflows' && request.method === 'POST') {
+    try {
+      const body = await request.json();
+      const id = body.id || ('wf-' + Date.now());
+      const wf = { id, name: body.name || 'Unnamed Workflow', steps: body.steps || [], trigger: body.trigger || 'manual', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      if (env.PRISM_KV) {
+        const list = await env.PRISM_KV.get('workflows:list', 'json') || [];
+        const existing = list.findIndex(w => w.id === id);
+        if (existing >= 0) list[existing] = wf; else list.push(wf);
+        await env.PRISM_KV.put('workflows:list', JSON.stringify(list));
+        await env.PRISM_KV.put(`workflows:${id}`, JSON.stringify(wf));
+      }
+      return json({ success: true, workflow: wf }, 200, origin);
+    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+  }
+  if (path.startsWith('/api/workflows/') && request.method === 'PUT') {
+    try {
+      const id = path.replace('/api/workflows/', '');
+      const body = await request.json();
+      const wf = { ...body, id, updatedAt: new Date().toISOString() };
+      if (env.PRISM_KV) {
+        const list = await env.PRISM_KV.get('workflows:list', 'json') || [];
+        const idx = list.findIndex(w => w.id === id);
+        if (idx >= 0) list[idx] = wf; else list.push(wf);
+        await env.PRISM_KV.put('workflows:list', JSON.stringify(list));
+        await env.PRISM_KV.put(`workflows:${id}`, JSON.stringify(wf));
+      }
+      return json({ success: true, workflow: wf }, 200, origin);
+    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+  }
+  if (path.startsWith('/api/workflows/') && request.method === 'DELETE') {
+    try {
+      const id = path.replace('/api/workflows/', '');
+      if (env.PRISM_KV) {
+        const list = (await env.PRISM_KV.get('workflows:list', 'json') || []).filter(w => w.id !== id);
+        await env.PRISM_KV.put('workflows:list', JSON.stringify(list));
+        await env.PRISM_KV.delete(`workflows:${id}`);
+      }
+      return json({ success: true }, 200, origin);
+    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+  }
+
+  // ── WIP/Job tracking (B3) ─────────────────────────────────────────────────────
+  if (path === '/api/jobs' && request.method === 'GET') {
+    try {
+      const jobs = env.PRISM_KV ? await env.PRISM_KV.get('jobs:active', 'json') : null;
+      return json({ jobs: jobs || [] }, 200, origin);
+    } catch(e) { return json({ jobs: [], error: e.message }, 200, origin); }
+  }
+  if (path === '/api/jobs' && request.method === 'POST') {
+    try {
+      const body = await request.json();
+      const id = 'job-' + Date.now();
+      const job = { id, type: body.type || 'analysis', status: 'running', phase: body.phase || 'starting', progress: 0, total: body.total || 0, workspaceId: body.workspaceId || null, agentId: body.agentId || null, label: body.label || '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      if (env.PRISM_KV) {
+        const jobs = await env.PRISM_KV.get('jobs:active', 'json') || [];
+        jobs.push(job);
+        await env.PRISM_KV.put('jobs:active', JSON.stringify(jobs));
+      }
+      return json({ success: true, job }, 200, origin);
+    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+  }
+  if (path.startsWith('/api/jobs/') && (request.method === 'PATCH' || request.method === 'PUT')) {
+    try {
+      const id = path.replace('/api/jobs/', '');
+      const body = await request.json();
+      if (env.PRISM_KV) {
+        const jobs = await env.PRISM_KV.get('jobs:active', 'json') || [];
+        const idx = jobs.findIndex(j => j.id === id);
+        if (idx >= 0) {
+          jobs[idx] = { ...jobs[idx], ...body, id, updatedAt: new Date().toISOString() };
+          if (body.status === 'complete' || body.status === 'error') {
+            jobs.splice(idx, 1); // Remove from active
+          }
+          await env.PRISM_KV.put('jobs:active', JSON.stringify(jobs));
+        }
+      }
+      return json({ success: true }, 200, origin);
+    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+  }
+
+  // ── Document CRUD (G2) ────────────────────────────────────────────────────────
+  if (path === '/api/documents' && request.method === 'GET') {
+    try {
+      const list = env.PRISM_KV ? await env.PRISM_KV.get('docs:list', 'json') : null;
+      return json({ documents: list || [] }, 200, origin);
+    } catch(e) { return json({ documents: [], error: e.message }, 200, origin); }
+  }
+  if (path === '/api/documents' && request.method === 'POST') {
+    try {
+      const body = await request.json();
+      const id = body.id || ('doc-' + Date.now());
+      const doc = { id, title: body.title || 'Untitled', type: body.type || 'note', content: body.content || '', annotations: body.annotations || [], tags: body.tags || [], moduleSource: body.moduleSource || 'drafting', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      if (env.PRISM_KV) {
+        const list = await env.PRISM_KV.get('docs:list', 'json') || [];
+        const existing = list.findIndex(d => d.id === id);
+        const meta = { id: doc.id, title: doc.title, type: doc.type, tags: doc.tags, moduleSource: doc.moduleSource, updatedAt: doc.updatedAt };
+        if (existing >= 0) list[existing] = meta; else list.push(meta);
+        await env.PRISM_KV.put('docs:list', JSON.stringify(list));
+        await env.PRISM_KV.put(`doc:${id}`, JSON.stringify(doc));
+      }
+      return json({ success: true, document: doc }, 200, origin);
+    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+  }
+  if (path.startsWith('/api/documents/') && request.method === 'GET') {
+    try {
+      const id = path.replace('/api/documents/', '');
+      const doc = env.PRISM_KV ? await env.PRISM_KV.get(`doc:${id}`, 'json') : null;
+      if (!doc) return json({ error: 'Not found' }, 404, origin);
+      return json({ document: doc }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+  if (path.startsWith('/api/documents/') && (request.method === 'PUT' || request.method === 'PATCH')) {
+    try {
+      const id = path.replace('/api/documents/', '');
+      const body = await request.json();
+      const existing = env.PRISM_KV ? await env.PRISM_KV.get(`doc:${id}`, 'json') : null;
+      const doc = { ...(existing || {}), ...body, id, updatedAt: new Date().toISOString() };
+      if (env.PRISM_KV) {
+        const list = await env.PRISM_KV.get('docs:list', 'json') || [];
+        const idx = list.findIndex(d => d.id === id);
+        const meta = { id: doc.id, title: doc.title, type: doc.type, tags: doc.tags, moduleSource: doc.moduleSource, updatedAt: doc.updatedAt };
+        if (idx >= 0) list[idx] = meta; else list.push(meta);
+        await env.PRISM_KV.put('docs:list', JSON.stringify(list));
+        await env.PRISM_KV.put(`doc:${id}`, JSON.stringify(doc));
+      }
+      return json({ success: true, document: doc }, 200, origin);
+    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+  }
+  if (path.startsWith('/api/documents/') && request.method === 'DELETE') {
+    try {
+      const id = path.replace('/api/documents/', '');
+      if (env.PRISM_KV) {
+        const list = (await env.PRISM_KV.get('docs:list', 'json') || []).filter(d => d.id !== id);
+        await env.PRISM_KV.put('docs:list', JSON.stringify(list));
+        await env.PRISM_KV.delete(`doc:${id}`);
+      }
+      return json({ success: true }, 200, origin);
+    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+  }
+
+  // ── Canvas render (D1) ────────────────────────────────────────────────────────
+  if (path === '/api/canvas/render' && request.method === 'POST') {
+    try {
+      const body = await request.json();
+      const text = body.text || 'Understand your past. Appreciate the present. Define your future.';
+      const template = body.template || 'quote-teal';
+      const pexelsKey = k(env, ['pexels_api_key', 'PEXELS_API_KEY', 'pexels']) || '';
+      const browserlessKey = k(env, ['browserless', 'BROWSERLESS_KEY', 'browserless_api_key']) || '';
+
+      // Get background image from Pexels
+      let bgBase64 = '';
+      if (pexelsKey) {
+        try {
+          const queries = ['landscape vista', 'nature scenery', 'partnership collaboration', 'sunrise horizon'];
+          const q = queries[Math.floor(Math.random() * queries.length)];
+          const pexResp = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&per_page=15&orientation=square`, {headers: {'Authorization': pexelsKey}});
+          if (pexResp.ok) {
+            const pexData = await pexResp.json();
+            const photos = pexData.photos || [];
+            if (photos.length) {
+              const photo = photos[Math.floor(Math.random() * photos.length)];
+              const imgResp = await fetch(photo.src.medium);
+              if (imgResp.ok) {
+                const imgBuf = await imgResp.arrayBuffer();
+                bgBase64 = 'data:image/jpeg;base64,' + btoa(String.fromCharCode(...new Uint8Array(imgBuf)));
+              }
+            }
+          }
+        } catch(e) {}
+      }
+
+      const html = generateCanvasHtml(text, template, bgBase64);
+
+      // Try Browserless
+      if (browserlessKey) {
+        try {
+          const blResp = await fetch('https://chrome.browserless.io/screenshot', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Cache-Control': 'no-cache'},
+            body: JSON.stringify({
+              url: 'about:blank',
+              html: html,
+              options: { type: 'png', clip: {x:0,y:0,width:1080,height:1080} },
+              waitForFunction: { fn: "() => document.title === 'READY'", timeout: 10000 },
+              waitFor: 12000,
+              token: browserlessKey
+            })
+          });
+          if (blResp.ok) {
+            const pngBuf = await blResp.arrayBuffer();
+            if (pngBuf.byteLength > 5000) {
+              // Upload to R2 if available
+              const key = `canvas/${Date.now()}-${Math.random().toString(36).slice(2)}.png`;
+              if (env.PRISM_ASSETS) {
+                await env.PRISM_ASSETS.put(key, pngBuf, {httpMetadata: {contentType: 'image/png'}});
+                const r2Url = `https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/${key}`;
+                return json({success:true, url:r2Url, method:'browserless', sizeBytes:pngBuf.byteLength}, 200, origin);
+              }
+            }
+          }
+        } catch(e) {}
+      }
+
+      // Fallback: pre-baked R2 template
+      const templateIdx = Math.floor(Math.random() * 150);
+      const fallbackUrl = `https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-${templateIdx}.png`;
+      return json({success:true, url:fallbackUrl, method:'prebaked', template:templateIdx}, 200, origin);
+    } catch(e) {
+      const templateIdx = Math.floor(Math.random() * 150);
+      return json({success:true, url:`https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-${templateIdx}.png`, method:'error-fallback', error:e.message}, 200, origin);
+    }
+  }
+
+  // ── Unified social posting pipeline (D2) ─────────────────────────────────────
+  if (path === '/api/pipeline/unified' && request.method === 'POST') {
+    try {
+      const body = await request.json();
+      const rawText = body.text || '';
+      const platforms = body.platforms || ['bluesky'];
+      const bufferKey = k(env, ['buffer', 'BUFFER_KEY', 'buffer_api_key']) || '';
+      const bskyHandle = k(env, ['bluesky_handle', 'BLUESKY_HANDLE']) || '@identitypartners.bsky.social';
+      const bskyPass = k(env, ['bluesky_password', 'BLUESKY_PASSWORD']) || '';
+
+      // Mandatory tags and footer
+      const TAGS = '#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing';
+      const FOOTER = 'hello@identitypartners.uk | www.identitypartners.uk/contact';
+      const text = rawText + '\n\n' + TAGS + '\n' + FOOTER;
+
+      // Never post test strings
+      if (rawText.toLowerCase().includes('test post') || rawText.toLowerCase().includes('say ok')) {
+        return json({success:false, error:'Test strings not allowed in unified pipeline'}, 400, origin);
+      }
+
+      const results = {};
+
+      // Get canvas image
+      let imageUrl = null;
+      try {
+        const canvasResp = await fetch(`${new URL(request.url).origin}/api/canvas/render`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({text: rawText})
+        });
+        if (canvasResp.ok) {
+          const canvasData = await canvasResp.json();
+          imageUrl = canvasData.url;
+        }
+      } catch(e) {}
+
+      // Bluesky
+      if (platforms.includes('bluesky') && bskyHandle && bskyPass) {
+        try {
+          const sessionResp = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({identifier: bskyHandle, password: bskyPass})
+          });
+          if (sessionResp.ok) {
+            const session = await sessionResp.json();
+            const postBody = {repo: session.did, collection: 'app.bsky.feed.post', record: {text: text.substring(0, 300), createdAt: new Date().toISOString(), langs: ['en-GB']}};
+            const postResp = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
+              method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${session.accessJwt}`},
+              body: JSON.stringify(postBody)
+            });
+            results.bluesky = {success: postResp.ok, status: postResp.status};
+          }
+        } catch(e) { results.bluesky = {success: false, error: e.message}; }
+      }
+
+      // Buffer (Instagram, Facebook, X)
+      if (bufferKey && imageUrl) {
+        const bufferChannels = {
+          instagram: k(env, ['buffer_ig_channel', 'BUFFER_IG_CHANNEL']) || '',
+          facebook: k(env, ['buffer_fb_channel', 'BUFFER_FB_CHANNEL']) || '',
+          x: k(env, ['buffer_x_channel', 'BUFFER_X_CHANNEL']) || '',
+        };
+        for (const [platform, channelId] of Object.entries(bufferChannels)) {
+          if (!channelId || !platforms.includes(platform)) continue;
+          try {
+            const mutation = `mutation CreateIdea($input: IdeaCreateInput!) { ideaCreate(input: $input) { idea { id } } }`;
+            const bufResp = await fetch('https://api.bufferapp.com/graphql', {
+              method: 'POST',
+              headers: {'Authorization': `Bearer ${bufferKey}`, 'Content-Type': 'application/json'},
+              body: JSON.stringify({query: mutation, variables: {input: {channelId, text, mediaUrls: [imageUrl]}}})
+            });
+            results[platform] = {success: bufResp.ok, status: bufResp.status};
+          } catch(e) { results[platform] = {success: false, error: e.message}; }
+        }
+      }
+
+      return json({success: true, results, imageUrl, text: text.substring(0, 100) + '...'}, 200, origin);
+    } catch(e) { return json({success: false, error: e.message}, 500, origin); }
+  }
+
+  // ── Daily pipeline cron handler (D2) ─────────────────────────────────────────
+  if (path === '/api/pipeline/morning' && request.method === 'POST') {
+    try {
+      const slot = new Date().getUTCHours() < 11 ? 'morning' : new Date().getUTCHours() < 16 ? 'lunchtime' : 'evening';
+      const prompts = {
+        morning: 'Write a thought-provoking post about understanding your past and how it shapes your present. Focus on recovery, mental health, and personal growth. British English. 2-3 sentences.',
+        lunchtime: 'Write a reflective post about appreciating the present moment. Connect to themes of wellbeing, recovery, and identity. British English. 2-3 sentences.',
+        evening: 'Write an engaging question-driven post about defining your future. Connect to themes of personal growth, recovery, and identity. British English. 2-3 sentences.',
+      };
+      const msgs = [{role:'system', content:'You are a compassionate content writer for Identity Partners, a mental health and recovery organisation. British English only. No sycophancy. No AI tropes.'}, {role:'user', content:prompts[slot]}];
+      const result = await orchestrate(msgs, env, {profile:'balanced'});
+      const postText = result.content || 'Understand your past. Appreciate the present. Define your future. That is what we are here for. Book an exploratory call today: identitypartners.uk/contact';
+      const postResp = await fetch(`${new URL(request.url).origin}/api/pipeline/unified`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text: postText, platforms: ['bluesky', 'instagram', 'facebook', 'x']})
+      });
+      const postResult = await postResp.json();
+      return json({success: true, slot, text: postText.substring(0, 100), results: postResult.results}, 200, origin);
+    } catch(e) { return json({success: false, error: e.message}, 500, origin); }
+  }
+
+  // ── Site crawl (A3) ───────────────────────────────────────────────────────────
+  if (path === '/api/site/crawl' && request.method === 'POST') {
+    try {
+      const firecrawlKey = k(env, ['firecrawl', 'FIRECRAWL_KEY', 'firecrawl_api_key']) || '';
+      if (!firecrawlKey) return json({error: 'Firecrawl key not configured'}, 400, origin);
+      const body = await request.json().catch(() => ({}));
+      const targetUrl = body.url || 'https://www.identitypartners.uk';
+      const crawlResp = await fetch('https://api.firecrawl.dev/v1/crawl', {
+        method: 'POST',
+        headers: {'Authorization': `Bearer ${firecrawlKey}`, 'Content-Type': 'application/json'},
+        body: JSON.stringify({url: targetUrl, limit: 50, scrapeOptions: {formats: ['markdown']}})
+      });
+      const crawlData = await crawlResp.json();
+      if (env.PRISM_KV && crawlData.id) {
+        await env.PRISM_KV.put('site:crawl:last', JSON.stringify({jobId: crawlData.id, startedAt: new Date().toISOString(), url: targetUrl}));
+      }
+      return json({success: crawlResp.ok, jobId: crawlData.id, status: crawlData.status}, 200, origin);
+    } catch(e) { return json({success: false, error: e.message}, 500, origin); }
+  }
 
 return json({ error: 'Not found', path }, 404, origin);
   },
