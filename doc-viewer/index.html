@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Document Viewer &mdash; Argentica</title>
+<title>Document Manager &mdash; Argentica</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -48,6 +48,8 @@
 .empty-state{text-align:center;padding:60px 20px;color:var(--fg-muted);}
 .empty-state .icon{font-size:48px;margin-bottom:12px;}
 </style>
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+  <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 </head>
 <body>
 <script src="/shared/prism.js"></script>
@@ -56,7 +58,7 @@
 <div class="viewer-shell">
 <div class="viewer-main">
   <div class="viewer-hdr">
-    <h2 id="doc-title">Document Viewer</h2>
+    <h2 id="doc-title">Document Manager</h2>
     <div style="display:flex;gap:5px;flex-wrap:wrap;">
       <button class="vt-btn" onclick="zoomIn()">+ Zoom</button>
       <button class="vt-btn" onclick="zoomOut()">- Zoom</button>
@@ -336,10 +338,22 @@ function showViewerOptions(doc) {
     odBtn.onclick = function() { uploadToOneDrive(doc); };
     btnRow.appendChild(odBtn);
   } else {
-    var noUrl = document.createElement('div');
-    noUrl.style.cssText = 'font-size:13px;color:var(--fg-muted);';
-    noUrl.textContent = 'No public URL. Add a URL when uploading to use external viewers.';
-    btnRow.appendChild(noUrl);
+    var noUrlMsg = document.createElement('div');
+    noUrlMsg.style.cssText = 'font-size:13px;color:var(--fg-muted);margin-bottom:8px;width:100%;';
+    noUrlMsg.textContent = 'No public URL. Extract content with OCR or upload to OneDrive to render.';
+    btnRow.appendChild(noUrlMsg);
+    var ocrBtn = document.createElement('button');
+    ocrBtn.style.cssText = 'padding:8px 14px;background:#0f3b3a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;';
+    ocrBtn.textContent = '\uD83D\uDD0D Extract with Mistral OCR';
+    ocrBtn.onclick = (function(d) { return function() { extractWithOCR(d); }; })(doc);
+    btnRow.appendChild(ocrBtn);
+    if (doc && doc.content) {
+      var odBtn2 = document.createElement('button');
+      odBtn2.style.cssText = 'padding:8px 14px;background:#0078d4;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;';
+      odBtn2.textContent = '\u2601 Upload to OneDrive';
+      odBtn2.onclick = (function(d) { return function() { uploadToOneDrive(d); }; })(doc);
+      btnRow.appendChild(odBtn2);
+    }
   }
   card.appendChild(btnRow);
   pane.appendChild(card);
@@ -355,6 +369,49 @@ function loadInFrame(url) {
   iframe.allow = 'fullscreen';
   pane.innerHTML = '';
   pane.appendChild(iframe);
+}
+
+
+function extractWithOCR(doc) {
+  var pane = document.getElementById('doc-pane');
+  pane.innerHTML = '<div style="padding:24px;text-align:center;"><div style="font-size:24px;margin-bottom:12px;">\uD83D\uDD0D</div><div style="font-size:15px;font-weight:600;">Extracting with Mistral OCR...</div></div>';
+  var payload = {};
+  if (doc && doc.url) {
+    payload.url = doc.url;
+  } else if (doc && doc.content) {
+    var b64 = doc.content.indexOf('data:') === 0 ? doc.content.split(',')[1] : btoa(doc.content);
+    payload.base64 = b64;
+  } else {
+    alert('No content to extract from.'); return;
+  }
+  fetch(WORKER + '/api/ocr/mistral', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.error) { pane.innerHTML = '<div style="padding:24px;color:#dc2626;">OCR error: ' + d.error + '</div>'; return; }
+    var markdown = d.markdown || '';
+    pane.innerHTML = '';
+    pane.style.padding = '20px';
+    pane.style.overflowY = 'auto';
+    var pre = document.createElement('div');
+    pre.style.cssText = 'max-width:800px;margin:0 auto;font-size:15px;line-height:1.7;white-space:pre-wrap;font-family:inherit;';
+    pre.textContent = markdown;
+    var banner = document.createElement('div');
+    banner.style.cssText = 'background:#d1fae5;border:1px solid #6ee7b7;border-radius:6px;padding:8px 12px;font-size:13px;color:#065f46;margin-bottom:12px;';
+    banner.textContent = '\u2713 Extracted ' + (d.pages || '?') + ' pages with Mistral OCR 4.1. Scroll to read, annotate in the panel.';
+    pane.appendChild(banner);
+    pane.appendChild(pre);
+    if (doc) {
+      doc.extractedText = markdown;
+      try { localStorage.setItem('doc-ocr-' + (doc.id || doc.name), markdown); } catch(e) {}
+    }
+  })
+  .catch(function(e) {
+    pane.innerHTML = '<div style="padding:24px;color:#dc2626;">Error: ' + e.message + '</div>';
+  });
 }
 
 function uploadToOneDrive(doc) {
