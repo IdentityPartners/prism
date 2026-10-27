@@ -50,13 +50,15 @@
 <p style="font-size:12.5px;color:var(--fg-muted);margin-bottom:14px;">Paste a <code>.env</code> file and push all secrets directly to the Cloudflare Worker in one click. Values are never stored in the browser.</p>
 <a class="btn btn-primary" href="/settings/ingester.html" style="width:100%;" title="Open the Secret Ingester">🔑 Open Secret Ingester</a>
 </div>
-<!-- Zoho OAuth -->
 <div class="card">
-<div class="card-header"><span class="card-title">Zoho Integration</span></div>
-<div id="zoho-status-list" style="display:flex;flex-direction:column;gap:8px;">
-<div style="font-size:12px;color:var(--fg-muted);">Checking connection status...</div>
+<div class="card-header"><span class="card-title">CRM &amp; Calendar</span></div>
+<div id="crm-status-list" style="display:flex;flex-direction:column;gap:8px;">
+<div style="font-size:12px;color:var(--fg-muted);">Checking status...</div>
 </div>
-<button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="checkZohoStatus()" title="Refresh Zoho connection status">&#x21BA; Refresh Status</button>
+<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+<a href="/crm/" class="btn btn-sm btn-secondary">Open CRM</a>
+<a href="/comms/" class="btn btn-sm btn-secondary">Comms Centre</a>
+</div>
 </div>
 <!-- Display -->
 <div class="card">
@@ -275,7 +277,7 @@ function saveDisplay() {
   Toast.success('Display settings saved');
 }
 
-function checkZohoStatus() {
+function checkCRMStatus() {
   var list = document.getElementById('zoho-status-list');
   if (!list) return;
   fetch('https://prism-api.identitypartners.workers.dev/api/zoho/status')
@@ -330,7 +332,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (mount) { var sb = buildSidebar('/settings/'); mount.parentNode.insertBefore(sb, mount); mount.parentNode.removeChild(mount); }
   initThemeSelect();
   initKeyFields();
-  checkZohoStatus();
+  checkCRMStatus();
   try {
     var savedProfile = localStorage.getItem('prism-default-profile');
     if (savedProfile) document.getElementById('profile-select').value = savedProfile;
