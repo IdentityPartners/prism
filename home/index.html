@@ -50,13 +50,13 @@
 /* Hero */
 .home-hero {
   border-radius: 10px;
-  padding: 20px 24px;
+  padding: 18px 20px;
   color: #f7f3e9;
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
-  min-height: 110px;
-  background: linear-gradient(135deg, #0f3b3a 0%, #1a5c5a 50%, #5c2d3f 100%);
+  min-height: 100px;
+  background: #0f3b3a;
 }
 .home-hero-bg {
   position: absolute;
@@ -165,24 +165,25 @@
 <div class="home-col home-left">
 
   <div class="home-hero" id="home-hero">
-    <!-- Rotating landscape background -->
-    <div class="home-hero-bg" id="hero-bg" style="opacity:0.25;"></div>
-    <div class="home-hero-overlay" style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(15,59,58,0.85) 0%,rgba(92,45,63,0.7) 100%);"></div>
-    <!-- IP logo mark (2×2 grid) -->
+    <!-- Subtle landscape background -->
+    <div class="home-hero-bg" id="hero-bg" style="position:absolute;inset:0;background-size:cover;background-position:center;opacity:0.18;transition:opacity 0.5s;"></div>
+    <div style="position:absolute;inset:0;background:rgba(15,59,58,0.82);"></div>
+    <!-- Content -->
     <div style="position:relative;z-index:1;display:flex;align-items:center;gap:14px;">
-      <svg width="36" height="36" viewBox="0 0 36 36" style="flex-shrink:0;">
-        <rect width="36" height="36" rx="7" fill="rgba(255,255,255,0.1)"/>
-        <rect x="4" y="4" width="13" height="13" rx="3" fill="#7ecfcd"/>
-        <rect x="19" y="4" width="13" height="13" rx="3" fill="#d4899a"/>
-        <rect x="4" y="19" width="13" height="13" rx="3" fill="#d4899a"/>
-        <rect x="19" y="19" width="13" height="13" rx="3" fill="#7ecfcd"/>
+      <svg width="40" height="40" viewBox="0 0 40 40" style="flex-shrink:0;opacity:0.9;">
+        <rect x="2" y="2" width="16" height="16" rx="3" fill="#7ecfcd"/>
+        <rect x="22" y="2" width="16" height="16" rx="3" fill="#d4899a"/>
+        <rect x="2" y="22" width="16" height="16" rx="3" fill="#d4899a"/>
+        <rect x="22" y="22" width="16" height="16" rx="3" fill="#7ecfcd"/>
       </svg>
-      <div>
-        <div class="hero-greeting" id="hero-greeting" style="font-size:1.3rem;font-weight:700;line-height:1.2;">Good morning, Simon.</div>
-        <div class="hero-date" id="hero-date" style="font-size:0.85rem;opacity:0.8;margin-top:2px;"></div>
+      <div style="flex:1;">
+        <div id="hero-greeting" style="font-size:1.25rem;font-weight:700;color:#f7f3e9;line-height:1.2;">Good morning, Simon.</div>
+        <div id="hero-date" style="font-size:0.82rem;color:rgba(247,243,233,0.75);margin-top:3px;"></div>
+      </div>
+      <div style="text-align:right;font-size:0.72rem;color:rgba(247,243,233,0.6);line-height:1.6;">
+        Understand your past<br>Appreciate the present<br>Define your future
       </div>
     </div>
-    <div class="hero-tagline" style="position:relative;z-index:1;margin-top:10px;font-size:0.8rem;opacity:0.75;letter-spacing:0.3px;">Understand your past · Appreciate the present · Define your future</div>
   </div>
 
   <!-- Calendar -->
