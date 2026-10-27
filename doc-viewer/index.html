@@ -182,8 +182,10 @@ function loadDocumentFromParams(id, name, type, url) {
     var ext = decodedName.split('.').pop().toLowerCase();
     loadDocument({id: id || 'doc', name: decodedName, type: type || ext, url: decodedUrl, content: ''});
   } else if (name) {
-    document.getElementById('doc-title').textContent = decodeURIComponent(name);
-    showViewerOptions({name: decodeURIComponent(name), url: '', type: type || ''});
+    var decodedName = decodeURIComponent(name);
+    document.getElementById('doc-title').textContent = decodedName;
+    // Show viewer options with helpful message
+    showViewerOptions({name: decodedName, url: '', type: type || ''});
   }
 }
 
