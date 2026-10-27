@@ -4533,6 +4533,174 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
     }
 
+
+    // ── MSGraph client credentials token (no user OAuth needed) ─────────────
+    if (path === '/api/msgraph/token' && request.method === 'POST') {
+      try {
+        const tenantId = k(env, ['msgraph_tenant','MSGRAPH_TENANT']) || 'b7e964ca-731c-477c-b858-99dc3f1a9f7c';
+        const clientId = k(env, ['msgraph_client','MSGRAPH_CLIENT']) || '3e538e01-5ebf-44f1-879b-0fdde667d914';
+        const clientSecret = k(env, ['msgraph_secret','MSGRAPH_SECRET']) || '29547bf3-d22a-4df9-9195-07b5a2e20405';
+        const params = new URLSearchParams({grant_type:'client_credentials',client_id:clientId,client_secret:clientSecret,scope:'https://graph.microsoft.com/.default'});
+        const resp = await fetch('https://login.microsoftonline.com/'+tenantId+'/oauth2/v2.0/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()});
+        const data = await resp.json();
+        if (data.access_token) {
+          if (env.PRISM_KV) await env.PRISM_KV.put('msgraph:token',JSON.stringify({access_token:data.access_token,expires_at:Date.now()+(data.expires_in||3600)*1000}),{expirationTtl:3500});
+          return json({success:true,expires_in:data.expires_in},200,origin);
+        }
+        return json({success:false,error:JSON.stringify(data).substring(0,200)},200,origin);
+      } catch(e) { return json({success:false,error:e.message},500,origin); }
+    }
+
+    // ── OneDrive upload with auto token refresh ───────────────────────────────
+    if (path === '/api/onedrive/upload' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const fileName = body.fileName || ('file-'+Date.now());
+        const content = body.content || '';
+        const folder = body.folder || 'Argentica';
+        // Get or refresh MSGraph token
+        let tokenData = env.PRISM_KV ? await env.PRISM_KV.get('msgraph:token','json') : null;
+        if (!tokenData || !tokenData.access_token || (tokenData.expires_at && Date.now() > tokenData.expires_at - 60000)) {
+          const tenantId = k(env, ['msgraph_tenant','MSGRAPH_TENANT']) || 'b7e964ca-731c-477c-b858-99dc3f1a9f7c';
+          const clientId = k(env, ['msgraph_client','MSGRAPH_CLIENT']) || '3e538e01-5ebf-44f1-879b-0fdde667d914';
+          const clientSecret = k(env, ['msgraph_secret','MSGRAPH_SECRET']) || '29547bf3-d22a-4df9-9195-07b5a2e20405';
+          const params = new URLSearchParams({grant_type:'client_credentials',client_id:clientId,client_secret:clientSecret,scope:'https://graph.microsoft.com/.default'});
+          const tokenResp = await fetch('https://login.microsoftonline.com/'+tenantId+'/oauth2/v2.0/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()});
+          tokenData = await tokenResp.json();
+          if (tokenData.access_token && env.PRISM_KV) {
+            await env.PRISM_KV.put('msgraph:token',JSON.stringify({access_token:tokenData.access_token,expires_at:Date.now()+(tokenData.expires_in||3600)*1000}),{expirationTtl:3500});
+          }
+        }
+        const accessToken = tokenData.access_token;
+        if (!accessToken) return json({success:false,error:'Could not get MSGraph token'},400,origin);
+        // Decode base64 content
+        const b64 = content.includes(',') ? content.split(',')[1] : content;
+        const binaryStr = atob(b64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i=0;i<binaryStr.length;i++) bytes[i]=binaryStr.charCodeAt(i);
+        // Upload to OneDrive
+        const uploadPath = encodeURIComponent(folder+'/'+fileName);
+        const uploadResp = await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/'+uploadPath+':/content',{method:'PUT',headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/octet-stream'},body:bytes});
+        if (!uploadResp.ok) {
+          const err = await uploadResp.text();
+          return json({success:false,error:'Upload failed: '+err.substring(0,200)},200,origin);
+        }
+        const uploadData = await uploadResp.json();
+        // Create sharing link
+        const shareResp = await fetch('https://graph.microsoft.com/v1.0/me/drive/items/'+uploadData.id+'/createLink',{method:'POST',headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({type:'view',scope:'anonymous'})});
+        const shareData = shareResp.ok ? await shareResp.json() : {};
+        const shareUrl = shareData.link ? shareData.link.webUrl : uploadData.webUrl;
+        return json({success:true,id:uploadData.id,shareUrl,webUrl:uploadData.webUrl,name:fileName},200,origin);
+      } catch(e) { return json({success:false,error:e.message},500,origin); }
+    }
+
+    // ── Telegram posting ──────────────────────────────────────────────────────
+    if (path === '/api/social/telegram' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const token = k(env, ['telegram_token','TELEGRAM_TOKEN']) || '';
+        const chatId = k(env, ['telegram_chat_id','TELEGRAM_CHAT_ID','telegram_chat']) || '';
+        if (!token || !chatId) return json({success:false,error:'Telegram not configured'},400,origin);
+        const text = body.text || '';
+        const resp = await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chatId,text:text.substring(0,4096),parse_mode:'Markdown'})});
+        const data = await resp.json();
+        return json({success:data.ok,message_id:data.result?.message_id,error:data.description},200,origin);
+      } catch(e) { return json({success:false,error:e.message},500,origin); }
+    }
+
+    // ── Tumblr posting ────────────────────────────────────────────────────────
+    if (path === '/api/social/tumblr' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const consumerKey = k(env, ['tumblr_key','TUMBLR_KEY']) || '';
+        const consumerSecret = k(env, ['tumblr_secret','TUMBLR_SECRET']) || '';
+        if (!consumerKey) return json({success:false,error:'Tumblr keys not configured'},400,origin);
+        const blogName = body.blog || 'identitypartners';
+        const text = body.text || '';
+        const title = body.title || '';
+        // Tumblr OAuth 1.0a is complex — use the v2 API with OAuth token if available
+        const oauthToken = k(env, ['tumblr_oauth_token','TUMBLR_OAUTH_TOKEN']) || '';
+        const oauthSecret = k(env, ['tumblr_oauth_secret','TUMBLR_OAUTH_SECRET']) || '';
+        if (!oauthToken) return json({success:false,error:'Tumblr OAuth token not set. Use Settings to connect Tumblr.'},400,origin);
+        const resp = await fetch('https://api.tumblr.com/v2/blog/'+blogName+'.tumblr.com/post',{method:'POST',headers:{'Authorization':'Bearer '+oauthToken,'Content-Type':'application/json'},body:JSON.stringify({type:'text',title,body:text})});
+        const data = await resp.json();
+        return json({success:resp.ok,post_id:data.response?.id,error:data.meta?.msg},200,origin);
+      } catch(e) { return json({success:false,error:e.message},500,origin); }
+    }
+
+    // ── Monetisation: agentic profile proliferation ───────────────────────────
+    if (path === '/api/monetisation/proliferate' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const profile = body.profile || {};
+        const platforms = body.platforms || [];
+        const task = body.task || 'profile';
+        // Use GLM 5.3 to generate platform-specific content from the master profile
+        const results = [];
+        for (const platform of platforms.slice(0, 5)) { // Process up to 5 at a time
+          const msgs = [
+            {role:'system', content:'You are an expert at creating compelling platform profiles for mental health and recovery practitioners. British English. No sycophancy. Be specific and authentic.'},
+            {role:'user', content:'Create a ' + task + ' for the platform "' + platform.name + '" (' + (platform.description||'') + '). Base it on this master profile:\n\nName: ' + (profile.name||'Identity Partners') + '\nBio: ' + (profile.bio||'') + '\nServices: ' + JSON.stringify(profile.services||{}) + '\nTagline: ' + (profile.tagline||'') + '\n\nRequirements for ' + platform.name + ': ' + (platform.requirements||'Keep it concise and platform-appropriate.') + '\n\nReturn ONLY the profile text, no preamble.'}
+          ];
+          try {
+            const result = await orchestrate(msgs, env, {profile:'balanced'});
+            results.push({platform:platform.name, content:result.content, status:'generated'});
+          } catch(e) {
+            results.push({platform:platform.name, error:e.message, status:'failed'});
+          }
+        }
+        // Save results to KV
+        if (env.PRISM_KV) {
+          const existing = await env.PRISM_KV.get('monetisation:profiles', 'json') || {};
+          results.forEach(function(r) { if (r.content) existing[r.platform] = {content:r.content, generatedAt:new Date().toISOString()}; });
+          await env.PRISM_KV.put('monetisation:profiles', JSON.stringify(existing));
+        }
+        return json({success:true, results, generated:results.filter(function(r){return r.status==='generated';}).length}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
+    if (path === '/api/monetisation/profiles' && request.method === 'GET') {
+      try {
+        const profiles = env.PRISM_KV ? await env.PRISM_KV.get('monetisation:profiles', 'json') : null;
+        return json({profiles: profiles || {}}, 200, origin);
+      } catch(e) { return json({profiles:{}}, 200, origin); }
+    }
+
+    if (path === '/api/monetisation/post' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const platform = body.platform || '';
+        const content = body.content || '';
+        const results = {};
+        // Route to appropriate posting API
+        if (platform === 'bluesky' || platform === 'all') {
+          const bskyHandle = k(env, ['bluesky_handle','BLUESKY_HANDLE']) || '@identitypartners.bsky.social';
+          const bskyPass = k(env, ['bluesky_password','BLUESKY_PASSWORD','bluesky_app_password']) || '';
+          if (bskyHandle && bskyPass) {
+            try {
+              const sr = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({identifier:bskyHandle,password:bskyPass})});
+              if (sr.ok) {
+                const session = await sr.json();
+                const pr = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.accessJwt},body:JSON.stringify({repo:session.did,collection:'app.bsky.feed.post',record:{text:content.substring(0,300),createdAt:new Date().toISOString(),langs:['en-GB']}})});
+                results.bluesky = {success:pr.ok};
+              }
+            } catch(e) { results.bluesky = {success:false,error:e.message}; }
+          }
+        }
+        if (platform === 'telegram' || platform === 'all') {
+          const tgToken = k(env, ['telegram_token','TELEGRAM_TOKEN']) || '';
+          const tgChat = k(env, ['telegram_chat_id','TELEGRAM_CHAT_ID','telegram_chat']) || '';
+          if (tgToken && tgChat) {
+            try {
+              const tr = await fetch('https://api.telegram.org/bot'+tgToken+'/sendMessage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:tgChat,text:content.substring(0,4096)})});
+              results.telegram = {success:tr.ok};
+            } catch(e) { results.telegram = {success:false,error:e.message}; }
+          }
+        }
+        return json({success:true, results}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
     return json({ error: 'Not found', path }, 404, origin);
   },
 
