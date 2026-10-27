@@ -173,31 +173,40 @@ async function callProvider(env, provider, key, model, messages) {
   const d = await resp.json();
   if (!resp.ok) throw new Error(`${provider} ${resp.status}: ${JSON.stringify(d).substring(0, 100)}`);
 
-  // Extract content — handle thinking-mode array responses (Mistral Large, GLM 5.3, etc.)
+  // Extract content + thinking — handle thinking-mode array responses (GLM 5.3, Mistral Large, etc.)
   const rawContent = d.choices?.[0]?.message?.content;
+  const msg = d.choices?.[0]?.message;
   let text = '';
+  let thinkingText = '';
+
   if (typeof rawContent === 'string') {
     text = rawContent;
   } else if (Array.isArray(rawContent)) {
-    // Thinking mode: extract text parts, fall back to thinking parts
+    // Thinking mode: [{type:'thinking', thinking:[...]}, {type:'text', text:'...'}]
     const textParts = rawContent.filter(function(p) { return p.type === 'text'; }).map(function(p) { return p.text || ''; });
     text = textParts.join('');
-    if (!text) {
-      const thinkParts = rawContent.filter(function(p) { return p.type === 'thinking'; })
-        .flatMap(function(p) { return (p.thinking || []).map(function(t) { return t.text || ''; }); });
-      text = thinkParts.join('').substring(0, 5000);
-    }
+    // Extract thinking parts separately
+    const thinkParts = rawContent.filter(function(p) { return p.type === 'thinking'; });
+    thinkParts.forEach(function(p) {
+      if (typeof p.thinking === 'string') thinkingText += p.thinking;
+      else if (Array.isArray(p.thinking)) thinkingText += p.thinking.map(function(t) { return t.text || ''; }).join('');
+      else if (p.text) thinkingText += p.text;
+    });
+    if (!text && thinkingText) text = thinkingText.substring(0, 5000);
   }
-  // Cerebras: reasoning field; GLM/Zhipu: reasoning_content field
-  if (!text) {
-    const msg2 = d.choices?.[0]?.message;
-    if (msg2?.reasoning) text = msg2.reasoning.substring(0, 5000);
-    else if (msg2?.reasoning_content) text = msg2.reasoning_content.substring(0, 5000);
+
+  // Reasoning fields (Cerebras, DeepSeek R1, GLM reasoning_content)
+  if (!thinkingText && msg) {
+    if (msg.reasoning) thinkingText = msg.reasoning;
+    else if (msg.reasoning_content) thinkingText = msg.reasoning_content;
   }
-    if (!text && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.reasoning) { text = d.choices[0].message.reasoning.substring(0, 5000); }
-  if (!text && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.reasoning_content) { text = d.choices[0].message.reasoning_content.substring(0, 5000); }
-  if (!text) throw new Error(`${provider} empty response`);
-  return { content: text, provider, model };
+  // Final fallback for text
+  if (!text && msg) {
+    if (msg.reasoning) text = msg.reasoning.substring(0, 5000);
+    else if (msg.reasoning_content) text = msg.reasoning_content.substring(0, 5000);
+  }
+  if (!text) throw new Error(provider + ' empty response');
+  return { content: text, thinking: thinkingText || null, provider, model };
 }
 
 
