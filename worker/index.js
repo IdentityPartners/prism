@@ -245,71 +245,68 @@ async function orchestrate(messages, env, options = {}) {
   // Unconditional fallback: Pollinations
   const CHAINS = {
     // ── Balanced: Best quality first, reliable fallbacks ─────────────────────
+    // GLM 5.3 leads — 1M ctx, thinking, web search, best reasoning
+    // Mistral Large 4 — open-weight, multimodal, latest
+    // Gemini 3.8 Flash — current flagship FREE model (NOT 2.0 — that's ancient)
+    // GPT-OSS used only as fast fallback, not primary (Simon's preference)
     balanced: [
-      // Tier 1: GLM 5.3 via Mistral (1M ctx, thinking, web search) — best reasoning
-      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 via Mistral · 1M ctx · thinking · web'},
-      // Tier 2: Mistral Large (paid, reliable, 262K ctx)
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large · 262K ctx · web · vision'},
-      // Tier 3: Google free tier (Gemini 2.0 Flash — fast, capable, free)
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.0-flash', key:GEMINI_KEY, note:'Gemini 2.0 Flash · 1M ctx · Google Search · free'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-1.5-flash', key:GEMINI_KEY, note:'Gemini 1.5 Flash · 1M ctx · free'},
-      // Tier 4: Fast open-source (Cerebras/Groq)
-      CEREBRAS_KEY && {provider:'cerebras', model:'llama3.1-70b', key:CEREBRAS_KEY, note:'Llama 70B Cerebras · 300-780 tok/s'},
-      GROQ_KEY && {provider:'groq', model:'llama-3.1-70b-versatile', key:GROQ_KEY, note:'Llama 70B Groq · ~300ms'},
-      // Tier 5: DeepSeek (paid, 1M ctx, web search)
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 · 1M ctx · thinking · web search'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-4', key:MISTRAL_KEY, note:'Mistral Large 4 · open-weight · multimodal'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · FREE · 1M ctx · Google Search · vision'},
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3-flash', key:MISTRAL_KEY, note:'GLM 5.3 Flash · 1M ctx · multimodal · agentic'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY, note:'Mistral Medium 3.5 · frontier multimodal · agentic'},
+      CEREBRAS_KEY && {provider:'cerebras', model:'qwen-3.8-27b', key:CEREBRAS_KEY, note:'Qwen 3.8 27B · Cerebras · ~1850 tok/s'},
+      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY, note:'GPT-OSS 120B · Cerebras · ~3000 tok/s · fast fallback'},
+      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-20b', key:GROQ_KEY, note:'GPT-OSS 20B · Groq · ~1000 tok/s · fast fallback'},
+      KIMI_KEY && {provider:'kimi', model:'kimi-k2.5', key:KIMI_KEY, note:'Kimi K2.5 · 262K ctx · $0.45/1M'},
       DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · 1M ctx · web search'},
-      // Tier 6: Kimi (strong reasoning)
-      KIMI_KEY && {provider:'kimi', model:'moonshot-v1-128k', key:KIMI_KEY, note:'Kimi Moonshot · 128K ctx'},
-      // Tier 7: Cohere (RAG-optimised)
-      COHERE_KEY && {provider:'cohere', model:'command-r-plus', key:COHERE_KEY, note:'Cohere Command R+ · 128K ctx · RAG'},
-      // Tier 8: OpenRouter free
-      OPENROUTER_KEY && {provider:'openrouter', model:'meta-llama/llama-3.1-8b-instruct:free', key:OPENROUTER_KEY, note:'Llama 8B OpenRouter free'},
-      // Tier 9: Mistral Small (free tier fallback)
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-latest', key:MISTRAL_KEY, note:'Mistral Small · free tier'},
-      // Tier 10: Gemini Lite (free, fast)
-      GEMINI_KEY && {provider:'gemini', model:'gemma-3-27b-it', key:GEMINI_KEY, note:'Gemma 3 27B · free'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-flash', key:GEMINI_KEY, note:'Gemini 2.5 Flash · FREE fallback'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-4', key:MISTRAL_KEY, note:'Mistral Small 4 · hybrid instruct+reasoning'},
+      GEMINI_KEY && {provider:'gemini', model:'gemma-4', key:GEMINI_KEY, note:'Gemma 4 · FREE · open-weight'},
     ].filter(Boolean),
 
-    // ── Fast: Low latency, open-source models ─────────────────────────────────
+    // ── Fast: Low latency, high throughput ────────────────────────────────────
     fast: [
-      CEREBRAS_KEY && {provider:'cerebras', model:'llama3.1-8b', key:CEREBRAS_KEY, note:'Llama 8B Cerebras · fastest'},
-      GROQ_KEY && {provider:'groq', model:'llama-3.1-8b-instant', key:GROQ_KEY, note:'Llama 8B Groq · instant'},
-      CEREBRAS_KEY && {provider:'cerebras', model:'llama3.1-70b', key:CEREBRAS_KEY, note:'Llama 70B Cerebras'},
-      GROQ_KEY && {provider:'groq', model:'llama-3.1-70b-versatile', key:GROQ_KEY, note:'Llama 70B Groq'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.0-flash', key:GEMINI_KEY, note:'Gemini 2.0 Flash · free'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-latest', key:MISTRAL_KEY, note:'Mistral Small'},
+      CEREBRAS_KEY && {provider:'cerebras', model:'qwen-3.8-27b', key:CEREBRAS_KEY, note:'Qwen 3.8 27B · Cerebras · ~1850 tok/s'},
+      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-20b', key:GROQ_KEY, note:'GPT-OSS 20B · Groq · ~1000 tok/s'},
+      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY, note:'GPT-OSS 120B · Cerebras · ~3000 tok/s'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash-lite', key:GEMINI_KEY, note:'Gemini 3.5 Flash-Lite · FREE · fastest'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-4', key:MISTRAL_KEY, note:'Mistral Small 4 · efficient'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.1-flash-lite', key:GEMINI_KEY, note:'Gemini 3.1 Flash-Lite · FREE'},
     ].filter(Boolean),
 
-    // ── Research: Deep reasoning, large context ───────────────────────────────
+    // ── Research: Deep reasoning, large context, web search ───────────────────
     research: [
-      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 · 1M ctx · thinking · web'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large · 262K ctx'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.0-flash', key:GEMINI_KEY, note:'Gemini 2.0 Flash · Google Search'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-1.5-pro', key:GEMINI_KEY, note:'Gemini 1.5 Pro · 2M ctx'},
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 · 1M ctx · thinking · web search'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-4', key:MISTRAL_KEY, note:'Mistral Large 4 · multimodal'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · Google Search · FREE'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro · FREE · 2M ctx'},
+      KIMI_KEY && {provider:'kimi', model:'kimi-k2-thinking', key:KIMI_KEY, note:'Kimi K2 Thinking · reasoning · 262K ctx'},
       DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · web search'},
-      KIMI_KEY && {provider:'kimi', model:'moonshot-v1-128k', key:KIMI_KEY, note:'Kimi · 128K ctx'},
     ].filter(Boolean),
 
     // ── Coding: Strong instruction-following, code generation ─────────────────
     coding: [
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large · code'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-4', key:MISTRAL_KEY, note:'Mistral Large 4 · code · multimodal'},
       MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 · code + thinking'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY, note:'Mistral Medium 3.5 · agentic coding'},
+      NVIDIA_KEY && {provider:'nvidia', model:'meta/llama-3.1-nemotron-ultra-253b-v1', key:NVIDIA_KEY, note:'Nemotron Ultra 253B · excellent coder/reasoner'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · code · FREE'},
       DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · code'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.0-flash', key:GEMINI_KEY, note:'Gemini 2.0 Flash · code'},
-      GROQ_KEY && {provider:'groq', model:'llama-3.1-70b-versatile', key:GROQ_KEY, note:'Llama 70B Groq · code'},
     ].filter(Boolean),
 
     // ── Vision: Multimodal, image understanding ───────────────────────────────
     vision: [
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large · vision'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.0-flash', key:GEMINI_KEY, note:'Gemini 2.0 Flash · vision'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-1.5-pro', key:GEMINI_KEY, note:'Gemini 1.5 Pro · vision · 2M ctx'},
-      MISTRAL_KEY && {provider:'mistral', model:'pixtral-large-latest', key:MISTRAL_KEY, note:'Pixtral Large · vision'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-4', key:MISTRAL_KEY, note:'Mistral Large 4 · multimodal'},
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3-flash', key:MISTRAL_KEY, note:'GLM 5.3 Flash · multimodal · visual coding'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · vision · FREE'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY, note:'Mistral Medium 3.5 · vision'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro · vision · 2M ctx · FREE'},
     ].filter(Boolean),
 
-    // ── Local: Ollama only (requires tunnel) ──────────────────────────────────
+    // ── Local: Ollama only (requires tunnel — manual activation) ──────────────
     local: [
-      {provider:'ollama', model:'llama3.1', key:null, note:'Ollama local (requires tunnel)'},
+      {provider:'ollama', model:'llama3.1', key:null, note:'Ollama local (requires Cloudflare Tunnel)'},
     ],
   };
 
@@ -3972,6 +3969,201 @@ data: ${JSON.stringify(data)}
         const list = env.PRISM_KV ? await env.PRISM_KV.list({prefix, limit}) : {keys:[]};
         return json({keys: list.keys.map(function(k) { return k.name; }), complete: list.list_complete}, 200, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+
+    // ── Mistral OCR (Document AI) ─────────────────────────────────────────────
+    if (path === '/api/ocr/mistral' && request.method === 'POST') {
+      try {
+        const mistralKey = k(env, ['mistral_api_key','MISTRAL_API_KEY','mistral_p']);
+        if (!mistralKey) return json({error:'Mistral key not configured'}, 400, origin);
+        const body = await request.json();
+        const documentUrl = body.url || body.document_url || '';
+        const documentBase64 = body.base64 || '';
+        const tableFormat = body.table_format || 'markdown';
+        const includeBlocks = body.include_blocks !== false;
+
+        let docInput;
+        if (documentBase64) {
+          docInput = {type: 'document_url', document_url: 'data:application/pdf;base64,' + documentBase64};
+        } else if (documentUrl) {
+          docInput = {type: 'document_url', document_url: documentUrl};
+        } else {
+          return json({error: 'Provide url or base64'}, 400, origin);
+        }
+
+        const ocrResp = await fetch('https://api.mistral.ai/v1/ocr', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + mistralKey, 'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            model: 'mistral-ocr-latest',
+            document: docInput,
+            table_format: tableFormat,
+            include_blocks: includeBlocks,
+            include_image_base64: false,
+          })
+        });
+        if (!ocrResp.ok) {
+          const err = await ocrResp.text();
+          return json({error: 'Mistral OCR error: ' + err.substring(0,200)}, ocrResp.status, origin);
+        }
+        const ocrData = await ocrResp.json();
+        // Extract markdown from pages
+        const pages = ocrData.pages || [];
+        const markdown = pages.map(function(p) { return p.markdown || ''; }).join('
+
+---
+
+');
+        return json({success: true, markdown, pages: pages.length, model: 'mistral-ocr-latest'}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Mistral TTS (Voxtral) ─────────────────────────────────────────────────
+    if (path === '/api/tts/mistral' && request.method === 'POST') {
+      try {
+        const mistralKey = k(env, ['mistral_api_key','MISTRAL_API_KEY','mistral_p']);
+        if (!mistralKey) return json({error:'Mistral key not configured'}, 400, origin);
+        const body = await request.json();
+        const text = body.text || '';
+        const voiceId = body.voice_id || null;
+        const model = body.model || 'voxtral-tts';
+        const format = body.format || 'mp3';
+        if (!text) return json({error:'text required'}, 400, origin);
+
+        const ttsBody = {model, input: text, response_format: format};
+        if (voiceId) ttsBody.voice_id = voiceId;
+
+        const ttsResp = await fetch('https://api.mistral.ai/v1/audio/speech', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + mistralKey, 'Content-Type': 'application/json'},
+          body: JSON.stringify(ttsBody)
+        });
+        if (!ttsResp.ok) {
+          const err = await ttsResp.text();
+          return json({error: 'Mistral TTS error: ' + err.substring(0,200)}, ttsResp.status, origin);
+        }
+        // Return audio as base64
+        const audioBuf = await ttsResp.arrayBuffer();
+        const audioB64 = btoa(String.fromCharCode(...new Uint8Array(audioBuf)));
+        return json({success: true, audio_base64: audioB64, format, model}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Mistral STT (Voxtral Transcribe) ──────────────────────────────────────
+    if (path === '/api/stt/mistral' && request.method === 'POST') {
+      try {
+        const mistralKey = k(env, ['mistral_api_key','MISTRAL_API_KEY','mistral_p']);
+        if (!mistralKey) return json({error:'Mistral key not configured'}, 400, origin);
+        const formData = await request.formData();
+        const audioFile = formData.get('file') || formData.get('audio');
+        const model = formData.get('model') || 'voxtral-mini-transcribe-3';
+        if (!audioFile) return json({error:'audio file required'}, 400, origin);
+
+        const sttForm = new FormData();
+        sttForm.append('file', audioFile);
+        sttForm.append('model', model);
+
+        const sttResp = await fetch('https://api.mistral.ai/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + mistralKey},
+          body: sttForm
+        });
+        if (!sttResp.ok) {
+          const err = await sttResp.text();
+          return json({error: 'Mistral STT error: ' + err.substring(0,200)}, sttResp.status, origin);
+        }
+        const sttData = await sttResp.json();
+        return json({success: true, text: sttData.text || '', model, segments: sttData.segments || []}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Gemini TTS (3.8 Flash TTS — FREE) ────────────────────────────────────
+    if (path === '/api/tts/gemini' && request.method === 'POST') {
+      try {
+        const geminiKey = k(env, ['gemini_api_key','GEMINI_API_KEY','gemini_p']);
+        if (!geminiKey) return json({error:'Gemini key not configured'}, 400, origin);
+        const body = await request.json();
+        const text = body.text || '';
+        const voice = body.voice || 'Aoede';
+        if (!text) return json({error:'text required'}, 400, origin);
+
+        const ttsResp = await fetch(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-tts:generateContent?key=' + geminiKey,
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              contents: [{parts: [{text}]}],
+              generationConfig: {
+                responseModalities: ['AUDIO'],
+                speechConfig: {voiceConfig: {prebuiltVoiceConfig: {voiceName: voice}}}
+              }
+            })
+          }
+        );
+        if (!ttsResp.ok) {
+          const err = await ttsResp.text();
+          return json({error: 'Gemini TTS error: ' + err.substring(0,200)}, ttsResp.status, origin);
+        }
+        const ttsData = await ttsResp.json();
+        const audioB64 = ttsData.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || '';
+        return json({success: true, audio_base64: audioB64, format: 'wav', model: 'gemini-3.8-flash-tts', voice}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Gemini Embeddings (FREE — best all-rounder per CCKM benchmark) ────────
+    if (path === '/api/embed/gemini' && request.method === 'POST') {
+      try {
+        const geminiKey = k(env, ['gemini_api_key','GEMINI_API_KEY','gemini_p']);
+        if (!geminiKey) return json({error:'Gemini key not configured'}, 400, origin);
+        const body = await request.json();
+        const texts = Array.isArray(body.texts) ? body.texts : [body.text || body.content || ''];
+        const taskType = body.task_type || 'RETRIEVAL_DOCUMENT';
+
+        const embedResp = await fetch(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:batchEmbedContents?key=' + geminiKey,
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              requests: texts.map(function(t) {
+                return {model: 'models/gemini-embedding-2', content: {parts: [{text: t}]}, taskType};
+              })
+            })
+          }
+        );
+        if (!embedResp.ok) {
+          const err = await embedResp.text();
+          return json({error: 'Gemini embed error: ' + err.substring(0,200)}, embedResp.status, origin);
+        }
+        const embedData = await embedResp.json();
+        const embeddings = (embedData.embeddings || []).map(function(e) { return e.values || []; });
+        return json({success: true, embeddings, model: 'gemini-embedding-2', count: embeddings.length}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Mistral Embeddings (paid, best English quality) ───────────────────────
+    if (path === '/api/embed/mistral' && request.method === 'POST') {
+      try {
+        const mistralKey = k(env, ['mistral_api_key','MISTRAL_API_KEY','mistral_p']);
+        if (!mistralKey) return json({error:'Mistral key not configured'}, 400, origin);
+        const body = await request.json();
+        const inputs = Array.isArray(body.texts) ? body.texts : [body.text || body.content || ''];
+
+        const embedResp = await fetch('https://api.mistral.ai/v1/embeddings', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + mistralKey, 'Content-Type': 'application/json'},
+          body: JSON.stringify({model: 'mistral-embed', input: inputs})
+        });
+        if (!embedResp.ok) {
+          const err = await embedResp.text();
+          return json({error: 'Mistral embed error: ' + err.substring(0,200)}, embedResp.status, origin);
+        }
+        const embedData = await embedResp.json();
+        const embeddings = (embedData.data || []).map(function(e) { return e.embedding || []; });
+        return json({success: true, embeddings, model: 'mistral-embed', count: embeddings.length}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
     }
 
     return json({ error: 'Not found', path }, 404, origin);
