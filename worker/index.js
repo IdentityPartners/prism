@@ -1291,7 +1291,7 @@ export default {
         const nextWeekEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
 
         // First get calendar list
-        const calListResp = await fetch(`${apiDomain}/calendar/v1/calendars`, {
+        const calListResp = await fetch('https://calendar.zoho.eu/api/v1/calendars', {
           headers: {'Authorization': `Zoho-oauthtoken ${currentToken}`, 'Content-Type': 'application/json'}
         });
         
@@ -1841,7 +1841,7 @@ data: ${JSON.stringify(data)}
         const apiDomain = tokenData.api_domain || 'https://www.zohoapis.eu';
 
         // Get accounts first
-        const acctResp = await fetch(`${apiDomain}/mail/v1/accounts`, {
+        const acctResp = await fetch('https://mail.zoho.eu/api/accounts', {
           headers: {'Authorization': `Zoho-oauthtoken ${token}`}
         });
         if (!acctResp.ok) return json({status:'api_error', code:acctResp.status, messages:[]}, 200, origin);
@@ -3338,6 +3338,84 @@ data: ${JSON.stringify(data)}
         }
         return json({chunks_processed: chunks.length, chunks_successful: successful.length, merged_summary: synthesis, doc_length: docText.length}, 200, origin);
       } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+
+    // ── Multi-source image search ─────────────────────────────────────────────
+    if (path === '/api/image-search/multi' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const query = body.query || body.q || '';
+        const sources = body.sources || ['pexels', 'unsplash', 'pixabay', 'openverse'];
+        const limit = Math.min(body.limit || 8, 20);
+        const pexelsKey = k(env, ['pexels_api_key','PEXELS_API_KEY','pexels']) || '';
+        const unsplashKey = k(env, ['unsplash_api_key','UNSPLASH_API_KEY','unsplash']) || '';
+        const pixabayKey = k(env, ['pixabay_api_key','PIXABAY_API_KEY','pixabay']) || '';
+
+        const results = [];
+
+        // Pexels
+        if (sources.includes('pexels') && pexelsKey) {
+          try {
+            const r = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${limit}&orientation=landscape`, {headers: {'Authorization': pexelsKey}});
+            if (r.ok) {
+              const d = await r.json();
+              (d.photos || []).forEach(p => results.push({source:'pexels', url:p.src?.medium||p.src?.original, thumbnail:p.src?.small, alt:p.alt||query, photographer:p.photographer}));
+            }
+          } catch(e) {}
+        }
+
+        // Unsplash
+        if (sources.includes('unsplash') && unsplashKey) {
+          try {
+            const r = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${limit}&orientation=landscape`, {headers: {'Authorization': `Client-ID ${unsplashKey}`}});
+            if (r.ok) {
+              const d = await r.json();
+              (d.results || []).forEach(p => results.push({source:'unsplash', url:p.urls?.regular||p.urls?.full, thumbnail:p.urls?.thumb, alt:p.alt_description||query, photographer:p.user?.name}));
+            }
+          } catch(e) {}
+        }
+
+        // Pixabay
+        if (sources.includes('pixabay') && pixabayKey) {
+          try {
+            const r = await fetch(`https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&per_page=${limit}&image_type=photo&orientation=horizontal`);
+            if (r.ok) {
+              const d = await r.json();
+              (d.hits || []).forEach(p => results.push({source:'pixabay', url:p.webformatURL, thumbnail:p.previewURL, alt:p.tags||query, photographer:p.user}));
+            }
+          } catch(e) {}
+        }
+
+        // Openverse (no key needed)
+        if (sources.includes('openverse')) {
+          try {
+            const r = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&page_size=${limit}&license_type=commercial,modification`);
+            if (r.ok) {
+              const d = await r.json();
+              (d.results || []).forEach(p => results.push({source:'openverse', url:p.url, thumbnail:p.thumbnail, alt:p.title||query, photographer:p.creator}));
+            }
+          } catch(e) {}
+        }
+
+        // Wikimedia Commons
+        if (sources.includes('wikimedia')) {
+          try {
+            const r = await fetch(`https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srnamespace=6&srlimit=${limit}&format=json&origin=*`);
+            if (r.ok) {
+              const d = await r.json();
+              const pages = d.query?.search || [];
+              for (const p of pages.slice(0, 4)) {
+                const title = p.title.replace('File:', '');
+                const imgUrl = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(title)}?width=800`;
+                results.push({source:'wikimedia', url:imgUrl, thumbnail:imgUrl.replace('width=800','width=200'), alt:title});
+              }
+            }
+          } catch(e) {}
+        }
+
+        return json({results, total: results.length, query}, 200, origin);
+      } catch(e) { return json({error: e.message, results: []}, 200, origin); }
     }
 
 return json({ error: 'Not found', path }, 404, origin);
