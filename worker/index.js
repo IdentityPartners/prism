@@ -1295,27 +1295,25 @@ export default {
         const raw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
         if (!raw) return json({status:'not_connected', today:[], week:[], next_week:[]}, 200, origin);
         const tokenData = JSON.parse(raw);
-        const accessToken = tokenData.access_token;
-        const apiDomain = tokenData.api_domain || 'https://www.zohoapis.eu';
-        
+        let accessToken = tokenData.access_token;
+
         // Auto-refresh if token is older than 50 minutes
-        let currentToken = accessToken;
         if (tokenData.stored_at && (Date.now() - tokenData.stored_at) > 50 * 60 * 1000) {
           try {
-            const clientId = k(env, ['zoho_client_id','ZOHO_CLIENT_ID']) || '1000.BXJ9CZSVLMX25OO9L0KKG95KR8Y05P';
+            const clientId = k(env, ['zoho_client_id','ZOHO_CLIENT_ID']) || '1000.FH6MXEMWWK2YZXOU4QI3UVKZ6OM1CB';
             const clientSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || '';
             if (tokenData.refresh_token && clientSecret) {
               const params = new URLSearchParams({grant_type:'refresh_token',client_id:clientId,client_secret:clientSecret,refresh_token:tokenData.refresh_token});
               const refreshResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()});
               const refreshData = await refreshResp.json();
               if (refreshData.access_token) {
-                currentToken = refreshData.access_token;
-                tokenData.access_token = currentToken;
+                accessToken = refreshData.access_token;
+                tokenData.access_token = accessToken;
                 tokenData.stored_at = Date.now();
                 if (env.PRISM_KV) await env.PRISM_KV.put('zoho:calendar:token', JSON.stringify(tokenData));
               }
             }
-          } catch(e) {}
+          } catch(refreshErr) {}
         }
 
         const now = new Date();
@@ -1324,53 +1322,40 @@ export default {
         const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
         const nextWeekEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
 
-        // First get calendar list
+        // Correct Zoho EU Calendar API endpoint
         const calListResp = await fetch('https://calendar.zoho.eu/api/v1/calendars', {
-          headers: {'Authorization': `Zoho-oauthtoken ${currentToken}`, 'Content-Type': 'application/json'}
+          headers: {'Authorization': `Zoho-oauthtoken ${accessToken}`, 'Content-Type': 'application/json'}
         });
-        
         if (!calListResp.ok) {
           const errText = await calListResp.text();
           return json({status:'api_error', code: calListResp.status, error: errText.substring(0,200), today:[], week:[], next_week:[]}, 200, origin);
         }
-        
         const calListData = await calListResp.json();
         const calendars = calListData.calendars || [];
-        
-        if (!calendars.length) {
-          return json({status:'ok', today:[], week:[], next_week:[], message:'No calendars found'}, 200, origin);
-        }
+        if (!calendars.length) return json({status:'ok', today:[], week:[], next_week:[], message:'No calendars found'}, 200, origin);
 
-        // Fetch events from primary calendar
         const primaryCal = calendars.find(c => c.isdefault) || calendars[0];
         const calId = primaryCal.uid;
-        
+
         const eventsResp = await fetch(
-          `${apiDomain}/calendar/v1/calendars/${calId}/events?range_start=${encodeURIComponent(todayStart)}&range_end=${encodeURIComponent(nextWeekEnd)}&eventType=event`,
-          {headers: {'Authorization': `Zoho-oauthtoken ${currentToken}`, 'Content-Type': 'application/json'}}
+          `https://calendar.zoho.eu/api/v1/calendars/${calId}/events?range_start=${encodeURIComponent(todayStart)}&range_end=${encodeURIComponent(nextWeekEnd)}&eventType=event`,
+          {headers: {'Authorization': `Zoho-oauthtoken ${accessToken}`, 'Content-Type': 'application/json'}}
         );
-        
-        if (!eventsResp.ok) {
-          return json({status:'api_error', code: eventsResp.status, today:[], week:[], next_week:[]}, 200, origin);
-        }
-        
+        if (!eventsResp.ok) return json({status:'api_error', code: eventsResp.status, today:[], week:[], next_week:[]}, 200, origin);
+
         const eventsData = await eventsResp.json();
         const allEvents = (eventsData.events || []).map(ev => ({
-          id: ev.uid,
-          title: ev.title || 'Event',
-          start: ev.dateandtime?.start,
-          end: ev.dateandtime?.end,
-          calendar: primaryCal.name,
-          location: ev.location,
-          description: ev.description,
+          id: ev.uid, title: ev.title || 'Event',
+          start: ev.dateandtime?.start, end: ev.dateandtime?.end,
+          calendar: primaryCal.name, location: ev.location, description: ev.description,
         }));
-
         const todayEvents = allEvents.filter(e => e.start && e.start >= todayStart && e.start <= todayEnd);
         const weekEvents = allEvents.filter(e => e.start && e.start > todayEnd && e.start <= weekEnd);
         const nextWeekEvents = allEvents.filter(e => e.start && e.start > weekEnd && e.start <= nextWeekEnd);
-
         return json({status:'ok', today:todayEvents, week:weekEvents, next_week:nextWeekEvents, calendars:calendars.length}, 200, origin);
-      } catch(e) { return json({status:'error', error:e.message, today:[], week:[], next_week:[]}, 200, origin); }
+      } catch(e) {
+        return json({status:'error', error:e.message, today:[], week:[], next_week:[]}, 200, origin);
+      }
     }
 
 
