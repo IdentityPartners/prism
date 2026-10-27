@@ -121,7 +121,34 @@ var ThemeSystem = (function() {
     return document.documentElement.getAttribute('data-theme') || 'parchment';
   }
 
-  return { init: init, apply: apply, getAll: getAll, getNames: getNames, getCurrent: getCurrent };
+  return {
+    init: init,
+    apply: apply,
+    getAll: getAll,
+    getNames: getNames,
+    getCurrent: getCurrent,
+    togglePicker: function(anchorEl) {
+      var panel = document.getElementById('theme-picker-panel');
+      if (!panel) {
+        // Build picker from the IIFE's buildThemePicker if available
+        var evt = new CustomEvent('argentica:build-theme-picker');
+        document.dispatchEvent(evt);
+        panel = document.getElementById('theme-picker-panel');
+      }
+      if (!panel) return;
+      var isHidden = panel.style.display === 'none' || panel.style.display === '';
+      if (anchorEl) {
+        var r = anchorEl.getBoundingClientRect();
+        panel.style.position = 'fixed';
+        panel.style.top = (r.bottom + 4) + 'px';
+        panel.style.right = '8px';
+        panel.style.left = 'auto';
+        panel.style.bottom = 'auto';
+        panel.style.zIndex = '99999';
+      }
+      panel.style.display = isHidden ? 'block' : 'none';
+    }
+  };
 })();
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -1155,14 +1182,18 @@ document.addEventListener('DOMContentLoaded', function() {
     btn.onclick = function(e) {
       e.stopPropagation();
       e.preventDefault();
+      if (window.ThemeSystem && ThemeSystem.togglePicker) {
+        ThemeSystem.togglePicker(btn);
+        return;
+      }
       var panel = document.getElementById('theme-picker-panel');
       if (!panel) {
-        if (typeof buildThemePicker === 'function') buildThemePicker();
+        if (window.ThemeSystem && ThemeSystem.buildPicker) ThemeSystem.buildPicker();
+        else if (typeof buildThemePicker === 'function') buildThemePicker();
         panel = document.getElementById('theme-picker-panel');
       }
       if (panel) {
         var isHidden = panel.style.display === 'none' || panel.style.display === '';
-        // Position panel near the button
         var btnRect = btn.getBoundingClientRect();
         panel.style.position = 'fixed';
         panel.style.top = (btnRect.bottom + 4) + 'px';
@@ -1172,10 +1203,14 @@ document.addEventListener('DOMContentLoaded', function() {
         panel.style.zIndex = '99999';
         panel.style.display = isHidden ? 'block' : 'none';
       }
-    };;;
+    };
     document.body.appendChild(btn);
     document.addEventListener('click', function() {
       if (panel) panel.style.display = 'none';
+    });
+    // Expose buildThemePicker via custom event for ThemeSystem.togglePicker
+    document.addEventListener('argentica:build-theme-picker', function() {
+      if (!document.getElementById('theme-picker-panel')) buildThemePicker();
     });
   });
 })();
