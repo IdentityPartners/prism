@@ -235,85 +235,73 @@ async function orchestrate(messages, env, options = {}) {
   // Tier 5 (Free OpenRouter): Nemotron Ultra, MiniMax
   // Unconditional fallback: Pollinations
   const CHAINS = {
+    // ── Balanced: Best quality first, reliable fallbacks ─────────────────────
     balanced: [
-      // Tier 1 — Quality reasoning (health-adjacent, nuanced content)
-      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 (1M ctx, web search, reasoning)'},
-      KIMI_KEY && {provider:'kimi', model:'moonshot-v1-128k', key:KIMI_KEY, note:'Kimi Moonshot (128K, strong reasoning)'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large (262K, paid subscription)'},
-      ZAI_KEY && {provider:'glm', model:'glm-4-plus', key:ZAI_KEY, note:'GLM 4 Plus via Z.AI (1M, thinking, web)'},
-      COHERE_KEY && {provider:'cohere', model:'command-r-plus', key:COHERE_KEY, note:'Cohere Command R+ (128K, RAG-optimised)'},
-      // Tier 2 — Fast chat (low latency, open-source)
-      CEREBRAS_KEY && {provider:'cerebras', model:'llama3.1-70b', key:CEREBRAS_KEY, note:'Llama 70B Cerebras (300-780 tok/s)'},
-      GROQ_KEY && {provider:'groq', model:'llama-3.1-70b-versatile', key:GROQ_KEY, note:'Llama 70B Groq (~300ms)'},
-      CEREBRAS_KEY && {provider:'cerebras', model:'llama3.1-8b', key:CEREBRAS_KEY, note:'Llama 8B Cerebras (very fast fallback)'},
-      // Tier 3 — Paid frontier
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.0-flash', key:GEMINI_KEY, note:'Gemini 2.0 Flash (1M, Google Search, vision)'},
-      NVIDIA_KEY && {provider:'nvidia', model:'meta/llama-3.1-70b-instruct', key:NVIDIA_KEY, note:'Llama 70B NVIDIA NIM'},
-      ANYAPI_KEY && {provider:'anyapi', model:'gpt-4o-mini', key:ANYAPI_KEY, note:'AnyAPI GPT-4o-mini'},
-      XAI_KEY && {provider:'xai', model:'grok-beta', key:XAI_KEY, note:'xAI Grok (real-time data)'},
-      SAMBANOVA_KEY && {provider:'sambanova', model:'Meta-Llama-3.1-70B-Instruct', key:SAMBANOVA_KEY, note:'SambaNova Llama 70B'},
-      FIREWORKS_KEY && {provider:'fireworks', model:'accounts/fireworks/models/llama-v3p1-70b-instruct', key:FIREWORKS_KEY, note:'Fireworks Llama 70B'},
-      // Tier 4 — Free tiers
-      GEMINI_KEY && {provider:'gemini', model:'gemini-1.5-flash', key:GEMINI_KEY, note:'Gemini 1.5 Flash (free tier)'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-latest', key:MISTRAL_KEY, note:'Mistral Small (free tier)'},
+      // Tier 1: GLM 5.3 via Mistral (1M ctx, thinking, web search) — best reasoning
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 via Mistral · 1M ctx · thinking · web'},
+      // Tier 2: Mistral Large (paid, reliable, 262K ctx)
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large · 262K ctx · web · vision'},
+      // Tier 3: Google free tier (Gemini 2.0 Flash — fast, capable, free)
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.0-flash', key:GEMINI_KEY, note:'Gemini 2.0 Flash · 1M ctx · Google Search · free'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-1.5-flash', key:GEMINI_KEY, note:'Gemini 1.5 Flash · 1M ctx · free'},
+      // Tier 4: Fast open-source (Cerebras/Groq)
+      CEREBRAS_KEY && {provider:'cerebras', model:'llama3.1-70b', key:CEREBRAS_KEY, note:'Llama 70B Cerebras · 300-780 tok/s'},
+      GROQ_KEY && {provider:'groq', model:'llama-3.1-70b-versatile', key:GROQ_KEY, note:'Llama 70B Groq · ~300ms'},
+      // Tier 5: DeepSeek (paid, 1M ctx, web search)
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · 1M ctx · web search'},
+      // Tier 6: Kimi (strong reasoning)
+      KIMI_KEY && {provider:'kimi', model:'moonshot-v1-128k', key:KIMI_KEY, note:'Kimi Moonshot · 128K ctx'},
+      // Tier 7: Cohere (RAG-optimised)
+      COHERE_KEY && {provider:'cohere', model:'command-r-plus', key:COHERE_KEY, note:'Cohere Command R+ · 128K ctx · RAG'},
+      // Tier 8: OpenRouter free
       OPENROUTER_KEY && {provider:'openrouter', model:'meta-llama/llama-3.1-8b-instruct:free', key:OPENROUTER_KEY, note:'Llama 8B OpenRouter free'},
-      // Tier 5 — Unconditional fallback (no key, always responds)
-      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+      // Tier 9: Mistral Small (free tier fallback)
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-latest', key:MISTRAL_KEY, note:'Mistral Small · free tier'},
+      // Tier 10: Gemini Lite (free, fast)
+      GEMINI_KEY && {provider:'gemini', model:'gemma-3-27b-it', key:GEMINI_KEY, note:'Gemma 3 27B · free'},
     ].filter(Boolean),
 
+    // ── Fast: Low latency, open-source models ─────────────────────────────────
     fast: [
-      // Fast: Cerebras first (fastest), then Groq, then Gemma
-      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY, note:'GPT-OSS Cerebras (~200ms)'},
-      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY, note:'GPT-OSS Groq (~300ms)'},
-      GROQ_KEY && {provider:'groq', model:'meta-llama/llama-4-scout-17b-16e-instruct', key:GROQ_KEY, note:'Llama 4 Scout Groq (131K)'},
-      GEMINI_KEY && {provider:'gemini', model:'gemma-4-31b-it', key:GEMINI_KEY, note:'Gemma 4 31B (Google Search)'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash-lite', key:GEMINI_KEY, note:'Gemini 3.5 Flash Lite (fastest Google)'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-latest', key:MISTRAL_KEY, note:'Mistral Small (fast, paid)'},
-      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+      CEREBRAS_KEY && {provider:'cerebras', model:'llama3.1-8b', key:CEREBRAS_KEY, note:'Llama 8B Cerebras · fastest'},
+      GROQ_KEY && {provider:'groq', model:'llama-3.1-8b-instant', key:GROQ_KEY, note:'Llama 8B Groq · instant'},
+      CEREBRAS_KEY && {provider:'cerebras', model:'llama3.1-70b', key:CEREBRAS_KEY, note:'Llama 70B Cerebras'},
+      GROQ_KEY && {provider:'groq', model:'llama-3.1-70b-versatile', key:GROQ_KEY, note:'Llama 70B Groq'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.0-flash', key:GEMINI_KEY, note:'Gemini 2.0 Flash · free'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-latest', key:MISTRAL_KEY, note:'Mistral Small'},
     ].filter(Boolean),
 
-    frontier: [
-      // Frontier: Best quality, no speed compromise
-      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 via Mistral (1M, thinking)'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large Latest (262K, thinking)'},
-      MISTRAL_KEY && {provider:'mistral', model:'magistral-medium-latest', key:MISTRAL_KEY, note:'Magistral Medium (thinking, web)'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro (1M, thinking, best Google)'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-flash', key:GEMINI_KEY, note:'Gemini 2.5 Flash (1M, thinking)'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (1M, Google Search)'},
-      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V4 Flash (1M, web)'},
-      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY, note:'Nemotron Ultra 550B (reasoning)'},
-      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
-    ].filter(Boolean),
-
+    // ── Research: Deep reasoning, large context ───────────────────────────────
     research: [
-      // Research: Web search + large context
-      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 (1M, web search)'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large (web search)'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (Google Search grounding)'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro (1M, best for long docs)'},
-      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek (built-in web search)'},
-      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 · 1M ctx · thinking · web'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large · 262K ctx'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.0-flash', key:GEMINI_KEY, note:'Gemini 2.0 Flash · Google Search'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-1.5-pro', key:GEMINI_KEY, note:'Gemini 1.5 Pro · 2M ctx'},
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · web search'},
+      KIMI_KEY && {provider:'kimi', model:'moonshot-v1-128k', key:KIMI_KEY, note:'Kimi · 128K ctx'},
     ].filter(Boolean),
 
+    // ── Coding: Strong instruction-following, code generation ─────────────────
     coding: [
-      // Coding: Best code models
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large (excellent at code)'},
-      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 (strong code + reasoning)'},
-      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek (top code benchmark)'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro (code + reasoning)'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (fast code)'},
-      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-120b', key:GROQ_KEY, note:'GPT-OSS 120B (fast code)'},
-      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large · code'},
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 · code + thinking'},
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · code'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.0-flash', key:GEMINI_KEY, note:'Gemini 2.0 Flash · code'},
+      GROQ_KEY && {provider:'groq', model:'llama-3.1-70b-versatile', key:GROQ_KEY, note:'Llama 70B Groq · code'},
     ].filter(Boolean),
 
+    // ── Vision: Multimodal, image understanding ───────────────────────────────
     vision: [
-      // Vision: Models with image understanding
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large (vision)'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY, note:'Mistral Medium 3.5 (vision)'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash (vision + Google Search)'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro (best vision)'},
-      {provider:'pollinations', model:'openai', key:null, note:'Pollinations fallback'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-latest', key:MISTRAL_KEY, note:'Mistral Large · vision'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.0-flash', key:GEMINI_KEY, note:'Gemini 2.0 Flash · vision'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-1.5-pro', key:GEMINI_KEY, note:'Gemini 1.5 Pro · vision · 2M ctx'},
+      MISTRAL_KEY && {provider:'mistral', model:'pixtral-large-latest', key:MISTRAL_KEY, note:'Pixtral Large · vision'},
     ].filter(Boolean),
+
+    // ── Local: Ollama only (requires tunnel) ──────────────────────────────────
+    local: [
+      {provider:'ollama', model:'llama3.1', key:null, note:'Ollama local (requires tunnel)'},
+    ],
   };
 
   // If provider/model override specified, try that first
