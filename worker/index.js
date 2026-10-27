@@ -3815,7 +3815,7 @@ data: ${JSON.stringify(data)}
           }
         } catch(llmErr) {}
         if (!postText) postText = 'Understand your past. Appreciate the present. Define your future. identitypartners.uk/contact';
-        const fullText = `${postText}\n\n${TAGS}\n${FOOTER}`;
+        const fullText = postText + '\n\n' + TAGS + '\n' + FOOTER;
         const results = {};
         const bskyHandle = k(env, ['bluesky_handle','BLUESKY_HANDLE']) || '@identitypartners.bsky.social';
         const bskyPass = k(env, ['bluesky_password','BLUESKY_PASSWORD']) || '';
