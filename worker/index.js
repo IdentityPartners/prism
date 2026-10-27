@@ -701,16 +701,16 @@ async function generateCanvasHtml(text, templateId, env) {
            '<rect x="' + (x+52) + '" y="' + y + '" width="46" height="46" rx="6" fill="' + ROSE + '" opacity="0.9"/>' +
            '<rect x="' + x + '" y="' + (y+52) + '" width="46" height="46" rx="6" fill="' + TEAL2 + '" opacity="0.7"/>' +
            '<rect x="' + (x+52) + '" y="' + (y+52) + '" width="46" height="46" rx="6" fill="' + ROSE2 + '" opacity="0.7"/>' +
-           '<text x="' + (x+48) + '" y="' + (y+68) + '" font-family="Georgia,serif" font-size="11" font-weight="600" fill="' + TEAL_LIGHT + '" text-anchor="middle" opacity="0.9">IP</text>';
+           '<text x="' + (x+48) + '" y="' + (y+68) + '" font-family="Playfair Display,Georgia,serif" font-size="11" font-weight="600" fill="' + TEAL_LIGHT + '" text-anchor="middle" opacity="0.9">IP</text>';
   }
 
   function ipWordmark(cx, y, fg) {
-    return '<text x="' + (cx-100) + '" y="' + y + '" font-family="Georgia,serif" font-size="30" font-weight="600" fill="' + TEAL_LIGHT + '" text-anchor="middle">Identity</text>' +
-           '<text x="' + (cx+100) + '" y="' + y + '" font-family="Georgia,serif" font-size="30" font-weight="600" fill="' + ROSE_LIGHT + '" text-anchor="middle">Partners</text>';
+    return '<text x="' + (cx-100) + '" y="' + y + '" font-family="Playfair Display,Georgia,serif" font-size="30" font-weight="600" fill="' + TEAL_LIGHT + '" text-anchor="middle">Identity</text>' +
+           '<text x="' + (cx+100) + '" y="' + y + '" font-family="Playfair Display,Georgia,serif" font-size="30" font-weight="600" fill="' + ROSE_LIGHT + '" text-anchor="middle">Partners</text>';
   }
 
   function ipTagline(cx, y) {
-    return '<text x="' + cx + '" y="' + y + '" font-family="Georgia,serif" font-size="16"  fill="' + GREY + '" text-anchor="middle" opacity="0.85">Understand your past &middot; Appreciate the present &middot; Define your future</text>';
+    return '<text x="' + cx + '" y="' + y + '" font-family="Playfair Display,Georgia,serif" font-size="16"  fill="' + GREY + '" text-anchor="middle" opacity="0.85">Understand your past &middot; Appreciate the present &middot; Define your future</text>';
   }
 
   function ipFooter(cx, y) {
@@ -720,7 +720,7 @@ async function generateCanvasHtml(text, templateId, env) {
   function quoteText(lines, startY, lineH, fg, shadow) {
     const filter = shadow ? ' filter="url(#shadow)"' : '';
     return lines.map((l, i) =>
-      '<text x="540" y="' + (startY + i * lineH) + '" font-family="Georgia,serif" font-size="48"  fill="' + fg + '" text-anchor="middle"' + filter + '>' + l + '</text>'
+      '<text x="540" y="' + (startY + i * lineH) + '" font-family="Playfair Display,Georgia,serif" font-size="48"  fill="' + fg + '" text-anchor="middle"' + filter + '>' + l + '</text>'
     ).join('');
   }
 
@@ -764,7 +764,7 @@ async function generateCanvasHtml(text, templateId, env) {
       '<rect x="0" y="0" width="' + W + '" height="12" fill="' + tmpl.border + '" opacity="0.9"/>' +
       '<rect x="0" y="' + (H-12) + '" width="' + W + '" height="12" fill="' + tmpl.border + '" opacity="0.9"/>' +
       ipGrid(30, 30) +
-      '<text x="80" y="210" font-family="Georgia,serif" font-size="110" fill="' + tmpl.fg + '" opacity="0.08">&#x201C;</text>' +
+      '<text x="80" y="210" font-family="Playfair Display,Georgia,serif" font-size="110" fill="' + tmpl.fg + '" opacity="0.08">&#x201C;</text>' +
       quoteText(lines, startY, lineH, tmpl.fg, false) +
       '<line x1="380" y1="' + attrY + '" x2="700" y2="' + attrY + '" stroke="' + tmpl.accent + '" stroke-width="2" opacity="0.6"/>' +
       ipWordmark(540, attrY + 48, tmpl.fg) +
@@ -801,7 +801,7 @@ async function generateCanvasHtml(text, templateId, env) {
       '<rect x="0" y="0" width="' + W + '" height="12" fill="' + GREY + '" opacity="0.8"/>' +
       '<rect x="0" y="' + (H-12) + '" width="' + W + '" height="12" fill="' + GREY + '" opacity="0.8"/>' +
       ipGrid(30, 30) +
-      '<text x="80" y="210" font-family="Georgia,serif" font-size="110" fill="' + IVORY + '" opacity="0.08">&#x201C;</text>' +
+      '<text x="80" y="210" font-family="Playfair Display,Georgia,serif" font-size="110" fill="' + IVORY + '" opacity="0.08">&#x201C;</text>' +
       quoteText(lines, startY, lineH, IVORY, true) +
       '<line x1="380" y1="' + attrY + '" x2="700" y2="' + attrY + '" stroke="' + GREY + '" stroke-width="2" opacity="0.65"/>' +
       ipWordmark(540, attrY + 48, IVORY) +
@@ -825,11 +825,11 @@ async function generateCanvasHtml(text, templateId, env) {
       imgEl +
       '<line x1="540" y1="0" x2="540" y2="' + H + '" stroke="' + GREY + '" stroke-width="3" opacity="0.6"/>' +
       ipGrid(30, 30) +
-      lines.map((l, i) => '<text x="' + textX + '" y="' + (startY + i * lineH) + '" font-family="Georgia,serif" font-size="42"  fill="' + IVORY + '" text-anchor="middle">' + l + '</text>').join('') +
+      lines.map((l, i) => '<text x="' + textX + '" y="' + (startY + i * lineH) + '" font-family="Playfair Display,Georgia,serif" font-size="42"  fill="' + IVORY + '" text-anchor="middle">' + l + '</text>').join('') +
       '<line x1="80" y1="' + attrY + '" x2="460" y2="' + attrY + '" stroke="' + GREY + '" stroke-width="2" opacity="0.6"/>' +
-      '<text x="180" y="' + (attrY+40) + '" font-family="Georgia,serif" font-size="26" font-weight="600" fill="' + TEAL_LIGHT + '" text-anchor="middle">Identity</text>' +
-      '<text x="360" y="' + (attrY+40) + '" font-family="Georgia,serif" font-size="26" font-weight="600" fill="' + ROSE_LIGHT + '" text-anchor="middle">Partners</text>' +
-      '<text x="270" y="' + (attrY+70) + '" font-family="Georgia,serif" font-size="14"  fill="' + GREY + '" text-anchor="middle" opacity="0.85">Understand your past &middot; Appreciate the present &middot; Define your future</text>' +
+      '<text x="180" y="' + (attrY+40) + '" font-family="Playfair Display,Georgia,serif" font-size="26" font-weight="600" fill="' + TEAL_LIGHT + '" text-anchor="middle">Identity</text>' +
+      '<text x="360" y="' + (attrY+40) + '" font-family="Playfair Display,Georgia,serif" font-size="26" font-weight="600" fill="' + ROSE_LIGHT + '" text-anchor="middle">Partners</text>' +
+      '<text x="270" y="' + (attrY+70) + '" font-family="Playfair Display,Georgia,serif" font-size="14"  fill="' + GREY + '" text-anchor="middle" opacity="0.85">Understand your past &middot; Appreciate the present &middot; Define your future</text>' +
       '<text x="270" y="' + (H-28) + '" font-family="Arial,sans-serif" font-size="14" fill="' + GREY + '" text-anchor="middle" opacity="0.8">www.identitypartners.uk</text>' +
       '</svg>';
 
@@ -850,7 +850,7 @@ async function generateCanvasHtml(text, templateId, env) {
       '<rect x="0" y="' + (H-12) + '" width="' + W + '" height="12" fill="' + GREY + '" opacity="0.8"/>' +
       ipGrid(30, 30) +
       (icons[tmpl.icon] || '') +
-      lines.map((l, i) => '<text x="540" y="' + (startY + i * lineH) + '" font-family="Georgia,serif" font-size="44"  fill="' + tmpl.fg + '" text-anchor="middle">' + l + '</text>').join('') +
+      lines.map((l, i) => '<text x="540" y="' + (startY + i * lineH) + '" font-family="Playfair Display,Georgia,serif" font-size="44"  fill="' + tmpl.fg + '" text-anchor="middle">' + l + '</text>').join('') +
       ipWordmark(540, startY + lines.length * lineH + 50, tmpl.fg) +
       ipFooter(540, H - 28) +
       '</svg>';
@@ -866,11 +866,11 @@ async function generateCanvasHtml(text, templateId, env) {
       '<rect x="0" y="0" width="' + W + '" height="12" fill="' + tmpl.accent + '" opacity="0.9"/>' +
       '<rect x="0" y="' + (H-12) + '" width="' + W + '" height="12" fill="' + tmpl.accent + '" opacity="0.9"/>' +
       ipGrid(30, 30) +
-      '<text x="100" y="260" font-family="Georgia,serif" font-size="180" fill="' + tmpl.accent + '" opacity="0.15">&#x201C;</text>' +
-      '<text x="980" y="' + (H-80) + '" font-family="Georgia,serif" font-size="180" fill="' + tmpl.accent + '" opacity="0.15">&#x201D;</text>' +
-      lines.map((l, i) => '<text x="540" y="' + (startY + i * lineH) + '" font-family="Georgia,serif" font-size="46"  fill="' + tmpl.fg + '" text-anchor="middle">' + l + '</text>').join('') +
+      '<text x="100" y="260" font-family="Playfair Display,Georgia,serif" font-size="180" fill="' + tmpl.accent + '" opacity="0.15">&#x201C;</text>' +
+      '<text x="980" y="' + (H-80) + '" font-family="Playfair Display,Georgia,serif" font-size="180" fill="' + tmpl.accent + '" opacity="0.15">&#x201D;</text>' +
+      lines.map((l, i) => '<text x="540" y="' + (startY + i * lineH) + '" font-family="Playfair Display,Georgia,serif" font-size="46"  fill="' + tmpl.fg + '" text-anchor="middle">' + l + '</text>').join('') +
       '<line x1="340" y1="' + attrY + '" x2="740" y2="' + attrY + '" stroke="' + tmpl.accent + '" stroke-width="3" opacity="0.7"/>' +
-      '<text x="540" y="' + (attrY+44) + '" font-family="Georgia,serif" font-size="22" fill="' + tmpl.accent + '" text-anchor="middle" opacity="0.9">&#x2014; Identity Partners Client</text>' +
+      '<text x="540" y="' + (attrY+44) + '" font-family="Playfair Display,Georgia,serif" font-size="22" fill="' + tmpl.accent + '" text-anchor="middle" opacity="0.9">&#x2014; Identity Partners Client</text>' +
       ipWordmark(540, attrY + 90, tmpl.fg) +
       ipFooter(540, H - 28) +
       '</svg>';
