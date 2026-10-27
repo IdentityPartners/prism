@@ -92,14 +92,48 @@
     <div class="card-hdr"><h3>Non-Chat Capabilities</h3></div>
     <div class="card-body">
       <div class="cap-grid">
-        <div class="cap-card"><h4>&#x1F50A; TTS</h4><p>Deepgram Aura (British voices)<br>Cartesia Sonic 2 (ultra-low latency)<br>Gemini 2.5 Flash TTS<br>Mistral TTS-1</p></div>
-        <div class="cap-card"><h4>&#x1F3A4; STT / Transcription</h4><p>Groq Whisper Large v3 (fast)<br>Deepgram Nova-3 (real-time streaming)<br>Gemini 2.0 Flash (multimodal)</p></div>
-        <div class="cap-card"><h4>&#x1F5BC; Image Generation</h4><p>Gemini 3.1 Flash Image (free)<br>Gemini 3 Pro Image (free)<br>Stability SD 3.5<br>FAL Flux Schnell / Dev / Pro</p></div>
-        <div class="cap-card"><h4>&#x1F3B5; Music</h4><p>Gemini Lyria 3.5 (vocals + full songs)<br>Lyria 3 Pro (up to 3 min)<br>Lyria 3 Clip (30s, fastest)</p></div>
-        <div class="cap-card"><h4>&#x1F4DE; Live Audio (voice call)</h4><p>Gemini 2.0 Flash Live<br>Gemini 2.0 Flash Live Extended Thinking<br>Gemini 3.1 Flash Live Preview</p></div>
-        <div class="cap-card"><h4>&#x1F4C4; Embeddings / RAG</h4><p>Google text-embedding-004 (2048 dim)<br>Mistral mistral-embed<br>NVIDIA nv-embedqa-e5-v5<br>Cohere embed-v4</p></div>
-        <div class="cap-card"><h4>&#x1F441; Vision / OCR</h4><p>Mistral Large 4 (vision)<br>Gemini 3.5 Flash (vision + search)<br>GLM 5.3 via Mistral (vision)<br>Llama 4 Scout (vision)</p></div>
-        <div class="cap-card"><h4>&#x1F3AC; Video</h4><p>Gemini Veo 2 (text-to-video)<br>Gemini Veo 3 (with audio)<br>CogView-4 (Z.AI)</p></div>
+        <div class="cap-card"><h4>&#x1F50A; TTS</h4>
+          <p><strong>Mistral Voxtral TTS</strong> — studio-grade, voice cloning, 35+ languages, streaming<br>
+          <strong>Gemini 3.8 Flash TTS</strong> — FREE, expressive, voice design<br>
+          Deepgram Aura — British voices, reliable fallback<br>
+          Cartesia — ultra-low latency<br>
+          <em>Routes: /api/tts/mistral · /api/tts/gemini · /api/tts/read</em></p></div>
+        <div class="cap-card"><h4>&#x1F3A4; STT / Transcription</h4>
+          <p><strong>Mistral Voxtral Mini Transcribe 3</strong> — speaker diarisation, timestamps, custom vocab<br>
+          <strong>Gemini 3.5 Transcribe</strong> — FREE, speaker labels, word timestamps<br>
+          Groq Whisper Large v3 Turbo — $0.04/hr, fast<br>
+          Deepgram Nova-3 — real-time streaming<br>
+          <em>Routes: /api/stt/mistral · /api/stt/transcribe</em></p></div>
+        <div class="cap-card"><h4>&#x1F5BC; Image Generation</h4>
+          <p><strong>Gemini Nano Banana 2.1</strong> — FREE, high-efficiency gen+editing<br>
+          <strong>Gemini Nano Banana Pro</strong> — FREE, state-of-art contextual gen<br>
+          FAL Flux Schnell / Dev / Pro<br>
+          Stability SD 3.5 · Ideogram<br>
+          <em>Routes: /api/image/generate · /api/image/multi</em></p></div>
+        <div class="cap-card"><h4>&#x1F3B5; Music</h4>
+          <p><strong>Lyria 3.5</strong> — vocals + full songs (via Gemini, FREE)<br>
+          Lyria 3 — previous generation<br>
+          <em>Route: /api/music/generate</em></p></div>
+        <div class="cap-card"><h4>&#x1F4DE; Live Audio / Voice Agents</h4>
+          <p><strong>Gemini 3.8 Live</strong> — FREE, ultra-low latency, real-time dialogue<br>
+          <strong>Gemini 3.8 Live Extended Thinking</strong> — voice + reasoning<br>
+          Mistral Voxtral — live transcription via WebSocket<br>
+          <em>Route: /api/live/session</em></p></div>
+        <div class="cap-card"><h4>&#x1F4C4; Embeddings / RAG</h4>
+          <p><strong>Gemini Embedding 2</strong> — FREE, best all-rounder (CCKM benchmark), cross-modal, multilingual<br>
+          <strong>Mistral Embed</strong> — 1024 dims, best English quality<br>
+          Cohere embed-v4 — English RAG<br>
+          <em>Routes: /api/embed/gemini · /api/embed/mistral · /api/rag/search</em></p></div>
+        <div class="cap-card"><h4>&#x1F441; Vision / OCR / Document AI</h4>
+          <p><strong>Mistral OCR 4.1</strong> — PDF/DOCX/PPTX, tables, bounding boxes, 40+ languages<br>
+          <strong>Mistral Large 4</strong> — multimodal vision<br>
+          GLM 5.3 Flash — multimodal, visual coding<br>
+          Gemini 3.8 Flash — vision + Google Search<br>
+          <em>Routes: /api/ocr/mistral · /api/pdf/to-markdown</em></p></div>
+        <div class="cap-card"><h4>&#x1F3AC; Video</h4>
+          <p><strong>Gemini Omni Flash</strong> — FREE, video gen/editing/keyframe<br>
+          Gemini Veo 3 — with audio<br>
+          <em>Route: /api/video/generate</em></p></div>
       </div>
     </div>
   </div>
