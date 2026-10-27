@@ -162,7 +162,9 @@ function loadList(q) {
         list.innerHTML = '<div style="padding:16px;text-align:center;font-size:0.85rem;color:var(--fg-muted);">No ' + currentView + ' yet.<br>Click Add to create one.</div>';
         return;
       }
+      window._crmItems = {};
       list.innerHTML = items.map(function(item) {
+        window._crmItems[item.id] = item;
         var meta = currentView === 'contacts' ? (item.email || item.company || '') : (item.domain || item.industry || '');
         return '<div class="crm-item" onclick="selectRecord(' + JSON.stringify(JSON.stringify(item)) + ')">' +
           '<div class="item-name">' + esc(item.name) + '</div>' +
@@ -178,6 +180,20 @@ function loadList(q) {
 function onSearch(q) {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(function() { loadList(q); }, 300);
+}
+
+function selectById(id) {
+  var item = (window._crmItems || {})[id];
+  if (!item) return;
+  currentRecord = item;
+  document.querySelectorAll('.crm-item').forEach(function(el) { el.classList.remove('active'); });
+  var el = document.querySelector('.crm-item[data-id="' + id + '"]');
+  if (el) el.classList.add('active');
+  document.getElementById('detail-title').textContent = item.name;
+  document.getElementById('detail-actions').innerHTML =
+    '<button class="btn btn-secondary btn-sm" onclick="openEditModal()">Edit</button>' +
+    '<button class="btn btn-danger btn-sm" onclick="deleteRecord()">Delete</button>';
+  renderDetail(item);
 }
 
 function selectRecord(jsonStr) {
