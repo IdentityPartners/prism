@@ -4151,6 +4151,88 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({error: e.message}, 500, origin); }
     }
 
+
+    // ── Twenty CRM API proxy ──────────────────────────────────────────────────────
+    if (path === '/api/twenty/test' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const apiKey = body.apiKey || k(env, ['twenty_api_key','TWENTY_API_KEY']) || '';
+        const workspaceUrl = (body.workspaceUrl || '').replace(/\/$/, '');
+        if (!apiKey || !workspaceUrl) return json({success:false, error:'API key and workspace URL required'}, 400, origin);
+        const resp = await fetch(workspaceUrl + '/api', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json'},
+          body: JSON.stringify({query: '{ currentWorkspace { id displayName } }'})
+        });
+        if (!resp.ok) return json({success:false, error:'HTTP ' + resp.status}, 200, origin);
+        const data = await resp.json();
+        const ws = data.data && data.data.currentWorkspace;
+        if (ws) {
+          // Store config in KV
+          if (env.PRISM_KV) await env.PRISM_KV.put('twenty:config', JSON.stringify({apiKey, workspaceUrl, savedAt: new Date().toISOString()}));
+          return json({success:true, workspace: ws.displayName || ws.id}, 200, origin);
+        }
+        return json({success:false, error: JSON.stringify(data.errors || data).substring(0,200)}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 200, origin); }
+    }
+
+    if (path === '/api/twenty/query' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        let apiKey = body.apiKey;
+        let workspaceUrl = body.workspaceUrl;
+        // Fall back to stored config
+        if (!apiKey || !workspaceUrl) {
+          const stored = env.PRISM_KV ? await env.PRISM_KV.get('twenty:config', 'json') : null;
+          if (stored) { apiKey = stored.apiKey; workspaceUrl = stored.workspaceUrl; }
+        }
+        if (!apiKey || !workspaceUrl) return json({error:'Twenty not configured'}, 400, origin);
+        workspaceUrl = workspaceUrl.replace(/\/$/, '');
+        const resp = await fetch(workspaceUrl + '/api', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json'},
+          body: JSON.stringify({query: body.query, variables: body.variables || {}})
+        });
+        const data = await resp.json();
+        return json(data, resp.status, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    if (path === '/api/twenty/contacts' && request.method === 'GET') {
+      try {
+        const stored = env.PRISM_KV ? await env.PRISM_KV.get('twenty:config', 'json') : null;
+        if (!stored) return json({error:'Twenty not configured'}, 400, origin);
+        const resp = await fetch(stored.workspaceUrl + '/api', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + stored.apiKey, 'Content-Type': 'application/json'},
+          body: JSON.stringify({query: '{ people(first: 50, orderBy: {createdAt: DescNullsLast}) { edges { node { id name { firstName lastName } emails { primaryEmail } phones { primaryPhoneNumber } createdAt } } totalCount } }'})
+        });
+        const data = await resp.json();
+        const people = (data.data && data.data.people && data.data.people.edges) ? data.data.people.edges.map(function(e) { return e.node; }) : [];
+        return json({contacts: people, total: data.data && data.data.people ? data.data.people.totalCount : 0}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+    if (path === '/api/twenty/calendar' && request.method === 'GET') {
+      try {
+        const stored = env.PRISM_KV ? await env.PRISM_KV.get('twenty:config', 'json') : null;
+        if (!stored) return json({error:'Twenty not configured', status:'not_connected', today:[], week:[]}, 200, origin);
+        const now = new Date();
+        const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        const resp = await fetch(stored.workspaceUrl + '/api', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + stored.apiKey, 'Content-Type': 'application/json'},
+          body: JSON.stringify({query: '{ calendarEvents(first: 20, filter: {startsAt: {gte: "' + now.toISOString() + '", lte: "' + weekEnd + '"}}, orderBy: {startsAt: AscNullsLast}) { edges { node { id title startsAt endsAt location description } } } }'})
+        });
+        const data = await resp.json();
+        const events = (data.data && data.data.calendarEvents && data.data.calendarEvents.edges) ? data.data.calendarEvents.edges.map(function(e) { return e.node; }) : [];
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+        const today = events.filter(function(e) { return e.startsAt && e.startsAt <= todayEnd; });
+        const week = events.filter(function(e) { return e.startsAt && e.startsAt > todayEnd; });
+        return json({status:'ok', today, week, total: events.length}, 200, origin);
+      } catch(e) { return json({status:'error', error:e.message, today:[], week:[]}, 200, origin); }
+    }
+
     return json({ error: 'Not found', path }, 404, origin);
   },
 
