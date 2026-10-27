@@ -5247,6 +5247,251 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({error: e.message}, 500, origin); }
     }
 
+
+    // ── Canvas preview (fast, no logo, no background) ─────────────────────────
+    if (path === '/api/canvas/preview' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = (body.text || 'Identity Partners').substring(0, 300);
+        const template = body.template || 'quote-teal';
+        const themes = {
+          'quote-teal':    {bg:'#0f3b3a', fg:'#ffffff', accent:'#7ecfcd'},
+          'quote-rose':    {bg:'#5c2d3f', fg:'#ffffff', accent:'#d4899a'},
+          'quote-ivory':   {bg:'#f7f3e9', fg:'#1c1a17', accent:'#5c2d3f'},
+          'quote-dark':    {bg:'#111111', fg:'#ffffff', accent:'#ddd0c8'},
+          'quote-slate':   {bg:'#1e2a3a', fg:'#ffffff', accent:'#90cdf4'},
+          'quote-forest':  {bg:'#0f2318', fg:'#ffffff', accent:'#86efac'},
+          'quote-coastal': {bg:'#0a1f35', fg:'#ffffff', accent:'#7dd3fc'},
+          'quote-dawn':    {bg:'#4a1505', fg:'#ffffff', accent:'#fed7aa'},
+          'quote-dusk':    {bg:'#1a0a35', fg:'#ffffff', accent:'#d8b4fe'},
+          'quote-midnight':{bg:'#050d1a', fg:'#ffffff', accent:'#4a9fd4'},
+          'ip-teal-rose':  {bg:'#0f3b3a', fg:'#ffffff', accent:'#d4899a'},
+          'ip-minimal':    {bg:'#fafafa', fg:'#0f3b3a', accent:'#5c2d3f'},
+          'post-research': {bg:'#0f1f3d', fg:'#ffffff', accent:'#93c5fd'},
+          'post-quote':    {bg:'#f7f3e9', fg:'#1c1a17', accent:'#5c2d3f'},
+        };
+        const t = themes[template] || themes['quote-teal'];
+        const safe = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const words = safe.split(' ');
+        const lines = [];
+        let line = '';
+        words.forEach(w => {
+          if ((line + ' ' + w).trim().length > 26 && line) { lines.push(line.trim()); line = w; }
+          else { line = (line + ' ' + w).trim(); }
+        });
+        if (line) lines.push(line.trim());
+        if (lines.length > 7) { lines.splice(6); lines[5] += '...'; }
+        const lineH = 72;
+        const startY = Math.max(220, 540 - (lines.length * lineH) / 2);
+        const attrY = startY + lines.length * lineH + 50;
+        const textEls = lines.map((l, i) =>
+          '<text x="540" y="' + (startY + i * lineH) + '" font-family="Playfair Display,Georgia,serif" font-size="52" font-weight="600" fill="' + t.fg + '" text-anchor="middle">' + l + '</text>'
+        ).join('\n');
+        const svg = '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080"><rect width="1080" height="1080" fill="' + t.bg + '"/><rect x="0" y="0" width="1080" height="8" fill="' + t.accent + '" opacity="0.95"/><rect x="0" y="1072" width="1080" height="8" fill="' + t.accent + '" opacity="0.95"/>' + textEls + '<line x1="340" y1="' + attrY + '" x2="740" y2="' + attrY + '" stroke="' + t.accent + '" stroke-width="1.5" opacity="0.7"/><text x="540" y="' + (attrY + 36) + '" font-family="Playfair Display,Georgia,serif" font-size="17" fill="' + t.fg + '" text-anchor="middle" opacity="0.85">Identity Partners</text><text x="540" y="1050" font-family="Inter,Arial,sans-serif" font-size="14" fill="' + t.fg + '" text-anchor="middle" opacity="0.75">identitypartners.uk \u00b7 hello@identitypartners.uk</text></svg>';
+        return new Response(svg, {headers: {'Content-Type': 'image/svg+xml', 'Access-Control-Allow-Origin': origin}});
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── TTS read-aloud (Deepgram Aura) ────────────────────────────────────────
+    if (path === '/api/tts/read' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = (body.text || '').substring(0, 5000);
+        const voice = body.voice || 'aura-arcas-en';
+        const provider = body.provider || 'deepgram';
+        if (!text) return json({error: 'No text'}, 400, origin);
+        const dgKey = k(env, ['deepgram_api_key', 'DEEPGRAM_API_KEY', 'deepgram']) || '';
+        if (!dgKey) return json({error: 'Deepgram key not configured'}, 400, origin);
+        const resp = await fetch('https://api.deepgram.com/v1/speak?model=' + voice, {
+          method: 'POST',
+          headers: {'Authorization': 'Token ' + dgKey, 'Content-Type': 'application/json'},
+          body: JSON.stringify({text})
+        });
+        if (!resp.ok) {
+          const errText = await resp.text();
+          return json({error: 'Deepgram error: ' + resp.status + ' ' + errText.substring(0, 100)}, 500, origin);
+        }
+        const audio = await resp.arrayBuffer();
+        return new Response(audio, {headers: {'Content-Type': 'audio/mpeg', 'Access-Control-Allow-Origin': origin}});
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Voice generate (alias for TTS) ────────────────────────────────────────
+    if (path === '/api/voice/generate' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = (body.text || '').substring(0, 5000);
+        const voice = body.voice || 'aura-arcas-en';
+        if (!text) return json({error: 'No text'}, 400, origin);
+        const dgKey = k(env, ['deepgram_api_key', 'DEEPGRAM_API_KEY', 'deepgram']) || '';
+        if (!dgKey) return json({error: 'Deepgram key not configured'}, 400, origin);
+        const resp = await fetch('https://api.deepgram.com/v1/speak?model=' + voice, {
+          method: 'POST',
+          headers: {'Authorization': 'Token ' + dgKey, 'Content-Type': 'application/json'},
+          body: JSON.stringify({text})
+        });
+        if (!resp.ok) return json({error: 'Deepgram error: ' + resp.status}, 500, origin);
+        const audio = await resp.arrayBuffer();
+        return new Response(audio, {headers: {'Content-Type': 'audio/mpeg', 'Access-Control-Allow-Origin': origin}});
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Music generation (Lyria via Gemini) ───────────────────────────────────
+    if (path === '/api/music/generate' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const prompt = body.prompt || 'Uplifting piano music';
+        const model = body.model || 'lyria-3.5';
+        const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
+        if (!GKEY) return json({error: 'Gemini key not configured'}, 400, origin);
+        const resp = await fetch(
+          'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent',
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'x-goog-api-key': GKEY},
+            body: JSON.stringify({
+              contents: [{parts: [{text: prompt}]}],
+              generationConfig: {responseModalities: ['AUDIO']}
+            })
+          }
+        );
+        if (!resp.ok) {
+          const errText = await resp.text();
+          return json({error: 'Lyria error: ' + resp.status + ' ' + errText.substring(0, 200)}, 500, origin);
+        }
+        const data = await resp.json();
+        const audioData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (!audioData) return json({error: 'No audio in response', raw: JSON.stringify(data).substring(0, 200)}, 500, origin);
+        const buf = Uint8Array.from(atob(audioData), c => c.charCodeAt(0));
+        return new Response(buf, {headers: {'Content-Type': 'audio/mpeg', 'Access-Control-Allow-Origin': origin}});
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── PDF to Markdown (Gemini Vision) ───────────────────────────────────────
+    if (path === '/api/pdf/to-markdown' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const b64 = body.content || '';
+        const fileUrl = body.url || '';
+        const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
+        if (!GKEY) return json({error: 'Gemini key not configured'}, 400, origin);
+        let pdfB64 = b64;
+        if (fileUrl && !pdfB64) {
+          const resp = await fetch(fileUrl);
+          if (!resp.ok) return json({error: 'Could not fetch PDF'}, 400, origin);
+          const buf = await resp.arrayBuffer();
+          pdfB64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+        }
+        if (!pdfB64) return json({error: 'No PDF content'}, 400, origin);
+        const gemResp = await fetch(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GKEY,
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              contents: [{parts: [
+                {text: 'Extract ALL text from this PDF. Return clean Markdown. Preserve headings, lists, tables. Include every word.'},
+                {inline_data: {mime_type: 'application/pdf', data: pdfB64.substring(0, 1000000)}}
+              ]}],
+              generationConfig: {maxOutputTokens: 8192}
+            })
+          }
+        );
+        const gemData = await gemResp.json();
+        const markdown = gemData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!markdown) return json({error: 'No text extracted', raw: JSON.stringify(gemData).substring(0, 200)}, 500, origin);
+        return json({success: true, markdown, wordCount: markdown.split(/\s+/).length}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── OneDrive upload via MSGraph ────────────────────────────────────────────
+    if (path === '/api/onedrive/upload' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const fileName = body.fileName || ('file-' + Date.now() + '.bin');
+        const content = body.content || '';
+        const folder = body.folder || 'Argentica';
+        const tenantId = k(env, ['msgraph_tenant', 'MSGRAPH_TENANT']) || '';
+        const clientId = k(env, ['msgraph_client', 'MSGRAPH_CLIENT']) || '';
+        const clientSecret = k(env, ['msgraph_secret', 'MSGRAPH_SECRET']) || '';
+        if (!tenantId || !clientId || !clientSecret) return json({error: 'MSGraph credentials not configured'}, 400, origin);
+        const tokenResp = await fetch(
+          'https://login.microsoftonline.com/' + tenantId + '/oauth2/v2.0/token',
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'grant_type=client_credentials&client_id=' + clientId + '&client_secret=' + encodeURIComponent(clientSecret) + '&scope=https://graph.microsoft.com/.default'
+          }
+        );
+        const tokenData = await tokenResp.json();
+        const accessToken = tokenData.access_token;
+        if (!accessToken) return json({error: 'Could not get MSGraph token: ' + JSON.stringify(tokenData).substring(0, 100)}, 500, origin);
+        const fileBytes = Uint8Array.from(atob(content), c => c.charCodeAt(0));
+        const uploadResp = await fetch(
+          'https://graph.microsoft.com/v1.0/me/drive/root:/' + folder + '/' + encodeURIComponent(fileName) + ':/content',
+          {method: 'PUT', headers: {'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/octet-stream'}, body: fileBytes}
+        );
+        const uploadData = await uploadResp.json();
+        if (!uploadResp.ok) return json({error: 'OneDrive upload failed: ' + JSON.stringify(uploadData).substring(0, 100)}, 500, origin);
+        const shareResp = await fetch(
+          'https://graph.microsoft.com/v1.0/me/drive/items/' + uploadData.id + '/createLink',
+          {method: 'POST', headers: {'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json'}, body: JSON.stringify({type: 'view', scope: 'anonymous'})}
+        );
+        const shareData = await shareResp.json();
+        const shareUrl = shareData.link?.webUrl || uploadData.webUrl || '';
+        return json({success: true, fileId: uploadData.id, fileName: uploadData.name, shareUrl, viewUrl: shareUrl ? 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(shareUrl) : ''}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    // ── Document extract (chunked analysis) ───────────────────────────────────
+    if (path === '/api/document/extract' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const docText = body.text || '';
+        const extractPrompt = body.prompt || 'Extract all key facts, data points, names, dates, and findings. Return as structured bullet points.';
+        const chunkSize = body.chunk_size || 15000;
+        const overlap = 500;
+        if (!docText) return json({error: 'No text provided'}, 400, origin);
+        const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
+        const mistralKey = k(env, ['mistral_api_key', 'MISTRAL_API_KEY']) || '';
+        const chunks = [];
+        let i = 0;
+        while (i < docText.length) { chunks.push(docText.substring(i, i + chunkSize)); i += chunkSize - overlap; }
+        const allResults = [];
+        const batchSize = 4;
+        for (let bi = 0; bi < chunks.length; bi += batchSize) {
+          const batch = chunks.slice(bi, bi + batchSize);
+          const batchResults = await Promise.all(batch.map(async (chunk, ci) => {
+            const chunkIdx = bi + ci;
+            const messages = [
+              {role: 'system', content: 'Extract ALL relevant information. Never skip or truncate.'},
+              {role: 'user', content: extractPrompt + '\n\nSection ' + (chunkIdx + 1) + ' of ' + chunks.length + ':\n\n' + chunk}
+            ];
+            try {
+              const r = await callProvider(env, 'gemini', GKEY, 'gemma-4-31b-it', messages);
+              return {chunk: chunkIdx + 1, text: r.content, ok: true};
+            } catch(e) { return {chunk: chunkIdx + 1, error: e.message, ok: false}; }
+          }));
+          allResults.push(...batchResults);
+          if (bi + batchSize < chunks.length) await new Promise(r => setTimeout(r, 300));
+        }
+        const successful = allResults.filter(r => r.ok && r.text);
+        const allExtractions = successful.map(r => '=== Section ' + r.chunk + ' ===\n' + r.text).join('\n\n');
+        let synthesis = allExtractions;
+        if (successful.length > 1 && mistralKey) {
+          try {
+            const synthMsgs = [
+              {role: 'system', content: 'Synthesise these extractions into a comprehensive structured report. Organise by theme. No omissions.'},
+              {role: 'user', content: 'Merge:\n\n' + allExtractions.substring(0, 60000)}
+            ];
+            const synthResult = await callProvider(env, 'mistral', mistralKey, 'mistral-large-latest', synthMsgs);
+            synthesis = synthResult.content;
+          } catch(e) {}
+        }
+        return json({chunks_processed: chunks.length, chunks_successful: successful.length, merged_summary: synthesis, doc_length: docText.length}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
 return json({ error: 'Not found', path }, 404, origin);
   },
 
