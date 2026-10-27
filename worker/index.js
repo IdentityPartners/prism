@@ -3883,7 +3883,7 @@ data: ${JSON.stringify(data)}
           // Check routing chain
           const mistralKey = k(env, ['mistral_api_key','MISTRAL_API_KEY','mistral_p']);
           const deepseekKey = k(env, ['deepseek_paid','DEEPSEEK_PAID']);
-          const groqKey = k(env, ['groq_f1','groq_f2','groq_f3']);
+          const groqKey = k(env, ['groq_f1','groq_f2','groq_f3','groq_free_1','GROQ_FREE_1','groq_free_2','groq_free_3']);
           const cerebrasKey = k(env, ['cerebras_p1','cerebras_f1']);
           results.providers = {
             mistral: mistralKey ? 'key present' : 'MISSING',
