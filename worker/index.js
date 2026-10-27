@@ -4497,6 +4497,42 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success:false,error:e.message},500,origin); }
     }
 
+
+    if (path === '/api/social/queue' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const item = {
+          id: 'sq-' + Date.now(),
+          platform: body.platform || 'bluesky',
+          content: body.content || '',
+          imageUrl: body.imageUrl || null,
+          scheduledFor: body.scheduledFor || null,
+          status: 'queued',
+          createdAt: new Date().toISOString()
+        };
+        if (env.PRISM_KV) {
+          const queue = await env.PRISM_KV.get('social:queue', 'json') || [];
+          queue.push(item);
+          await env.PRISM_KV.put('social:queue', JSON.stringify(queue));
+        }
+        return json({success:true, id:item.id, queued:true}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
+    if (path === '/api/social/queue' && request.method === 'GET') {
+      try {
+        const queue = env.PRISM_KV ? await env.PRISM_KV.get('social:queue', 'json') : null;
+        return json({queue: queue || [], total: (queue || []).length}, 200, origin);
+      } catch(e) { return json({queue:[], error:e.message}, 200, origin); }
+    }
+
+    if (path === '/api/social/queue/clear' && request.method === 'POST') {
+      try {
+        if (env.PRISM_KV) await env.PRISM_KV.put('social:queue', '[]');
+        return json({success:true}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
     return json({ error: 'Not found', path }, 404, origin);
   },
 
