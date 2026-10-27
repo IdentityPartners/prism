@@ -2760,22 +2760,22 @@ data: ${JSON.stringify(data)}
           ]
         };
         const config = raw ? JSON.parse(raw) : defaultConfig;
-        return json({ config, "benchmarks": [
-          {model:"GLM 5.3 (Mistral)", mmlu:"89.4", humaneval:"82.1", math:"79.3", ctx:"1M", maxout:"32K", speed:"~200 tok/s", tools:"web+code+img+doc", cost:"paid sub"},
-          {model:"Mistral Large 4", mmlu:"88.7", humaneval:"84.2", math:"77.8", ctx:"1M", maxout:"32K", speed:"~150 tok/s", tools:"web+code+img+doc", cost:"paid sub"},
-          {model:"Gemini 3.8 Flash", mmlu:"87.2", humaneval:"79.4", math:"74.1", ctx:"1M", maxout:"65K", speed:"~400 tok/s", tools:"search+code+img", cost:"FREE"},
-          {model:"GLM 5.3 Flash (Mistral)", mmlu:"85.1", humaneval:"78.3", math:"71.2", ctx:"1M", maxout:"32K", speed:"~300 tok/s", tools:"web+code+img", cost:"paid sub"},
-          {model:"Mistral Medium 3.5", mmlu:"86.3", humaneval:"81.7", math:"75.4", ctx:"128K", maxout:"32K", speed:"~180 tok/s", tools:"web+code+img", cost:"paid sub"},
-          {model:"Qwen 3.8 27B (Cerebras)", mmlu:"82.4", humaneval:"74.1", math:"68.9", ctx:"128K", maxout:"32K", speed:"~1850 tok/s", tools:"none", cost:"free tier"},
-          {model:"GPT-OSS 120B (Cerebras)", mmlu:"83.1", humaneval:"76.2", math:"70.1", ctx:"131K", maxout:"65K", speed:"~3000 tok/s", tools:"search+code", cost:"free tier"},
-          {model:"GPT-OSS 20B (Groq)", mmlu:"78.3", humaneval:"68.4", math:"62.1", ctx:"131K", maxout:"65K", speed:"~1000 tok/s", tools:"search+code", cost:"$0.075/1M"},
-          {model:"Kimi K2.5", mmlu:"84.7", humaneval:"77.8", math:"72.3", ctx:"262K", maxout:"32K", speed:"~120 tok/s", tools:"tools", cost:"$0.45/1M"},
-          {model:"DeepSeek V3", mmlu:"88.5", humaneval:"82.6", math:"78.9", ctx:"1M", maxout:"32K", speed:"~80 tok/s", tools:"web", cost:"$0.27/1M"},
-          {model:"Gemini 2.5 Flash", mmlu:"84.1", humaneval:"75.3", math:"69.8", ctx:"1M", maxout:"65K", speed:"~350 tok/s", tools:"search+code", cost:"FREE"},
-          {model:"Mistral Small 4", mmlu:"81.2", humaneval:"72.4", math:"65.7", ctx:"128K", maxout:"32K", speed:"~250 tok/s", tools:"web+code", cost:"paid sub"},
-          {model:"Gemma 4 (Google)", mmlu:"79.8", humaneval:"70.1", math:"63.4", ctx:"128K", maxout:"32K", speed:"~300 tok/s", tools:"none", cost:"FREE"},
-          {model:"Nemotron Ultra 253B (NVIDIA)", mmlu:"87.9", humaneval:"83.4", math:"76.2", ctx:"128K", maxout:"32K", speed:"~60 tok/s", tools:"tools", cost:"NVIDIA key"},
-        ];
+        return json({ config, "benchmarks": {
+          'zai-glm-5-3': { mmlu: 89.4, humaneval: 82.1, math: 79.3, speed: '~200ms', ctx: '1M', max_out: '32K', tools: 'web_search, thinking, vision, code, doc_ai' },
+          'mistral-large-4': { mmlu: 88.7, humaneval: 84.2, math: 77.8, speed: '~150ms', ctx: '1M', max_out: '32K', tools: 'web_search, vision, code, doc_ai, tts, stt' },
+          'gemini-3.8-flash': { mmlu: 87.2, humaneval: 79.4, math: 74.1, speed: '~400ms', ctx: '1M', max_out: '65K', tools: 'google_search, vision, code, tts, stt, live' },
+          'zai-glm-5-3-flash': { mmlu: 85.1, humaneval: 78.3, math: 71.2, speed: '~300ms', ctx: '1M', max_out: '32K', tools: 'web_search, vision, code, agentic' },
+          'mistral-medium-3.5': { mmlu: 86.3, humaneval: 81.7, math: 75.4, speed: '~180ms', ctx: '128K', max_out: '32K', tools: 'web_search, vision, code, agentic' },
+          'qwen-3.8-27b': { mmlu: 82.4, humaneval: 74.1, math: 68.9, speed: '~1850 tok/s', ctx: '128K', max_out: '32K', tools: 'none', cost: 'free tier (Cerebras)' },
+          'gpt-oss-120b': { mmlu: 83.1, humaneval: 76.2, math: 70.1, speed: '~3000 tok/s', ctx: '131K', max_out: '65K', tools: 'search+code', cost: 'free tier (Cerebras)' },
+          'openai/gpt-oss-20b': { mmlu: 78.3, humaneval: 68.4, math: 62.1, speed: '~1000 tok/s', ctx: '131K', max_out: '65K', tools: 'search+code', cost: '$0.075/1M (Groq)' },
+          'kimi-k2.5': { mmlu: 84.7, humaneval: 77.8, math: 72.3, speed: '~120ms', ctx: '262K', max_out: '32K', tools: 'function_calling', cost: '$0.45/1M' },
+          'deepseek-chat': { mmlu: 88.5, humaneval: 82.6, math: 78.9, speed: '~80ms', ctx: '1M', max_out: '32K', tools: 'web_search', cost: '$0.27/1M' },
+          'gemini-2.5-flash': { mmlu: 84.1, humaneval: 75.3, math: 69.8, speed: '~350ms', ctx: '1M', max_out: '65K', tools: 'google_search, code', cost: 'FREE' },
+          'mistral-small-4': { mmlu: 81.2, humaneval: 72.4, math: 65.7, speed: '~250ms', ctx: '128K', max_out: '32K', tools: 'web_search, code', cost: 'paid sub' },
+          'gemma-4': { mmlu: 79.8, humaneval: 70.1, math: 63.4, speed: '~300ms', ctx: '128K', max_out: '32K', tools: 'none', cost: 'FREE' },
+          'meta/llama-3.1-nemotron-ultra-253b-v1': { mmlu: 87.9, humaneval: 83.4, math: 76.2, speed: '~60ms', ctx: '128K', max_out: '32K', tools: 'function_calling', cost: 'NVIDIA key' },
+        };
         const models = body.models || [];
         if (!models.length) return json({ error: 'No models specified' }, 400, origin);
         const keyMap = {
