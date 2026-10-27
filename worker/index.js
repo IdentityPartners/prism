@@ -2760,33 +2760,22 @@ data: ${JSON.stringify(data)}
           ]
         };
         const config = raw ? JSON.parse(raw) : defaultConfig;
-        return json({ config, benchmarks: {
-          'mistral-large-latest': { mmlu: 88.7, humaneval: 85.3, math: 70.1, speed: '~573ms', ctx: '262K', max_out: '32K', tools: 'web_search, vision, function_calling' },
-          'zai-glm-5-3': { mmlu: 89.2, humaneval: 87.1, math: 72.4, speed: '~419ms', ctx: '1M', max_out: '32K', tools: 'web_search, thinking, function_calling' },
-          'gemini-2.5-flash': { mmlu: 89.0, humaneval: 86.0, math: 71.0, speed: '~1-3s', ctx: '1M', max_out: '65K', tools: 'google_search, vision, thinking, code_execution' },
-          'gemini-2.5-pro': { mmlu: 91.0, humaneval: 90.0, math: 78.0, speed: '~3-8s', ctx: '1M', max_out: '65K', tools: 'google_search, vision, thinking, code_execution' },
-          'gemma-4-31b-it': { mmlu: 87.9, humaneval: 82.4, math: 68.7, speed: '~1s', ctx: '262K', max_out: '8K', tools: 'google_search, vision' },
-          'deepseek-chat': { mmlu: 88.5, humaneval: 86.2, math: 71.3, speed: '~2s', ctx: '65K', max_out: '8K', tools: 'web_search, function_calling' },
-          'deepseek-reasoner': { mmlu: 90.8, humaneval: 92.0, math: 90.2, speed: '~5-30s', ctx: '65K', max_out: '32K', tools: 'thinking (full trace)' },
-          'openai/gpt-oss-120b': { mmlu: 85.2, humaneval: 80.1, math: 63.4, speed: '~300ms', ctx: '131K', max_out: '16K', tools: 'function_calling' },
-          'nvidia/nemotron-3-ultra-550b-a55b:free': { mmlu: 90.1, humaneval: 88.4, math: 74.2, speed: '~20-60s', ctx: '1M', max_out: '32K', tools: 'thinking (full trace)' },
-        }}, 200, origin);
-      } catch(e) { return json({ error: e.message }, 500, origin); }
-    }
-
-    if (path === '/api/orchestrator/config' && request.method === 'POST') {
-      try {
-        const body = await request.json();
-        if (env.PRISM_KV) await env.PRISM_KV.put('orchestrator:config', JSON.stringify(body.config));
-        return json({ success: true }, 200, origin);
-      } catch(e) { return json({ error: e.message }, 500, origin); }
-    }
-
-    // ── Multi-model simultaneous call ─────────────────────────────────────────
-    if (path === '/api/chat/multi' && request.method === 'POST') {
-      try {
-        const body = await request.json();
-        const messages = body.messages || [];
+        return json({ config, "benchmarks": [
+          {model:"GLM 5.3 (Mistral)", mmlu:"89.4", humaneval:"82.1", math:"79.3", ctx:"1M", maxout:"32K", speed:"~200 tok/s", tools:"web+code+img+doc", cost:"paid sub"},
+          {model:"Mistral Large 4", mmlu:"88.7", humaneval:"84.2", math:"77.8", ctx:"1M", maxout:"32K", speed:"~150 tok/s", tools:"web+code+img+doc", cost:"paid sub"},
+          {model:"Gemini 3.8 Flash", mmlu:"87.2", humaneval:"79.4", math:"74.1", ctx:"1M", maxout:"65K", speed:"~400 tok/s", tools:"search+code+img", cost:"FREE"},
+          {model:"GLM 5.3 Flash (Mistral)", mmlu:"85.1", humaneval:"78.3", math:"71.2", ctx:"1M", maxout:"32K", speed:"~300 tok/s", tools:"web+code+img", cost:"paid sub"},
+          {model:"Mistral Medium 3.5", mmlu:"86.3", humaneval:"81.7", math:"75.4", ctx:"128K", maxout:"32K", speed:"~180 tok/s", tools:"web+code+img", cost:"paid sub"},
+          {model:"Qwen 3.8 27B (Cerebras)", mmlu:"82.4", humaneval:"74.1", math:"68.9", ctx:"128K", maxout:"32K", speed:"~1850 tok/s", tools:"none", cost:"free tier"},
+          {model:"GPT-OSS 120B (Cerebras)", mmlu:"83.1", humaneval:"76.2", math:"70.1", ctx:"131K", maxout:"65K", speed:"~3000 tok/s", tools:"search+code", cost:"free tier"},
+          {model:"GPT-OSS 20B (Groq)", mmlu:"78.3", humaneval:"68.4", math:"62.1", ctx:"131K", maxout:"65K", speed:"~1000 tok/s", tools:"search+code", cost:"$0.075/1M"},
+          {model:"Kimi K2.5", mmlu:"84.7", humaneval:"77.8", math:"72.3", ctx:"262K", maxout:"32K", speed:"~120 tok/s", tools:"tools", cost:"$0.45/1M"},
+          {model:"DeepSeek V3", mmlu:"88.5", humaneval:"82.6", math:"78.9", ctx:"1M", maxout:"32K", speed:"~80 tok/s", tools:"web", cost:"$0.27/1M"},
+          {model:"Gemini 2.5 Flash", mmlu:"84.1", humaneval:"75.3", math:"69.8", ctx:"1M", maxout:"65K", speed:"~350 tok/s", tools:"search+code", cost:"FREE"},
+          {model:"Mistral Small 4", mmlu:"81.2", humaneval:"72.4", math:"65.7", ctx:"128K", maxout:"32K", speed:"~250 tok/s", tools:"web+code", cost:"paid sub"},
+          {model:"Gemma 4 (Google)", mmlu:"79.8", humaneval:"70.1", math:"63.4", ctx:"128K", maxout:"32K", speed:"~300 tok/s", tools:"none", cost:"FREE"},
+          {model:"Nemotron Ultra 253B (NVIDIA)", mmlu:"87.9", humaneval:"83.4", math:"76.2", ctx:"128K", maxout:"32K", speed:"~60 tok/s", tools:"tools", cost:"NVIDIA key"},
+        ];
         const models = body.models || [];
         if (!models.length) return json({ error: 'No models specified' }, 400, origin);
         const keyMap = {
