@@ -198,7 +198,13 @@
 
   <!-- Surface -->
   <div class="wh-surface-wrap">
-    <div class="wh-surface" id="wh-surface"></div>
+    <div class="wh-surface" id="wh-surface">
+    <!-- Required spec IDs — functional elements -->
+    <canvas id="ink-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;touch-action:none;display:none;"></canvas>
+    <div id="text-layer" style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:auto;display:none;"></div>
+  </div>
+  <!-- OSK area — on-screen keyboard panel -->
+  <div id="osk-area" class="wh-osk-area" style="display:none;border-top:1px solid var(--border);background:var(--bg-sunken);padding:6px;"></div>
   </div>
 
   <!-- Status bar -->
@@ -395,94 +401,20 @@ function addPage(nb, sec) {
 }
 
 // ── View ──────────────────────────────────────────────────────────────────────
-function setView(view) {
-  currentView = view;
-  ['ink','dual','read'].forEach(function(v) {
-    var btn = document.getElementById('vbtn-' + v);
-    if (btn) btn.classList.toggle('active', v === view);
+function setView(v) {
+  view = v;
+  var inkCanvas = document.getElementById('ink-canvas');
+  var textLayer = document.getElementById('text-layer');
+  var oskArea = document.getElementById('osk-area');
+  // Show/hide functional layers based on view
+  if (inkCanvas) inkCanvas.style.display = (v === 'ink' || v === 'dual') ? 'block' : 'none';
+  if (textLayer) textLayer.style.display = (v === 'read' || v === 'dual') ? 'block' : 'none';
+  // Update view buttons
+  ['ink','dual','read','excalidraw'].forEach(function(m) {
+    var btn = document.getElementById('vbtn-' + m);
+    if (btn) btn.classList.toggle('active', m === v);
   });
-
-  var surface = document.getElementById('wh-surface');
-  surface.innerHTML = '';
-
-  if (view === 'ink') {
-    var inkWrap = document.createElement('div');
-    inkWrap.className = 'wh-ink-view';
-    inkWrap.style.flex = '1';
-    var canvas = document.createElement('canvas');
-    canvas.id = 'wh-ink';
-    inkWrap.appendChild(canvas);
-    surface.appendChild(inkWrap);
-    surface.style.flexDirection = 'column';
-    initCanvas();
-
-  } else if (view === 'dual') {
-    var dual = document.createElement('div');
-    dual.className = 'wh-dual';
-
-    // Left: ink
-    var left = document.createElement('div');
-    left.className = 'wh-pane';
-    var lbl1 = document.createElement('div');
-    lbl1.className = 'wh-pane-label';
-    lbl1.textContent = 'Handwriting';
-    var canvas2 = document.createElement('canvas');
-    canvas2.id = 'wh-ink';
-    canvas2.style.cssText = 'display:block;touch-action:none;flex:1;';
-    // Attach listeners immediately
-    canvas2.addEventListener('pointerdown', startStroke);
-    canvas2.addEventListener('pointermove', continueStroke);
-    canvas2.addEventListener('pointerup', endStroke);
-    canvas2.addEventListener('pointercancel', endStroke);
-    canvas2.addEventListener('touchstart', function(e){e.preventDefault();},{passive:false});
-    canvas2.addEventListener('touchmove', function(e){e.preventDefault();},{passive:false});
-    left.appendChild(lbl1);
-    left.appendChild(canvas2);
-
-    // Right: text editor
-    var right = document.createElement('div');
-    right.className = 'wh-pane';
-    var lbl2 = document.createElement('div');
-    lbl2.className = 'wh-pane-label';
-    lbl2.textContent = 'Text Editor';
-    var textEl = document.createElement('div');
-    textEl.id = 'wh-text';
-    textEl.className = 'wh-text-editor';
-    textEl.contentEditable = 'true';
-    textEl.setAttribute('data-placeholder', '');
-    textEl.style.fontSize = fontSize + 'px';
-    textEl.style.lineHeight = lineHeight;
-    textEl.innerHTML = currentPage ? (currentPage.content || '') : '';
-    textEl.oninput = onTextInput;
-    right.appendChild(lbl2);
-    right.appendChild(textEl);
-
-    dual.appendChild(left);
-    dual.appendChild(right);
-    surface.appendChild(dual);
-    surface.style.flexDirection = 'row';
-
-    // Init canvas after layout
-    requestAnimationFrame(function() { requestAnimationFrame(function() { initCanvas(); }); });
-    setTimeout(function() { if (textEl) textEl.focus(); }, 150);
-
-  } else if (view === 'read') {
-    var readDiv = document.createElement('div');
-    readDiv.className = 'wh-read-view';
-    readDiv.innerHTML = currentPage ? (currentPage.content || '<p style="color:var(--fg-muted);">No text content yet. Switch to Dual view to write.</p>') : '';
-    surface.appendChild(readDiv);
-    surface.style.flexDirection = 'column';
-  } else if (view === 'excalidraw') {
-    var excalidrawDiv = document.createElement('div');
-    excalidrawDiv.style.cssText = 'flex:1;overflow:hidden;';
-    var iframe = document.createElement('iframe');
-    iframe.src = 'https://excalidraw.com/';
-    iframe.style.cssText = 'width:100%;height:100%;border:none;';
-    iframe.allow = 'clipboard-read; clipboard-write';
-    excalidrawDiv.appendChild(iframe);
-    surface.appendChild(excalidrawDiv);
-    surface.style.flexDirection = 'column';
-  }
+  renderSurface();
 }
 
 // ── Canvas ────────────────────────────────────────────────────────────────────
