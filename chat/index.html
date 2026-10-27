@@ -32,7 +32,9 @@
 <link href="/shared/prism.css" rel="stylesheet"/>
 <link href="/shared/themes.css" rel="stylesheet"/>
 <style>
-.chat-shell { display:flex; height:100vh; overflow:hidden; }
+/* Override prism.js sidebar offset for chat — chat manages its own layout */
+#main-content { padding: 0 !important; overflow: hidden !important; }
+.chat-shell { display:flex; height:100vh; height:100dvh; overflow:hidden; width:100%; }
 
 /* Conversation history panel */
 .conv-panel { width:240px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-surface); overflow:hidden; }
@@ -132,8 +134,7 @@
   overflow-y:auto;
   max-height:200px;
 }
-.osk-strip.show { display:block; }
-.osk-strip.show { display:block; }
+.osk-strip.show { display:flex; flex-direction:column; }
 
 /* Right panel */
 .chat-right { width:240px; flex-shrink:0; border-left:1px solid var(--border); display:flex !important; flex-direction:column; background:var(--bg-surface); overflow-y:auto; }
@@ -205,7 +206,7 @@
 <!-- Status bar -->
 <div class="chat-status-bar" id="chat-status-bar" style="display:none;">
 <span class="status-dot" id="status-dot"></span>
-<span id="status-text"></span>
+<span id="status-text" style="font-size:0.85rem;"></span>
 </div>
 <div class="chat-input-area">
 <div class="attach-strip" id="attach-strip"><span style="font-size:11px;color:var(--fg-muted);padding:2px 0;">📎 Click Attach to add files (PDF, DOCX, MD, TXT, CSV, images)</span></div>
