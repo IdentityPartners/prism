@@ -3939,6 +3939,44 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
     }
 
+
+    // ── KV generic get/set/delete (used by Study Hub and other modules) ───────────
+    if (path === '/api/kv/get' && request.method === 'GET') {
+      try {
+        const kvKey = url.searchParams.get('key') || '';
+        if (!kvKey) return json({error:'key required'}, 400, origin);
+        const value = env.PRISM_KV ? await env.PRISM_KV.get(kvKey) : null;
+        return json({key:kvKey, value:value, found:value !== null}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+    if (path === '/api/kv/set' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const kvKey = body.key || '';
+        const kvVal = body.value !== undefined ? (typeof body.value === 'string' ? body.value : JSON.stringify(body.value)) : '';
+        const ttl = body.ttl ? {expirationTtl: body.ttl} : {};
+        if (!kvKey) return json({error:'key required'}, 400, origin);
+        if (env.PRISM_KV) await env.PRISM_KV.put(kvKey, kvVal, ttl);
+        return json({success:true, key:kvKey}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+    if (path === '/api/kv/delete' && request.method === 'DELETE') {
+      try {
+        const kvKey = url.searchParams.get('key') || '';
+        if (!kvKey) return json({error:'key required'}, 400, origin);
+        if (env.PRISM_KV) await env.PRISM_KV.delete(kvKey);
+        return json({success:true, key:kvKey}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+    if (path === '/api/kv/list' && request.method === 'GET') {
+      try {
+        const prefix = url.searchParams.get('prefix') || '';
+        const limit = parseInt(url.searchParams.get('limit') || '50');
+        const list = env.PRISM_KV ? await env.PRISM_KV.list({prefix, limit}) : {keys:[]};
+        return json({keys: list.keys.map(function(k) { return k.name; }), complete: list.list_complete}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
     return json({ error: 'Not found', path }, 404, origin);
   },
 
