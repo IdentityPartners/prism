@@ -154,7 +154,7 @@ function startDebate() {
   
   var msgs = document.getElementById('debate-messages');
   msgs.innerHTML = '';
-  addDebateMsg('moderator', 'Moderator', 'Welcome to the Debate Society. Today's topic: "' + debateTopic + '". Let us begin with opening statements.');
+  addDebateMsg('moderator', 'Moderator', 'Welcome to the Debate Society. Topic: "' + debateTopic + '". Let us begin with opening statements.');
   
   // Get opening statements from all non-moderator personas
   runDebateRound('opening statement');
@@ -233,7 +233,7 @@ function addUserContribution() {
   addDebateMsg('user', 'Simon', text);
   debateHistory.push({role:'user',content:'Simon says: '+text});
   // Get responses from all personas
-  runDebateRound('respond to Simon's contribution: "'+text+'"');
+  runDebateRound('respond to the contribution: "'+text+'"');
 }
 
 function addDebateMsg(cls, name, text) {
@@ -261,8 +261,8 @@ function clearDebate() {
 function exportDebate() {
   var lines = ['# Debate: ' + debateTopic, ''];
   debateHistory.forEach(function(h){lines.push(h.content);lines.push('');});
-  var blob = new Blob([lines.join('
-')],{type:'text/markdown'});
+  var blob = new Blob([lines.join('')],{type:'text/markdown'});
+
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'debate-' + debateTopic.substring(0,30).replace(/\s+/g,'-') + '.md';
