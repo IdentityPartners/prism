@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Document Viewer - Argentica</title>
+<title>Document Viewer &mdash; Argentica</title>
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -14,13 +14,13 @@
 .viewer-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
 .viewer-hdr{padding:8px 14px;border-bottom:1px solid var(--border);background:var(--bg-elevated);display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;}
 .viewer-hdr h2{font-size:14px;font-weight:700;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.vt-btn{padding:5px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);font-family:inherit;}
+.vt-btn{padding:5px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);font-family:inherit;transition:all 0.15s;}
 .vt-btn:hover{border-color:var(--accent);color:var(--accent);}
 .pdf-controls{padding:5px 14px;border-bottom:1px solid var(--border);background:var(--bg-elevated);display:none;align-items:center;gap:8px;flex-shrink:0;font-size:12px;}
 .doc-pane{flex:1;overflow-y:auto;padding:20px 40px;background:var(--bg);}
 .doc-pane.pdf-mode{padding:10px;background:#525659;display:flex;flex-direction:column;align-items:center;}
 .doc-content{max-width:800px;margin:0 auto;font-size:16px;line-height:1.75;color:var(--fg);}
-.doc-content h1{font-size:26px;font-weight:700;margin:20px 0 10px;}
+.doc-content h1{font-size:26px;font-weight:700;margin:20px 0 10px;font-family:var(--font-heading,Georgia,serif);}
 .doc-content h2{font-size:20px;font-weight:700;margin:16px 0 8px;}
 .doc-content h3{font-size:16px;font-weight:600;margin:12px 0 6px;}
 .doc-content p{margin:0 0 10px;}
@@ -44,11 +44,9 @@
 .ai-msg{padding:7px 9px;border-radius:8px;font-size:12px;line-height:1.5;margin-bottom:6px;}
 .ai-msg.user{background:var(--accent);color:#fff;}
 .ai-msg.assistant{background:var(--bg-elevated);border:1px solid var(--border);color:var(--fg);}
-.viewer-options{background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:10px;padding:16px;margin-bottom:16px;}
-.viewer-btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
-.viewer-option-btn{padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:600;text-decoration:none;display:inline-block;}
 .tts-bar{padding:6px 14px;border-top:1px solid var(--border);background:var(--bg-elevated);display:none;align-items:center;gap:8px;font-size:12px;flex-shrink:0;}
 .empty-state{text-align:center;padding:60px 20px;color:var(--fg-muted);}
+.empty-state .icon{font-size:48px;margin-bottom:12px;}
 </style>
 </head>
 <body>
@@ -62,18 +60,18 @@
     <div style="display:flex;gap:5px;flex-wrap:wrap;">
       <button class="vt-btn" onclick="zoomIn()">+ Zoom</button>
       <button class="vt-btn" onclick="zoomOut()">- Zoom</button>
-      <button class="vt-btn" onclick="readAloudDoc()">Read Aloud</button>
-      <button class="vt-btn" id="stop-btn" onclick="stopReading()" style="display:none;">Stop</button>
-      <button class="vt-btn" onclick="exportAnnotations()">Export Notes</button>
-      <button class="vt-btn" onclick="window.history.back()">Close</button>
+      <button class="vt-btn" onclick="readAloudDoc()">&#x1F50A; Read</button>
+      <button class="vt-btn" id="stop-btn" onclick="stopReading()" style="display:none;">&#x23F9; Stop</button>
+      <button class="vt-btn" onclick="exportAnnotations()">&#x2B07; Notes</button>
+      <button class="vt-btn" onclick="window.history.back()">&#x2715; Close</button>
     </div>
   </div>
   <div class="pdf-controls" id="pdf-controls">
-    <button class="vt-btn" onclick="prevPage()">Prev</button>
+    <button class="vt-btn" onclick="prevPage()">&#x2039; Prev</button>
     <span>Page</span>
     <input type="number" id="page-num" value="1" min="1" style="width:50px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;text-align:center;background:var(--bg);color:var(--fg);" onchange="goToPage(parseInt(this.value))">
     <span id="page-total">of ?</span>
-    <button class="vt-btn" onclick="nextPage()">Next</button>
+    <button class="vt-btn" onclick="nextPage()">Next &#x203A;</button>
     <div style="flex:1;"></div>
     <label style="font-size:11px;">Zoom:</label>
     <input type="range" min="50" max="200" value="100" id="pdf-zoom" style="width:80px;" oninput="setPdfZoom(parseInt(this.value))">
@@ -81,7 +79,7 @@
   </div>
   <div class="doc-pane" id="doc-pane">
     <div class="empty-state">
-      <div style="font-size:48px;margin-bottom:12px;">&#x1F4C4;</div>
+      <div class="icon">&#x1F4C4;</div>
       <div style="font-size:15px;font-weight:600;margin-bottom:8px;">No document loaded</div>
       <div style="font-size:13px;">Open from Study Hub by clicking a resource.</div>
     </div>
@@ -94,13 +92,14 @@
       <option value="aura-asteria-en">Asteria (Female)</option>
       <option value="aura-luna-en">Luna (Female, warm)</option>
     </select>
-    <button class="vt-btn" onclick="stopReading()">Stop</button>
+    <button class="vt-btn" onclick="stopReading()">&#x23F9; Stop</button>
   </div>
 </div>
 <div class="annot-panel">
-  <div class="annot-hdr"><span>Notes</span><span id="annot-count" style="font-size:10px;color:var(--fg-muted);">0</span></div>
+  <div class="annot-hdr"><span>&#x1F4DD; Annotations</span><span id="annot-count" style="font-size:10px;color:var(--fg-muted);">0</span></div>
   <div class="annot-tabs">
     <div class="annot-tab active" onclick="switchAnnotTab('notes',this)">Notes</div>
+    <div class="annot-tab" onclick="switchAnnotTab('draw',this)">&#x270F; Draw</div>
     <div class="annot-tab" onclick="switchAnnotTab('ai',this)">Ask AI</div>
   </div>
   <div class="annot-body" id="annot-body"><div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">No annotations yet.</div></div>
@@ -116,13 +115,17 @@
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
 var docData = null;
 var annotations = [];
-var currentAnnotTab = 'notes';
 var pdfDoc = null;
 var pdfPage = 1;
 var pdfZoom = 1.0;
 var ttsAudio = null;
-var zoom = 1.0;
 var aiHistory = [];
+var hwStrokes = [];
+var hwCurrent = null;
+var hwDrawing = false;
+var hwTool = 'pen';
+var hwColor = '#dc2626';
+var hwSize = 3;
 
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
@@ -139,24 +142,23 @@ document.addEventListener('DOMContentLoaded', function() {
   var name = params.get('name');
   var type = params.get('type');
   var url = params.get('url');
-  if (id || url || name) {
-    loadDocumentFromParams(id, name, type, url);
-  }
+  if (id || url || name) loadDocumentFromParams(id, name, type, url);
   window.addEventListener('message', function(e) {
     if (e.data && e.data.type === 'load-document') loadDocument(e.data.doc);
   });
 });
 
 function loadDocumentFromParams(id, name, type, url) {
+  // Try localStorage (Study Hub)
   try {
     var modules = JSON.parse(localStorage.getItem('study:modules') || '[]');
     for (var i = 0; i < modules.length; i++) {
       var m = modules[i];
-      for (var j = 0; j < (m.weeks||[]).length; j++) {
+      for (var j = 0; j < (m.weeks || []).length; j++) {
         var w = m.weeks[j];
-        for (var k = 0; k < (w.resources||[]).length; k++) {
+        for (var k = 0; k < (w.resources || []).length; k++) {
           var res = w.resources[k];
-          if (res.id === id || res.name === decodeURIComponent(name||'')) {
+          if (res.id === id || res.name === decodeURIComponent(name || '')) {
             loadDocument(res);
             return;
           }
@@ -164,62 +166,42 @@ function loadDocumentFromParams(id, name, type, url) {
       }
     }
   } catch(e) {}
+  // Try sessionStorage
   if (id) {
     try {
       var stored = sessionStorage.getItem('doc-viewer-content-' + id);
       if (stored) {
-        loadDocument({id:id, name:decodeURIComponent(name||'Document'), type:type||'', content:stored, url:url?decodeURIComponent(url):null});
+        loadDocument({id: id, name: decodeURIComponent(name || 'Document'), type: type || '', content: stored, url: url ? decodeURIComponent(url) : null});
         return;
       }
     } catch(e) {}
   }
   if (url) {
     var decodedUrl = decodeURIComponent(url);
-    var decodedName = decodeURIComponent(name||'Document');
+    var decodedName = decodeURIComponent(name || 'Document');
     var ext = decodedName.split('.').pop().toLowerCase();
-    loadDocument({id:id||'doc', name:decodedName, type:type||ext, url:decodedUrl, content:''});
+    loadDocument({id: id || 'doc', name: decodedName, type: type || ext, url: decodedUrl, content: ''});
   } else if (name) {
     document.getElementById('doc-title').textContent = decodeURIComponent(name);
-    showViewerOptions({name:decodeURIComponent(name), url:'', type:type||''}, 'Document');
+    showViewerOptions({name: decodeURIComponent(name), url: '', type: type || ''});
   }
-}
-
-function isBinaryContent(content) {
-  if (!content || content.length < 50) return false;
-  if (content.startsWith('data:')) return false;
-  var sample = content.substring(0, 500);
-  var binaryChars = 0;
-  for (var i = 0; i < sample.length; i++) {
-    var code = sample.charCodeAt(i);
-    if (code < 32 && code !== 10 && code !== 13 && code !== 9) binaryChars++;
-  }
-  return binaryChars > sample.length * 0.05;
 }
 
 function loadDocument(doc) {
   docData = doc;
   document.getElementById('doc-title').textContent = doc.name || 'Document';
   loadAnnotations(doc.id);
-  var ext = (doc.name||'').split('.').pop().toLowerCase();
+  var ext = (doc.name || '').split('.').pop().toLowerCase();
   var type = doc.type || ext;
-  var binary = isBinaryContent(doc.content);
-  if (type === 'pdf' || ext === 'pdf') {
-    renderPDF(doc);
-  } else if ((type === 'docx' || type === 'doc' || ext === 'docx' || ext === 'doc') && !binary) {
-    renderDOCX(doc);
-  } else if (type === 'pptx' || type === 'ppt' || ext === 'pptx' || ext === 'ppt' || binary) {
-    showViewerOptions(doc, doc.name || 'Office Document');
-  } else if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
-    showViewerOptions(doc, doc.name || 'Spreadsheet');
-  } else if (ext === 'md' || type === 'md') {
-    renderMarkdown(doc);
-  } else if (doc.url) {
-    showViewerOptions(doc, doc.name || 'Document');
-  } else if (doc.content) {
-    renderText(doc);
-  } else {
-    showViewerOptions(doc, doc.name || 'Document');
-  }
+  var isBinary = doc.content && doc.content.length > 50 &&
+    doc.content.split('').filter(function(c) { var code = c.charCodeAt(0); return code < 32 && code !== 10 && code !== 13 && code !== 9; }).length > doc.content.length * 0.05;
+  if (type === 'pdf' || ext === 'pdf') renderPDF(doc);
+  else if ((type === 'docx' || type === 'doc' || ext === 'docx' || ext === 'doc') && !isBinary) renderDOCX(doc);
+  else if (isBinary || type === 'pptx' || type === 'ppt' || ext === 'pptx' || ext === 'ppt' || ext === 'xlsx' || ext === 'xls') showViewerOptions(doc);
+  else if (ext === 'md' || type === 'md') renderMarkdown(doc);
+  else if (doc.url) showViewerOptions(doc);
+  else if (doc.content) renderText(doc);
+  else showViewerOptions(doc);
 }
 
 function renderPDF(doc) {
@@ -236,21 +218,16 @@ function renderPDF(doc) {
     src = {data: bytes};
   } else if (doc.url) {
     src = doc.url;
-  } else {
-    showViewerOptions(doc, 'PDF');
-    return;
-  }
+  } else { showViewerOptions(doc); return; }
   if (typeof pdfjsLib === 'undefined') {
-    pane.innerHTML = '<div style="color:#fff;text-align:center;padding:40px;">PDF.js not loaded. Try refreshing.</div>';
+    pane.innerHTML = '<div style="color:#fff;text-align:center;padding:40px;">PDF.js not loaded. Refresh and try again.</div>';
     return;
   }
   pdfjsLib.getDocument(src).promise.then(function(pdf) {
     pdfDoc = pdf;
     document.getElementById('page-total').textContent = 'of ' + pdf.numPages;
     renderPDFPage(1);
-  }).catch(function(e) {
-    showViewerOptions(doc, 'PDF');
-  });
+  }).catch(function(e) { showViewerOptions(doc); });
 }
 
 function renderPDFPage(num) {
@@ -267,30 +244,30 @@ function renderPDFPage(num) {
     var pane = document.getElementById('doc-pane');
     pane.innerHTML = '';
     pane.appendChild(canvas);
-    page.render({canvasContext:ctx, viewport:viewport});
+    page.render({canvasContext: ctx, viewport: viewport});
   });
 }
 
-function prevPage(){renderPDFPage(pdfPage-1);}
-function nextPage(){renderPDFPage(pdfPage+1);}
-function goToPage(n){renderPDFPage(n);}
-function setPdfZoom(pct){pdfZoom=pct/100;document.getElementById('pdf-zoom-label').textContent=pct+'%';renderPDFPage(pdfPage);}
+function prevPage() { renderPDFPage(pdfPage - 1); }
+function nextPage() { renderPDFPage(pdfPage + 1); }
+function goToPage(n) { renderPDFPage(n); }
+function setPdfZoom(pct) { pdfZoom = pct / 100; document.getElementById('pdf-zoom-label').textContent = pct + '%'; renderPDFPage(pdfPage); }
 
 function renderDOCX(doc) {
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane';
-  if (!doc.content || doc.content.length < 10) { showViewerOptions(doc, 'Word Document'); return; }
+  if (!doc.content || doc.content.length < 10) { showViewerOptions(doc); return; }
   if (doc.content.startsWith('data:')) {
-    if (typeof mammoth === 'undefined') { showViewerOptions(doc, 'Word Document'); return; }
+    if (typeof mammoth === 'undefined') { showViewerOptions(doc); return; }
     var b64 = doc.content.split(',')[1];
     var binary = atob(b64);
     var bytes = new Uint8Array(binary.length);
     for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    mammoth.convertToHtml({arrayBuffer:bytes.buffer}).then(function(result) {
+    mammoth.convertToHtml({arrayBuffer: bytes.buffer}).then(function(result) {
       pane.innerHTML = '<div class="doc-content">' + result.value + '</div>';
-    }).catch(function(){showViewerOptions(doc,'Word Document');});
+    }).catch(function() { showViewerOptions(doc); });
   } else {
-    pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;font-size:15px;line-height:1.7;">' + doc.content.replace(/</g,'&lt;') + '</pre></div>';
+    pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;font-size:15px;line-height:1.7;">' + doc.content.replace(/</g, '&lt;') + '</pre></div>';
   }
 }
 
@@ -301,72 +278,66 @@ function renderMarkdown(doc) {
   if (typeof marked !== 'undefined') {
     pane.innerHTML = '<div class="doc-content">' + marked.parse(content) + '</div>';
   } else {
-    pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;">' + content.replace(/</g,'&lt;') + '</pre></div>';
+    pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;">' + content.replace(/</g, '&lt;') + '</pre></div>';
   }
 }
 
 function renderText(doc) {
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane';
-  pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;font-size:15px;line-height:1.7;">' + (doc.content||'').replace(/</g,'&lt;') + '</pre></div>';
+  pane.innerHTML = '<div class="doc-content"><pre style="white-space:pre-wrap;font-size:15px;line-height:1.7;">' + (doc.content || '').replace(/</g, '&lt;') + '</pre></div>';
 }
 
-function showViewerOptions(doc, label) {
+function showViewerOptions(doc) {
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane';
   var card = document.createElement('div');
-  card.className = 'viewer-options';
+  card.style.cssText = 'background:rgba(45,106,159,0.08);border:1px solid rgba(45,106,159,0.2);border-radius:10px;padding:16px;margin-bottom:16px;';
   var titleEl = document.createElement('div');
   titleEl.style.cssText = 'font-size:16px;font-weight:700;margin-bottom:6px;';
-  titleEl.textContent = (doc.name || label);
+  titleEl.textContent = '\uD83D\uDCC4 ' + (doc ? doc.name || 'Document' : 'Document');
   var descEl = document.createElement('div');
-  descEl.style.cssText = 'font-size:13px;color:var(--fg-muted);margin-bottom:10px;';
+  descEl.style.cssText = 'font-size:13px;color:var(--fg-muted);margin-bottom:12px;';
   descEl.textContent = 'Choose a viewer:';
   card.appendChild(titleEl);
   card.appendChild(descEl);
   var btnRow = document.createElement('div');
-  btnRow.className = 'viewer-btn-row';
-  if (doc.url) {
+  btnRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
+  if (doc && doc.url) {
     var gdBtn = document.createElement('a');
     gdBtn.href = 'https://docs.google.com/viewer?url=' + encodeURIComponent(doc.url) + '&embedded=true';
     gdBtn.target = '_blank';
-    gdBtn.className = 'viewer-option-btn';
-    gdBtn.style.cssText = 'background:#4285f4;color:#fff;';
+    gdBtn.style.cssText = 'padding:8px 14px;background:#4285f4;color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;';
     gdBtn.textContent = 'Google Docs Viewer';
     var offBtn = document.createElement('a');
     offBtn.href = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(doc.url);
     offBtn.target = '_blank';
-    offBtn.className = 'viewer-option-btn';
-    offBtn.style.cssText = 'background:#d83b01;color:#fff;';
+    offBtn.style.cssText = 'padding:8px 14px;background:#d83b01;color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;';
     offBtn.textContent = 'Office Online';
     var directBtn = document.createElement('a');
     directBtn.href = doc.url;
     directBtn.target = '_blank';
-    directBtn.className = 'viewer-option-btn';
-    directBtn.style.cssText = 'background:var(--accent);color:#fff;';
-    directBtn.textContent = 'Open directly';
+    directBtn.style.cssText = 'padding:8px 14px;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;';
+    directBtn.textContent = '\u2197 Open directly';
     var embedBtn = document.createElement('button');
-    embedBtn.className = 'viewer-option-btn';
-    embedBtn.style.cssText = 'background:var(--bg);color:var(--fg);border:1px solid var(--border);cursor:pointer;';
-    embedBtn.textContent = 'Embed viewer';
-    embedBtn.onclick = (function(u){return function(){loadInFrame('https://docs.google.com/viewer?url='+encodeURIComponent(u)+'&embedded=true');};})(doc.url);
+    embedBtn.style.cssText = 'padding:8px 14px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;';
+    embedBtn.textContent = '\uD83D\uDDA5 Embed viewer';
+    embedBtn.onclick = (function(u) { return function() { loadInFrame('https://docs.google.com/viewer?url=' + encodeURIComponent(u) + '&embedded=true'); }; })(doc.url);
     btnRow.appendChild(gdBtn);
     btnRow.appendChild(offBtn);
     btnRow.appendChild(directBtn);
     btnRow.appendChild(embedBtn);
+    // Upload to OneDrive for better rendering
+    var odBtn = document.createElement('button');
+    odBtn.style.cssText = 'padding:8px 14px;background:#0078d4;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;';
+    odBtn.textContent = '\u2601 Upload to OneDrive';
+    odBtn.onclick = function() { uploadToOneDrive(doc); };
+    btnRow.appendChild(odBtn);
   } else {
     var noUrl = document.createElement('div');
-    noUrl.style.cssText = 'font-size:13px;color:var(--fg-muted);margin-bottom:10px;';
-    noUrl.textContent = 'No public URL. Upload to Macro to get a shareable link:';
+    noUrl.style.cssText = 'font-size:13px;color:var(--fg-muted);';
+    noUrl.textContent = 'No public URL. Add a URL when uploading to use external viewers.';
     btnRow.appendChild(noUrl);
-    if (doc.content) {
-      var macroBtn = document.createElement('button');
-      macroBtn.className = 'viewer-option-btn';
-      macroBtn.style.cssText = 'background:#1a1a2e;color:#fff;cursor:pointer;border:none;';
-      macroBtn.textContent = 'Upload to Macro & View';
-      macroBtn.onclick = (function(d){return function(){uploadToMacro(d);};})(doc);
-      btnRow.appendChild(macroBtn);
-    }
   }
   card.appendChild(btnRow);
   pane.appendChild(card);
@@ -384,19 +355,47 @@ function loadInFrame(url) {
   pane.appendChild(iframe);
 }
 
+function uploadToOneDrive(doc) {
+  if (!doc || !doc.content) { alert('No content to upload.'); return; }
+  var b64 = doc.content.startsWith('data:') ? doc.content.split(',')[1] : btoa(doc.content);
+  fetch(WORKER + '/api/onedrive/upload', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({fileName: doc.name, content: b64, folder: 'Argentica/Study'})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.shareUrl) {
+      doc.url = d.shareUrl;
+      showViewerOptions(doc);
+      alert('Uploaded to OneDrive. Click Office Online to view.');
+    } else {
+      alert('Upload failed: ' + (d.error || 'Unknown'));
+    }
+  })
+  .catch(function(e) { alert('Error: ' + e.message); });
+}
+
+// ── Annotations ───────────────────────────────────────────────────────────────
 function loadAnnotations(docId) {
-  try { annotations = JSON.parse(localStorage.getItem('annot:'+docId)||'[]'); } catch(e){annotations=[];}
+  try { annotations = JSON.parse(localStorage.getItem('annot:' + docId) || '[]'); } catch(e) { annotations = []; }
   renderAnnotations();
 }
 function saveAnnotations() {
   if (!docData) return;
-  try { localStorage.setItem('annot:'+docData.id, JSON.stringify(annotations)); } catch(e){}
+  try { localStorage.setItem('annot:' + docData.id, JSON.stringify(annotations)); } catch(e) {}
+  // Also save to KV
+  fetch(WORKER + '/api/kv/set', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({key: 'annot:' + docData.id, value: JSON.stringify(annotations)})
+  }).catch(function() {});
 }
 function addNote() {
   var inp = document.getElementById('annot-input');
   var note = inp ? inp.value.trim() : '';
   if (!note) return;
-  annotations.push({id:'n-'+Date.now(),type:'note',note:note,created:new Date().toISOString()});
+  annotations.push({id: 'n-' + Date.now(), type: 'note', note: note, created: new Date().toISOString()});
   if (inp) inp.value = '';
   saveAnnotations();
   renderAnnotations();
@@ -413,28 +412,31 @@ function renderAnnotations() {
     div.textContent = a.note || '';
     var meta = document.createElement('div');
     meta.style.cssText = 'font-size:10px;color:var(--fg-muted);margin-top:4px;';
-    meta.textContent = new Date(a.created).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    meta.textContent = new Date(a.created).toLocaleString('en-GB', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
     div.appendChild(meta);
     body.appendChild(div);
   });
 }
 function exportAnnotations() {
-  var lines = ['# Annotations: '+(docData?docData.name:'Document'),''];
-  annotations.forEach(function(a){lines.push(a.note||'');lines.push('');});
-  var blob = new Blob([lines.join('\n')],{type:'text/markdown'});
+  var lines = ['# Annotations: ' + (docData ? docData.name : 'Document'), ''];
+  annotations.forEach(function(a) { lines.push(a.note || ''); lines.push(''); });
+  var blob = new Blob([lines.join('\n')], {type: 'text/markdown'});
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = (docData?docData.name:'doc')+'-notes.md';
+  a.download = (docData ? docData.name : 'doc') + '-notes.md';
   a.click();
 }
 function switchAnnotTab(tab, btn) {
-  currentAnnotTab = tab;
-  document.querySelectorAll('.annot-tab').forEach(function(t){t.classList.remove('active');});
+  document.querySelectorAll('.annot-tab').forEach(function(t) { t.classList.remove('active'); });
   if (btn) btn.classList.add('active');
   var addArea = document.getElementById('annot-add');
+  var body = document.getElementById('annot-body');
   if (tab === 'ai') {
     if (addArea) addArea.innerHTML = '<textarea class="annot-ta" id="annot-input" placeholder="Ask about this document..."></textarea><button class="annot-send" onclick="sendAI()">Ask</button>';
     renderAIChat();
+  } else if (tab === 'draw') {
+    if (addArea) addArea.innerHTML = '<div style="display:flex;gap:4px;flex-wrap:wrap;padding:6px 0;"><button onclick="hwSetTool(\'pen\')" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;background:var(--bg);">Pen</button><button onclick="hwSetTool(\'hi\')" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;background:rgba(255,220,0,0.3);">Highlight</button><button onclick="hwSetTool(\'erase\')" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:11px;background:var(--bg);">Erase</button><button onclick="hwClear()" style="padding:3px 8px;border:1px solid #dc2626;border-radius:4px;cursor:pointer;font-size:11px;color:#dc2626;background:var(--bg);">Clear</button><button onclick="hwSave()" style="padding:3px 8px;border:1px solid var(--accent);border-radius:4px;cursor:pointer;font-size:11px;color:var(--accent);background:var(--bg);">Save</button></div>';
+    initHWCanvas();
   } else {
     if (addArea) addArea.innerHTML = '<textarea class="annot-ta" id="annot-input" placeholder="Add a note..."></textarea><button class="annot-send" onclick="addNote()">Add Note</button>';
     renderAnnotations();
@@ -457,14 +459,75 @@ function sendAI() {
   var text = inp ? inp.value.trim() : '';
   if (!text) return;
   if (inp) inp.value = '';
-  aiHistory.push({role:'user',content:text});
+  aiHistory.push({role: 'user', content: text});
   renderAIChat();
   var docCtx = docData ? 'Document: ' + docData.name + '. ' : '';
-  fetch(WORKER+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'system',content:'You are a study assistant. '+docCtx+'British English. Be precise.'},{role:'user',content:text}],profile:'balanced'})})
-  .then(function(r){return r.json();})
-  .then(function(d){aiHistory.push({role:'assistant',content:d.content||'No response.'});renderAIChat();})
-  .catch(function(e){aiHistory.push({role:'assistant',content:'Error: '+e.message});renderAIChat();});
+  fetch(WORKER + '/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({messages: [{role: 'system', content: 'You are a study assistant. ' + docCtx + 'British English. Be precise.'}, {role: 'user', content: text}], profile: 'balanced'})})
+    .then(function(r) { return r.json(); })
+    .then(function(d) { aiHistory.push({role: 'assistant', content: d.content || 'No response.'}); renderAIChat(); })
+    .catch(function(e) { aiHistory.push({role: 'assistant', content: 'Error: ' + e.message}); renderAIChat(); });
 }
+
+// ── Handwriting annotations ───────────────────────────────────────────────────
+function initHWCanvas() {
+  var body = document.getElementById('annot-body');
+  body.innerHTML = '';
+  var canvas = document.createElement('canvas');
+  canvas.id = 'hw-annot-canvas';
+  canvas.style.cssText = 'width:100%;height:200px;border:1px solid var(--border);border-radius:6px;cursor:crosshair;touch-action:none;background:#fff;';
+  canvas.width = 240;
+  canvas.height = 200;
+  body.appendChild(canvas);
+  canvas.addEventListener('pointerdown', hwStart);
+  canvas.addEventListener('pointermove', hwMove);
+  canvas.addEventListener('pointerup', hwEnd);
+  canvas.addEventListener('pointercancel', hwEnd);
+  hwRedraw();
+}
+function hwPos(e) {
+  var c = document.getElementById('hw-annot-canvas');
+  if (!c) return {x: 0, y: 0};
+  var r = c.getBoundingClientRect();
+  return {x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height)};
+}
+function hwStart(e) { e.preventDefault(); hwDrawing = true; hwCurrent = {tool: hwTool, col: hwColor, sz: hwSize, pts: [hwPos(e)]}; }
+function hwMove(e) { if (!hwDrawing || !hwCurrent) return; e.preventDefault(); hwCurrent.pts.push(hwPos(e)); hwDrawStroke(hwCurrent, true); }
+function hwEnd(e) { if (!hwDrawing || !hwCurrent) return; hwDrawing = false; if (hwCurrent.pts.length > 1) hwStrokes.push(hwCurrent); hwCurrent = null; }
+function hwDrawStroke(stroke, inc) {
+  var c = document.getElementById('hw-annot-canvas');
+  if (!c) return;
+  var ctx = c.getContext('2d');
+  if (!inc) ctx.clearRect(0, 0, c.width, c.height);
+  if (!stroke.pts || stroke.pts.length < 2) return;
+  ctx.save();
+  if (stroke.tool === 'erase') { ctx.globalCompositeOperation = 'destination-out'; ctx.strokeStyle = 'rgba(0,0,0,1)'; ctx.lineWidth = stroke.sz * 4; }
+  else if (stroke.tool === 'hi') { ctx.strokeStyle = 'rgba(255,220,0,0.4)'; ctx.lineWidth = stroke.sz * 6; ctx.lineCap = 'square'; }
+  else { ctx.strokeStyle = stroke.col; ctx.lineWidth = stroke.sz; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; }
+  ctx.beginPath();
+  ctx.moveTo(stroke.pts[0].x, stroke.pts[0].y);
+  for (var i = 1; i < stroke.pts.length; i++) ctx.lineTo(stroke.pts[i].x, stroke.pts[i].y);
+  ctx.stroke();
+  ctx.restore();
+}
+function hwRedraw() {
+  var c = document.getElementById('hw-annot-canvas');
+  if (!c) return;
+  var ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, c.width, c.height);
+  hwStrokes.forEach(function(s) { hwDrawStroke(s, false); });
+}
+function hwSetTool(t) { hwTool = t; }
+function hwClear() { hwStrokes = []; hwRedraw(); }
+function hwSave() {
+  var c = document.getElementById('hw-annot-canvas');
+  if (!c) return;
+  var dataUrl = c.toDataURL('image/png');
+  annotations.push({id: 'hw-' + Date.now(), type: 'drawing', dataUrl: dataUrl, created: new Date().toISOString()});
+  saveAnnotations();
+  alert('Handwriting annotation saved.');
+}
+
+// ── TTS ───────────────────────────────────────────────────────────────────────
 function readAloudDoc() {
   var pane = document.getElementById('doc-pane');
   var text = pane.innerText || pane.textContent || '';
@@ -473,52 +536,21 @@ function readAloudDoc() {
   document.getElementById('tts-bar').style.display = 'flex';
   document.getElementById('tts-status').textContent = 'Generating audio...';
   document.getElementById('stop-btn').style.display = 'inline-block';
-  fetch(WORKER+'/api/tts/read',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text.substring(0,5000),voice:voice,provider:'deepgram'})})
-  .then(function(r){if(!r.ok)throw new Error('TTS failed');return r.blob();})
-  .then(function(blob){
-    if (ttsAudio){ttsAudio.pause();ttsAudio=null;}
-    ttsAudio = new Audio(URL.createObjectURL(blob));
-    ttsAudio.play();
-    document.getElementById('tts-status').textContent = 'Playing...';
-    ttsAudio.onended = function(){document.getElementById('tts-status').textContent='Done';document.getElementById('stop-btn').style.display='none';};
-  })
-  .catch(function(e){document.getElementById('tts-status').textContent='Error: '+e.message;document.getElementById('stop-btn').style.display='none';});
-}
-function stopReading(){if(ttsAudio){ttsAudio.pause();ttsAudio=null;}document.getElementById('tts-status').textContent='Stopped';document.getElementById('stop-btn').style.display='none';}
-function zoomIn(){zoom=Math.min(zoom+0.1,2.0);var c=document.querySelector('.doc-content');if(c)c.style.fontSize=Math.round(16*zoom)+'px';}
-function zoomOut(){zoom=Math.max(zoom-0.1,0.5);var c=document.querySelector('.doc-content');if(c)c.style.fontSize=Math.round(16*zoom)+'px';}
-
-
-function uploadToMacro(doc) {
-  var btn = event.target;
-  if (btn) { btn.textContent = 'Uploading...'; btn.disabled = true; }
-  fetch(WORKER + '/api/macro/upload', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      fileName: doc.name || 'document',
-      content: doc.content || '',
-      mimeType: 'text/plain'
+  fetch(WORKER + '/api/tts/read', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text: text.substring(0, 5000), voice: voice, provider: 'deepgram'})})
+    .then(function(r) { if (!r.ok) throw new Error('TTS failed: ' + r.status); return r.blob(); })
+    .then(function(blob) {
+      if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; }
+      ttsAudio = new Audio(URL.createObjectURL(blob));
+      ttsAudio.play();
+      document.getElementById('tts-status').textContent = 'Playing...';
+      ttsAudio.onended = function() { document.getElementById('tts-status').textContent = 'Done'; document.getElementById('stop-btn').style.display = 'none'; };
     })
-  })
-  .then(function(r){return r.json();})
-  .then(function(d){
-    if (d.url) {
-      // Now we have a public URL — load in Google Docs viewer
-      loadInFrame('https://docs.google.com/viewer?url=' + encodeURIComponent(d.url) + '&embedded=true');
-    } else if (d.id) {
-      // Macro doc created — open it
-      window.open('https://macro.com/app/docs/' + d.id, '_blank');
-    } else {
-      alert('Upload failed: ' + (d.error || 'Unknown error'));
-      if (btn) { btn.textContent = 'Upload to Macro & View'; btn.disabled = false; }
-    }
-  })
-  .catch(function(e){
-    alert('Error: ' + e.message);
-    if (btn) { btn.textContent = 'Upload to Macro & View'; btn.disabled = false; }
-  });
+    .catch(function(e) { document.getElementById('tts-status').textContent = 'Error: ' + e.message; document.getElementById('stop-btn').style.display = 'none'; });
 }
+function stopReading() { if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; } document.getElementById('tts-status').textContent = 'Stopped'; document.getElementById('stop-btn').style.display = 'none'; }
+function zoomIn() { var c = document.querySelector('.doc-content'); if (c) c.style.fontSize = (parseFloat(c.style.fontSize || '16') + 1) + 'px'; }
+function zoomOut() { var c = document.querySelector('.doc-content'); if (c) c.style.fontSize = Math.max(10, parseFloat(c.style.fontSize || '16') - 1) + 'px'; }
+
 </script>
 </body>
 </html>
