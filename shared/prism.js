@@ -731,7 +731,7 @@ function buildSidebar(activePage) {
   // Nav structure: flat items and grouped dropdowns
   var navStructure = [
     {type:'item', label:'Study Hub', icon:'fluent-emoji:books', href:'/study-hub/'},
-    {type:'item', label:'Doc Viewer', icon:'fluent-emoji:open-book', href:'/doc-viewer/'},
+    {type:'item', label:'Document Manager', icon:'fluent-emoji:open-book', href:'/doc-viewer/'},
     {type:'item', label:'Chat', icon:'fluent-emoji:speech-balloon', href:'/chat/'},
     {type:'item', label:'Research', icon:'fluent-emoji:magnifying-glass-tilted-left', href:'/research/'},
     {type:'item', label:'Drafting', icon:'fluent-emoji:pencil', href:'/drafting/'},
