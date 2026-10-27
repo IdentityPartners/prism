@@ -4,57 +4,56 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CRM — Argentica</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/shared/prism.css">
 <link rel="stylesheet" href="/shared/themes.css">
+<script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
 <style>
-.crm-shell { display:flex; height:100vh; overflow:hidden; }
-.crm-list { width:300px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-surface); overflow:hidden; }
-.crm-detail { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
-.crm-hdr { padding:10px 14px 8px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
-.crm-hdr h3 { font-size:13px; font-weight:600; margin:0; }
-.crm-search { padding:8px 10px; border-bottom:1px solid var(--border); flex-shrink:0; }
-.crm-search input { width:100%; padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; background:var(--bg); color:var(--fg); box-sizing:border-box; }
-.crm-list-body { flex:1; overflow-y:auto; }
-.contact-item { padding:10px 14px; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.1s; }
-.contact-item:hover { background:var(--bg-sunken); }
-.contact-item.active { background:var(--accent-light,#e8f0f8); border-left:3px solid var(--accent); }
-.contact-name { font-size:13px; font-weight:600; color:var(--fg); }
-.contact-role { font-size:11px; color:var(--fg-muted); margin-top:1px; }
-.contact-tags { display:flex; gap:3px; margin-top:4px; flex-wrap:wrap; }
-.tag { padding:1px 7px; border-radius:8px; font-size:10px; background:var(--bg-sunken); color:var(--fg-muted); border:1px solid var(--border); }
-.tag.client { background:rgba(45,106,159,0.1); color:var(--accent); border-color:var(--accent); }
-.tag.prospect { background:rgba(245,158,11,0.1); color:#f59e0b; border-color:#f59e0b; }
-.tag.partner { background:rgba(22,163,74,0.1); color:#16a34a; border-color:#16a34a; }
-.crm-detail-hdr { padding:16px 20px; border-bottom:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; }
-.crm-detail-name { font-size:20px; font-weight:700; margin-bottom:4px; }
-.crm-detail-role { font-size:13px; color:var(--fg-muted); margin-bottom:10px; }
-.crm-detail-actions { display:flex; gap:6px; }
-.crm-tabs { display:flex; border-bottom:1px solid var(--border); background:var(--bg-elevated); flex-shrink:0; }
-.crm-tab { padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; color:var(--fg-muted); }
-.crm-tab.active { border-bottom-color:var(--accent); color:var(--accent); }
-.crm-tab-body { flex:1; overflow-y:auto; padding:16px; }
-.field-row { display:flex; gap:12px; margin-bottom:12px; }
-.field-group { flex:1; }
-.field-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color:var(--fg-muted); margin-bottom:3px; }
-.field-value { font-size:13px; color:var(--fg); padding:6px 8px; background:var(--bg-sunken); border-radius:5px; min-height:30px; }
-.field-input { width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:5px; font-size:13px; background:var(--bg); color:var(--fg); box-sizing:border-box; font-family:inherit; }
-.note-item { padding:10px 12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; background:var(--bg-elevated); }
-.note-text { font-size:13px; line-height:1.5; }
-.note-date { font-size:10px; color:var(--fg-muted); margin-top:4px; }
-.note-add { display:flex; gap:8px; margin-top:12px; }
-.note-add textarea { flex:1; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit; resize:none; min-height:60px; background:var(--bg); color:var(--fg); }
-.btn-primary { padding:7px 14px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:12px; font-family:inherit; }
-.btn-secondary { padding:7px 14px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px; background:var(--bg); color:var(--fg); font-family:inherit; }
-.empty-state { text-align:center; padding:40px; color:var(--fg-muted); }
-.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:9999; display:none; align-items:center; justify-content:center; }
-.modal-overlay.open { display:flex; }
-.modal-box { background:var(--bg-elevated); border-radius:12px; padding:22px; width:480px; max-height:80vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.2); }
-.modal-box h3 { margin:0 0 14px; font-size:15px; }
-.form-row { margin-bottom:10px; }
-.form-label { font-size:11px; font-weight:600; color:var(--fg-muted); display:block; margin-bottom:3px; text-transform:uppercase; letter-spacing:0.4px; }
-.form-input, .form-select { width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit; background:var(--bg); color:var(--fg); box-sizing:border-box; }
-.modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
+* { box-sizing: border-box; }
+.crm-shell { display: flex; height: 100vh; overflow: hidden; }
+.crm-sidebar { width: 260px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--bg-surface); overflow: hidden; }
+.crm-sidebar-hdr { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.crm-sidebar-hdr h2 { font-size: 1rem; font-weight: 700; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+.crm-search { padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.crm-search input { width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; background: var(--bg); color: var(--fg); font-family: inherit; }
+.crm-list { flex: 1; overflow-y: auto; }
+.crm-item { padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; }
+.crm-item:hover, .crm-item.active { background: var(--bg-sunken); }
+.crm-item .item-name { font-size: 0.9rem; font-weight: 600; }
+.crm-item .item-meta { font-size: 0.78rem; color: var(--fg-muted); margin-top: 2px; }
+.crm-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.crm-topbar { padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; background: var(--bg-elevated); }
+.crm-topbar h3 { font-size: 1rem; font-weight: 700; margin: 0; flex: 1; }
+.crm-body { flex: 1; overflow-y: auto; padding: 20px; }
+.btn { padding: 7px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: opacity 0.15s; font-family: inherit; }
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-secondary { background: var(--bg-sunken); color: var(--fg); border: 1px solid var(--border); }
+.btn-danger { background: #fee2e2; color: #dc2626; }
+.btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+.field-group { margin-bottom: 12px; }
+.field-group label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px; color: var(--fg-muted); }
+.field-group input, .field-group textarea, .field-group select { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.88rem; background: var(--bg); color: var(--fg); font-family: inherit; }
+.field-group textarea { min-height: 80px; resize: vertical; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.detail-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+.detail-card h4 { font-size: 0.9rem; font-weight: 700; margin: 0 0 12px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.4px; font-size: 0.75rem; }
+.interaction-item { padding: 8px 12px; background: var(--bg-sunken); border-radius: 6px; margin-bottom: 6px; }
+.interaction-item .int-type { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--accent); }
+.interaction-item .int-summary { font-size: 0.88rem; margin-top: 2px; }
+.interaction-item .int-date { font-size: 0.75rem; color: var(--fg-muted); margin-top: 2px; }
+.tabs { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 14px; }
+.tab { padding: 7px 14px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; color: var(--fg-muted); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.empty-state { text-align: center; padding: 48px 20px; color: var(--fg-muted); }
+.empty-state .icon { font-size: 2.5rem; margin-bottom: 10px; }
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--bg-elevated); border-radius: 12px; padding: 22px; width: 500px; max-width: 95vw; max-height: 85vh; overflow-y: auto; }
+.modal h3 { font-size: 1.1rem; font-weight: 700; margin: 0 0 16px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.nav-tabs { display: flex; gap: 4px; margin-bottom: 0; }
+.nav-tab { padding: 6px 12px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; cursor: pointer; color: var(--fg-muted); transition: all 0.15s; }
+.nav-tab.active, .nav-tab:hover { background: var(--accent); color: #fff; }
 </style>
 </head>
 <body>
@@ -63,60 +62,65 @@
 <div id="main-content">
 <div class="crm-shell">
 
-<div class="crm-list">
-  <div class="crm-hdr">
-    <h3>👥 Contacts</h3>
-    <button class="btn-primary" onclick="openAddContact()" style="font-size:11px;padding:4px 10px;">+ Add</button>
+  <!-- Left panel: list -->
+  <div class="crm-sidebar">
+    <div class="crm-sidebar-hdr">
+      <h2><span class="iconify" data-icon="ph:address-book-bold"></span> CRM</h2>
+      <div class="nav-tabs">
+        <div class="nav-tab active" id="nav-contacts" onclick="setView('contacts',this)">Contacts</div>
+        <div class="nav-tab" id="nav-companies" onclick="setView('companies',this)">Companies</div>
+        <div class="nav-tab" id="nav-calendar" onclick="setView('calendar',this)">Calendar</div>
+      </div>
+    </div>
+    <div class="crm-search">
+      <input type="text" id="crm-search" placeholder="Search..." oninput="onSearch(this.value)">
+    </div>
+    <div class="crm-list" id="crm-list">
+      <div style="padding:16px;text-align:center;font-size:0.85rem;color:var(--fg-muted);">Loading...</div>
+    </div>
+    <div style="padding:10px 12px;border-top:1px solid var(--border);flex-shrink:0;">
+      <button class="btn btn-primary" style="width:100%;" onclick="openAddModal()">
+        <span class="iconify" data-icon="ph:plus-bold" style="vertical-align:middle;"></span> Add
+      </button>
+    </div>
   </div>
-  <div class="crm-search">
-    <input type="text" id="crm-search" placeholder="Search contacts..." oninput="filterContacts(this.value)">
+
+  <!-- Right panel: detail -->
+  <div class="crm-main">
+    <div class="crm-topbar">
+      <h3 id="detail-title">Select a contact</h3>
+      <div id="detail-actions"></div>
+    </div>
+    <div class="crm-body" id="crm-body">
+      <div class="empty-state">
+        <div class="icon"><span class="iconify" data-icon="ph:address-book" style="font-size:2.5rem;color:var(--border);"></span></div>
+        <div style="font-size:0.95rem;font-weight:600;margin-bottom:6px;">No contact selected</div>
+        <div style="font-size:0.85rem;">Select from the list or add a new contact.</div>
+      </div>
+    </div>
   </div>
-  <div class="crm-list-body" id="contact-list">
-    <div style="padding:20px;text-align:center;font-size:12px;color:var(--fg-muted);">Loading...</div>
-  </div>
+
+</div>
 </div>
 
-<div class="crm-detail" id="crm-detail">
-  <div class="empty-state">
-    <div style="font-size:48px;margin-bottom:12px;">👥</div>
-    <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Identity Partners CRM</div>
-    <div style="font-size:12px;">Select a contact or add a new one.</div>
-  </div>
-</div>
-
-</div>
-</div>
-
+<!-- Add/Edit Modal -->
 <div class="modal-overlay" id="add-modal">
-<div class="modal-box">
-  <h3>Add Contact</h3>
-  <div class="form-row"><label class="form-label">Name *</label><input class="form-input" id="new-name" type="text" placeholder="Full name"></div>
-  <div class="form-row"><label class="form-label">Role / Title</label><input class="form-input" id="new-role" type="text" placeholder="e.g. Therapist, Coach"></div>
-  <div class="form-row"><label class="form-label">Organisation</label><input class="form-input" id="new-org" type="text"></div>
-  <div class="form-row"><label class="form-label">Email</label><input class="form-input" id="new-email" type="email"></div>
-  <div class="form-row"><label class="form-label">Phone</label><input class="form-input" id="new-phone" type="tel"></div>
-  <div class="form-row"><label class="form-label">Type</label>
-    <select class="form-select" id="new-type">
-      <option value="contact">Contact</option>
-      <option value="client">Client</option>
-      <option value="prospect">Prospect</option>
-      <option value="partner">Partner</option>
-      <option value="referral">Referral</option>
-    </select>
+  <div class="modal">
+    <h3 id="modal-title">Add Contact</h3>
+    <div id="modal-form"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveRecord()">Save</button>
+    </div>
   </div>
-  <div class="form-row"><label class="form-label">Notes</label><textarea class="form-input" id="new-notes" rows="3" style="resize:vertical;"></textarea></div>
-  <div class="modal-actions">
-    <button class="btn-secondary" onclick="closeAddContact()">Cancel</button>
-    <button class="btn-primary" onclick="saveContact()">Save Contact</button>
-  </div>
-</div>
 </div>
 
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
-var contacts = [];
-var currentContact = null;
-var currentTab = 'details';
+var currentView = 'contacts';
+var currentRecord = null;
+var editingId = null;
+var searchTimer = null;
 
 document.addEventListener('DOMContentLoaded', function() {
   var mount = document.getElementById('sidebar-mount');
@@ -125,180 +129,271 @@ document.addEventListener('DOMContentLoaded', function() {
     mount.parentNode.insertBefore(sb, mount);
     mount.parentNode.removeChild(mount);
   }
-  loadContacts();
+  // Init tables then load
+  fetch(WORKER + '/api/crm/init', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+    .then(function() { loadList(); })
+    .catch(function() { loadList(); });
 });
 
-function loadContacts() {
-  fetch(WORKER + '/api/crm/contacts')
-    .then(function(r){return r.json();})
-    .then(function(d){
-      contacts = d.contacts || [];
-      renderContactList(contacts);
-    })
-    .catch(function(e){
-      document.getElementById('contact-list').innerHTML = '<div style="padding:12px;font-size:12px;color:#dc2626;">Error: '+e.message+'</div>';
-    });
+function setView(view, btn) {
+  currentView = view;
+  currentRecord = null;
+  document.querySelectorAll('.nav-tab').forEach(function(t) { t.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  document.getElementById('crm-search').value = '';
+  document.getElementById('detail-title').textContent = view === 'contacts' ? 'Select a contact' : view === 'companies' ? 'Select a company' : 'Upcoming events';
+  document.getElementById('detail-actions').innerHTML = '';
+  document.getElementById('crm-body').innerHTML = '<div class="empty-state"><div class="icon"><span class="iconify" data-icon="ph:address-book" style="font-size:2.5rem;color:var(--border);"></span></div><div style="font-size:0.95rem;font-weight:600;margin-bottom:6px;">Select from the list</div></div>';
+  loadList();
+  if (view === 'calendar') loadCalendar();
 }
 
-function renderContactList(list) {
-  var el = document.getElementById('contact-list');
-  if (!list.length) {
-    el.innerHTML = '<div class="empty-state"><div style="font-size:32px;margin-bottom:8px;">👤</div><p style="font-size:12px;">No contacts yet.</p></div>';
-    return;
-  }
-  el.innerHTML = list.map(function(c) {
-    var active = currentContact && currentContact.id === c.id ? ' active' : '';
-    var tagClass = c.type === 'client' ? 'client' : c.type === 'prospect' ? 'prospect' : c.type === 'partner' ? 'partner' : '';
-    return '<div class="contact-item'+active+'" id="ci-'+c.id+'" onclick="openContact(\''+c.id+'\')">' +
-      '<div class="contact-name">'+c.name.replace(/</g,'&lt;')+'</div>' +
-      '<div class="contact-role">'+(c.role||c.org||'').replace(/</g,'&lt;')+'</div>' +
-      (c.type ? '<div class="contact-tags"><span class="tag '+tagClass+'">'+c.type+'</span></div>' : '') +
-      '</div>';
-  }).join('');
-}
-
-function filterContacts(q) {
-  var filtered = q ? contacts.filter(function(c){return (c.name+c.role+c.org+c.email).toLowerCase().includes(q.toLowerCase());}) : contacts;
-  renderContactList(filtered);
-}
-
-function openContact(id) {
-  currentContact = contacts.find(function(c){return c.id===id;});
-  if (!currentContact) return;
-  document.querySelectorAll('.contact-item').forEach(function(el){el.classList.remove('active');});
-  var ci = document.getElementById('ci-'+id);
-  if (ci) ci.classList.add('active');
-  renderDetail();
-}
-
-function renderDetail() {
-  if (!currentContact) return;
-  var c = currentContact;
-  var detail = document.getElementById('crm-detail');
-  detail.innerHTML = '';
-
-  var hdr = document.createElement('div');
-  hdr.className = 'crm-detail-hdr';
-  hdr.innerHTML = '<div class="crm-detail-name">'+c.name.replace(/</g,'&lt;')+'</div>' +
-    '<div class="crm-detail-role">'+(c.role||'')+(c.org?' · '+c.org:'')+'</div>' +
-    '<div class="crm-detail-actions">' +
-      '<button class="btn-secondary" onclick="editContact()">✏ Edit</button>' +
-      '<button class="btn-secondary" onclick="deleteContact()" style="color:#dc2626;">🗑 Delete</button>' +
-    '</div>';
-  detail.appendChild(hdr);
-
-  var tabs = document.createElement('div');
-  tabs.className = 'crm-tabs';
-  [['details','Details'],['notes','Notes'],['activity','Activity']].forEach(function(t){
-    var tab = document.createElement('div');
-    tab.className = 'crm-tab'+(currentTab===t[0]?' active':'');
-    tab.textContent = t[1];
-    tab.onclick = function(){currentTab=t[0];renderDetail();};
-    tabs.appendChild(tab);
-  });
-  detail.appendChild(tabs);
-
-  var body = document.createElement('div');
-  body.className = 'crm-tab-body';
-
-  if (currentTab === 'details') {
-    var fields = [
-      ['Email', c.email||'—'],['Phone', c.phone||'—'],
-      ['Organisation', c.org||'—'],['Type', c.type||'contact'],
-      ['Created', c.created ? new Date(c.created).toLocaleDateString('en-GB') : '—'],
-    ];
-    body.innerHTML = fields.map(function(f){
-      return '<div class="field-row"><div class="field-group"><div class="field-label">'+f[0]+'</div><div class="field-value">'+f[1].replace(/</g,'&lt;')+'</div></div></div>';
-    }).join('') + (c.notes ? '<div class="field-group"><div class="field-label">Notes</div><div class="field-value" style="white-space:pre-wrap;">'+c.notes.replace(/</g,'&lt;')+'</div></div>' : '');
-  } else if (currentTab === 'notes') {
-    renderNotes(body);
-  } else {
-    body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);padding:8px 0;">Activity log coming soon.</div>';
-  }
-
-  detail.appendChild(body);
-}
-
-function renderNotes(body) {
-  fetch(WORKER + '/api/crm/notes/' + currentContact.id)
-    .then(function(r){return r.json();})
-    .then(function(d){
-      var notes = d.notes || [];
-      body.innerHTML = '';
-      if (notes.length) {
-        notes.slice().reverse().forEach(function(n){
-          var item = document.createElement('div');
-          item.className = 'note-item';
-          item.innerHTML = '<div class="note-text">'+n.text.replace(/</g,'&lt;').replace(/\n/g,'<br>')+'</div>' +
-            '<div class="note-date">'+new Date(n.created).toLocaleString('en-GB')+'</div>';
-          body.appendChild(item);
-        });
-      } else {
-        body.innerHTML = '<div style="font-size:12px;color:var(--fg-muted);margin-bottom:12px;">No notes yet.</div>';
+function loadList(q) {
+  var list = document.getElementById('crm-list');
+  list.innerHTML = '<div style="padding:16px;text-align:center;font-size:0.85rem;color:var(--fg-muted);">Loading...</div>';
+  var endpoint = currentView === 'contacts' ? '/api/crm/contacts' : currentView === 'companies' ? '/api/crm/companies' : null;
+  if (!endpoint) { list.innerHTML = ''; return; }
+  var url = WORKER + endpoint + (q ? '?q=' + encodeURIComponent(q) : '');
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var items = d.contacts || d.companies || [];
+      if (!items.length) {
+        list.innerHTML = '<div style="padding:16px;text-align:center;font-size:0.85rem;color:var(--fg-muted);">No ' + currentView + ' yet.<br>Click Add to create one.</div>';
+        return;
       }
-      var addDiv = document.createElement('div');
-      addDiv.className = 'note-add';
-      addDiv.innerHTML = '<textarea id="note-text" placeholder="Add a note..."></textarea>' +
-        '<button class="btn-primary" onclick="addNote()">Add</button>';
-      body.appendChild(addDiv);
+      list.innerHTML = items.map(function(item) {
+        var meta = currentView === 'contacts' ? (item.email || item.company || '') : (item.domain || item.industry || '');
+        return '<div class="crm-item" onclick="selectRecord(' + JSON.stringify(JSON.stringify(item)) + ')">' +
+          '<div class="item-name">' + esc(item.name) + '</div>' +
+          '<div class="item-meta">' + esc(meta) + '</div>' +
+          '</div>';
+      }).join('');
+    })
+    .catch(function(e) {
+      list.innerHTML = '<div style="padding:16px;color:#dc2626;font-size:0.85rem;">Error: ' + e.message + '</div>';
     });
 }
 
-function addNote() {
-  var text = document.getElementById('note-text').value.trim();
-  if (!text || !currentContact) return;
-  fetch(WORKER + '/api/crm/notes', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({contactId:currentContact.id, text:text})
-  }).then(function(){currentTab='notes';renderDetail();});
+function onSearch(q) {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(function() { loadList(q); }, 300);
 }
 
-function openAddContact() { document.getElementById('add-modal').classList.add('open'); }
-function closeAddContact() { document.getElementById('add-modal').classList.remove('open'); }
+function selectRecord(jsonStr) {
+  var record = JSON.parse(jsonStr);
+  currentRecord = record;
+  document.querySelectorAll('.crm-item').forEach(function(el) { el.classList.remove('active'); });
+  event.currentTarget && event.currentTarget.classList.add('active');
+  document.getElementById('detail-title').textContent = record.name;
+  document.getElementById('detail-actions').innerHTML =
+    '<button class="btn btn-secondary btn-sm" onclick="openEditModal()">Edit</button>' +
+    '<button class="btn btn-danger btn-sm" onclick="deleteRecord()">Delete</button>';
+  renderDetail(record);
+}
 
-function saveContact() {
-  var name = document.getElementById('new-name').value.trim();
-  if (!name) { alert('Name is required.'); return; }
-  var contact = {
-    name: name,
-    role: document.getElementById('new-role').value,
-    org: document.getElementById('new-org').value,
-    email: document.getElementById('new-email').value,
-    phone: document.getElementById('new-phone').value,
-    type: document.getElementById('new-type').value,
-    notes: document.getElementById('new-notes').value,
-  };
-  fetch(WORKER + '/api/crm/contacts', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(contact)
+function renderDetail(record) {
+  var body = document.getElementById('crm-body');
+  if (currentView === 'contacts') {
+    var tags = [];
+    try { tags = JSON.parse(record.tags || '[]'); } catch(e) {}
+    body.innerHTML =
+      '<div class="detail-card">' +
+        '<h4>Contact Details</h4>' +
+        '<div class="field-row">' +
+          '<div><div style="font-size:0.78rem;color:var(--fg-muted);">Email</div><div style="font-size:0.9rem;">' + esc(record.email || '—') + '</div></div>' +
+          '<div><div style="font-size:0.78rem;color:var(--fg-muted);">Phone</div><div style="font-size:0.9rem;">' + esc(record.phone || '—') + '</div></div>' +
+        '</div>' +
+        '<div class="field-row" style="margin-top:10px;">' +
+          '<div><div style="font-size:0.78rem;color:var(--fg-muted);">Company</div><div style="font-size:0.9rem;">' + esc(record.company || '—') + '</div></div>' +
+          '<div><div style="font-size:0.78rem;color:var(--fg-muted);">Role</div><div style="font-size:0.9rem;">' + esc(record.role || '—') + '</div></div>' +
+        '</div>' +
+        (record.notes ? '<div style="margin-top:10px;"><div style="font-size:0.78rem;color:var(--fg-muted);">Notes</div><div style="font-size:0.88rem;margin-top:3px;">' + esc(record.notes) + '</div></div>' : '') +
+        (tags.length ? '<div style="margin-top:10px;display:flex;gap:4px;flex-wrap:wrap;">' + tags.map(function(t) { return '<span style="padding:2px 8px;background:var(--accent-light,#e8f0f8);color:var(--accent);border-radius:10px;font-size:0.75rem;">' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
+      '</div>' +
+      '<div class="detail-card">' +
+        '<h4>Interaction Log</h4>' +
+        '<div id="interactions-list"><div style="color:var(--fg-muted);font-size:0.85rem;">Loading...</div></div>' +
+        '<div style="margin-top:10px;display:flex;gap:6px;">' +
+          '<input type="text" id="int-summary" placeholder="Log an interaction..." style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);font-family:inherit;">' +
+          '<select id="int-type" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);">' +
+            '<option value="note">Note</option><option value="call">Call</option><option value="email">Email</option><option value="meeting">Meeting</option>' +
+          '</select>' +
+          '<button class="btn btn-primary btn-sm" onclick="logInteraction()">Log</button>' +
+        '</div>' +
+      '</div>';
+    loadInteractions(record.id);
+  } else if (currentView === 'companies') {
+    body.innerHTML =
+      '<div class="detail-card">' +
+        '<h4>Company Details</h4>' +
+        '<div class="field-row">' +
+          '<div><div style="font-size:0.78rem;color:var(--fg-muted);">Domain</div><div style="font-size:0.9rem;">' + esc(record.domain || '—') + '</div></div>' +
+          '<div><div style="font-size:0.78rem;color:var(--fg-muted);">Industry</div><div style="font-size:0.9rem;">' + esc(record.industry || '—') + '</div></div>' +
+        '</div>' +
+        (record.notes ? '<div style="margin-top:10px;"><div style="font-size:0.78rem;color:var(--fg-muted);">Notes</div><div style="font-size:0.88rem;margin-top:3px;">' + esc(record.notes) + '</div></div>' : '') +
+      '</div>';
+  }
+}
+
+function loadInteractions(contactId) {
+  fetch(WORKER + '/api/crm/interactions?contact_id=' + contactId)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var list = document.getElementById('interactions-list');
+      if (!list) return;
+      var items = d.interactions || [];
+      if (!items.length) { list.innerHTML = '<div style="color:var(--fg-muted);font-size:0.85rem;">No interactions yet.</div>'; return; }
+      list.innerHTML = items.map(function(i) {
+        return '<div class="interaction-item">' +
+          '<div class="int-type">' + esc(i.type) + '</div>' +
+          '<div class="int-summary">' + esc(i.summary) + '</div>' +
+          (i.notes ? '<div style="font-size:0.82rem;color:var(--fg-muted);margin-top:2px;">' + esc(i.notes) + '</div>' : '') +
+          '<div class="int-date">' + new Date(i.created_at).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) + '</div>' +
+          '</div>';
+      }).join('');
+    });
+}
+
+function logInteraction() {
+  if (!currentRecord) return;
+  var summary = document.getElementById('int-summary').value.trim();
+  var type = document.getElementById('int-type').value;
+  if (!summary) return;
+  fetch(WORKER + '/api/crm/interactions', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({contact_id: currentRecord.id, type: type, summary: summary})
   })
-  .then(function(r){return r.json();})
-  .then(function(d){
-    if (d.success) { closeAddContact(); loadContacts(); }
+  .then(function() {
+    document.getElementById('int-summary').value = '';
+    loadInteractions(currentRecord.id);
   });
 }
 
-function editContact() {
-  if (!currentContact) return;
-  var c = currentContact;
-  document.getElementById('new-name').value = c.name||'';
-  document.getElementById('new-role').value = c.role||'';
-  document.getElementById('new-org').value = c.org||'';
-  document.getElementById('new-email').value = c.email||'';
-  document.getElementById('new-phone').value = c.phone||'';
-  document.getElementById('new-type').value = c.type||'contact';
-  document.getElementById('new-notes').value = c.notes||'';
-  openAddContact();
+function loadCalendar() {
+  var body = document.getElementById('crm-body');
+  body.innerHTML = '<div style="padding:12px;color:var(--fg-muted);font-size:0.85rem;">Loading calendar...</div>';
+  fetch(WORKER + '/api/crm/calendar')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var today = d.today || [];
+      var week = d.week || [];
+      var html = '';
+      if (today.length) {
+        html += '<div class="detail-card"><h4>Today</h4>' + today.map(renderEvent).join('') + '</div>';
+      }
+      if (week.length) {
+        html += '<div class="detail-card"><h4>This Week</h4>' + week.map(renderEvent).join('') + '</div>';
+      }
+      if (!today.length && !week.length) {
+        html = '<div class="empty-state"><div class="icon">&#x1F4C5;</div><div style="font-size:0.95rem;font-weight:600;margin-bottom:6px;">No upcoming events</div><div style="font-size:0.85rem;">Add events using the + Add button.</div></div>';
+      }
+      body.innerHTML = html;
+    });
 }
 
-function deleteContact() {
-  if (!currentContact || !confirm('Delete '+currentContact.name+'?')) return;
-  fetch(WORKER + '/api/crm/contacts/' + currentContact.id, {method:'DELETE'})
-    .then(function(){
-      currentContact = null;
-      loadContacts();
-      document.getElementById('crm-detail').innerHTML = '<div class="empty-state"><div style="font-size:48px;margin-bottom:12px;">👥</div><div style="font-size:14px;">Select a contact.</div></div>';
+function renderEvent(ev) {
+  var dt = ev.starts_at ? new Date(ev.starts_at).toLocaleString('en-GB', {weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+  return '<div style="padding:8px 10px;background:var(--bg-sunken);border-radius:6px;margin-bottom:6px;">' +
+    '<div style="font-weight:600;font-size:0.9rem;">' + esc(ev.title) + '</div>' +
+    '<div style="font-size:0.78rem;color:var(--fg-muted);">' + dt + (ev.location ? ' · ' + esc(ev.location) : '') + '</div>' +
+    (ev.description ? '<div style="font-size:0.82rem;margin-top:3px;">' + esc(ev.description) + '</div>' : '') +
+    '</div>';
+}
+
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'Add ' + (currentView === 'contacts' ? 'Contact' : currentView === 'companies' ? 'Company' : 'Event');
+  document.getElementById('modal-form').innerHTML = getModalForm(null);
+  document.getElementById('add-modal').classList.add('open');
+}
+
+function openEditModal() {
+  if (!currentRecord) return;
+  editingId = currentRecord.id;
+  document.getElementById('modal-title').textContent = 'Edit ' + (currentView === 'contacts' ? 'Contact' : 'Company');
+  document.getElementById('modal-form').innerHTML = getModalForm(currentRecord);
+  document.getElementById('add-modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('add-modal').classList.remove('open');
+  editingId = null;
+}
+
+function getModalForm(record) {
+  var r = record || {};
+  if (currentView === 'contacts') {
+    return '<div class="field-row"><div class="field-group"><label>Name *</label><input id="f-name" value="' + esc(r.name||'') + '"></div><div class="field-group"><label>Email</label><input id="f-email" type="email" value="' + esc(r.email||'') + '"></div></div>' +
+      '<div class="field-row"><div class="field-group"><label>Phone</label><input id="f-phone" value="' + esc(r.phone||'') + '"></div><div class="field-group"><label>Company</label><input id="f-company" value="' + esc(r.company||'') + '"></div></div>' +
+      '<div class="field-row"><div class="field-group"><label>Role</label><input id="f-role" value="' + esc(r.role||'') + '"></div><div class="field-group"><label>Tags (comma-separated)</label><input id="f-tags" value="' + esc((function(){try{return JSON.parse(r.tags||'[]').join(', ');}catch(e){return '';}})()) + '"></div></div>' +
+      '<div class="field-group"><label>Notes</label><textarea id="f-notes">' + esc(r.notes||'') + '</textarea></div>';
+  } else if (currentView === 'companies') {
+    return '<div class="field-row"><div class="field-group"><label>Name *</label><input id="f-name" value="' + esc(r.name||'') + '"></div><div class="field-group"><label>Domain</label><input id="f-domain" value="' + esc(r.domain||'') + '"></div></div>' +
+      '<div class="field-row"><div class="field-group"><label>Industry</label><input id="f-industry" value="' + esc(r.industry||'') + '"></div><div class="field-group"><label>Size</label><input id="f-size" value="' + esc(r.size||'') + '"></div></div>' +
+      '<div class="field-group"><label>Notes</label><textarea id="f-notes">' + esc(r.notes||'') + '</textarea></div>';
+  } else {
+    return '<div class="field-group"><label>Title *</label><input id="f-title" value="' + esc(r.title||'') + '"></div>' +
+      '<div class="field-row"><div class="field-group"><label>Start</label><input id="f-starts" type="datetime-local" value="' + (r.starts_at ? r.starts_at.substring(0,16) : '') + '"></div><div class="field-group"><label>End</label><input id="f-ends" type="datetime-local" value="' + (r.ends_at ? r.ends_at.substring(0,16) : '') + '"></div></div>' +
+      '<div class="field-group"><label>Location</label><input id="f-location" value="' + esc(r.location||'') + '"></div>' +
+      '<div class="field-group"><label>Description</label><textarea id="f-desc">' + esc(r.description||'') + '</textarea></div>';
+  }
+}
+
+function saveRecord() {
+  var name = (document.getElementById('f-name') || document.getElementById('f-title'));
+  if (!name || !name.value.trim()) { alert('Name/title is required.'); return; }
+  var data = {};
+  if (editingId) data.id = editingId;
+  if (currentView === 'contacts') {
+    data.name = document.getElementById('f-name').value.trim();
+    data.email = document.getElementById('f-email').value.trim();
+    data.phone = document.getElementById('f-phone').value.trim();
+    data.company = document.getElementById('f-company').value.trim();
+    data.role = document.getElementById('f-role').value.trim();
+    data.tags = document.getElementById('f-tags').value.split(',').map(function(t){return t.trim();}).filter(Boolean);
+    data.notes = document.getElementById('f-notes').value.trim();
+  } else if (currentView === 'companies') {
+    data.name = document.getElementById('f-name').value.trim();
+    data.domain = document.getElementById('f-domain').value.trim();
+    data.industry = document.getElementById('f-industry').value.trim();
+    data.size = document.getElementById('f-size').value.trim();
+    data.notes = document.getElementById('f-notes').value.trim();
+  } else {
+    data.title = document.getElementById('f-title').value.trim();
+    data.starts_at = document.getElementById('f-starts').value ? new Date(document.getElementById('f-starts').value).toISOString() : '';
+    data.ends_at = document.getElementById('f-ends').value ? new Date(document.getElementById('f-ends').value).toISOString() : '';
+    data.location = document.getElementById('f-location').value.trim();
+    data.description = document.getElementById('f-desc').value.trim();
+  }
+  var endpoint = currentView === 'contacts' ? '/api/crm/contacts' : currentView === 'companies' ? '/api/crm/companies' : '/api/crm/calendar';
+  var method = editingId ? 'PUT' : 'POST';
+  var url = WORKER + endpoint + (editingId ? '/' + editingId : '');
+  fetch(url, {method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) { closeModal(); loadList(); if (currentView === 'calendar') loadCalendar(); }
+      else { alert('Save failed: ' + (d.error || 'Unknown error')); }
     });
+}
+
+function deleteRecord() {
+  if (!currentRecord) return;
+  if (!confirm('Delete ' + currentRecord.name + '?')) return;
+  var endpoint = currentView === 'contacts' ? '/api/crm/contacts/' : '/api/crm/companies/';
+  fetch(WORKER + endpoint + currentRecord.id, {method: 'DELETE'})
+    .then(function() {
+      currentRecord = null;
+      document.getElementById('detail-title').textContent = 'Select a contact';
+      document.getElementById('detail-actions').innerHTML = '';
+      document.getElementById('crm-body').innerHTML = '<div class="empty-state"><div class="icon"><span class="iconify" data-icon="ph:address-book" style="font-size:2.5rem;color:var(--border);"></span></div><div style="font-size:0.95rem;font-weight:600;margin-bottom:6px;">Deleted</div></div>';
+      loadList();
+    });
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 </script>
 </body>
