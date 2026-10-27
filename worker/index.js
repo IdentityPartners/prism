@@ -3434,353 +3434,353 @@ data: ${JSON.stringify(data)}
 
 
   // ── Agent CRUD (B1) ──────────────────────────────────────────────────────────
-  if (path === '/api/agents' && request.method === 'GET') {
-    try {
-      const list = env.PRISM_KV ? await env.PRISM_KV.get('agents:list', 'json') : null;
-      return json({ agents: list || [] }, 200, origin);
-    } catch(e) { return json({ agents: [], error: e.message }, 200, origin); }
-  }
-  if (path === '/api/agents' && request.method === 'POST') {
-    try {
-      const body = await request.json();
-      const id = body.id || ('agent-' + Date.now());
-      const agent = { id, name: body.name || 'Unnamed Agent', persona: body.persona || '', tools: body.tools || [], dataSources: body.dataSources || [], outputActions: body.outputActions || [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-      if (env.PRISM_KV) {
-        const list = await env.PRISM_KV.get('agents:list', 'json') || [];
-        const existing = list.findIndex(a => a.id === id);
-        if (existing >= 0) list[existing] = agent; else list.push(agent);
-        await env.PRISM_KV.put('agents:list', JSON.stringify(list));
-        await env.PRISM_KV.put(`agents:${id}`, JSON.stringify(agent));
-      }
-      return json({ success: true, agent }, 200, origin);
-    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
-  }
-  if (path.startsWith('/api/agents/') && request.method === 'PUT') {
-    try {
-      const id = path.replace('/api/agents/', '');
-      const body = await request.json();
-      const agent = { ...body, id, updatedAt: new Date().toISOString() };
-      if (env.PRISM_KV) {
-        const list = await env.PRISM_KV.get('agents:list', 'json') || [];
-        const idx = list.findIndex(a => a.id === id);
-        if (idx >= 0) list[idx] = agent; else list.push(agent);
-        await env.PRISM_KV.put('agents:list', JSON.stringify(list));
-        await env.PRISM_KV.put(`agents:${id}`, JSON.stringify(agent));
-      }
-      return json({ success: true, agent }, 200, origin);
-    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
-  }
-  if (path.startsWith('/api/agents/') && request.method === 'DELETE') {
-    try {
-      const id = path.replace('/api/agents/', '');
-      if (env.PRISM_KV) {
-        const list = (await env.PRISM_KV.get('agents:list', 'json') || []).filter(a => a.id !== id);
-        await env.PRISM_KV.put('agents:list', JSON.stringify(list));
-        await env.PRISM_KV.delete(`agents:${id}`);
-      }
-      return json({ success: true }, 200, origin);
-    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
-  }
+    if (path === '/api/agents' && request.method === 'GET') {
+      try {
+        const list = env.PRISM_KV ? await env.PRISM_KV.get('agents:list', 'json') : null;
+        return json({ agents: list || [] }, 200, origin);
+      } catch(e) { return json({ agents: [], error: e.message }, 200, origin); }
+    }
+    if (path === '/api/agents' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('agent-' + Date.now());
+        const agent = { id, name: body.name || 'Unnamed Agent', persona: body.persona || '', tools: body.tools || [], dataSources: body.dataSources || [], outputActions: body.outputActions || [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        if (env.PRISM_KV) {
+          const list = await env.PRISM_KV.get('agents:list', 'json') || [];
+          const existing = list.findIndex(a => a.id === id);
+          if (existing >= 0) list[existing] = agent; else list.push(agent);
+          await env.PRISM_KV.put('agents:list', JSON.stringify(list));
+          await env.PRISM_KV.put(`agents:${id}`, JSON.stringify(agent));
+        }
+        return json({ success: true, agent }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/agents/') && request.method === 'PUT') {
+      try {
+        const id = path.replace('/api/agents/', '');
+        const body = await request.json();
+        const agent = { ...body, id, updatedAt: new Date().toISOString() };
+        if (env.PRISM_KV) {
+          const list = await env.PRISM_KV.get('agents:list', 'json') || [];
+          const idx = list.findIndex(a => a.id === id);
+          if (idx >= 0) list[idx] = agent; else list.push(agent);
+          await env.PRISM_KV.put('agents:list', JSON.stringify(list));
+          await env.PRISM_KV.put(`agents:${id}`, JSON.stringify(agent));
+        }
+        return json({ success: true, agent }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/agents/') && request.method === 'DELETE') {
+      try {
+        const id = path.replace('/api/agents/', '');
+        if (env.PRISM_KV) {
+          const list = (await env.PRISM_KV.get('agents:list', 'json') || []).filter(a => a.id !== id);
+          await env.PRISM_KV.put('agents:list', JSON.stringify(list));
+          await env.PRISM_KV.delete(`agents:${id}`);
+        }
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
 
   // ── Workflow CRUD (B2) ────────────────────────────────────────────────────────
-  if (path === '/api/workflows' && request.method === 'GET') {
-    try {
-      const list = env.PRISM_KV ? await env.PRISM_KV.get('workflows:list', 'json') : null;
-      return json({ workflows: list || [] }, 200, origin);
-    } catch(e) { return json({ workflows: [], error: e.message }, 200, origin); }
-  }
-  if (path === '/api/workflows' && request.method === 'POST') {
-    try {
-      const body = await request.json();
-      const id = body.id || ('wf-' + Date.now());
-      const wf = { id, name: body.name || 'Unnamed Workflow', steps: body.steps || [], trigger: body.trigger || 'manual', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-      if (env.PRISM_KV) {
-        const list = await env.PRISM_KV.get('workflows:list', 'json') || [];
-        const existing = list.findIndex(w => w.id === id);
-        if (existing >= 0) list[existing] = wf; else list.push(wf);
-        await env.PRISM_KV.put('workflows:list', JSON.stringify(list));
-        await env.PRISM_KV.put(`workflows:${id}`, JSON.stringify(wf));
-      }
-      return json({ success: true, workflow: wf }, 200, origin);
-    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
-  }
-  if (path.startsWith('/api/workflows/') && request.method === 'PUT') {
-    try {
-      const id = path.replace('/api/workflows/', '');
-      const body = await request.json();
-      const wf = { ...body, id, updatedAt: new Date().toISOString() };
-      if (env.PRISM_KV) {
-        const list = await env.PRISM_KV.get('workflows:list', 'json') || [];
-        const idx = list.findIndex(w => w.id === id);
-        if (idx >= 0) list[idx] = wf; else list.push(wf);
-        await env.PRISM_KV.put('workflows:list', JSON.stringify(list));
-        await env.PRISM_KV.put(`workflows:${id}`, JSON.stringify(wf));
-      }
-      return json({ success: true, workflow: wf }, 200, origin);
-    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
-  }
-  if (path.startsWith('/api/workflows/') && request.method === 'DELETE') {
-    try {
-      const id = path.replace('/api/workflows/', '');
-      if (env.PRISM_KV) {
-        const list = (await env.PRISM_KV.get('workflows:list', 'json') || []).filter(w => w.id !== id);
-        await env.PRISM_KV.put('workflows:list', JSON.stringify(list));
-        await env.PRISM_KV.delete(`workflows:${id}`);
-      }
-      return json({ success: true }, 200, origin);
-    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
-  }
+    if (path === '/api/workflows' && request.method === 'GET') {
+      try {
+        const list = env.PRISM_KV ? await env.PRISM_KV.get('workflows:list', 'json') : null;
+        return json({ workflows: list || [] }, 200, origin);
+      } catch(e) { return json({ workflows: [], error: e.message }, 200, origin); }
+    }
+    if (path === '/api/workflows' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('wf-' + Date.now());
+        const wf = { id, name: body.name || 'Unnamed Workflow', steps: body.steps || [], trigger: body.trigger || 'manual', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        if (env.PRISM_KV) {
+          const list = await env.PRISM_KV.get('workflows:list', 'json') || [];
+          const existing = list.findIndex(w => w.id === id);
+          if (existing >= 0) list[existing] = wf; else list.push(wf);
+          await env.PRISM_KV.put('workflows:list', JSON.stringify(list));
+          await env.PRISM_KV.put(`workflows:${id}`, JSON.stringify(wf));
+        }
+        return json({ success: true, workflow: wf }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/workflows/') && request.method === 'PUT') {
+      try {
+        const id = path.replace('/api/workflows/', '');
+        const body = await request.json();
+        const wf = { ...body, id, updatedAt: new Date().toISOString() };
+        if (env.PRISM_KV) {
+          const list = await env.PRISM_KV.get('workflows:list', 'json') || [];
+          const idx = list.findIndex(w => w.id === id);
+          if (idx >= 0) list[idx] = wf; else list.push(wf);
+          await env.PRISM_KV.put('workflows:list', JSON.stringify(list));
+          await env.PRISM_KV.put(`workflows:${id}`, JSON.stringify(wf));
+        }
+        return json({ success: true, workflow: wf }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/workflows/') && request.method === 'DELETE') {
+      try {
+        const id = path.replace('/api/workflows/', '');
+        if (env.PRISM_KV) {
+          const list = (await env.PRISM_KV.get('workflows:list', 'json') || []).filter(w => w.id !== id);
+          await env.PRISM_KV.put('workflows:list', JSON.stringify(list));
+          await env.PRISM_KV.delete(`workflows:${id}`);
+        }
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
 
   // ── WIP/Job tracking (B3) ─────────────────────────────────────────────────────
-  if (path === '/api/jobs' && request.method === 'GET') {
-    try {
-      const jobs = env.PRISM_KV ? await env.PRISM_KV.get('jobs:active', 'json') : null;
-      return json({ jobs: jobs || [] }, 200, origin);
-    } catch(e) { return json({ jobs: [], error: e.message }, 200, origin); }
-  }
-  if (path === '/api/jobs' && request.method === 'POST') {
-    try {
-      const body = await request.json();
-      const id = 'job-' + Date.now();
-      const job = { id, type: body.type || 'analysis', status: 'running', phase: body.phase || 'starting', progress: 0, total: body.total || 0, workspaceId: body.workspaceId || null, agentId: body.agentId || null, label: body.label || '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-      if (env.PRISM_KV) {
-        const jobs = await env.PRISM_KV.get('jobs:active', 'json') || [];
-        jobs.push(job);
-        await env.PRISM_KV.put('jobs:active', JSON.stringify(jobs));
-      }
-      return json({ success: true, job }, 200, origin);
-    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
-  }
-  if (path.startsWith('/api/jobs/') && (request.method === 'PATCH' || request.method === 'PUT')) {
-    try {
-      const id = path.replace('/api/jobs/', '');
-      const body = await request.json();
-      if (env.PRISM_KV) {
-        const jobs = await env.PRISM_KV.get('jobs:active', 'json') || [];
-        const idx = jobs.findIndex(j => j.id === id);
-        if (idx >= 0) {
-          jobs[idx] = { ...jobs[idx], ...body, id, updatedAt: new Date().toISOString() };
-          if (body.status === 'complete' || body.status === 'error') {
-            jobs.splice(idx, 1); // Remove from active
-          }
+    if (path === '/api/jobs' && request.method === 'GET') {
+      try {
+        const jobs = env.PRISM_KV ? await env.PRISM_KV.get('jobs:active', 'json') : null;
+        return json({ jobs: jobs || [] }, 200, origin);
+      } catch(e) { return json({ jobs: [], error: e.message }, 200, origin); }
+    }
+    if (path === '/api/jobs' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = 'job-' + Date.now();
+        const job = { id, type: body.type || 'analysis', status: 'running', phase: body.phase || 'starting', progress: 0, total: body.total || 0, workspaceId: body.workspaceId || null, agentId: body.agentId || null, label: body.label || '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        if (env.PRISM_KV) {
+          const jobs = await env.PRISM_KV.get('jobs:active', 'json') || [];
+          jobs.push(job);
           await env.PRISM_KV.put('jobs:active', JSON.stringify(jobs));
         }
-      }
-      return json({ success: true }, 200, origin);
-    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
-  }
+        return json({ success: true, job }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/jobs/') && (request.method === 'PATCH' || request.method === 'PUT')) {
+      try {
+        const id = path.replace('/api/jobs/', '');
+        const body = await request.json();
+        if (env.PRISM_KV) {
+          const jobs = await env.PRISM_KV.get('jobs:active', 'json') || [];
+          const idx = jobs.findIndex(j => j.id === id);
+          if (idx >= 0) {
+            jobs[idx] = { ...jobs[idx], ...body, id, updatedAt: new Date().toISOString() };
+            if (body.status === 'complete' || body.status === 'error') {
+              jobs.splice(idx, 1); // Remove from active
+            }
+            await env.PRISM_KV.put('jobs:active', JSON.stringify(jobs));
+          }
+        }
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
 
   // ── Document CRUD (G2) ────────────────────────────────────────────────────────
-  if (path === '/api/documents' && request.method === 'GET') {
-    try {
-      const list = env.PRISM_KV ? await env.PRISM_KV.get('docs:list', 'json') : null;
-      return json({ documents: list || [] }, 200, origin);
-    } catch(e) { return json({ documents: [], error: e.message }, 200, origin); }
-  }
-  if (path === '/api/documents' && request.method === 'POST') {
-    try {
-      const body = await request.json();
-      const id = body.id || ('doc-' + Date.now());
-      const doc = { id, title: body.title || 'Untitled', type: body.type || 'note', content: body.content || '', annotations: body.annotations || [], tags: body.tags || [], moduleSource: body.moduleSource || 'drafting', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-      if (env.PRISM_KV) {
-        const list = await env.PRISM_KV.get('docs:list', 'json') || [];
-        const existing = list.findIndex(d => d.id === id);
-        const meta = { id: doc.id, title: doc.title, type: doc.type, tags: doc.tags, moduleSource: doc.moduleSource, updatedAt: doc.updatedAt };
-        if (existing >= 0) list[existing] = meta; else list.push(meta);
-        await env.PRISM_KV.put('docs:list', JSON.stringify(list));
-        await env.PRISM_KV.put(`doc:${id}`, JSON.stringify(doc));
-      }
-      return json({ success: true, document: doc }, 200, origin);
-    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
-  }
-  if (path.startsWith('/api/documents/') && request.method === 'GET') {
-    try {
-      const id = path.replace('/api/documents/', '');
-      const doc = env.PRISM_KV ? await env.PRISM_KV.get(`doc:${id}`, 'json') : null;
-      if (!doc) return json({ error: 'Not found' }, 404, origin);
-      return json({ document: doc }, 200, origin);
-    } catch(e) { return json({ error: e.message }, 500, origin); }
-  }
-  if (path.startsWith('/api/documents/') && (request.method === 'PUT' || request.method === 'PATCH')) {
-    try {
-      const id = path.replace('/api/documents/', '');
-      const body = await request.json();
-      const existing = env.PRISM_KV ? await env.PRISM_KV.get(`doc:${id}`, 'json') : null;
-      const doc = { ...(existing || {}), ...body, id, updatedAt: new Date().toISOString() };
-      if (env.PRISM_KV) {
-        const list = await env.PRISM_KV.get('docs:list', 'json') || [];
-        const idx = list.findIndex(d => d.id === id);
-        const meta = { id: doc.id, title: doc.title, type: doc.type, tags: doc.tags, moduleSource: doc.moduleSource, updatedAt: doc.updatedAt };
-        if (idx >= 0) list[idx] = meta; else list.push(meta);
-        await env.PRISM_KV.put('docs:list', JSON.stringify(list));
-        await env.PRISM_KV.put(`doc:${id}`, JSON.stringify(doc));
-      }
-      return json({ success: true, document: doc }, 200, origin);
-    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
-  }
-  if (path.startsWith('/api/documents/') && request.method === 'DELETE') {
-    try {
-      const id = path.replace('/api/documents/', '');
-      if (env.PRISM_KV) {
-        const list = (await env.PRISM_KV.get('docs:list', 'json') || []).filter(d => d.id !== id);
-        await env.PRISM_KV.put('docs:list', JSON.stringify(list));
-        await env.PRISM_KV.delete(`doc:${id}`);
-      }
-      return json({ success: true }, 200, origin);
-    } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
-  }
+    if (path === '/api/documents' && request.method === 'GET') {
+      try {
+        const list = env.PRISM_KV ? await env.PRISM_KV.get('docs:list', 'json') : null;
+        return json({ documents: list || [] }, 200, origin);
+      } catch(e) { return json({ documents: [], error: e.message }, 200, origin); }
+    }
+    if (path === '/api/documents' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('doc-' + Date.now());
+        const doc = { id, title: body.title || 'Untitled', type: body.type || 'note', content: body.content || '', annotations: body.annotations || [], tags: body.tags || [], moduleSource: body.moduleSource || 'drafting', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        if (env.PRISM_KV) {
+          const list = await env.PRISM_KV.get('docs:list', 'json') || [];
+          const existing = list.findIndex(d => d.id === id);
+          const meta = { id: doc.id, title: doc.title, type: doc.type, tags: doc.tags, moduleSource: doc.moduleSource, updatedAt: doc.updatedAt };
+          if (existing >= 0) list[existing] = meta; else list.push(meta);
+          await env.PRISM_KV.put('docs:list', JSON.stringify(list));
+          await env.PRISM_KV.put(`doc:${id}`, JSON.stringify(doc));
+        }
+        return json({ success: true, document: doc }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/documents/') && request.method === 'GET') {
+      try {
+        const id = path.replace('/api/documents/', '');
+        const doc = env.PRISM_KV ? await env.PRISM_KV.get(`doc:${id}`, 'json') : null;
+        if (!doc) return json({ error: 'Not found' }, 404, origin);
+        return json({ document: doc }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/documents/') && (request.method === 'PUT' || request.method === 'PATCH')) {
+      try {
+        const id = path.replace('/api/documents/', '');
+        const body = await request.json();
+        const existing = env.PRISM_KV ? await env.PRISM_KV.get(`doc:${id}`, 'json') : null;
+        const doc = { ...(existing || {}), ...body, id, updatedAt: new Date().toISOString() };
+        if (env.PRISM_KV) {
+          const list = await env.PRISM_KV.get('docs:list', 'json') || [];
+          const idx = list.findIndex(d => d.id === id);
+          const meta = { id: doc.id, title: doc.title, type: doc.type, tags: doc.tags, moduleSource: doc.moduleSource, updatedAt: doc.updatedAt };
+          if (idx >= 0) list[idx] = meta; else list.push(meta);
+          await env.PRISM_KV.put('docs:list', JSON.stringify(list));
+          await env.PRISM_KV.put(`doc:${id}`, JSON.stringify(doc));
+        }
+        return json({ success: true, document: doc }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/documents/') && request.method === 'DELETE') {
+      try {
+        const id = path.replace('/api/documents/', '');
+        if (env.PRISM_KV) {
+          const list = (await env.PRISM_KV.get('docs:list', 'json') || []).filter(d => d.id !== id);
+          await env.PRISM_KV.put('docs:list', JSON.stringify(list));
+          await env.PRISM_KV.delete(`doc:${id}`);
+        }
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
 
   // ── Canvas render (D1) ────────────────────────────────────────────────────────
-  if (path === '/api/canvas/render' && request.method === 'POST') {
-    try {
-      const body = await request.json();
-      const text = body.text || 'Understand your past. Appreciate the present. Define your future.';
-      const template = body.template || 'quote-teal';
-      const pexelsKey = k(env, ['pexels_api_key', 'PEXELS_API_KEY', 'pexels']) || '';
-      const browserlessKey = k(env, ['browserless', 'BROWSERLESS_KEY', 'browserless_api_key']) || '';
+    if (path === '/api/canvas/render' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const text = body.text || 'Understand your past. Appreciate the present. Define your future.';
+        const template = body.template || 'quote-teal';
+        const pexelsKey = k(env, ['pexels_api_key', 'PEXELS_API_KEY', 'pexels']) || '';
+        const browserlessKey = k(env, ['browserless', 'BROWSERLESS_KEY', 'browserless_api_key']) || '';
 
-      // Get background image from Pexels
-      let bgBase64 = '';
-      if (pexelsKey) {
-        try {
-          const queries = ['landscape vista', 'nature scenery', 'partnership collaboration', 'sunrise horizon'];
-          const q = queries[Math.floor(Math.random() * queries.length)];
-          const pexResp = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&per_page=15&orientation=square`, {headers: {'Authorization': pexelsKey}});
-          if (pexResp.ok) {
-            const pexData = await pexResp.json();
-            const photos = pexData.photos || [];
-            if (photos.length) {
-              const photo = photos[Math.floor(Math.random() * photos.length)];
-              const imgResp = await fetch(photo.src.medium);
-              if (imgResp.ok) {
-                const imgBuf = await imgResp.arrayBuffer();
-                bgBase64 = 'data:image/jpeg;base64,' + btoa(String.fromCharCode(...new Uint8Array(imgBuf)));
+        // Get background image from Pexels
+        let bgBase64 = '';
+        if (pexelsKey) {
+          try {
+            const queries = ['landscape vista', 'nature scenery', 'partnership collaboration', 'sunrise horizon'];
+            const q = queries[Math.floor(Math.random() * queries.length)];
+            const pexResp = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&per_page=15&orientation=square`, {headers: {'Authorization': pexelsKey}});
+            if (pexResp.ok) {
+              const pexData = await pexResp.json();
+              const photos = pexData.photos || [];
+              if (photos.length) {
+                const photo = photos[Math.floor(Math.random() * photos.length)];
+                const imgResp = await fetch(photo.src.medium);
+                if (imgResp.ok) {
+                  const imgBuf = await imgResp.arrayBuffer();
+                  bgBase64 = 'data:image/jpeg;base64,' + btoa(String.fromCharCode(...new Uint8Array(imgBuf)));
+                }
               }
             }
-          }
-        } catch(e) {}
-      }
+          } catch(e) {}
+        }
 
-      const html = generateCanvasHtml(text, template, bgBase64);
+        const html = generateCanvasHtml(text, template, bgBase64);
 
-      // Try Browserless
-      if (browserlessKey) {
-        try {
-          const blResp = await fetch('https://chrome.browserless.io/screenshot', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json', 'Cache-Control': 'no-cache'},
-            body: JSON.stringify({
-              url: 'about:blank',
-              html: html,
-              options: { type: 'png', clip: {x:0,y:0,width:1080,height:1080} },
-              waitForFunction: { fn: "() => document.title === 'READY'", timeout: 10000 },
-              waitFor: 12000,
-              token: browserlessKey
-            })
-          });
-          if (blResp.ok) {
-            const pngBuf = await blResp.arrayBuffer();
-            if (pngBuf.byteLength > 5000) {
-              // Upload to R2 if available
-              const key = `canvas/${Date.now()}-${Math.random().toString(36).slice(2)}.png`;
-              if (env.PRISM_ASSETS) {
-                await env.PRISM_ASSETS.put(key, pngBuf, {httpMetadata: {contentType: 'image/png'}});
-                const r2Url = `https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/${key}`;
-                return json({success:true, url:r2Url, method:'browserless', sizeBytes:pngBuf.byteLength}, 200, origin);
+        // Try Browserless
+        if (browserlessKey) {
+          try {
+            const blResp = await fetch('https://chrome.browserless.io/screenshot', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json', 'Cache-Control': 'no-cache'},
+              body: JSON.stringify({
+                url: 'about:blank',
+                html: html,
+                options: { type: 'png', clip: {x:0,y:0,width:1080,height:1080} },
+                waitForFunction: { fn: "() => document.title === 'READY'", timeout: 10000 },
+                waitFor: 12000,
+                token: browserlessKey
+              })
+            });
+            if (blResp.ok) {
+              const pngBuf = await blResp.arrayBuffer();
+              if (pngBuf.byteLength > 5000) {
+                // Upload to R2 if available
+                const key = `canvas/${Date.now()}-${Math.random().toString(36).slice(2)}.png`;
+                if (env.PRISM_ASSETS) {
+                  await env.PRISM_ASSETS.put(key, pngBuf, {httpMetadata: {contentType: 'image/png'}});
+                  const r2Url = `https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/${key}`;
+                  return json({success:true, url:r2Url, method:'browserless', sizeBytes:pngBuf.byteLength}, 200, origin);
+                }
               }
             }
-          }
-        } catch(e) {}
-      }
+          } catch(e) {}
+        }
 
-      // Fallback: pre-baked R2 template
-      const templateIdx = Math.floor(Math.random() * 150);
-      const fallbackUrl = `https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-${templateIdx}.png`;
-      return json({success:true, url:fallbackUrl, method:'prebaked', template:templateIdx}, 200, origin);
-    } catch(e) {
-      const templateIdx = Math.floor(Math.random() * 150);
-      return json({success:true, url:`https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-${templateIdx}.png`, method:'error-fallback', error:e.message}, 200, origin);
+        // Fallback: pre-baked R2 template
+        const templateIdx = Math.floor(Math.random() * 150);
+        const fallbackUrl = `https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-${templateIdx}.png`;
+        return json({success:true, url:fallbackUrl, method:'prebaked', template:templateIdx}, 200, origin);
+      } catch(e) {
+        const templateIdx = Math.floor(Math.random() * 150);
+        return json({success:true, url:`https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-${templateIdx}.png`, method:'error-fallback', error:e.message}, 200, origin);
+      }
     }
-  }
 
   // ── Unified social posting pipeline (D2) ─────────────────────────────────────
-  if (path === '/api/pipeline/unified' && request.method === 'POST') {
-    try {
-      const body = await request.json();
-      const rawText = body.text || '';
-      const platforms = body.platforms || ['bluesky'];
-      const bufferKey = k(env, ['buffer', 'BUFFER_KEY', 'buffer_api_key']) || '';
-      const bskyHandle = k(env, ['bluesky_handle', 'BLUESKY_HANDLE']) || '@identitypartners.bsky.social';
-      const bskyPass = k(env, ['bluesky_password', 'BLUESKY_PASSWORD']) || '';
-
-      // Mandatory tags and footer
-      const TAGS = '#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing';
-      const FOOTER = 'hello@identitypartners.uk | www.identitypartners.uk/contact';
-      const text = rawText + '\n\n' + TAGS + '\n' + FOOTER;
-
-      // Never post test strings
-      if (rawText.toLowerCase().includes('test post') || rawText.toLowerCase().includes('say ok')) {
-        return json({success:false, error:'Test strings not allowed in unified pipeline'}, 400, origin);
-      }
-
-      const results = {};
-
-      // Get canvas image
-      let imageUrl = null;
+    if (path === '/api/pipeline/unified' && request.method === 'POST') {
       try {
-        const canvasResp = await fetch(`${new URL(request.url).origin}/api/canvas/render`, {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({text: rawText})
-        });
-        if (canvasResp.ok) {
-          const canvasData = await canvasResp.json();
-          imageUrl = canvasData.url;
-        }
-      } catch(e) {}
+        const body = await request.json();
+        const rawText = body.text || '';
+        const platforms = body.platforms || ['bluesky'];
+        const bufferKey = k(env, ['buffer', 'BUFFER_KEY', 'buffer_api_key']) || '';
+        const bskyHandle = k(env, ['bluesky_handle', 'BLUESKY_HANDLE']) || '@identitypartners.bsky.social';
+        const bskyPass = k(env, ['bluesky_password', 'BLUESKY_PASSWORD']) || '';
 
-      // Bluesky
-      if (platforms.includes('bluesky') && bskyHandle && bskyPass) {
+        // Mandatory tags and footer
+        const TAGS = '#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing';
+        const FOOTER = 'hello@identitypartners.uk | www.identitypartners.uk/contact';
+        const text = rawText + '\n\n' + TAGS + '\n' + FOOTER;
+
+        // Never post test strings
+        if (rawText.toLowerCase().includes('test post') || rawText.toLowerCase().includes('say ok')) {
+          return json({success:false, error:'Test strings not allowed in unified pipeline'}, 400, origin);
+        }
+
+        const results = {};
+
+        // Get canvas image
+        let imageUrl = null;
         try {
-          const sessionResp = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
+          const canvasResp = await fetch(`${new URL(request.url).origin}/api/canvas/render`, {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({identifier: bskyHandle, password: bskyPass})
+            body: JSON.stringify({text: rawText})
           });
-          if (sessionResp.ok) {
-            const session = await sessionResp.json();
-            const postBody = {repo: session.did, collection: 'app.bsky.feed.post', record: {text: text.substring(0, 300), createdAt: new Date().toISOString(), langs: ['en-GB']}};
-            const postResp = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
-              method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${session.accessJwt}`},
-              body: JSON.stringify(postBody)
-            });
-            results.bluesky = {success: postResp.ok, status: postResp.status};
+          if (canvasResp.ok) {
+            const canvasData = await canvasResp.json();
+            imageUrl = canvasData.url;
           }
-        } catch(e) { results.bluesky = {success: false, error: e.message}; }
-      }
+        } catch(e) {}
 
-      // Buffer (Instagram, Facebook, X)
-      if (bufferKey && imageUrl) {
-        const bufferChannels = {
-          instagram: k(env, ['buffer_ig_channel', 'BUFFER_IG_CHANNEL']) || '',
-          facebook: k(env, ['buffer_fb_channel', 'BUFFER_FB_CHANNEL']) || '',
-          x: k(env, ['buffer_x_channel', 'BUFFER_X_CHANNEL']) || '',
-        };
-        for (const [platform, channelId] of Object.entries(bufferChannels)) {
-          if (!channelId || !platforms.includes(platform)) continue;
+        // Bluesky
+        if (platforms.includes('bluesky') && bskyHandle && bskyPass) {
           try {
-            const mutation = `mutation CreateIdea($input: IdeaCreateInput!) { ideaCreate(input: $input) { idea { id } } }`;
-            const bufResp = await fetch('https://api.bufferapp.com/graphql', {
-              method: 'POST',
-              headers: {'Authorization': `Bearer ${bufferKey}`, 'Content-Type': 'application/json'},
-              body: JSON.stringify({query: mutation, variables: {input: {channelId, text, mediaUrls: [imageUrl]}}})
+            const sessionResp = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
+              method: 'POST', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({identifier: bskyHandle, password: bskyPass})
             });
-            results[platform] = {success: bufResp.ok, status: bufResp.status};
-          } catch(e) { results[platform] = {success: false, error: e.message}; }
+            if (sessionResp.ok) {
+              const session = await sessionResp.json();
+              const postBody = {repo: session.did, collection: 'app.bsky.feed.post', record: {text: text.substring(0, 300), createdAt: new Date().toISOString(), langs: ['en-GB']}};
+              const postResp = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
+                method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${session.accessJwt}`},
+                body: JSON.stringify(postBody)
+              });
+              results.bluesky = {success: postResp.ok, status: postResp.status};
+            }
+          } catch(e) { results.bluesky = {success: false, error: e.message}; }
         }
-      }
 
-      return json({success: true, results, imageUrl, text: text.substring(0, 100) + '...'}, 200, origin);
-    } catch(e) { return json({success: false, error: e.message}, 500, origin); }
-  }
+        // Buffer (Instagram, Facebook, X)
+        if (bufferKey && imageUrl) {
+          const bufferChannels = {
+            instagram: k(env, ['buffer_ig_channel', 'BUFFER_IG_CHANNEL']) || '',
+            facebook: k(env, ['buffer_fb_channel', 'BUFFER_FB_CHANNEL']) || '',
+            x: k(env, ['buffer_x_channel', 'BUFFER_X_CHANNEL']) || '',
+          };
+          for (const [platform, channelId] of Object.entries(bufferChannels)) {
+            if (!channelId || !platforms.includes(platform)) continue;
+            try {
+              const mutation = `mutation CreateIdea($input: IdeaCreateInput!) { ideaCreate(input: $input) { idea { id } } }`;
+              const bufResp = await fetch('https://api.bufferapp.com/graphql', {
+                method: 'POST',
+                headers: {'Authorization': `Bearer ${bufferKey}`, 'Content-Type': 'application/json'},
+                body: JSON.stringify({query: mutation, variables: {input: {channelId, text, mediaUrls: [imageUrl]}}})
+              });
+              results[platform] = {success: bufResp.ok, status: bufResp.status};
+            } catch(e) { results[platform] = {success: false, error: e.message}; }
+          }
+        }
+
+        return json({success: true, results, imageUrl, text: text.substring(0, 100) + '...'}, 200, origin);
+      } catch(e) { return json({success: false, error: e.message}, 500, origin); }
+    }
 
   // ── Daily pipeline cron handler (D2) ─────────────────────────────────────────if (path === '/api/pipeline/morning' && (request.method === 'POST' || request.method === 'GET')) {
       try {
@@ -3844,26 +3844,26 @@ data: ${JSON.stringify(data)}
     }
 
   // ── Site crawl (A3) ───────────────────────────────────────────────────────────
-  if (path === '/api/site/crawl' && request.method === 'POST') {
-    try {
-      const firecrawlKey = k(env, ['firecrawl', 'FIRECRAWL_KEY', 'firecrawl_api_key']) || '';
-      if (!firecrawlKey) return json({error: 'Firecrawl key not configured'}, 400, origin);
-      const body = await request.json().catch(() => ({}));
-      const targetUrl = body.url || 'https://www.identitypartners.uk';
-      const crawlResp = await fetch('https://api.firecrawl.dev/v1/crawl', {
-        method: 'POST',
-        headers: {'Authorization': `Bearer ${firecrawlKey}`, 'Content-Type': 'application/json'},
-        body: JSON.stringify({url: targetUrl, limit: 50, scrapeOptions: {formats: ['markdown']}})
-      });
-      const crawlData = await crawlResp.json();
-      if (env.PRISM_KV && crawlData.id) {
-        await env.PRISM_KV.put('site:crawl:last', JSON.stringify({jobId: crawlData.id, startedAt: new Date().toISOString(), url: targetUrl}));
-      }
-      return json({success: crawlResp.ok, jobId: crawlData.id, status: crawlData.status}, 200, origin);
-    } catch(e) { return json({success: false, error: e.message}, 500, origin); }
-  }
+    if (path === '/api/site/crawl' && request.method === 'POST') {
+      try {
+        const firecrawlKey = k(env, ['firecrawl', 'FIRECRAWL_KEY', 'firecrawl_api_key']) || '';
+        if (!firecrawlKey) return json({error: 'Firecrawl key not configured'}, 400, origin);
+        const body = await request.json().catch(() => ({}));
+        const targetUrl = body.url || 'https://www.identitypartners.uk';
+        const crawlResp = await fetch('https://api.firecrawl.dev/v1/crawl', {
+          method: 'POST',
+          headers: {'Authorization': `Bearer ${firecrawlKey}`, 'Content-Type': 'application/json'},
+          body: JSON.stringify({url: targetUrl, limit: 50, scrapeOptions: {formats: ['markdown']}})
+        });
+        const crawlData = await crawlResp.json();
+        if (env.PRISM_KV && crawlData.id) {
+          await env.PRISM_KV.put('site:crawl:last', JSON.stringify({jobId: crawlData.id, startedAt: new Date().toISOString(), url: targetUrl}));
+        }
+        return json({success: crawlResp.ok, jobId: crawlData.id, status: crawlData.status}, 200, origin);
+      } catch(e) { return json({success: false, error: e.message}, 500, origin); }
+    }
 
-return json({ error: 'Not found', path }, 404, origin);
+    return json({ error: 'Not found', path }, 404, origin);
   },
 
   async scheduled(event, env, ctx) {
