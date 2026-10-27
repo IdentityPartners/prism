@@ -2775,7 +2775,7 @@ data: ${JSON.stringify(data)}
           "mistral-small-4": { mmlu: 81.2, humaneval: 72.4, math: 65.7, speed: "~250ms", ctx: "128K", max_out: "32K", tools: "web_search, code", cost: "paid sub" },
           "gemma-4": { mmlu: 79.8, humaneval: 70.1, math: 63.4, speed: "~300ms", ctx: "128K", max_out: "32K", tools: "none", cost: "FREE" },
           "nemotron-ultra-253b": { mmlu: 87.9, humaneval: 83.4, math: 76.2, speed: "~60ms", ctx: "128K", max_out: "32K", tools: "function_calling", cost: "NVIDIA key" }
-        };
+        }, 200, origin);
         const models = body.models || [];
         if (!models.length) return json({ error: 'No models specified' }, 400, origin);
         const keyMap = {
