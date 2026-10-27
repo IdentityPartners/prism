@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Twenty CRM — Argentica</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+<style>
+.twenty-wrap { max-width: 900px; margin: 0 auto; padding: 24px 20px; }
+.twenty-header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+.twenty-header h1 { font-size: 1.4rem; font-weight: 700; margin: 0; }
+.twenty-header .subtitle { font-size: 0.85rem; color: var(--fg-muted); }
+.setup-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+.setup-card h3 { font-size: 1rem; font-weight: 700; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+.setup-steps { list-style: none; padding: 0; margin: 0; }
+.setup-steps li { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; display: flex; align-items: flex-start; gap: 10px; }
+.setup-steps li:last-child { border-bottom: none; }
+.step-num { background: var(--accent); color: #fff; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+.api-key-input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: var(--bg); color: var(--fg); font-family: monospace; margin-top: 8px; }
+.btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.88rem; font-weight: 600; transition: opacity 0.15s; }
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-secondary { background: var(--bg-sunken); color: var(--fg); border: 1px solid var(--border); }
+.status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
+.status-ok { background: #d1fae5; color: #065f46; }
+.status-warn { background: #fef3c7; color: #92400e; }
+.status-err { background: #fee2e2; color: #dc2626; }
+.data-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+.data-card { background: var(--bg-sunken); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+.data-card .label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--fg-muted); margin-bottom: 6px; }
+.data-card .value { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+.data-card .sub { font-size: 0.78rem; color: var(--fg-muted); margin-top: 2px; }
+.record-list { margin-top: 8px; }
+.record-item { padding: 8px 10px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; font-size: 0.88rem; }
+.record-item .name { font-weight: 600; }
+.record-item .meta { font-size: 0.78rem; color: var(--fg-muted); margin-top: 2px; }
+.tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 16px; }
+.tab { padding: 8px 16px; font-size: 0.88rem; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; color: var(--fg-muted); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="twenty-wrap">
+
+  <div class="twenty-header">
+    <span class="iconify" data-icon="ph:address-book-bold" style="font-size:2rem;color:var(--accent);"></span>
+    <div>
+      <h1>Twenty CRM</h1>
+      <div class="subtitle">Contacts, companies, calendar, email — all in one place</div>
+    </div>
+    <div style="margin-left:auto;" id="connection-status"></div>
+  </div>
+
+  <!-- Setup card — shown when not connected -->
+  <div class="setup-card" id="setup-card">
+    <h3><span class="iconify" data-icon="ph:plug-bold"></span> Connect Twenty CRM</h3>
+    <p style="font-size:0.88rem;color:var(--fg-muted);margin-bottom:14px;">
+      Twenty is a free, open-source CRM. Sign up at <a href="https://twenty.com" target="_blank" style="color:var(--accent);">twenty.com</a> (30-day free trial, no card required), 
+      then connect Gmail + Google Calendar inside Twenty Settings → Accounts.
+    </p>
+    <ol class="setup-steps">
+      <li><span class="step-num">1</span><span>Go to <a href="https://twenty.com" target="_blank" style="color:var(--accent);">twenty.com</a> → Start free trial → Create workspace</span></li>
+      <li><span class="step-num">2</span><span>Inside Twenty: Settings → Accounts → Add account → Continue with Google → connect Gmail + Google Calendar</span></li>
+      <li><span class="step-num">3</span><span>Inside Twenty: Settings → API & Webhooks → Generate API key → copy it</span></li>
+      <li><span class="step-num">4</span><span>Paste your API key and workspace URL below, then click Save</span></li>
+    </ol>
+    <div style="margin-top:14px;">
+      <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:4px;">Twenty API Key</label>
+      <input type="password" id="twenty-api-key" class="api-key-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+      <label style="font-size:0.85rem;font-weight:600;display:block;margin-top:10px;margin-bottom:4px;">Workspace URL</label>
+      <input type="text" id="twenty-workspace-url" class="api-key-input" placeholder="https://yourworkspace.twenty.com" style="font-family:inherit;">
+      <div style="margin-top:12px;display:flex;gap:8px;">
+        <button class="btn btn-primary" onclick="saveTwentyConfig()">Save & Connect</button>
+        <button class="btn btn-secondary" onclick="testConnection()">Test Connection</button>
+      </div>
+      <div id="setup-status" style="margin-top:8px;font-size:0.85rem;"></div>
+    </div>
+  </div>
+
+  <!-- Dashboard — shown when connected -->
+  <div id="twenty-dashboard" style="display:none;">
+    <div class="tabs">
+      <div class="tab active" onclick="showTab('overview',this)">Overview</div>
+      <div class="tab" onclick="showTab('contacts',this)">Contacts</div>
+      <div class="tab" onclick="showTab('companies',this)">Companies</div>
+      <div class="tab" onclick="showTab('calendar',this)">Calendar</div>
+      <div class="tab" onclick="showTab('email',this)">Email</div>
+    </div>
+    <div id="tab-content"></div>
+  </div>
+
+</div>
+</div>
+
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var twentyConfig = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/comms/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  loadConfig();
+});
+
+function loadConfig() {
+  fetch(WORKER + '/api/kv/get?key=twenty:config')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.value) {
+        try {
+          twentyConfig = JSON.parse(d.value);
+          if (twentyConfig.apiKey && twentyConfig.workspaceUrl) {
+            document.getElementById('setup-card').style.display = 'none';
+            document.getElementById('twenty-dashboard').style.display = 'block';
+            document.getElementById('connection-status').innerHTML = '<span class="status-badge status-ok">\u2713 Connected</span>';
+            showTab('overview', null);
+            return;
+          }
+        } catch(e) {}
+      }
+      document.getElementById('setup-card').style.display = 'block';
+    })
+    .catch(function() {
+      document.getElementById('setup-card').style.display = 'block';
+    });
+}
+
+function saveTwentyConfig() {
+  var apiKey = document.getElementById('twenty-api-key').value.trim();
+  var workspaceUrl = document.getElementById('twenty-workspace-url').value.trim().replace(/\/$/, '');
+  if (!apiKey || !workspaceUrl) { showSetupStatus('Please enter both API key and workspace URL.', 'error'); return; }
+  var config = {apiKey: apiKey, workspaceUrl: workspaceUrl, savedAt: new Date().toISOString()};
+  fetch(WORKER + '/api/kv/set', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({key: 'twenty:config', value: JSON.stringify(config)})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      twentyConfig = config;
+      showSetupStatus('\u2713 Saved. Testing connection...', 'ok');
+      testConnection();
+    } else {
+      showSetupStatus('Save failed: ' + (d.error || 'Unknown error'), 'error');
+    }
+  })
+  .catch(function(e) { showSetupStatus('Error: ' + e.message, 'error'); });
+}
+
+function testConnection() {
+  if (!twentyConfig) {
+    var apiKey = document.getElementById('twenty-api-key').value.trim();
+    var workspaceUrl = document.getElementById('twenty-workspace-url').value.trim().replace(/\/$/, '');
+    if (!apiKey || !workspaceUrl) { showSetupStatus('Enter API key and workspace URL first.', 'error'); return; }
+    twentyConfig = {apiKey: apiKey, workspaceUrl: workspaceUrl};
+  }
+  showSetupStatus('Testing...', 'info');
+  fetch(WORKER + '/api/twenty/test', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({apiKey: twentyConfig.apiKey, workspaceUrl: twentyConfig.workspaceUrl})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      showSetupStatus('\u2713 Connected! Workspace: ' + (d.workspace || 'OK'), 'ok');
+      document.getElementById('setup-card').style.display = 'none';
+      document.getElementById('twenty-dashboard').style.display = 'block';
+      document.getElementById('connection-status').innerHTML = '<span class="status-badge status-ok">\u2713 Connected</span>';
+      showTab('overview', null);
+    } else {
+      showSetupStatus('Connection failed: ' + (d.error || 'Check API key and URL'), 'error');
+    }
+  })
+  .catch(function(e) { showSetupStatus('Error: ' + e.message, 'error'); });
+}
+
+function showSetupStatus(msg, type) {
+  var el = document.getElementById('setup-status');
+  var color = type === 'ok' ? '#065f46' : type === 'error' ? '#dc2626' : 'var(--fg-muted)';
+  el.style.color = color;
+  el.textContent = msg;
+}
+
+function showTab(tab, btn) {
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  else {
+    var tabs = document.querySelectorAll('.tab');
+    var names = ['overview','contacts','companies','calendar','email'];
+    var idx = names.indexOf(tab);
+    if (idx >= 0 && tabs[idx]) tabs[idx].classList.add('active');
+  }
+  var content = document.getElementById('tab-content');
+  content.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);">Loading...</div>';
+  if (tab === 'overview') loadOverview(content);
+  else if (tab === 'contacts') loadContacts(content);
+  else if (tab === 'companies') loadCompanies(content);
+  else if (tab === 'calendar') loadCalendar(content);
+  else if (tab === 'email') loadEmail(content);
+}
+
+function twentyQuery(query, variables) {
+  return fetch(WORKER + '/api/twenty/query', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({apiKey: twentyConfig.apiKey, workspaceUrl: twentyConfig.workspaceUrl, query: query, variables: variables || {}})
+  }).then(function(r) { return r.json(); });
+}
+
+function loadOverview(content) {
+  twentyQuery('{ people { totalCount } companies { totalCount } opportunities { totalCount } }')
+    .then(function(d) {
+      var data = d.data || {};
+      content.innerHTML =
+        '<div class="data-grid">' +
+        '<div class="data-card"><div class="label">Contacts</div><div class="value">' + (data.people ? data.people.totalCount : '?') + '</div><div class="sub">People in CRM</div></div>' +
+        '<div class="data-card"><div class="label">Companies</div><div class="value">' + (data.companies ? data.companies.totalCount : '?') + '</div><div class="sub">Organisations</div></div>' +
+        '<div class="data-card"><div class="label">Opportunities</div><div class="value">' + (data.opportunities ? data.opportunities.totalCount : '?') + '</div><div class="sub">Active deals</div></div>' +
+        '</div>' +
+        '<div style="margin-top:16px;"><a href="' + (twentyConfig.workspaceUrl || 'https://twenty.com') + '" target="_blank" class="btn btn-primary">Open Twenty CRM \u2197</a></div>';
+    })
+    .catch(function(e) {
+      content.innerHTML = '<div style="color:#dc2626;padding:12px;">Error loading overview: ' + e.message + '</div>';
+    });
+}
+
+function loadContacts(content) {
+  twentyQuery('{ people(first: 20, orderBy: {createdAt: DescNullsLast}) { edges { node { id name { firstName lastName } emails { primaryEmail } phones { primaryPhoneNumber } createdAt } } } }')
+    .then(function(d) {
+      var people = (d.data && d.data.people && d.data.people.edges) ? d.data.people.edges : [];
+      if (!people.length) { content.innerHTML = '<div style="color:var(--fg-muted);padding:12px;">No contacts yet. <a href="' + twentyConfig.workspaceUrl + '" target="_blank" style="color:var(--accent);">Add in Twenty \u2197</a></div>'; return; }
+      content.innerHTML = '<div class="record-list">' + people.map(function(e) {
+        var p = e.node;
+        var name = ((p.name && p.name.firstName) || '') + ' ' + ((p.name && p.name.lastName) || '');
+        var email = p.emails && p.emails.primaryEmail ? p.emails.primaryEmail : '';
+        var phone = p.phones && p.phones.primaryPhoneNumber ? p.phones.primaryPhoneNumber : '';
+        return '<div class="record-item"><div class="name">' + esc(name.trim() || 'Unnamed') + '</div><div class="meta">' + esc(email) + (phone ? ' &middot; ' + esc(phone) : '') + '</div></div>';
+      }).join('') + '</div>';
+    })
+    .catch(function(e) { content.innerHTML = '<div style="color:#dc2626;padding:12px;">Error: ' + e.message + '</div>'; });
+}
+
+function loadCompanies(content) {
+  twentyQuery('{ companies(first: 20, orderBy: {createdAt: DescNullsLast}) { edges { node { id name domainName { primaryLinkUrl } employees createdAt } } } }')
+    .then(function(d) {
+      var companies = (d.data && d.data.companies && d.data.companies.edges) ? d.data.companies.edges : [];
+      if (!companies.length) { content.innerHTML = '<div style="color:var(--fg-muted);padding:12px;">No companies yet.</div>'; return; }
+      content.innerHTML = '<div class="record-list">' + companies.map(function(e) {
+        var c = e.node;
+        var domain = c.domainName && c.domainName.primaryLinkUrl ? c.domainName.primaryLinkUrl : '';
+        return '<div class="record-item"><div class="name">' + esc(c.name || 'Unnamed') + '</div><div class="meta">' + esc(domain) + (c.employees ? ' &middot; ' + c.employees + ' employees' : '') + '</div></div>';
+      }).join('') + '</div>';
+    })
+    .catch(function(e) { content.innerHTML = '<div style="color:#dc2626;padding:12px;">Error: ' + e.message + '</div>'; });
+}
+
+function loadCalendar(content) {
+  content.innerHTML = '<div style="padding:12px;"><p style="font-size:0.9rem;margin-bottom:12px;">Calendar events are synced from Gmail/Google Calendar inside Twenty. Connect your Google account in Twenty Settings \u2192 Accounts.</p><a href="' + (twentyConfig.workspaceUrl || '') + '/objects/calendar-events" target="_blank" class="btn btn-primary">View Calendar in Twenty \u2197</a></div>';
+}
+
+function loadEmail(content) {
+  content.innerHTML = '<div style="padding:12px;"><p style="font-size:0.9rem;margin-bottom:12px;">Emails are synced from Gmail inside Twenty. Connect your Google account in Twenty Settings \u2192 Accounts.</p><a href="' + (twentyConfig.workspaceUrl || '') + '/objects/messages" target="_blank" class="btn btn-primary">View Emails in Twenty \u2197</a></div>';
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
