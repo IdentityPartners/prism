@@ -657,7 +657,7 @@ function loadSocialQueue() {
 function loadHomeCalendar() {
   var el = document.getElementById('home-calendar-events');
   if (!el) return;
-  fetch('https://prism-api.identitypartners.workers.dev/api/twenty/calendar')
+  fetch('https://prism-api.identitypartners.workers.dev/api/crm/calendar')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.status === 'not_connected') {
