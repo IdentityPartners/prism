@@ -3864,6 +3864,81 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success: false, error: e.message}, 500, origin); }
     }
 
+
+    // ── Dev Team routes (H1) ─────────────────────────────────────────────────────
+    if (path === '/api/devteam' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const userMsg = body.message || body.content || '';
+        const history = body.history || [];
+        const msgs = [
+          {role:'system', content:'You are the Argentica Dev Team agent. You are a senior full-stack developer with access to the Cloudflare Worker, GitHub repo (IdentityPartners/prism), KV storage, and D1 database. You diagnose issues, fix bugs, and maintain the system. You never ask Simon to do anything technical. British English. No sycophancy. Be direct and precise. When you identify a fix, describe it clearly with the exact code change needed.'},
+          ...history.slice(-10),
+          {role:'user', content:userMsg}
+        ];
+        const result = await orchestrate(msgs, env, {profile:'balanced'});
+        return json({success:true, content:result.content, provider:result.provider, model:result.model}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
+    if (path === '/api/devteam/execute' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const action = body.action || '';
+        const results = {};
+
+        // Health check
+        if (action === 'health' || action === 'diagnose') {
+          results.worker = 'online';
+          results.kv = env.PRISM_KV ? 'connected' : 'missing';
+          results.d1 = env.PRISM_D1 ? 'connected' : 'missing';
+          // Test a KV read
+          try {
+            await env.PRISM_KV.get('health:ping');
+            results.kv_read = 'ok';
+          } catch(e) { results.kv_read = 'error: ' + e.message; }
+          // Check routing chain
+          const mistralKey = k(env, ['mistral_api_key','MISTRAL_API_KEY','mistral_p']);
+          const deepseekKey = k(env, ['deepseek_paid','DEEPSEEK_PAID']);
+          const groqKey = k(env, ['groq_f1','groq_f2','groq_f3']);
+          const cerebrasKey = k(env, ['cerebras_p1','cerebras_f1']);
+          results.providers = {
+            mistral: mistralKey ? 'key present' : 'MISSING',
+            deepseek: deepseekKey ? 'key present' : 'MISSING',
+            groq: groqKey ? 'key present' : 'MISSING',
+            cerebras: cerebrasKey ? 'key present' : 'MISSING',
+          };
+          return json({success:true, action, results}, 200, origin);
+        }
+
+        // KV inspect
+        if (action === 'kv-list') {
+          const prefix = body.prefix || '';
+          try {
+            const list = await env.PRISM_KV.list({prefix, limit:20});
+            results.keys = list.keys.map(k => k.name);
+            results.complete = !list.list_complete ? false : true;
+          } catch(e) { results.error = e.message; }
+          return json({success:true, action, results}, 200, origin);
+        }
+
+        // Test provider
+        if (action === 'test-provider') {
+          const provider = body.provider || 'mistral';
+          const testMsgs = [{role:'user', content:'Reply with exactly: OK'}];
+          try {
+            const result = await orchestrate(testMsgs, env, {profile:'balanced', providerOverride:provider});
+            results.response = result.content;
+            results.provider = result.provider;
+            results.model = result.model;
+          } catch(e) { results.error = e.message; }
+          return json({success:true, action, results}, 200, origin);
+        }
+
+        return json({success:true, action, results:{message:'Action not recognised: ' + action}}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
     return json({ error: 'Not found', path }, 404, origin);
   },
 
