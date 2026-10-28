@@ -64,7 +64,8 @@
       <button class="vt-btn" onclick="zoomOut()">- Zoom</button>
       <button class="vt-btn" onclick="readAloudDoc()">&#x1F50A; Read</button>
       <button class="vt-btn" id="stop-btn" onclick="stopReading()" style="display:none;">&#x23F9; Stop</button>
-      <button class="vt-btn" onclick="exportAnnotations()">&#x2B07; Notes</button>
+      <button class="vt-btn" onclick="saveAnnotations(); this.textContent='\u2713 Saved'; var b=this; setTimeout(function(){b.textContent='\u2B07 Notes';},1500);" title="Save annotations to Argentica">&#x1F4BE; Save</button>
+      <button class="vt-btn" onclick="exportAnnotations()">&#x2B07; Export</button>
       <button class="vt-btn" onclick="window.history.back()">&#x2715; Close</button>
     </div>
   </div>
@@ -183,7 +184,9 @@ function loadDocumentFromParams(id, name, type, url) {
     var decodedUrl = decodeURIComponent(url);
     var decodedName = decodeURIComponent(name || 'Document');
     var ext = decodedName.split('.').pop().toLowerCase();
-    loadDocument({id: id || 'doc', name: decodedName, type: type || ext, url: decodedUrl, content: ''});
+    // Use stable ID based on URL so annotations persist
+    var stableId = id || 'url-' + btoa(decodedUrl).replace(/[^a-zA-Z0-9]/g,'').substring(0,20);
+    loadDocument({id: stableId, name: decodedName, type: type || ext, url: decodedUrl, content: ''});
   } else if (name) {
     var decodedName = decodeURIComponent(name);
     document.getElementById('doc-title').textContent = decodedName;
