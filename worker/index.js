@@ -4799,6 +4799,104 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success:false,error:e.message},500,origin); }
     }
 
+
+    // ── Gemini image generation (Nano Banana) ────────────────────────────────
+    if (path === '/api/image/gemini' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        if (!GKEY) return json({error:'Gemini key not configured'},400,origin);
+        const prompt = body.prompt || body.text || '';
+        const model = body.model || 'gemini-3.1-flash-image'; // Nano Banana 2
+        const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+GKEY, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseModalities:['IMAGE','TEXT']}})
+        });
+        if (!resp.ok) { const err = await resp.text(); return json({error:'Gemini image error: '+err.substring(0,200)},resp.status,origin); }
+        const data = await resp.json();
+        const parts = data.candidates?.[0]?.content?.parts || [];
+        const imgPart = parts.find(function(p){return p.inlineData;});
+        const textPart = parts.find(function(p){return p.text;});
+        if (imgPart) return json({success:true,image_base64:imgPart.inlineData.data,mime_type:imgPart.inlineData.mimeType,model},200,origin);
+        return json({success:false,error:'No image in response',text:textPart?.text||''}, 200, origin);
+      } catch(e) { return json({error:e.message},500,origin); }
+    }
+
+    // ── Gemini video generation (Omni Flash) ──────────────────────────────────
+    if (path === '/api/video/gemini' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        if (!GKEY) return json({error:'Gemini key not configured'},400,origin);
+        const prompt = body.prompt || body.text || '';
+        const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-omni-flash:generateContent?key='+GKEY, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseModalities:['VIDEO']}})
+        });
+        if (!resp.ok) { const err = await resp.text(); return json({error:'Gemini video error: '+err.substring(0,200)},resp.status,origin); }
+        const data = await resp.json();
+        return json({success:true,data:data.candidates?.[0]?.content||null,model:'gemini-omni-flash'},200,origin);
+      } catch(e) { return json({error:e.message},500,origin); }
+    }
+
+    // ── Gemini STT (Transcribe) ───────────────────────────────────────────────
+    if (path === '/api/stt/gemini' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
+        if (!GKEY) return json({error:'Gemini key not configured'},400,origin);
+        const audioB64 = body.audio_base64 || '';
+        const mimeType = body.mime_type || 'audio/mp3';
+        if (!audioB64) return json({error:'audio_base64 required'},400,origin);
+        const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-transcribe:generateContent?key='+GKEY, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({contents:[{parts:[{inlineData:{mimeType,data:audioB64}},{text:'Transcribe this audio accurately. British English. Include speaker labels if multiple speakers.'}]}]})
+        });
+        if (!resp.ok) { const err = await resp.text(); return json({error:'Gemini STT error: '+err.substring(0,200)},resp.status,origin); }
+        const data = await resp.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        return json({success:true,text,model:'gemini-3.5-transcribe'},200,origin);
+      } catch(e) { return json({error:e.message},500,origin); }
+    }
+
+    // ── Google Drive upload ───────────────────────────────────────────────────
+    if (path === '/api/gdrive/upload' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const tokenData = env.PRISM_KV ? await env.PRISM_KV.get('google:oauth:token','json') : null;
+        if (!tokenData || !tokenData.access_token) return json({success:false,error:'Google not connected. Go to /comms/google/ to connect.'},400,origin);
+        const fileName = body.fileName || ('file-'+Date.now());
+        const content = body.content || '';
+        const mimeType = body.mimeType || 'application/octet-stream';
+        const folder = body.folder || 'Argentica';
+        const b64 = content.includes(',') ? content.split(',')[1] : content;
+        const binaryStr = atob(b64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i=0;i<binaryStr.length;i++) bytes[i]=binaryStr.charCodeAt(i);
+        // Upload to Google Drive
+        const metadata = {name:fileName,mimeType};
+        const boundary = 'gdrive_boundary';
+        const multipart = '--'+boundary+'
+Content-Type: application/json
+
+'+JSON.stringify(metadata)+'
+--'+boundary+'
+Content-Type: '+mimeType+'
+
+';
+        const multipartEnd = '
+--'+boundary+'--';
+        const uploadBody = new Uint8Array([...new TextEncoder().encode(multipart),...bytes,...new TextEncoder().encode(multipartEnd)]);
+        const uploadResp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{'Authorization':'Bearer '+tokenData.access_token,'Content-Type':'multipart/related; boundary='+boundary},body:uploadBody});
+        if (!uploadResp.ok) { const err = await uploadResp.text(); return json({success:false,error:'Drive upload failed: '+err.substring(0,200)},200,origin); }
+        const uploadData = await uploadResp.json();
+        return json({success:true,id:uploadData.id,name:uploadData.name,webViewLink:'https://drive.google.com/file/d/'+uploadData.id+'/view'},200,origin);
+      } catch(e) { return json({success:false,error:e.message},500,origin); }
+    }
+
     return json({ error: 'Not found', path }, 404, origin);
   },
 
