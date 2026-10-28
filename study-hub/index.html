@@ -555,27 +555,31 @@ function handleUpload(files) {
     var reader = new FileReader();
     reader.onload = function(e) {
       var b64 = e.target.result.split(',')[1] || btoa(e.target.result);
-      fetch(WORKER + '/api/onedrive/upload', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({fileName: file.name, content: b64, folder: 'Argentica/Study'})
-      })
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        // Find resource and update with OneDrive URL
-        var res = (currentWeek.resources || []).find(function(r) { return r.id === resourceId; });
-        if (res) {
-          res.url = d.shareUrl || d.webUrl || null;
-          res.onedrive = d.shareUrl ? 'uploaded' : 'failed';
-          res.onedriveId = d.id || null;
-          saveModules();
-          renderTree();
-        }
-      })
-      .catch(function(err) {
-        var res = (currentWeek.resources || []).find(function(r) { return r.id === resourceId; });
-        if (res) { res.onedrive = 'failed'; saveModules(); }
-      });
+      // Try Google Drive first (5TB, OAuth), fall back to OneDrive
+      fetch(WORKER + '/api/google/status')
+        .then(function(sr) { return sr.json(); })
+        .then(function(status) {
+          var uploadUrl = status.connected ? WORKER + '/api/gdrive/upload' : WORKER + '/api/onedrive/upload';
+          var uploadBody = status.connected
+            ? {fileName: file.name, content: b64, mimeType: file.type || 'application/octet-stream'}
+            : {fileName: file.name, content: b64, folder: 'Argentica/Study'};
+          return fetch(uploadUrl, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(uploadBody)});
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var res = (currentWeek.resources || []).find(function(r) { return r.id === resourceId; });
+          if (res) {
+            res.url = d.webViewLink || d.shareUrl || d.webUrl || null;
+            res.storage = d.webViewLink ? 'gdrive' : (d.shareUrl ? 'onedrive' : 'failed');
+            res.storageId = d.id || null;
+            saveModules();
+            renderTree();
+          }
+        })
+        .catch(function(err) {
+          var res = (currentWeek.resources || []).find(function(r) { return r.id === resourceId; });
+          if (res) { res.storage = 'failed'; saveModules(); }
+        });
     };
     reader.readAsDataURL(file);
   });
