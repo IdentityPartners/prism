@@ -4896,6 +4896,39 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success:false,error:e.message},500,origin); }
     }
 
+
+    if (path === '/api/google/gmail' && request.method === 'GET') {
+      try {
+        const tokenData = env.PRISM_KV ? await env.PRISM_KV.get('google:oauth:token','json') : null;
+        if (!tokenData || !tokenData.access_token) return json({status:'not_connected',messages:[]},200,origin);
+        let accessToken = tokenData.access_token;
+        if (tokenData.expires_at && Date.now() > tokenData.expires_at - 60000 && tokenData.refresh_token) {
+          const cid = k(env,['google_client_id','GOOGLE_CLIENT_ID']) || '';
+          const cs = k(env,['google_client_secret','GOOGLE_CLIENT_SECRET']) || '';
+          const rr = await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({refresh_token:tokenData.refresh_token,client_id:cid,client_secret:cs,grant_type:'refresh_token'}).toString()});
+          const rd = await rr.json();
+          if (rd.access_token) { accessToken = rd.access_token; tokenData.access_token = accessToken; tokenData.expires_at = Date.now()+(rd.expires_in||3600)*1000; if (env.PRISM_KV) await env.PRISM_KV.put('google:oauth:token',JSON.stringify(tokenData)); }
+        }
+        const maxResults = parseInt(url.searchParams.get('maxResults') || '20');
+        const label = url.searchParams.get('label') || 'INBOX';
+        const listResp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults='+maxResults+'&labelIds='+label,{headers:{'Authorization':'Bearer '+accessToken}});
+        if (!listResp.ok) { const err = await listResp.text(); return json({status:'api_error',code:listResp.status,error:err.substring(0,300),messages:[]},200,origin); }
+        const listData = await listResp.json();
+        const ids = (listData.messages || []).slice(0,10);
+        const messages = await Promise.all(ids.map(async function(m) {
+          try {
+            const mr = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/'+m.id+'?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date',{headers:{'Authorization':'Bearer '+accessToken}});
+            if (!mr.ok) return null;
+            const msg = await mr.json();
+            const hdrs = msg.payload && msg.payload.headers ? msg.payload.headers : [];
+            const gh = function(n) { return (hdrs.find(function(h){return h.name===n;})||{}).value||''; };
+            return {id:m.id,subject:gh('Subject')||'(no subject)',from:gh('From'),date:gh('Date'),snippet:msg.snippet||'',unread:(msg.labelIds||[]).includes('UNREAD')};
+          } catch(e) { return null; }
+        }));
+        return json({status:'ok',messages:messages.filter(Boolean),total:listData.resultSizeEstimate||0},200,origin);
+      } catch(e) { return json({status:'error',error:e.message,messages:[]},200,origin); }
+    }
+
     return json({ error: 'Not found', path }, 404, origin);
   },
 
