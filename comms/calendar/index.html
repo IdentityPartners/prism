@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calendar â Argentica</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+<style>
+.cal-wrap{max-width:800px;margin:0 auto;padding:20px;}
+.cal-hdr{display:flex;align-items:center;gap:12px;margin-bottom:20px;}
+.cal-hdr h1{font-size:1.3rem;font-weight:700;margin:0;flex:1;}
+.event-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:flex-start;gap:12px;}
+.event-bar{width:4px;border-radius:2px;background:var(--accent);flex-shrink:0;align-self:stretch;}
+.event-title{font-size:0.95rem;font-weight:600;margin-bottom:3px;}
+.event-meta{font-size:0.8rem;color:var(--fg-muted);}
+.section-hdr{font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fg-muted);margin:16px 0 8px;}
+.btn{padding:7px 14px;border-radius:6px;border:none;cursor:pointer;font-size:0.85rem;font-weight:600;font-family:inherit;}
+.btn-secondary{background:var(--bg-sunken);color:var(--fg);border:1px solid var(--border);}
+.not-connected{text-align:center;padding:48px 20px;color:var(--fg-muted);}
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="cal-wrap">
+  <div class="cal-hdr">
+    <span class="iconify" data-icon="ph:calendar-bold" style="font-size:1.8rem;color:var(--accent);"></span>
+    <h1>Calendar</h1>
+    <button class="btn btn-secondary" onclick="loadCalendar()">Refresh</button>
+    <a href="/comms/google/" class="btn btn-secondary">Google Account</a>
+  </div>
+  <div id="cal-content"><div style="color:var(--fg-muted);font-size:0.9rem;">Loading...</div></div>
+</div>
+</div>
+<script>
+var WORKER = "https://prism-api.identitypartners.workers.dev";
+document.addEventListener("DOMContentLoaded", function() {
+  var mount = document.getElementById("sidebar-mount");
+  if (mount && typeof buildSidebar === "function") {
+    var sb = buildSidebar("/comms/");
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  loadCalendar();
+});
+function loadCalendar() {
+  var content = document.getElementById("cal-content");
+  content.innerHTML = "<div style=\"color:var(--fg-muted);font-size:0.9rem;\">Loading...</div>";
+  fetch(WORKER + "/api/google/calendar")
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.status === "not_connected") {
+        content.innerHTML = "<div class=\"not-connected\"><div style=\"font-size:2rem;margin-bottom:10px;\">\uD83D\uDCC5</div><div style=\"font-size:0.95rem;font-weight:600;margin-bottom:8px;\">Google not connected</div><a href=\"/comms/google/\" style=\"color:var(--accent);\">Connect Google Account</a></div>";
+        return;
+      }
+      if (d.status === "api_error") {
+        content.innerHTML = "<div class=\"not-connected\"><div style=\"font-size:2rem;margin-bottom:10px;\">\u26A0\uFE0F</div><div style=\"font-size:0.95rem;font-weight:600;margin-bottom:8px;\">Google Calendar API not enabled</div><p style=\"font-size:0.85rem;\">Enable it at <a href=\"https://console.developers.google.com/apis/api/calendar-json.googleapis.com/overview?project=944507774917\" target=\"_blank\" style=\"color:var(--accent);\">Google Cloud Console</a></p></div>";
+        return;
+      }
+      var html = "";
+      var today = d.today || [];
+      var week = d.week || [];
+      if (!today.length && !week.length) {
+        html = "<div style=\"color:var(--fg-muted);padding:20px;text-align:center;\">No upcoming events in the next 2 weeks.</div>";
+      }
+      if (today.length) {
+        html += "<div class=\"section-hdr\">Today</div>";
+        html += today.map(renderEvent).join("");
+      }
+      if (week.length) {
+        html += "<div class=\"section-hdr\">This Week</div>";
+        html += week.map(renderEvent).join("");
+      }
+      content.innerHTML = html;
+    })
+    .catch(function(e) {
+      content.innerHTML = "<div style=\"color:#dc2626;padding:12px;\">Error: " + e.message + "</div>";
+    });
+}
+function renderEvent(ev) {
+  var dt = ev.starts_at ? new Date(ev.starts_at).toLocaleString("en-GB", {weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : "";
+  return "<div class=\"event-card\"><div class=\"event-bar\"></div><div><div class=\"event-title\">" + esc(ev.title) + "</div><div class=\"event-meta\">" + dt + (ev.location ? " · " + esc(ev.location) : "") + "</div>" + (ev.description ? "<div style=\"font-size:0.8rem;color:var(--fg-muted);margin-top:4px;\">" + esc(ev.description.substring(0,100)) + "</div>" : "") + "</div></div>";
+}
+function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+</script>
+</body>
+</html>
