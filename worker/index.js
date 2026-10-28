@@ -260,6 +260,7 @@ async function orchestrate(messages, env, options = {}) {
       GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-20b', key:GROQ_KEY, note:'GPT-OSS 20B · Groq · ~1000 tok/s · fast fallback'},
       KIMI_KEY && {provider:'kimi', model:'kimi-k2.5', key:KIMI_KEY, note:'Kimi K2.5 · 262K ctx · $0.45/1M'},
       DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · 1M ctx · web search'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro · Google AI Pro · 2M ctx'},
       GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-flash', key:GEMINI_KEY, note:'Gemini 2.5 Flash · FREE fallback'},
       MISTRAL_KEY && {provider:'mistral', model:'mistral-small-4', key:MISTRAL_KEY, note:'Mistral Small 4 · hybrid instruct+reasoning'},
       GEMINI_KEY && {provider:'gemini', model:'gemma-4', key:GEMINI_KEY, note:'Gemma 4 · FREE · open-weight'},
@@ -4767,6 +4768,35 @@ data: ${JSON.stringify(data)}
         if (!tokenData) return json({connected:false},200,origin);
         return json({connected:true,scope:tokenData.scope,stored_at:tokenData.stored_at},200,origin);
       } catch(e) { return json({connected:false},200,origin); }
+    }
+
+
+    // ── Azure Blob Storage upload ─────────────────────────────────────────────
+    if (path === '/api/azure/upload' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const connStr = k(env, ['azure_storage_connection','AZURE_STORAGE_CONNECTION']) || '';
+        const accountName = k(env, ['azure_storage_account','AZURE_STORAGE_ACCOUNT']) || 'argenticastorage';
+        const accountKey = k(env, ['azure_storage_key','AZURE_STORAGE_KEY']) || '';
+        if (!accountKey) return json({success:false,error:'Azure Storage key not configured. Add azure_storage_key via Secret Ingester.'},400,origin);
+        const fileName = body.fileName || ('file-'+Date.now());
+        const container = body.container || 'argentica';
+        const content = body.content || '';
+        const b64 = content.includes(',') ? content.split(',')[1] : content;
+        const binaryStr = atob(b64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i=0;i<binaryStr.length;i++) bytes[i]=binaryStr.charCodeAt(i);
+        // Azure Blob Storage REST API
+        const date = new Date().toUTCString();
+        const blobUrl = 'https://' + accountName + '.blob.core.windows.net/' + container + '/' + encodeURIComponent(fileName);
+        // Note: proper HMAC-SHA256 signing required for production
+        // For now, use SAS token if available
+        const sasToken = k(env, ['azure_storage_sas','AZURE_STORAGE_SAS']) || '';
+        if (!sasToken) return json({success:false,error:'Azure SAS token not configured. Add azure_storage_sas via Secret Ingester.'},400,origin);
+        const uploadResp = await fetch(blobUrl + '?' + sasToken, {method:'PUT',headers:{'x-ms-blob-type':'BlockBlob','Content-Type':'application/octet-stream','Content-Length':String(bytes.length)},body:bytes});
+        if (!uploadResp.ok) return json({success:false,error:'Upload failed: HTTP '+uploadResp.status},200,origin);
+        return json({success:true,url:blobUrl,name:fileName},200,origin);
+      } catch(e) { return json({success:false,error:e.message},500,origin); }
     }
 
     return json({ error: 'Not found', path }, 404, origin);
