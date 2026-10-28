@@ -4871,29 +4871,28 @@ data: ${JSON.stringify(data)}
         const fileName = body.fileName || ('file-'+Date.now());
         const content = body.content || '';
         const mimeType = body.mimeType || 'application/octet-stream';
-        const folder = body.folder || 'Argentica';
         const b64 = content.includes(',') ? content.split(',')[1] : content;
         const binaryStr = atob(b64);
         const bytes = new Uint8Array(binaryStr.length);
         for (let i=0;i<binaryStr.length;i++) bytes[i]=binaryStr.charCodeAt(i);
-        // Upload to Google Drive
-        const metadata = {name:fileName,mimeType};
-        const boundary = 'gdrive_boundary';
-        const multipart = '--'+boundary+'
-Content-Type: application/json
-
-'+JSON.stringify(metadata)+'
---'+boundary+'
-Content-Type: '+mimeType+'
-
-';
-        const multipartEnd = '
---'+boundary+'--';
-        const uploadBody = new Uint8Array([...new TextEncoder().encode(multipart),...bytes,...new TextEncoder().encode(multipartEnd)]);
-        const uploadResp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{'Authorization':'Bearer '+tokenData.access_token,'Content-Type':'multipart/related; boundary='+boundary},body:uploadBody});
+        // Step 1: Create file metadata
+        const metaResp = await fetch('https://www.googleapis.com/drive/v3/files',{
+          method:'POST',
+          headers:{'Authorization':'Bearer '+tokenData.access_token,'Content-Type':'application/json'},
+          body:JSON.stringify({name:fileName,mimeType})
+        });
+        if (!metaResp.ok) { const err = await metaResp.text(); return json({success:false,error:'Drive meta failed: '+err.substring(0,200)},200,origin); }
+        const metaData = await metaResp.json();
+        const fileId = metaData.id;
+        // Step 2: Upload content
+        const uploadResp = await fetch('https://www.googleapis.com/upload/drive/v3/files/'+fileId+'?uploadType=media',{
+          method:'PATCH',
+          headers:{'Authorization':'Bearer '+tokenData.access_token,'Content-Type':mimeType},
+          body:bytes
+        });
         if (!uploadResp.ok) { const err = await uploadResp.text(); return json({success:false,error:'Drive upload failed: '+err.substring(0,200)},200,origin); }
         const uploadData = await uploadResp.json();
-        return json({success:true,id:uploadData.id,name:uploadData.name,webViewLink:'https://drive.google.com/file/d/'+uploadData.id+'/view'},200,origin);
+        return json({success:true,id:fileId,name:fileName,webViewLink:'https://drive.google.com/file/d/'+fileId+'/view'},200,origin);
       } catch(e) { return json({success:false,error:e.message},500,origin); }
     }
 
