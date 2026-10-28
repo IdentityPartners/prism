@@ -751,8 +751,9 @@ function buildSidebar(activePage) {
     {type:'group', label:'Comms', icon:'fluent-emoji:envelope', children:[
       {label:'Inbox', icon:'fluent-emoji:inbox-tray', href:'/inbox/'},
       {label:'Email', icon:'fluent-emoji:e-mail', href:'/comms/email/'},
-      {label:'Google', icon:'fluent-emoji:envelope-with-arrow', href:'/comms/google/'},
-      {label:'Calendar', icon:'fluent-emoji:spiral-calendar', href:'/comms/google/'},
+      {label:'Email', icon:'fluent-emoji:e-mail', href:'/comms/email/'},
+      {label:'Calendar', icon:'fluent-emoji:spiral-calendar', href:'/comms/calendar/'},
+      {label:'Google Account', icon:'fluent-emoji:envelope-with-arrow', href:'/comms/google/'},
       {label:'Twenty CRM', icon:'fluent-emoji:address-book', href:'/comms/twenty/'},
       {label:'Messages', icon:'fluent-emoji:speech-balloon', href:'/messages/'},
     ]},
