@@ -657,7 +657,14 @@ function loadSocialQueue() {
 function loadHomeCalendar() {
   var el = document.getElementById('home-calendar-events');
   if (!el) return;
-  fetch('https://prism-api.identitypartners.workers.dev/api/crm/calendar')
+  fetch('https://prism-api.identitypartners.workers.dev/api/google/status')
+      .then(function(r){return r.json();})
+      .then(function(s){
+        var calUrl = s.connected
+          ? 'https://prism-api.identitypartners.workers.dev/api/google/calendar'
+          : 'https://prism-api.identitypartners.workers.dev/api/crm/calendar';
+        return fetch(calUrl);
+      })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.status === 'not_connected') {
