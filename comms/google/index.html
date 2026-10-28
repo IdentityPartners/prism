@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Google â Argentica</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<style>
+.google-wrap{max-width:560px;margin:40px auto;padding:0 20px;}
+.google-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:16px;}
+.google-card h2{margin:0 0 6px;font-size:1.2rem;display:flex;align-items:center;gap:10px;}
+.google-card p{font-size:0.88rem;color:var(--fg-muted);margin:0 0 16px;}
+.btn{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:inherit;transition:opacity 0.15s;display:inline-flex;align-items:center;gap:8px;text-decoration:none;}
+.btn:hover{opacity:0.85;}
+.btn-google{background:#4285f4;color:#fff;}
+.btn-secondary{background:var(--bg-sunken);color:var(--fg);border:1px solid var(--border);}
+.status-ok{color:#16a34a;font-weight:600;}
+.status-err{color:#dc2626;}
+.scope-list{list-style:none;padding:0;margin:12px 0;}
+.scope-list li{padding:4px 0;font-size:0.85rem;display:flex;align-items:center;gap:8px;}
+.scope-list li::before{content:"\2713";color:#16a34a;font-weight:700;}
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="google-wrap">
+  <div class="google-card">
+    <h2>Google Account</h2>
+    <p>Connect your Google account to enable Gmail and Google Calendar in Argentica. Your refresh token is stored securely in Cloudflare KV and auto-refreshes.</p>
+    <div id="google-status"><div style="font-size:0.85rem;color:var(--fg-muted);">Checking connection...</div></div>
+    <div style="margin-top:16px;" id="google-actions"></div>
+  </div>
+  <div class="google-card">
+    <h3 style="margin:0 0 8px;font-size:0.95rem;">What Argentica will access:</h3>
+    <ul class="scope-list">
+      <li>Google Calendar â read your events for the home page and CRM</li>
+      <li>Gmail â read your inbox for the Comms module</li>
+      <li>Google Drive â upload and store documents (5TB available)</li>
+      <li>Basic profile â your name and email address</li>
+    </ul>
+    <p style="font-size:0.78rem;color:var(--fg-muted);margin:0;">Read-only access for Calendar and Gmail. Argentica never sends emails without explicit action.</p>
+  </div>
+</div>
+</div>
+<script>
+var WORKER = "https://prism-api.identitypartners.workers.dev";
+document.addEventListener("DOMContentLoaded", function() {
+  var mount = document.getElementById("sidebar-mount");
+  if (mount && typeof buildSidebar === "function") {
+    var sb = buildSidebar("/comms/");
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  checkStatus();
+});
+function checkStatus() {
+  fetch(WORKER + "/api/google/status")
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var status = document.getElementById("google-status");
+      var actions = document.getElementById("google-actions");
+      if (d.connected) {
+        status.innerHTML = "<div class=\"status-ok\">\u2713 Connected</div><div style=\"font-size:0.82rem;color:var(--fg-muted);margin-top:4px;\">Connected on " + (d.stored_at ? new Date(d.stored_at).toLocaleDateString("en-GB") : "unknown") + "</div>";
+        actions.innerHTML = "<a href=\"" + WORKER + "/comms/google/auth\" class=\"btn btn-secondary\">Reconnect Google</a> <button class=\"btn btn-secondary\" onclick=\"disconnect()\" style=\"margin-left:8px;\">Disconnect</button>";
+      } else {
+        status.innerHTML = "<div class=\"status-err\">Not connected</div>";
+        actions.innerHTML = "<a href=\"" + WORKER + "/comms/google/auth\" class=\"btn btn-google\">Connect Google Account</a>";
+      }
+    })
+    .catch(function() {
+      document.getElementById("google-status").innerHTML = "<div class=\"status-err\">Could not check status</div>";
+      document.getElementById("google-actions").innerHTML = "<a href=\"" + WORKER + "/comms/google/auth\" class=\"btn btn-google\">Connect Google Account</a>";
+    });
+}
+function disconnect() {
+  if (!confirm("Disconnect Google account?")) return;
+  fetch(WORKER + "/api/kv/set", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({key:"google:oauth:token",value:""})})
+    .then(function() { checkStatus(); });
+}
+</script>
+</body>
+</html>
