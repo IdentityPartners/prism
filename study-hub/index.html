@@ -452,8 +452,64 @@ function openResource(r) {
     var params2 = new URLSearchParams({id: r.id, name: r.title, type: r.type});
     window.open('/doc-viewer/?' + params2.toString(), '_blank');
   } else {
-    alert('No content or URL for this resource.');
+    reUploadResource(r);
   }
+}
+
+function reUploadResource(resource) {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.pdf,.pptx,.ppt,.docx,.doc,.md,.txt,.csv';
+  input.onchange = function() {
+    var file = input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var b64 = e.target.result.split(',')[1] || btoa(e.target.result);
+      resource.storage = 'uploading';
+      saveModules();
+      renderTree();
+      fetch(WORKER + '/api/google/status')
+        .then(function(sr) { return sr.json(); })
+        .then(function(status) {
+          var uploadUrl = status.connected
+            ? WORKER + '/api/gdrive/upload'
+            : WORKER + '/api/onedrive/upload';
+          var uploadBody = status.connected
+            ? {fileName: file.name, content: b64, mimeType: file.type || 'application/octet-stream'}
+            : {fileName: file.name, content: b64, folder: 'Argentica/Study'};
+          return fetch(uploadUrl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(uploadBody)
+          });
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          resource.url = d.webViewLink || d.shareUrl || d.webUrl || null;
+          resource.storage = resource.url ? 'uploaded' : 'failed';
+          resource.storageId = d.id || null;
+          saveModules();
+          renderTree();
+          if (resource.url) {
+            var params = new URLSearchParams({
+              id: resource.id, name: resource.title,
+              type: resource.type, url: resource.url
+            });
+            window.open('/doc-viewer/?' + params.toString(), '_blank');
+          } else {
+            alert('Upload failed. Connect Google Drive at /comms/google/ first.');
+          }
+        })
+        .catch(function(err) {
+          resource.storage = 'failed';
+          saveModules();
+          alert('Upload error: ' + err.message);
+        });
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
 }
 
 function deleteResource(id) {
