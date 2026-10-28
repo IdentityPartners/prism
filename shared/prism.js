@@ -751,7 +751,9 @@ function buildSidebar(activePage) {
     {type:'group', label:'Comms', icon:'fluent-emoji:envelope', children:[
       {label:'Inbox', icon:'fluent-emoji:inbox-tray', href:'/inbox/'},
       {label:'Email', icon:'fluent-emoji:e-mail', href:'/comms/email/'},
-      {label:'Calendar', icon:'fluent-emoji:spiral-calendar', href:'/comms/zoho-calendar/'},
+      {label:'Google', icon:'fluent-emoji:envelope-with-arrow', href:'/comms/google/'},
+      {label:'Calendar', icon:'fluent-emoji:spiral-calendar', href:'/comms/google/'},
+      {label:'Twenty CRM', icon:'fluent-emoji:address-book', href:'/comms/twenty/'},
       {label:'Messages', icon:'fluent-emoji:speech-balloon', href:'/messages/'},
     ]},
     {type:'section', label:'Business'},
@@ -773,6 +775,7 @@ function buildSidebar(activePage) {
       {label:'Profile & Memory', icon:'fluent-emoji:bust-in-silhouette', href:'/profile/'},
       {label:'WriteHandy', icon:'fluent-emoji:writing-hand', href:'/writehandy/'},
       {label:'Dev Team', icon:'fluent-emoji:hammer-and-wrench', href:'/dev-team/'},
+      {label:'Comms Centre', icon:'fluent-emoji:satellite-antenna', href:'/comms/'},
       {label:'Settings', icon:'fluent-emoji:gear', href:'/settings/'},
       {label:'Sitemap', icon:'fluent-emoji:world-map', href:'/sitemap/'},
     ]},
