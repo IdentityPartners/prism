@@ -64,7 +64,12 @@ function loadCalendar() {
       var today = d.today || [];
       var week = d.week || [];
       if (!today.length && !week.length) {
-        html = "<div style=\"color:var(--fg-muted);padding:20px;text-align:center;\">No upcoming events in the next 2 weeks.</div>";
+        html = "<div style=\"text-align:center;padding:40px 20px;color:var(--fg-muted);\">" +
+          "<div style=\"font-size:2rem;margin-bottom:10px;\">\uD83D\uDCC5</div>" +
+          "<div style=\"font-size:0.95rem;font-weight:600;margin-bottom:8px;\">No upcoming events</div>" +
+          "<div style=\"font-size:0.85rem;margin-bottom:14px;\">Your Google Calendar has no events in the next 2 weeks.</div>" +
+          "<a href=\"https://calendar.google.com\" target=\"_blank\" style=\"color:var(--accent);font-size:0.85rem;\">Add events in Google Calendar \u2197</a>" +
+          "</div>";
       }
       if (today.length) {
         html += "<div class=\"section-hdr\">Today</div>";
