@@ -204,6 +204,8 @@ function loadDocument(doc) {
   else if ((type === 'docx' || type === 'doc' || ext === 'docx' || ext === 'doc') && !isBinary) renderDOCX(doc);
   else if (isBinary || type === 'pptx' || type === 'ppt' || ext === 'pptx' || ext === 'ppt' || ext === 'xlsx' || ext === 'xls') showViewerOptions(doc);
   else if (ext === 'md' || type === 'md') renderMarkdown(doc);
+  else if (doc.url && (ext === 'pdf' || type === 'pdf')) renderPDF(doc);
+  else if (doc.url && (ext === 'docx' || ext === 'doc' || type === 'docx')) renderDOCX(doc);
   else if (doc.url) showViewerOptions(doc);
   else if (doc.content) renderText(doc);
   else showViewerOptions(doc);
@@ -212,27 +214,46 @@ function loadDocument(doc) {
 function renderPDF(doc) {
   var pane = document.getElementById('doc-pane');
   pane.className = 'doc-pane pdf-mode';
-  pane.innerHTML = '<div style="color:#fff;text-align:center;padding:20px;font-size:13px;">Loading PDF...</div>';
-  document.getElementById('pdf-controls').style.display = 'flex';
-  var src = null;
-  if (doc.content && doc.content.startsWith('data:')) {
+  document.getElementById('pdf-controls').style.display = 'none';
+  // For base64 content: use PDF.js
+  if (doc.content && doc.content.indexOf('data:') === 0) {
+    document.getElementById('pdf-controls').style.display = 'flex';
     var b64 = doc.content.split(',')[1];
     var binary = atob(b64);
     var bytes = new Uint8Array(binary.length);
     for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    src = {data: bytes};
-  } else if (doc.url) {
-    src = doc.url;
-  } else { showViewerOptions(doc); return; }
-  if (typeof pdfjsLib === 'undefined') {
-    pane.innerHTML = '<div style="color:#fff;text-align:center;padding:40px;">PDF.js not loaded. Refresh and try again.</div>';
+    if (typeof pdfjsLib === 'undefined') { showViewerOptions(doc); return; }
+    pdfjsLib.getDocument({data: bytes}).promise.then(function(pdf) {
+      pdfDoc = pdf;
+      document.getElementById('page-total').textContent = 'of ' + pdf.numPages;
+      renderPDFPage(1);
+    }).catch(function(e) { showViewerOptions(doc); });
     return;
   }
-  pdfjsLib.getDocument(src).promise.then(function(pdf) {
-    pdfDoc = pdf;
-    document.getElementById('page-total').textContent = 'of ' + pdf.numPages;
-    renderPDFPage(1);
-  }).catch(function(e) { showViewerOptions(doc); });
+  // For external URLs: use Google Docs Viewer iframe (handles CORS)
+  if (doc.url) {
+    pane.innerHTML = '';
+    pane.style.padding = '0';
+    pane.style.overflow = 'hidden';
+    pane.style.position = 'relative';
+    var viewerUrl = 'https://docs.google.com/viewer?url=' + encodeURIComponent(doc.url) + '&embedded=true';
+    var iframe = document.createElement('iframe');
+    iframe.src = viewerUrl;
+    iframe.style.cssText = 'width:100%;height:100%;border:none;';
+    iframe.allow = 'fullscreen';
+    var toolbar = document.createElement('div');
+    toolbar.style.cssText = 'position:absolute;top:8px;right:8px;z-index:10;display:flex;gap:6px;';
+    var openBtn = document.createElement('a');
+    openBtn.href = doc.url;
+    openBtn.target = '_blank';
+    openBtn.style.cssText = 'padding:4px 10px;background:#0f3b3a;color:#fff;border-radius:5px;font-size:11px;text-decoration:none;font-weight:600;';
+    openBtn.textContent = 'Open directly';
+    toolbar.appendChild(openBtn);
+    pane.appendChild(toolbar);
+    pane.appendChild(iframe);
+    return;
+  }
+  showViewerOptions(doc);
 }
 
 function renderPDFPage(num) {
