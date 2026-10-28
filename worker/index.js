@@ -1660,9 +1660,9 @@ export default {
         const fileName = body.fileName || ('file-'+Date.now());
         const content = body.content || '';
         const folder = body.folder || 'Argentica';
-        const tenantId = env.msgraph_tenant || env.MSGRAPH_TENANT || 'b7e964ca-731c-477c-b858-99dc3f1a9f7c';
-        const clientId = env.msgraph_client || env.MSGRAPH_CLIENT || '3e538e01-5ebf-44f1-879b-0fdde667d914';
-        const clientSecret = env.msgraph_secret || env.MSGRAPH_SECRET || '29547bf3-d22a-4df9-9195-07b5a2e20405';
+        const tenantId = env.msgraph_tenant || env.MSGRAPH_TENANT || '';
+        const clientId = env.msgraph_client || env.MSGRAPH_CLIENT || '';
+        const clientSecret = env.msgraph_secret || env.MSGRAPH_SECRET || '';
 
         // Get access token
         const tokenResp = await fetch(
@@ -4537,9 +4537,9 @@ data: ${JSON.stringify(data)}
     // ── MSGraph client credentials token (no user OAuth needed) ─────────────
     if (path === '/api/msgraph/token' && request.method === 'POST') {
       try {
-        const tenantId = k(env, ['msgraph_tenant','MSGRAPH_TENANT']) || 'b7e964ca-731c-477c-b858-99dc3f1a9f7c';
-        const clientId = k(env, ['msgraph_client','MSGRAPH_CLIENT']) || '3e538e01-5ebf-44f1-879b-0fdde667d914';
-        const clientSecret = k(env, ['msgraph_secret','MSGRAPH_SECRET']) || '29547bf3-d22a-4df9-9195-07b5a2e20405';
+        const tenantId = k(env, ['msgraph_tenant','MSGRAPH_TENANT']) || '';
+        const clientId = k(env, ['msgraph_client','MSGRAPH_CLIENT']) || '';
+        const clientSecret = k(env, ['msgraph_secret','MSGRAPH_SECRET']) || '';
         const params = new URLSearchParams({grant_type:'client_credentials',client_id:clientId,client_secret:clientSecret,scope:'https://graph.microsoft.com/.default'});
         const resp = await fetch('https://login.microsoftonline.com/'+tenantId+'/oauth2/v2.0/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()});
         const data = await resp.json();
@@ -4561,9 +4561,9 @@ data: ${JSON.stringify(data)}
         // Get or refresh MSGraph token
         let tokenData = env.PRISM_KV ? await env.PRISM_KV.get('msgraph:token','json') : null;
         if (!tokenData || !tokenData.access_token || (tokenData.expires_at && Date.now() > tokenData.expires_at - 60000)) {
-          const tenantId = k(env, ['msgraph_tenant','MSGRAPH_TENANT']) || 'b7e964ca-731c-477c-b858-99dc3f1a9f7c';
-          const clientId = k(env, ['msgraph_client','MSGRAPH_CLIENT']) || '3e538e01-5ebf-44f1-879b-0fdde667d914';
-          const clientSecret = k(env, ['msgraph_secret','MSGRAPH_SECRET']) || '29547bf3-d22a-4df9-9195-07b5a2e20405';
+          const tenantId = k(env, ['msgraph_tenant','MSGRAPH_TENANT']) || '';
+          const clientId = k(env, ['msgraph_client','MSGRAPH_CLIENT']) || '';
+          const clientSecret = k(env, ['msgraph_secret','MSGRAPH_SECRET']) || '';
           const params = new URLSearchParams({grant_type:'client_credentials',client_id:clientId,client_secret:clientSecret,scope:'https://graph.microsoft.com/.default'});
           const tokenResp = await fetch('https://login.microsoftonline.com/'+tenantId+'/oauth2/v2.0/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()});
           tokenData = await tokenResp.json();
@@ -4699,6 +4699,74 @@ data: ${JSON.stringify(data)}
         }
         return json({success:true, results}, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
+
+    // ── Google OAuth flow ─────────────────────────────────────────────────────
+    if (path === '/comms/google/auth' && request.method === 'GET') {
+      const clientId = k(env, ['google_client_id','GOOGLE_CLIENT_ID']) || '';
+      const redirectUri = k(env, ['google_redirect_uri','GOOGLE_REDIRECT_URI']) || 'https://prism.identitypartners.uk/comms/google/callback';
+      const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/drive.file email profile');
+      const state = Math.random().toString(36).slice(2);
+      if (env.PRISM_KV) await env.PRISM_KV.put('google:oauth:state', state, {expirationTtl: 600});
+      const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + clientId + '&redirect_uri=' + encodeURIComponent(redirectUri) + '&response_type=code&scope=' + scope + '&access_type=offline&prompt=consent&state=' + state;
+      return Response.redirect(authUrl, 302);
+    }
+
+    if (path === '/comms/google/callback' && request.method === 'GET') {
+      const code = url.searchParams.get('code') || '';
+      const state = url.searchParams.get('state') || '';
+      const clientId = k(env, ['google_client_id','GOOGLE_CLIENT_ID']) || '';
+      const clientSecret = k(env, ['google_client_secret','GOOGLE_CLIENT_SECRET']) || '';
+      const redirectUri = k(env, ['google_redirect_uri','GOOGLE_REDIRECT_URI']) || 'https://prism.identitypartners.uk/comms/google/callback';
+      if (!code) return new Response('<h2>Error: no code</h2>', {headers:{'Content-Type':'text/html'}});
+      try {
+        const tokenResp = await fetch('https://oauth2.googleapis.com/token', {method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({code,client_id:clientId,client_secret:clientSecret,redirect_uri:redirectUri,grant_type:'authorization_code'}).toString()});
+        const tokenData = await tokenResp.json();
+        if (tokenData.access_token) {
+          const stored = {access_token:tokenData.access_token,refresh_token:tokenData.refresh_token,expires_at:Date.now()+(tokenData.expires_in||3600)*1000,scope:tokenData.scope,stored_at:Date.now()};
+          if (env.PRISM_KV) await env.PRISM_KV.put('google:oauth:token', JSON.stringify(stored));
+          return new Response('<html><body style="font-family:sans-serif;padding:40px;background:#f0f4f8;"><h2 style="color:#0f3b3a;">✓ Google connected!</h2><p>Gmail and Google Calendar are now connected to Argentica.</p><p><a href="/comms/">Return to Comms</a></p></body></html>', {headers:{'Content-Type':'text/html'}});
+        }
+        return new Response('<h2>Error: ' + JSON.stringify(tokenData).substring(0,200) + '</h2>', {headers:{'Content-Type':'text/html'}});
+      } catch(e) { return new Response('<h2>Error: ' + e.message + '</h2>', {headers:{'Content-Type':'text/html'}}); }
+    }
+
+    if (path === '/api/google/calendar' && request.method === 'GET') {
+      try {
+        const tokenData = env.PRISM_KV ? await env.PRISM_KV.get('google:oauth:token','json') : null;
+        if (!tokenData) return json({status:'not_connected',today:[],week:[]},200,origin);
+        let accessToken = tokenData.access_token;
+        // Auto-refresh if expired
+        if (tokenData.expires_at && Date.now() > tokenData.expires_at - 60000 && tokenData.refresh_token) {
+          const clientId = k(env, ['google_client_id','GOOGLE_CLIENT_ID']) || '';
+          const clientSecret = k(env, ['google_client_secret','GOOGLE_CLIENT_SECRET']) || '';
+          const refreshResp = await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({refresh_token:tokenData.refresh_token,client_id:clientId,client_secret:clientSecret,grant_type:'refresh_token'}).toString()});
+          const refreshData = await refreshResp.json();
+          if (refreshData.access_token) {
+            accessToken = refreshData.access_token;
+            tokenData.access_token = accessToken;
+            tokenData.expires_at = Date.now() + (refreshData.expires_in||3600)*1000;
+            if (env.PRISM_KV) await env.PRISM_KV.put('google:oauth:token', JSON.stringify(tokenData));
+          }
+        }
+        const now = new Date();
+        const weekEnd = new Date(now.getTime() + 14*24*60*60*1000).toISOString();
+        const calResp = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin='+encodeURIComponent(now.toISOString())+'&timeMax='+encodeURIComponent(weekEnd)+'&singleEvents=true&orderBy=startTime&maxResults=20',{headers:{'Authorization':'Bearer '+accessToken}});
+        if (!calResp.ok) return json({status:'api_error',code:calResp.status,today:[],week:[]},200,origin);
+        const calData = await calResp.json();
+        const events = (calData.items||[]).map(function(ev){return{id:ev.id,title:ev.summary||'Event',starts_at:ev.start?.dateTime||ev.start?.date,ends_at:ev.end?.dateTime||ev.end?.date,location:ev.location||'',description:ev.description||''};});
+        const todayEnd = new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59).toISOString();
+        return json({status:'ok',today:events.filter(function(e){return e.starts_at<=todayEnd;}),week:events.filter(function(e){return e.starts_at>todayEnd;}),total:events.length},200,origin);
+      } catch(e) { return json({status:'error',error:e.message,today:[],week:[]},200,origin); }
+    }
+
+    if (path === '/api/google/status' && request.method === 'GET') {
+      try {
+        const tokenData = env.PRISM_KV ? await env.PRISM_KV.get('google:oauth:token','json') : null;
+        if (!tokenData) return json({connected:false},200,origin);
+        return json({connected:true,scope:tokenData.scope,stored_at:tokenData.stored_at},200,origin);
+      } catch(e) { return json({connected:false},200,origin); }
     }
 
     return json({ error: 'Not found', path }, 404, origin);
