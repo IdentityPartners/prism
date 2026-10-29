@@ -4953,6 +4953,39 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success:false,error:e.message},500,origin); }
     }
 
+
+    if (path === '/api/outlook/inbox' && request.method === 'GET') {
+      try {
+        let tokenData = env.PRISM_KV ? await env.PRISM_KV.get('msgraph:token','json') : null;
+        if (!tokenData || !tokenData.access_token || (tokenData.expires_at && Date.now() > tokenData.expires_at - 60000)) {
+          const tenantId = k(env,['msgraph_tenant','MSGRAPH_TENANT']) || '';
+          const clientId = k(env,['msgraph_client','MSGRAPH_CLIENT']) || '';
+          const clientSecret = k(env,['msgraph_secret','MSGRAPH_SECRET']) || '';
+          const params = new URLSearchParams({grant_type:'client_credentials',client_id:clientId,client_secret:clientSecret,scope:'https://graph.microsoft.com/.default'});
+          const tr = await fetch('https://login.microsoftonline.com/'+tenantId+'/oauth2/v2.0/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()});
+          tokenData = await tr.json();
+          if (tokenData.access_token && env.PRISM_KV) await env.PRISM_KV.put('msgraph:token',JSON.stringify({access_token:tokenData.access_token,expires_at:Date.now()+(tokenData.expires_in||3600)*1000}),{expirationTtl:3500});
+        }
+        if (!tokenData || !tokenData.access_token) return json({status:'error',error:'Could not get MSGraph token',messages:[]},200,origin);
+        const maxResults = parseInt(url.searchParams.get('maxResults') || '20');
+        const folder = url.searchParams.get('folder') || 'inbox';
+        const userEmail = k(env,['outlook_email','OUTLOOK_EMAIL']) || '';
+        const mailPath = userEmail
+          ? '/users/'+encodeURIComponent(userEmail)+'/mailFolders/'+folder+'/messages'
+          : '/me/mailFolders/'+folder+'/messages';
+        const msgResp = await fetch(
+          'https://graph.microsoft.com/v1.0'+mailPath+'?$top='+maxResults+'&$select=id,subject,from,receivedDateTime,bodyPreview,isRead&$orderby=receivedDateTime desc',
+          {headers:{'Authorization':'Bearer '+tokenData.access_token,'Content-Type':'application/json'}}
+        );
+        if (!msgResp.ok) { const err = await msgResp.text(); return json({status:'api_error',code:msgResp.status,error:err.substring(0,300),messages:[]},200,origin); }
+        const msgData = await msgResp.json();
+        const messages = (msgData.value || []).map(function(m) {
+          return {id:m.id,subject:m.subject||'(no subject)',from:(m.from&&m.from.emailAddress)?m.from.emailAddress.address:'',fromName:(m.from&&m.from.emailAddress)?m.from.emailAddress.name:'',date:m.receivedDateTime,snippet:m.bodyPreview||'',unread:!m.isRead};
+        });
+        return json({status:'ok',messages,total:messages.length},200,origin);
+      } catch(e) { return json({status:'error',error:e.message,messages:[]},200,origin); }
+    }
+
     return json({ error: 'Not found', path }, 404, origin);
   },
 
