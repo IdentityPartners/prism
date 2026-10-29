@@ -4707,7 +4707,7 @@ data: ${JSON.stringify(data)}
     if (path === '/comms/google/auth' && request.method === 'GET') {
       const clientId = k(env, ['google_client_id','GOOGLE_CLIENT_ID']) || '';
       const redirectUri = k(env, ['google_redirect_uri','GOOGLE_REDIRECT_URI']) || 'https://prism.identitypartners.uk/comms/google/callback';
-      const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/drive.file email profile');
+      const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.readonly email profile openid');
       const state = Math.random().toString(36).slice(2);
       if (env.PRISM_KV) await env.PRISM_KV.put('google:oauth:state', state, {expirationTtl: 600});
       const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + clientId + '&redirect_uri=' + encodeURIComponent(redirectUri) + '&response_type=code&scope=' + scope + '&access_type=offline&prompt=consent&state=' + state;
@@ -4927,6 +4927,30 @@ data: ${JSON.stringify(data)}
         }));
         return json({status:'ok',messages:messages.filter(Boolean),total:listData.resultSizeEstimate||0},200,origin);
       } catch(e) { return json({status:'error',error:e.message,messages:[]},200,origin); }
+    }
+
+
+    if (path === '/api/google/calendar/create' && request.method === 'POST') {
+      try {
+        const tokenData = env.PRISM_KV ? await env.PRISM_KV.get('google:oauth:token','json') : null;
+        if (!tokenData || !tokenData.access_token) return json({success:false,error:'Google not connected'},400,origin);
+        const body = await request.json();
+        const event = {
+          summary: body.summary || body.title || 'Argentica Post',
+          description: body.description || body.content || '',
+          start: {dateTime: body.start || new Date().toISOString(), timeZone: body.timezone || 'Europe/London'},
+          end: {dateTime: body.end || new Date(Date.now()+3600000).toISOString(), timeZone: body.timezone || 'Europe/London'},
+          colorId: body.colorId || '9',
+        };
+        const resp = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events',{
+          method:'POST',
+          headers:{'Authorization':'Bearer '+tokenData.access_token,'Content-Type':'application/json'},
+          body:JSON.stringify(event)
+        });
+        if (!resp.ok) { const err = await resp.text(); return json({success:false,error:err.substring(0,300)},200,origin); }
+        const evData = await resp.json();
+        return json({success:true,id:evData.id,link:evData.htmlLink,summary:evData.summary},200,origin);
+      } catch(e) { return json({success:false,error:e.message},500,origin); }
     }
 
     return json({ error: 'Not found', path }, 404, origin);
