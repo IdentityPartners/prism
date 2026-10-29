@@ -31,8 +31,8 @@
     <span class="iconify" data-icon="ph:envelope-bold" style="font-size:1.8rem;color:var(--accent);"></span>
     <h1>Inbox</h1>
     <button class="btn btn-secondary" onclick="loadEmail()">Refresh</button>
-    <a href="https://mail.google.com" target="_blank" class="btn btn-secondary">Open Gmail</a>
-    <a href="/comms/google/" class="btn btn-secondary">Google Account</a>
+    <a href="https://mail.zoho.eu" target="_blank" class="btn btn-secondary">Open Zoho Mail</a>
+    <a href="/comms/zoho-calendar/" class="btn btn-secondary">Google Account</a>
   </div>
   <div id="email-content"><div style="color:var(--fg-muted);font-size:0.9rem;">Loading...</div></div>
 </div>
@@ -51,15 +51,15 @@ document.addEventListener("DOMContentLoaded", function() {
 function loadEmail() {
   var content = document.getElementById("email-content");
   content.innerHTML = "<div style=\"color:var(--fg-muted);font-size:0.9rem;\">Loading...</div>";
-  fetch(WORKER + "/api/google/gmail")
+  fetch(WORKER + "/api/zoho/mail/inbox")
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.status === "not_connected") {
-        content.innerHTML = "<div class=\"not-connected\"><div style=\"font-size:2rem;margin-bottom:10px;\">\uD83D\uDCE7</div><div style=\"font-size:0.95rem;font-weight:600;margin-bottom:8px;\">Google not connected</div><a href=\"/comms/google/\" style=\"color:var(--accent);\">Connect Google Account</a></div>";
+        content.innerHTML = "<div class=\"not-connected\"><div style=\"font-size:2rem;margin-bottom:10px;\">\uD83D\uDCE7</div><div style=\"font-size:0.95rem;font-weight:600;margin-bottom:8px;\">Google not connected</div><a href=\"/comms/zoho-calendar/\" style=\"color:var(--accent);\">Connect Google Account</a></div>";
         return;
       }
       if (d.status === "api_error") {
-        content.innerHTML = "<div class=\"not-connected\"><div style=\"font-size:2rem;margin-bottom:10px;\">\u26A0\uFE0F</div><div style=\"font-size:0.95rem;font-weight:600;margin-bottom:8px;\">Gmail API not enabled</div><p style=\"font-size:0.85rem;\">Enable it at <a href=\"https://console.developers.google.com/apis/api/gmail.googleapis.com/overview?project=944507774917\" target=\"_blank\" style=\"color:var(--accent);\">Google Cloud Console</a></p></div>";
+        content.innerHTML = "<div class=\"not-connected\"><div style=\"font-size:2rem;margin-bottom:10px;\">\u26A0\uFE0F</div><div style=\"font-size:0.95rem;font-weight:600;margin-bottom:8px;\">Zoho not connected</div><p style=\"font-size:0.85rem;\">Enable it at <a href=\"https://console.developers.google.com/apis/api/gmail.googleapis.com/overview?project=944507774917\" target=\"_blank\" style=\"color:var(--accent);\">Google Cloud Console</a></p></div>";
         return;
       }
       var messages = d.messages || [];
@@ -68,7 +68,7 @@ function loadEmail() {
         return;
       }
       content.innerHTML = messages.map(function(msg) {
-        return "<div class=\"msg-item " + (msg.unread ? "unread" : "") + "\" onclick=\"window.open('https://mail.google.com/mail/u/0/#inbox/' + '" + msg.id + "', '_blank')\">"
+        return "<div class=\"msg-item " + (msg.unread ? "unread" : "") + "\" onclick=\"window.open('https://mail.zoho.eu/mail/u/0/#inbox/' + '" + msg.id + "', '_blank')\">"
           + "<div class=\"msg-subject\">" + esc(msg.subject) + "</div>"
           + "<div class=\"msg-from\">" + esc(msg.from) + " · " + esc(msg.date) + "</div>"
           + "<div class=\"msg-snippet\">" + esc(msg.snippet) + "</div>"
