@@ -752,10 +752,272 @@ function buildSidebar(activePage) {
       {label:'Inbox', icon:'fluent-emoji:inbox-tray', href:'/inbox/'},
       {label:'Email', icon:'fluent-emoji:e-mail', href:'/comms/email/'},
       {label:'Calendar', icon:'fluent-emoji:spiral-calendar', href:'/comms/calendar/'},
+      {label:'Google Account', icon:'fluent-emoji:envelope-with-arrow', href:'/comms/google/'},
+      {label:'Twenty CRM', icon:'fluent-emoji:address-book', href:'/comms/twenty/'},
       {label:'Messages', icon:'fluent-emoji:speech-balloon', href:'/messages/'},
-      {label:'Zoho Connect', icon:'fluent-emoji:link', href:'/comms/zoho-calendar/'},
-      {label:'Google Connect', icon:'fluent-emoji:envelope-with-arrow', href:'/comms/google/'},
     ]},
+    {type:'section', label:'Business'},
+    {type:'group', label:'Business', icon:'fluent-emoji:briefcase', children:[
+      {label:'CRM', icon:'fluent-emoji:busts-in-silhouette', href:'/crm/'},
+      {label:'Monetisation', icon:'fluent-emoji:money-bag', href:'/monetisation/'},
+      {label:'Platform Manager', icon:'fluent-emoji:link', href:'/platform-manager/'},
+    ]},
+    {type:'section', label:'Intelligence'},
+    {type:'group', label:'Intelligence', icon:'fluent-emoji:brain', children:[
+      {label:'Agents', icon:'fluent-emoji:robot', href:'/agenti/agent-builder/'},
+      {label:'Debate Society', icon:'fluent-emoji:speaking-head', href:'/debate/'},
+      {label:'Personas', icon:'fluent-emoji:performing-arts', href:'/personas/'},
+      {label:'Workflows', icon:'fluent-emoji:gear', href:'/agenti/workflow-wizard/'},
+      {label:'Orchestrator', icon:'fluent-emoji:control-knobs', href:'/orchestrator/'},
+    ]},
+    {type:'section', label:'System'},
+    {type:'group', label:'System', icon:'fluent-emoji:wrench', children:[
+      {label:'Profile & Memory', icon:'fluent-emoji:bust-in-silhouette', href:'/profile/'},
+      {label:'WriteHandy', icon:'fluent-emoji:writing-hand', href:'/writehandy/'},
+      {label:'Dev Team', icon:'fluent-emoji:hammer-and-wrench', href:'/dev-team/'},
+      {label:'Comms Centre', icon:'fluent-emoji:satellite-antenna', href:'/comms/'},
+      {label:'Settings', icon:'fluent-emoji:gear', href:'/settings/'},
+      {label:'Sitemap', icon:'fluent-emoji:world-map', href:'/sitemap/'},
+    ]},
+  ];
+
+
+  var sidebar = document.createElement('nav');
+  sidebar.className = 'sidebar';
+  sidebar.id = 'sidebar';
+
+  // Logo
+  var logo = document.createElement('a');
+  logo.className = 'sidebar-logo';
+  logo.href = '/home/';
+  logo.style.textDecoration = 'none';
+  logo.style.cursor = 'pointer';
+  var logoMark = document.createElement('div');
+  logoMark.className = 'sidebar-logo-mark';
+  logoMark.innerHTML = '<svg viewBox="0 0 28 28" fill="none"><path d="M14 4 L24 14 L14 24 L4 14 Z" fill="#0f3b3a" opacity="0.8"/><path d="M14 8 L20 14 L14 20 L8 14 Z" fill="#5c2d3f" opacity="0.8"/></svg>';
+  var logoText = document.createElement('span');
+  logoText.className = 'sidebar-logo-text';
+  logoText.textContent = 'Argentica';
+  logo.href = '/home/';
+  logo.style.textDecoration = 'none';
+  logo.appendChild(logoMark);
+  logo.appendChild(logoText);
+  sidebar.appendChild(logo);
+
+  // Nav
+  var navEl = document.createElement('div');
+  navEl.className = 'sidebar-nav';
+  var path = window.location.pathname;
+
+  navStructure.forEach(function(item) {
+    if (item.type === 'section') {
+      var sec = document.createElement('div');
+      sec.className = 'sidebar-section';
+      sec.textContent = item.label;
+      navEl.appendChild(sec);
+      return;
+    }
+
+    if (item.type === 'group') {
+      var group = document.createElement('div');
+      group.className = 'nav-group';
+      // Check if any child is active
+      var anyActive = item.children && item.children.some(function(c){return path.startsWith(c.href);});
+      if (anyActive) group.classList.add('open');
+
+      var header = document.createElement('div');
+      header.className = 'nav-group-header' + (anyActive ? ' active' : '');
+      var hIcon = document.createElement('span');
+      hIcon.className = 'nav-item-icon';
+      // Render icon: Iconify format (contains ':') or plain emoji/text
+    if (item.icon && item.icon.includes(':')) {
+      hIcon.innerHTML = '<span class="iconify" data-icon="' + item.icon + '" style="font-size:18px;"></span>';
+    } else {
+      hIcon.innerHTML = item.icon || '';
+    }
+      var hLabel = document.createElement('span');
+      hLabel.className = 'nav-item-label';
+      hLabel.textContent = item.label;
+      var arrow = document.createElement('span');
+      arrow.className = 'nav-group-arrow';
+      arrow.textContent = '▶';
+      header.appendChild(hIcon);
+      header.appendChild(hLabel);
+      header.appendChild(arrow);
+      header.onclick = function() { group.classList.toggle('open'); };
+
+      var children = document.createElement('div');
+      children.className = 'nav-group-children';
+      (item.children || []).forEach(function(child) {
+        var a = document.createElement('a');
+        a.className = 'nav-item' + (path.startsWith(child.href) ? ' active' : '');
+        a.href = child.href;
+        a.title = child.label;
+        var lbl = document.createElement('span');
+        lbl.className = 'nav-item-label';
+        lbl.textContent = child.label;
+        a.appendChild(lbl);
+        children.appendChild(a);
+      });
+
+      group.appendChild(header);
+      group.appendChild(children);
+      navEl.appendChild(group);
+      return;
+    }
+
+    // Regular item
+    var a = document.createElement('a');
+    a.className = 'nav-item' + (activePage && item.href === activePage ? ' active' : (path === item.href ? ' active' : ''));
+    a.href = item.href;
+    a.title = item.label;
+    if (item.icon) {
+      var icon = document.createElement('span');
+      icon.className = 'nav-item-icon';
+      if (item.icon && item.icon.includes(':')) {
+        icon.innerHTML = '<span class="iconify" data-icon="' + item.icon + '" style="font-size:15px;"></span>';
+      } else {
+        icon.innerHTML = item.icon || '';
+      }
+      a.appendChild(icon);
+    }
+    var lbl = document.createElement('span');
+    lbl.className = 'nav-item-label';
+    lbl.textContent = item.label;
+    a.appendChild(lbl);
+    navEl.appendChild(a);
+  });
+
+  sidebar.appendChild(navEl);
+
+  // Toggle
+  var toggleDiv = document.createElement('div');
+  toggleDiv.className = 'sidebar-toggle';
+  var toggleBtn = document.createElement('button');
+  toggleBtn.className = 'sidebar-toggle-btn';
+  toggleBtn.textContent = '◀';
+  toggleBtn.title = 'Collapse sidebar';
+  toggleBtn.onclick = function() { Sidebar.toggle(); };
+  toggleDiv.appendChild(toggleBtn);
+  sidebar.appendChild(toggleDiv);
+
+  return sidebar;
+}
+
+
+// ── Guide / Wizard System ─────────────────────────────────────────────────────
+var Guide = (function() {
+  var currentGuide = null;
+  var currentStep = 0;
+  var overlay = null;
+  var highlight = null;
+
+  function show(steps, title) {
+    currentGuide = steps;
+    currentStep = 0;
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'guide-overlay';
+      overlay.onclick = function(e) { if (e.target === overlay) hide(); };
+      document.body.appendChild(overlay);
+    }
+    if (!highlight) {
+      highlight = document.createElement('div');
+      highlight.className = 'guide-highlight';
+      document.body.appendChild(highlight);
+    }
+    overlay.style.display = 'flex';
+    renderStep();
+  }
+
+  function renderStep() {
+    if (!currentGuide || currentStep >= currentGuide.length) { hide(); return; }
+    var step = currentGuide[currentStep];
+    overlay.innerHTML = '';
+    var card = document.createElement('div');
+    card.className = 'guide-card';
+
+    // Step dots
+    var dots = document.createElement('div');
+    dots.className = 'guide-step-indicator';
+    for (var i = 0; i < currentGuide.length; i++) {
+      var dot = document.createElement('div');
+      dot.className = 'guide-step-dot' + (i === currentStep ? ' active' : i < currentStep ? ' done' : '');
+      dots.appendChild(dot);
+    }
+
+    var titleEl = document.createElement('div');
+    titleEl.className = 'guide-title';
+    titleEl.textContent = step.title || ('Step ' + (currentStep + 1));
+
+    var body = document.createElement('div');
+    body.className = 'guide-body';
+    body.innerHTML = step.body || '';
+
+    var actions = document.createElement('div');
+    actions.className = 'guide-actions';
+
+    if (currentStep > 0) {
+      var prevBtn = document.createElement('button');
+      prevBtn.className = 'btn btn-secondary btn-sm';
+      prevBtn.textContent = '← Back';
+      prevBtn.onclick = function() { currentStep--; renderStep(); };
+      actions.appendChild(prevBtn);
+    }
+
+    var skipBtn = document.createElement('button');
+    skipBtn.className = 'btn btn-ghost btn-sm';
+    skipBtn.textContent = 'Skip guide';
+    skipBtn.onclick = hide;
+    actions.appendChild(skipBtn);
+
+    var nextBtn = document.createElement('button');
+    nextBtn.className = 'btn btn-primary btn-sm';
+    nextBtn.textContent = currentStep === currentGuide.length - 1 ? 'Done ✓' : 'Next →';
+    nextBtn.onclick = function() {
+      if (step.action) step.action();
+      currentStep++;
+      renderStep();
+    };
+    actions.appendChild(nextBtn);
+
+    card.appendChild(dots);
+    card.appendChild(titleEl);
+    card.appendChild(body);
+    card.appendChild(actions);
+    overlay.appendChild(card);
+
+    // Highlight target element
+    if (step.target) {
+      var el = document.querySelector(step.target);
+      if (el && highlight) {
+        var rect = el.getBoundingClientRect();
+        highlight.style.cssText = 'position:fixed;border:3px solid #0f3b3a;border-radius:8px;box-shadow:0 0 0 4000px rgba(0,0,0,0.4);z-index:7999;pointer-events:none;top:'+(rect.top-4)+'px;left:'+(rect.left-4)+'px;width:'+(rect.width+8)+'px;height:'+(rect.height+8)+'px;';
+        highlight.style.display = 'block';
+      } else if (highlight) {
+        highlight.style.display = 'none';
+      }
+    } else if (highlight) {
+      highlight.style.display = 'none';
+    }
+  }
+
+  function hide() {
+    if (overlay) overlay.style.display = 'none';
+    if (highlight) highlight.style.display = 'none';
+    currentGuide = null;
+    currentStep = 0;
+  }
+
+  // Pre-built guides
+  var GUIDES = {
+    chat: [
+      {title:'Welcome to Chat', body:'Chat is your primary interface with Argentica. Every message goes through the Orchestrator, which routes to the best available AI model automatically.', target:'.chat-messages'},
+      {title:'The On-Screen Keyboard', body:'The keyboard below the input is always visible. It\'s designed for your Surface Slim Pen 2 — write directly into any key to insert text. Shift, Ctrl, Alt, and Caps Lock all work.', target:'#osk-container'},
+      {title:'Routing Profiles', body:'Choose how Argentica routes your messages. <strong>Balanced</strong> uses free providers first. <strong>Full Frontier</strong> uses the best available model regardless of cost.', target:'#profile-selector'},
+      {title:'Personas', body:'Switch between personas to change how Argentica responds. The Sardonic Butler is particularly useful when you need blunt feedback.', target:'.persona-selector'},
+      {title:'Action Chips', body:'Use these chips to quickly route your message to Research, Atomise, or Drafting — or to generate an image inline.', target:'.chat-chips'},
+    ],
     research: [
       {title:'Research Hub', body:'Search across 80+ sources simultaneously — web search, academic databases, preprint servers, government data, and more.'},
       {title:'Select Your Sources', body:'Toggle individual sources on and off. Use <strong>Recommended</strong> for a balanced set, or <strong>Select All</strong> for maximum coverage.', target:'#source-chips'},
