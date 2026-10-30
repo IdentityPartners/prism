@@ -347,47 +347,37 @@ function doSearch() {
   if (!input || !input.value.trim()) return;
   currentQuery = input.value.trim();
   var list = document.getElementById('results-list');
-  if (list) list.innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner"></div><div style="margin-top:8px;font-size:12.5px;color:var(--fg-muted);">Searching ' + activeSources.length + ' sources…</div></div>';
+  if (list) list.innerHTML = '<div style="text-align:center;padding:20px;">'  
+    + '<div class="spinner"></div>'
+    + '<div style="margin-top:8px;font-size:12.5px;color:var(--fg-muted);">Searching ' + activeSources.length + ' sources…</div>'
+    + '<div style="margin-top:6px;font-size:11px;color:var(--fg-muted);">Up to 25 seconds</div></div>';
 
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER + '/api/search', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    try {
-      var data = JSON.parse(xhr.responseText);
-      // Use flat allResults if available, otherwise flatten manually
-      if (data.allResults && data.allResults.length > 0) {
-        allResults = data.allResults;
-      } else {
-        allResults = [];
-        if (data.results) {
-          Object.keys(data.results).forEach(function(source) {
-            var sourceResults = data.results[source] || [];
-            sourceResults.forEach(function(r) { r._source = r._source || source; allResults.push(r); });
-          });
-        }
-      }
-      // Show source count
-      var sourceCount = data.sourceCount || Object.keys(data.results||{}).length;
-      var errors = data.errors || {};
-      var errorKeys = Object.keys(errors);
-      if (errorKeys.length > 0) {
-        var errDiv = document.createElement('div');
-        errDiv.style.cssText = 'font-size:11px;color:var(--fg-muted);margin-bottom:8px;padding:6px 10px;background:var(--bg-surface);border-radius:6px;';
-        errDiv.textContent = 'Note: ' + errorKeys.length + ' source(s) unavailable: ' + errorKeys.join(', ');
-        var list = document.getElementById('results-list');
-        if (list) list.appendChild(errDiv);
-      }
-      renderResults(allResults);
-    } catch(e) {
-      if (list) list.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:16px;">Search failed: ' + e.message + '</div>';
+  var controller = new AbortController();
+  var tid = setTimeout(function() { controller.abort(); }, 25000);
+
+  fetch(WORKER + '/api/search', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({query: currentQuery, sources: activeSources}),
+    signal: controller.signal
+  })
+  .then(function(r) { clearTimeout(tid); return r.json(); })
+  .then(function(data) {
+    var results = data.allResults || data.results || [];
+    if (!results.length && data.error) {
+      if (list) list.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:16px;">Error: ' + data.error + '</div>';
+      return;
     }
-  };
-  xhr.onerror = function() {
-    if (list) list.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:16px;">Network error.</div>';
-  };
-  xhr.send(JSON.stringify({query: currentQuery, sources: activeSources}));
+    currentResults = results;
+    renderResults(results);
+  })
+  .catch(function(e) {
+    clearTimeout(tid);
+    var msg = e.name === 'AbortError'
+      ? 'Search timed out (25s). Try fewer sources or a simpler query.'
+      : 'Search failed: ' + e.message;
+    if (list) list.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:16px;">' + msg + '</div>';
+  });
 }
 
 function renderResults(results) {
