@@ -4765,8 +4765,26 @@ data: ${JSON.stringify(data)}
     if (path === '/api/google/status' && request.method === 'GET') {
       try {
         const tokenData = env.PRISM_KV ? await env.PRISM_KV.get('google:oauth:token','json') : null;
-        if (!tokenData) return json({connected:false},200,origin);
-        return json({connected:true,scope:tokenData.scope,stored_at:tokenData.stored_at},200,origin);
+        if (!tokenData || !tokenData.access_token) return json({connected:false},200,origin);
+        // Check if token is expired and auto-refresh
+        let accessToken = tokenData.access_token;
+        if (tokenData.expires_at && Date.now() > tokenData.expires_at - 300000) {
+          // Token expired or expiring in 5 min - refresh
+          try {
+            const cid = k(env,['google_client_id','GOOGLE_CLIENT_ID']) || '';
+            const cs = k(env,['google_client_secret','GOOGLE_CLIENT_SECRET']) || '';
+            const rr = await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'refresh_token',refresh_token:tokenData.refresh_token,client_id:cid,client_secret:cs}).toString()});
+            const rd = await rr.json();
+            if (rd.access_token) {
+              accessToken = rd.access_token;
+              tokenData.access_token = accessToken;
+              tokenData.expires_at = Date.now() + (rd.expires_in||3600)*1000;
+              tokenData.stored_at = Date.now();
+              if (env.PRISM_KV) await env.PRISM_KV.put('google:oauth:token',JSON.stringify(tokenData));
+            }
+          } catch(e) {}
+        }
+        return json({connected:true,scope:tokenData.scope,stored_at:tokenData.stored_at,expires_at:tokenData.expires_at},200,origin);
       } catch(e) { return json({connected:false},200,origin); }
     }
 
@@ -4970,7 +4988,29 @@ data: ${JSON.stringify(data)}
         const maxResults = parseInt(url.searchParams.get('maxResults') || '20');
         const folder = url.searchParams.get('folder') || 'inbox';
         const userEmail = k(env,['outlook_email','OUTLOOK_EMAIL']) || '';
-        const mailPath = userEmail
+     
+    // ── Google token auto-refresh helper ─────────────────────────────────────
+    if (path === '/api/google/refresh' && request.method === 'POST') {
+      try {
+        const tokenData = env.PRISM_KV ? await env.PRISM_KV.get('google:oauth:token','json') : null;
+        if (!tokenData || !tokenData.refresh_token) return json({success:false,error:'No refresh token'},400,origin);
+        const clientId = k(env,['google_client_id','GOOGLE_CLIENT_ID']) || '';
+        const clientSecret = k(env,['google_client_secret','GOOGLE_CLIENT_SECRET']) || '';
+        const params = new URLSearchParams({grant_type:'refresh_token',refresh_token:tokenData.refresh_token,client_id:clientId,client_secret:clientSecret});
+        const resp = await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()});
+        const data = await resp.json();
+        if (data.access_token) {
+          tokenData.access_token = data.access_token;
+          tokenData.expires_at = Date.now() + (data.expires_in||3600)*1000;
+          tokenData.stored_at = Date.now();
+          if (env.PRISM_KV) await env.PRISM_KV.put('google:oauth:token',JSON.stringify(tokenData));
+          return json({success:true,expires_in:data.expires_in},200,origin);
+        }
+        return json({success:false,error:JSON.stringify(data).substring(0,200)},200,origin);
+      } catch(e) { return json({success:false,error:e.message},500,origin); }
+    }
+
+   const mailPath = userEmail
           ? '/users/'+encodeURIComponent(userEmail)+'/mailFolders/'+folder+'/messages'
           : '/me/mailFolders/'+folder+'/messages';
         const msgResp = await fetch(
