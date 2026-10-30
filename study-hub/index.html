@@ -447,10 +447,33 @@ function openResource(r) {
   if (r.url) {
     var params = new URLSearchParams({id: r.id, name: r.title, type: r.type, url: r.url});
     window.open('/doc-viewer/?' + params.toString(), '_blank');
-  } else if (r.content) {
-    try { sessionStorage.setItem('doc-viewer-content-' + r.id, r.content); } catch(e) {}
-    var params2 = new URLSearchParams({id: r.id, name: r.title, type: r.type});
-    window.open('/doc-viewer/?' + params2.toString(), '_blank');
+  } else if (r.content && r.content.length > 0) {
+    var ext = (r.title || '').split('.').pop().toLowerCase();
+    var mimeTypes = {pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',doc:'application/msword',txt:'text/plain',md:'text/markdown'};
+    var mimeType = mimeTypes[ext] || 'application/octet-stream';
+    var b64;
+    try { b64 = btoa(r.content); } catch(e) { b64 = btoa(unescape(encodeURIComponent(r.content))); }
+    if (!confirm('Upload "'+ r.title +'" to Google Drive to open it? (Required for viewing)')) return;
+    fetch(WORKER + '/api/gdrive/upload', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({fileName: r.title, content: b64, mimeType: mimeType})
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(d) {
+      if (d.success && d.webViewLink) {
+        r.url = d.webViewLink;
+        r.storage = 'gdrive';
+        r.storageId = d.id;
+        saveModules();
+        renderTree();
+        var params = new URLSearchParams({id: r.id, name: r.title, type: r.type, url: r.url});
+        window.open('/doc-viewer/?' + params.toString(), '_blank');
+      } else {
+        alert('Upload failed: ' + (d.error || 'Unknown') + '. Connect Google Drive at /comms/google/ first.');
+      }
+    })
+    .catch(function(e) { alert('Upload error: ' + e.message); });
   } else {
     reUploadResource(r);
   }
