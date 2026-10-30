@@ -31,10 +31,10 @@
 <div class="email-shell">
   <div class="email-topbar">
     <span class="iconify" data-icon="ph:envelope-bold" style="font-size:1.4rem;color:var(--accent);"></span>
-    <h1>Email <span style="font-size:0.75rem;color:var(--fg-muted);font-weight:400;">via Zoho Mail</span></h1>
+    <h1>Email <span style="font-size:0.75rem;color:var(--fg-muted);font-weight:400;">via Gmail</span></h1>
     <button class="btn btn-secondary" onclick="loadEmail()">Refresh</button>
-    <a href="https://mail.zoho.eu" target="_blank" class="btn btn-secondary">Open Zoho Mail</a>
-    <a href="/comms/zoho-calendar/" class="btn btn-secondary">Zoho Connect</a>
+    <a href="https://mail.google.com" target="_blank" class="btn btn-secondary">Open Gmail</a>
+    <a href="/comms/google/" class="btn btn-secondary">Zoho Connect</a>
   </div>
   <div class="email-body">
     <div id="email-content"><div style="color:var(--fg-muted);font-size:0.9rem;">Loading...</div></div>
@@ -55,15 +55,15 @@ document.addEventListener("DOMContentLoaded", function() {
 function loadEmail() {
   var content = document.getElementById("email-content");
   content.innerHTML = "<div style=\"color:var(--fg-muted);font-size:0.9rem;\">Loading...</div>";
-  fetch(WORKER + "/api/zoho/mail/inbox")
+  fetch(WORKER + "/api/google/gmail")
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.status === "not_connected") {
-        content.innerHTML = "<div class=\"not-connected\"><div style=\"font-size:2rem;margin-bottom:10px;\">&#x1F4E7;</div><div style=\"font-size:0.95rem;font-weight:600;margin-bottom:8px;\">Zoho not connected</div><a href=\"/comms/zoho-calendar/\" style=\"color:var(--accent);\">Connect Zoho</a></div>";
+        content.innerHTML = "<div class=\"not-connected\"><div style=\"font-size:2rem;margin-bottom:10px;\">&#x1F4E7;</div><div style=\"font-size:0.95rem;font-weight:600;margin-bottom:8px;\">Google not connected</div><a href=\"/comms/google/\" style=\"color:var(--accent);\">Connect Google</a></div>";
         return;
       }
       if (d.status === "api_error") {
-        content.innerHTML = "<div class=\"warn-box\">&#x26A0; " + esc(d.error || "Zoho Mail error") + "<br><a href=\"/comms/zoho-calendar/\" style=\"color:var(--accent);\">Reconnect Zoho</a></div>";
+        content.innerHTML = "<div class=\"warn-box\">&#x26A0; " + esc(d.error || "Gmail error") + "<br><a href=\"/comms/google/\" style=\"color:var(--accent);\">Connect Google</a></div>";
         return;
       }
       var messages = d.messages || [];
@@ -73,7 +73,7 @@ function loadEmail() {
       }
       content.innerHTML = messages.map(function(msg) {
         var dt = msg.date ? new Date(parseInt(msg.date)).toLocaleString("en-GB", {day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : "";
-        return "<div class=\"msg-item " + (msg.unread ? "unread" : "") + "\" onclick=\"window.open('https://mail.zoho.eu', '_blank')\">" +
+        return "<div class=\"msg-item " + (msg.unread ? "unread" : "") + "\" onclick=\"window.open('https://mail.google.com', '_blank')\">" +
           "<div class=\"msg-subject\">" + esc(msg.subject) + "</div>" +
           "<div class=\"msg-from\">" + esc(msg.fromName || msg.from) + " &middot; " + dt + "</div>" +
           "<div class=\"msg-snippet\">" + esc(msg.snippet) + "</div>" +
