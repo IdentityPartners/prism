@@ -667,6 +667,140 @@ function stopReading() { if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; } do
 function zoomIn() { var c = document.querySelector('.doc-content'); if (c) c.style.fontSize = (parseFloat(c.style.fontSize || '16') + 1) + 'px'; }
 function zoomOut() { var c = document.querySelector('.doc-content'); if (c) c.style.fontSize = Math.max(10, parseFloat(c.style.fontSize || '16') - 1) + 'px'; }
 
+
+// ── PDF annotation canvas overlay ────────────────────────────────────────────
+var pdfAnnotStrokes = [];
+var pdfAnnotCurrent = null;
+var pdfAnnotDrawing = false;
+var pdfAnnotTool = "pen";
+var pdfAnnotMode = false;
+var pdfAnnotDocId = null;
+
+function initPdfAnnotCanvas(canvas, docId) {
+  pdfAnnotDocId = docId;
+  // Load saved strokes
+  try {
+    var saved = localStorage.getItem("pdf-annot:" + docId);
+    if (saved) pdfAnnotStrokes = JSON.parse(saved);
+  } catch(e) { pdfAnnotStrokes = []; }
+  redrawPdfAnnot(canvas);
+  canvas.addEventListener("pointerdown", pdfAnnotStart);
+  canvas.addEventListener("pointermove", pdfAnnotMove);
+  canvas.addEventListener("pointerup", pdfAnnotEnd);
+  canvas.addEventListener("pointercancel", pdfAnnotEnd);
+}
+
+function setAnnotTool(t) {
+  pdfAnnotTool = t;
+  if (!pdfAnnotMode) toggleAnnotMode();
+}
+
+function toggleAnnotMode() {
+  pdfAnnotMode = !pdfAnnotMode;
+  var canvas = document.getElementById("pdf-annot-canvas");
+  var btn = document.getElementById("annot-toggle");
+  if (canvas) canvas.style.pointerEvents = pdfAnnotMode ? "all" : "none";
+  if (btn) {
+    btn.textContent = "Draw: " + (pdfAnnotMode ? "ON" : "OFF");
+    btn.style.background = pdfAnnotMode ? "rgba(45,106,159,0.9)" : "rgba(255,255,255,0.3)";
+  }
+}
+
+function pdfAnnotPos(e, canvas) {
+  var r = canvas.getBoundingClientRect();
+  var dpr = window.devicePixelRatio || 1;
+  var scaleX = (canvas.width / dpr) / r.width;
+  var scaleY = (canvas.height / dpr) / r.height;
+  return {x: (e.clientX - r.left) * scaleX, y: (e.clientY - r.top) * scaleY};
+}
+
+function pdfAnnotStart(e) {
+  if (!pdfAnnotMode) return;
+  e.preventDefault();
+  pdfAnnotDrawing = true;
+  var pos = pdfAnnotPos(e, this);
+  var col = pdfAnnotTool === "hi" ? "rgba(255,220,0,0.4)" : pdfAnnotTool === "erase" ? "#erase" : "#dc2626";
+  var sz = pdfAnnotTool === "hi" ? 12 : pdfAnnotTool === "erase" ? 20 : 2;
+  pdfAnnotCurrent = {tool: pdfAnnotTool, col: col, sz: sz, pts: [pos]};
+}
+
+function pdfAnnotMove(e) {
+  if (!pdfAnnotDrawing || !pdfAnnotCurrent) return;
+  e.preventDefault();
+  pdfAnnotCurrent.pts.push(pdfAnnotPos(e, this));
+  var canvas = document.getElementById("pdf-annot-canvas");
+  if (canvas) drawPdfStroke(canvas, pdfAnnotCurrent, true);
+}
+
+function pdfAnnotEnd(e) {
+  if (!pdfAnnotDrawing || !pdfAnnotCurrent) return;
+  pdfAnnotDrawing = false;
+  if (pdfAnnotCurrent.pts.length > 1) {
+    if (pdfAnnotTool === "erase") {
+      // Remove strokes that intersect erase path
+      var erasePts = pdfAnnotCurrent.pts;
+      pdfAnnotStrokes = pdfAnnotStrokes.filter(function(s) {
+        return !s.pts.some(function(p) {
+          return erasePts.some(function(ep) { return Math.hypot(p.x-ep.x, p.y-ep.y) < 15; });
+        });
+      });
+    } else {
+      pdfAnnotStrokes.push(pdfAnnotCurrent);
+    }
+  }
+  pdfAnnotCurrent = null;
+  var canvas = document.getElementById("pdf-annot-canvas");
+  if (canvas) redrawPdfAnnot(canvas);
+  savePdfAnnot();
+}
+
+function drawPdfStroke(canvas, stroke, incremental) {
+  var ctx = canvas.getContext("2d");
+  if (!ctx || stroke.pts.length < 2) return;
+  ctx.save();
+  if (stroke.col === "#erase") {
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.strokeStyle = "rgba(0,0,0,1)";
+  } else {
+    ctx.strokeStyle = stroke.col;
+  }
+  ctx.lineWidth = stroke.sz;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  var pts = incremental ? stroke.pts.slice(-2) : stroke.pts;
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function redrawPdfAnnot(canvas) {
+  var ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  var dpr = window.devicePixelRatio || 1;
+  ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+  pdfAnnotStrokes.forEach(function(s) { drawPdfStroke(canvas, s, false); });
+}
+
+function clearPdfAnnot() {
+  pdfAnnotStrokes = [];
+  var canvas = document.getElementById("pdf-annot-canvas");
+  if (canvas) redrawPdfAnnot(canvas);
+  savePdfAnnot();
+}
+
+function savePdfAnnot() {
+  if (!pdfAnnotDocId) return;
+  try { localStorage.setItem("pdf-annot:" + pdfAnnotDocId, JSON.stringify(pdfAnnotStrokes)); } catch(e) {}
+  // Also save to KV
+  fetch(WORKER + "/api/kv/set", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({key: "pdf-annot:" + pdfAnnotDocId, value: JSON.stringify(pdfAnnotStrokes)})
+  }).catch(function() {});
+}
+
 </script>
 </body>
 </html>
