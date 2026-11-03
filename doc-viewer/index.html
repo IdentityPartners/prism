@@ -243,20 +243,59 @@ function renderPDF(doc) {
     var viewerUrl = driveMatch
       ? 'https://drive.google.com/file/d/' + driveMatch[1] + '/preview'
       : 'https://docs.google.com/viewer?url=' + encodeURIComponent(doc.url) + '&embedded=true';
+    // ── PDF iframe with annotation canvas overlay ──────────────────────────
     var iframe = document.createElement('iframe');
     iframe.src = viewerUrl;
-    iframe.style.cssText = 'width:100%;height:100%;border:none;';
+    iframe.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:none;z-index:1;';
     iframe.allow = 'fullscreen';
-    var toolbar = document.createElement('div');
-    toolbar.style.cssText = 'position:absolute;top:8px;right:8px;z-index:10;display:flex;gap:6px;';
+
+    // Transparent canvas overlay for handwriting/annotations
+    var annotCanvas = document.createElement('canvas');
+    annotCanvas.id = 'pdf-annot-canvas';
+    annotCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:2;touch-action:none;pointer-events:none;';
+
+    // Annotation toolbar
+    var annotBar = document.createElement('div');
+    annotBar.id = 'pdf-annot-bar';
+    annotBar.style.cssText = 'position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:10;display:flex;gap:4px;background:rgba(15,59,58,0.92);border-radius:20px;padding:4px 8px;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+    annotBar.innerHTML =
+      '<button onclick="setAnnotTool(\'pen\')" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(255,255,255,0.9);color:#0f3b3a;">&#x270F; Pen</button>'
+      + '<button onclick="setAnnotTool(\'hi\')" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(255,220,0,0.85);color:#333;">&#x1F58C; Hi</button>'
+      + '<button onclick="setAnnotTool(\'erase\')" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(255,255,255,0.9);color:#0f3b3a;">&#x2715; Erase</button>'
+      + '<button onclick="toggleAnnotMode()" id="annot-toggle" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(255,255,255,0.25);color:#fff;">Draw: OFF</button>'
+      + '<button onclick="clearPdfAnnot()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(220,38,38,0.85);color:#fff;">Clear</button>'
+      + '<button onclick="savePdfAnnot()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(45,106,159,0.9);color:#fff;">&#x1F4BE; Save</button>';
+
+    // Open-in-Drive button (top-right)
     var openBtn = document.createElement('a');
     openBtn.href = doc.url;
     openBtn.target = '_blank';
-    openBtn.style.cssText = 'padding:4px 10px;background:#0f3b3a;color:#fff;border-radius:5px;font-size:11px;text-decoration:none;font-weight:600;';
-    openBtn.textContent = 'Open directly';
-    toolbar.appendChild(openBtn);
-    pane.appendChild(toolbar);
+    openBtn.style.cssText = 'position:absolute;top:8px;right:8px;z-index:10;padding:4px 10px;background:#0f3b3a;color:#fff;border-radius:5px;font-size:11px;text-decoration:none;font-weight:600;';
+    openBtn.textContent = 'Open in Drive';
+
+    // Loading indicator
+    var loadingDiv = document.createElement('div');
+    loadingDiv.id = 'pdf-loading';
+    loadingDiv.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:5;font-size:13px;color:var(--fg-muted);';
+    loadingDiv.textContent = 'Loading document...';
+
+    iframe.onload = function() {
+      var ld = document.getElementById('pdf-loading');
+      if (ld) ld.remove();
+      // Size canvas to match pane
+      var dpr = window.devicePixelRatio || 1;
+      annotCanvas.width = pane.offsetWidth * dpr;
+      annotCanvas.height = pane.offsetHeight * dpr;
+      var ctx2d = annotCanvas.getContext('2d');
+      if (ctx2d) ctx2d.scale(dpr, dpr);
+      initPdfAnnotCanvas(annotCanvas, doc ? doc.id : null);
+    };
+
+    pane.appendChild(loadingDiv);
     pane.appendChild(iframe);
+    pane.appendChild(annotCanvas);
+    pane.appendChild(annotBar);
+    pane.appendChild(openBtn);
     return;
   }
   showViewerOptions(doc);
