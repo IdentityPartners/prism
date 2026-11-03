@@ -5026,6 +5026,125 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({status:'error',error:e.message,messages:[]},200,origin); }
     }
 
+
+    // ── Nylas OAuth flow ─────────────────────────────────────────────────────
+    if (path === '/comms/nylas/auth' && request.method === 'GET') {
+      const nylasKey = k(env, ['nylas_api_key', 'NYLAS_API_KEY']) || '';
+      const nylasApp = k(env, ['nylas_app_key', 'NYLAS_APP_KEY']) || '';
+      const redirectUri = 'https://prism.identitypartners.uk/comms/nylas/callback';
+      const email = url.searchParams.get('email') || 'hello@identitypartners.uk';
+      const authUrl = 'https://api.eu.nylas.com/v3/connect/auth'
+        + '?client_id=' + encodeURIComponent(nylasApp)
+        + '&redirect_uri=' + encodeURIComponent(redirectUri)
+        + '&response_type=code'
+        + '&provider=imap'
+        + '&login_hint=' + encodeURIComponent(email);
+      return Response.redirect(authUrl, 302);
+    }
+
+    if (path === '/comms/nylas/callback' && request.method === 'GET') {
+      const code = url.searchParams.get('code') || '';
+      const nylasKey = k(env, ['nylas_api_key', 'NYLAS_API_KEY']) || '';
+      const nylasApp = k(env, ['nylas_app_key', 'NYLAS_APP_KEY']) || '';
+      if (!code) return new Response('<h2>No code received</h2>', {headers: {'Content-Type': 'text/html'}});
+      try {
+        const tokenResp = await fetch('https://api.eu.nylas.com/v3/connect/token', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + nylasKey},
+          body: JSON.stringify({
+            client_id: nylasApp,
+            client_secret: nylasKey,
+            redirect_uri: 'https://prism.identitypartners.uk/comms/nylas/callback',
+            code: code,
+            grant_type: 'authorization_code'
+          })
+        });
+        const tokenData = await tokenResp.json();
+        if (tokenData.grant_id) {
+          if (env.PRISM_KV) await env.PRISM_KV.put('nylas:grant', JSON.stringify({grant_id: tokenData.grant_id, email: tokenData.email, stored_at: Date.now()}));
+          return new Response('<html><body style="font-family:sans-serif;padding:40px;background:#f0f4f8;"><h2 style="color:#0f3b3a;">✓ Email connected!</h2><p>Nylas connected for ' + (tokenData.email || 'your account') + '</p><p><a href="/comms/email/">Go to Email</a></p></body></html>', {headers: {'Content-Type': 'text/html'}});
+        }
+        return new Response('<h2>Error: ' + JSON.stringify(tokenData).substring(0,200) + '</h2>', {headers: {'Content-Type': 'text/html'}});
+      } catch(e) { return new Response('<h2>Error: ' + e.message + '</h2>', {headers: {'Content-Type': 'text/html'}}); }
+    }
+
+    if (path === '/api/nylas/status' && request.method === 'GET') {
+      try {
+        const grant = env.PRISM_KV ? await env.PRISM_KV.get('nylas:grant', 'json') : null;
+        if (!grant || !grant.grant_id) return json({connected: false}, 200, origin);
+        return json({connected: true, email: grant.email, grant_id: grant.grant_id, stored_at: grant.stored_at}, 200, origin);
+      } catch(e) { return json({connected: false}, 200, origin); }
+    }
+
+    if (path === '/api/nylas/inbox' && request.method === 'GET') {
+      try {
+        const grant = env.PRISM_KV ? await env.PRISM_KV.get('nylas:grant', 'json') : null;
+        if (!grant || !grant.grant_id) return json({status: 'not_connected', messages: []}, 200, origin);
+        const nylasKey = k(env, ['nylas_api_key', 'NYLAS_API_KEY']) || '';
+        const limit = parseInt(url.searchParams.get('limit') || '20');
+        const folder = url.searchParams.get('folder') || 'INBOX';
+        const msgResp = await fetch(
+          'https://api.eu.nylas.com/v3/grants/' + grant.grant_id + '/messages?limit=' + limit + '&in=' + folder,
+          {headers: {'Authorization': 'Bearer ' + nylasKey, 'Content-Type': 'application/json'}}
+        );
+        if (!msgResp.ok) { const err = await msgResp.text(); return json({status: 'api_error', error: err.substring(0,200), messages: []}, 200, origin); }
+        const msgData = await msgResp.json();
+        const messages = (msgData.data || []).map(function(m) {
+          return {
+            id: m.id,
+            subject: m.subject || '(no subject)',
+            from: m.from && m.from[0] ? m.from[0].email : '',
+            fromName: m.from && m.from[0] ? m.from[0].name : '',
+            date: m.date,
+            snippet: m.snippet || '',
+            unread: !m.read,
+            starred: m.starred,
+            thread_id: m.thread_id
+          };
+        });
+        return json({status: 'ok', messages, total: messages.length}, 200, origin);
+      } catch(e) { return json({status: 'error', error: e.message, messages: []}, 200, origin); }
+    }
+
+    if (path.startsWith('/api/nylas/message/') && request.method === 'GET') {
+      try {
+        const msgId = path.replace('/api/nylas/message/', '');
+        const grant = env.PRISM_KV ? await env.PRISM_KV.get('nylas:grant', 'json') : null;
+        if (!grant) return json({error: 'Not connected'}, 400, origin);
+        const nylasKey = k(env, ['nylas_api_key', 'NYLAS_API_KEY']) || '';
+        const msgResp = await fetch(
+          'https://api.eu.nylas.com/v3/grants/' + grant.grant_id + '/messages/' + msgId,
+          {headers: {'Authorization': 'Bearer ' + nylasKey}}
+        );
+        const msgData = await msgResp.json();
+        return json({message: msgData.data || msgData}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+
+    if (path === '/api/nylas/send' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const grant = env.PRISM_KV ? await env.PRISM_KV.get('nylas:grant', 'json') : null;
+        if (!grant) return json({success: false, error: 'Not connected'}, 400, origin);
+        const nylasKey = k(env, ['nylas_api_key', 'NYLAS_API_KEY']) || '';
+        const sendResp = await fetch(
+          'https://api.eu.nylas.com/v3/grants/' + grant.grant_id + '/messages/send',
+          {
+            method: 'POST',
+            headers: {'Authorization': 'Bearer ' + nylasKey, 'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              subject: body.subject || '',
+              body: body.body || '',
+              to: body.to || [],
+              reply_to_message_id: body.reply_to_message_id || undefined
+            })
+          }
+        );
+        const sendData = await sendResp.json();
+        return json({success: sendResp.ok, data: sendData.data || sendData}, 200, origin);
+      } catch(e) { return json({success: false, error: e.message}, 500, origin); }
+    }
+
     return json({ error: 'Not found', path }, 404, origin);
   },
 
