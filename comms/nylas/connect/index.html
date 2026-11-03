@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<title>Connect Email - Argentica</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<style>
+.connect-wrap{max-width:500px;margin:60px auto;padding:0 20px;}
+.connect-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;padding:28px;}
+.connect-card h2{margin:0 0 8px;font-size:1.2rem;}
+.connect-card p{font-size:0.88rem;color:var(--fg-muted);margin:0 0 16px;}
+.btn{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:inherit;text-decoration:none;display:inline-block;}
+.btn-primary{background:var(--accent);color:#fff;}
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:0.82rem;font-weight:600;margin-bottom:4px;}
+.field input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.88rem;background:var(--bg);color:var(--fg);font-family:inherit;}
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="connect-wrap">
+  <div class="connect-card">
+    <h2>&#x1F4E7; Connect Email</h2>
+    <p>Connect your Proton Mail account to read and send email from within Argentica. Uses Nylas (EU servers) as the secure bridge.</p>
+    <div class="field">
+      <label>Email address</label>
+      <input type="email" id="email-input" value="hello@identitypartners.uk">
+    </div>
+    <button class="btn btn-primary" onclick="connect()">Connect via Nylas</button>
+    <div id="status" style="margin-top:12px;font-size:0.85rem;"></div>
+  </div>
+</div>
+</div>
+<script>
+var WORKER = "https://prism-api.identitypartners.workers.dev";
+document.addEventListener("DOMContentLoaded", function() {
+  var mount = document.getElementById("sidebar-mount");
+  if (mount && typeof buildSidebar === "function") {
+    var sb = buildSidebar("/comms/");
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  // Check if already connected
+  fetch(WORKER + "/api/nylas/status")
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.connected) {
+        document.getElementById("status").innerHTML = "<span style=\"color:#16a34a;font-weight:600;\">✓ Connected as " + d.email + "</span> &mdash; <a href=\"/comms/email/\">Go to inbox</a>";
+      }
+    });
+});
+function connect() {
+  var email = document.getElementById("email-input").value.trim();
+  if (!email) { alert("Enter your email address."); return; }
+  window.location.href = WORKER + "/comms/nylas/auth?email=" + encodeURIComponent(email);
+}
+</script>
+</body>
+</html>
