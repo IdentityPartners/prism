@@ -5028,16 +5028,17 @@ data: ${JSON.stringify(data)}
 
 
     // ── Nylas OAuth flow ─────────────────────────────────────────────────────
-    if (path === '/comms/nylas/auth' && request.method === 'GET') {
-      const nylasKey = k(env, ['nylas_api_key', 'NYLAS_API_KEY']) || '';
-      const nylasApp = k(env, ['nylas_app_key', 'NYLAS_APP_KEY']) || '';
+ if (path === '/comms/nylas/auth' && request.method === 'GET') {
+      // nylas_app_id is the application_id UUID from the Nylas dashboard
+      // nylas_api_key is the secret API key used for server-side calls
+      const nylasAppId = k(env, ['nylas_app_id', 'NYLAS_APP_ID']) || 'a566d768-0aeb-42db-92d8-3e0d50f71d63';
       const redirectUri = 'https://prism.identitypartners.uk/comms/nylas/callback';
       const email = url.searchParams.get('email') || 'hello@identitypartners.uk';
       const authUrl = 'https://api.eu.nylas.com/v3/connect/auth'
-        + '?client_id=' + encodeURIComponent(nylasApp)
+        + '?client_id=' + encodeURIComponent(nylasAppId)
         + '&redirect_uri=' + encodeURIComponent(redirectUri)
         + '&response_type=code'
-        + '&provider=imap'
+        + '&access_type=offline'
         + '&login_hint=' + encodeURIComponent(email);
       return Response.redirect(authUrl, 302);
     }
@@ -5048,12 +5049,14 @@ data: ${JSON.stringify(data)}
       const nylasApp = k(env, ['nylas_app_key', 'NYLAS_APP_KEY']) || '';
       if (!code) return new Response('<h2>No code received</h2>', {headers: {'Content-Type': 'text/html'}});
       try {
+        const nylasApiKey2 = k(env, ['nylas_api_key', 'NYLAS_API_KEY']) || '';
+        const nylasAppId2 = k(env, ['nylas_app_id', 'NYLAS_APP_ID']) || 'a566d768-0aeb-42db-92d8-3e0d50f71d63';
         const tokenResp = await fetch('https://api.eu.nylas.com/v3/connect/token', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + nylasKey},
+          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + nylasApiKey2},
           body: JSON.stringify({
-            client_id: nylasApp,
-            client_secret: nylasKey,
+            client_id: nylasAppId2,
+            client_secret: nylasApiKey2,
             redirect_uri: 'https://prism.identitypartners.uk/comms/nylas/callback',
             code: code,
             grant_type: 'authorization_code'
