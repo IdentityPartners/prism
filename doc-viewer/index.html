@@ -561,21 +561,37 @@ function initHWCanvas() {
   body.innerHTML = '';
   var canvas = document.createElement('canvas');
   canvas.id = 'hw-annot-canvas';
-  canvas.style.cssText = 'width:100%;height:200px;border:1px solid var(--border);border-radius:6px;cursor:crosshair;touch-action:none;background:#fff;';
-  canvas.width = 240;
-  canvas.height = 200;
+  canvas.style.cssText = 'width:100%;height:280px;border:1px solid var(--border);border-radius:6px;cursor:crosshair;touch-action:none;background:#fff;display:block;';
   body.appendChild(canvas);
+  // Set canvas resolution to match display size (fixes stroke position offset)
+  var rect = canvas.getBoundingClientRect();
+  var dpr = window.devicePixelRatio || 1;
+  canvas.width = (rect.width || body.offsetWidth || 280) * dpr;
+  canvas.height = 280 * dpr;
+  var ctx2d = canvas.getContext('2d');
+  if (ctx2d) ctx2d.scale(dpr, dpr);
   canvas.addEventListener('pointerdown', hwStart);
   canvas.addEventListener('pointermove', hwMove);
   canvas.addEventListener('pointerup', hwEnd);
   canvas.addEventListener('pointercancel', hwEnd);
+  // Restore previous strokes
   hwRedraw();
+  // Show save indicator
+  var saveHint = document.createElement('div');
+  saveHint.style.cssText = 'font-size:10px;color:var(--fg-muted);text-align:right;margin-top:3px;';
+  saveHint.textContent = 'Strokes auto-save on lift';
+  body.appendChild(saveHint);
 }
 function hwPos(e) {
   var c = document.getElementById('hw-annot-canvas');
   if (!c) return {x: 0, y: 0};
   var r = c.getBoundingClientRect();
-  return {x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height)};
+  var dpr = window.devicePixelRatio || 1;
+  var scaleX = (c.width / dpr) / r.width;
+  var scaleY = (c.height / dpr) / r.height;
+  var clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+  var clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+  return {x: (clientX - r.left) * scaleX, y: (clientY - r.top) * scaleY};
 }
 function hwStart(e) { e.preventDefault(); hwDrawing = true; hwCurrent = {tool: hwTool, col: hwColor, sz: hwSize, pts: [hwPos(e)]}; }
 function hwMove(e) { if (!hwDrawing || !hwCurrent) return; e.preventDefault(); hwCurrent.pts.push(hwPos(e)); hwDrawStroke(hwCurrent, true); }
