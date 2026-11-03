@@ -753,7 +753,6 @@ function buildSidebar(activePage) {
       {label:'Email', icon:'fluent-emoji:e-mail', href:'/comms/email/'},
       {label:'Calendar', icon:'fluent-emoji:spiral-calendar', href:'/comms/calendar/'},
       {label:'Google Account', icon:'fluent-emoji:envelope-with-arrow', href:'/comms/google/'},
-      {label:'Email Connect', icon:'fluent-emoji:electric-plug', href:'/comms/nylas/connect/'},
       {label:'Twenty CRM', icon:'fluent-emoji:address-book', href:'/comms/twenty/'},
       {label:'Messages', icon:'fluent-emoji:speech-balloon', href:'/messages/'},
     ]},
