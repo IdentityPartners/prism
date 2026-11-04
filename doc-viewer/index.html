@@ -264,7 +264,9 @@ function renderPDF(doc) {
       + '<button onclick="setAnnotTool(\'erase\')" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(255,255,255,0.9);color:#0f3b3a;">&#x2715; Erase</button>'
       + '<button onclick="toggleAnnotMode()" id="annot-toggle" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(255,255,255,0.25);color:#fff;">Draw: OFF</button>'
       + '<button onclick="clearPdfAnnot()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(220,38,38,0.85);color:#fff;">Clear</button>'
-      + '<button onclick="savePdfAnnot()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(45,106,159,0.9);color:#fff;">&#x1F4BE; Save</button>';
+      + '<button onclick="savePdfAnnot()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(45,106,159,0.9);color:#fff;">&#x1F4BE; Save</button>'
+      + '<button onclick="toggleNotesPanel()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(255,255,255,0.2);color:#fff;">&#x1F4DD; Notes</button>'
+      + '<button onclick="runOcrOnDoc()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(92,45,63,0.9);color:#fff;">&#x1F50D; OCR</button>';
 
     // Open-in-Drive button (top-right)
     var openBtn = document.createElement('a');
@@ -291,11 +293,41 @@ function renderPDF(doc) {
       initPdfAnnotCanvas(annotCanvas, doc ? doc.id : null);
     };
 
+    // Notes panel (hidden by default)
+    var notesPanel = document.createElement('div');
+    notesPanel.id = 'pdf-notes-panel';
+    notesPanel.style.cssText = 'display:none;position:absolute;right:0;top:0;bottom:0;width:280px;background:var(--bg-elevated);border-left:1px solid var(--border);z-index:8;display:none;flex-direction:column;';
+    notesPanel.innerHTML =
+      '<div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;">'
+      + '<span style="font-size:0.85rem;font-weight:700;flex:1;">Notes</span>'
+      + '<button onclick="saveDocNotes()" style="padding:3px 8px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:11px;cursor:pointer;font-weight:600;">Save</button>'
+      + '<button onclick="toggleNotesPanel()" style="padding:3px 8px;border:none;border-radius:6px;background:var(--bg-sunken);color:var(--fg);font-size:11px;cursor:pointer;">&#x2715;</button>'
+      + '</div>'
+      + '<textarea id="pdf-notes-text" style="flex:1;padding:12px;border:none;resize:none;font-size:0.85rem;background:var(--bg);color:var(--fg);font-family:inherit;line-height:1.6;" placeholder="Type your notes here...\n\nNotes are saved per document and persist across sessions."></textarea>'
+      + '<div id="pdf-notes-status" style="padding:6px 12px;font-size:0.75rem;color:var(--fg-muted);border-top:1px solid var(--border);flex-shrink:0;">Not saved yet</div>';
+    // Auto-save indicator
+    var saveIndicator = document.createElement('div');
+    saveIndicator.id = 'pdf-save-indicator';
+    saveIndicator.style.cssText = 'position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:9;padding:4px 12px;background:rgba(15,59,58,0.85);color:#fff;border-radius:12px;font-size:11px;font-weight:600;display:none;pointer-events:none;';
+    saveIndicator.textContent = 'Annotations saved';
     pane.appendChild(loadingDiv);
     pane.appendChild(iframe);
     pane.appendChild(annotCanvas);
     pane.appendChild(annotBar);
     pane.appendChild(openBtn);
+    pane.appendChild(notesPanel);
+    pane.appendChild(saveIndicator);
+    // Load notes for this doc
+    if (doc && doc.id) {
+      fetch(WORKER + '/api/kv/get?key=' + encodeURIComponent('notes:doc:' + doc.id))
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var ta = document.getElementById('pdf-notes-text');
+          if (ta && d.value) ta.value = d.value;
+          var st = document.getElementById('pdf-notes-status');
+          if (st && d.value) st.textContent = 'Loaded from cloud';
+        }).catch(function() {});
+    }
     return;
   }
   showViewerOptions(doc);
@@ -717,12 +749,31 @@ var pdfAnnotDocId = null;
 
 function initPdfAnnotCanvas(canvas, docId) {
   pdfAnnotDocId = docId;
-  // Load saved strokes
+  pdfAnnotStrokes = [];
+  // Try localStorage first (instant)
   try {
-    var saved = localStorage.getItem("pdf-annot:" + docId);
-    if (saved) pdfAnnotStrokes = JSON.parse(saved);
-  } catch(e) { pdfAnnotStrokes = []; }
-  redrawPdfAnnot(canvas);
+    var local = localStorage.getItem("pdf-annot:" + docId);
+    if (local) { pdfAnnotStrokes = JSON.parse(local); redrawPdfAnnot(canvas); }
+  } catch(e) {}
+  // Then load from KV (authoritative, cross-device)
+  if (docId) {
+    fetch(WORKER + "/api/kv/get?key=" + encodeURIComponent("annot:" + docId))
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.value) {
+          try {
+            var kvStrokes = JSON.parse(d.value);
+            if (kvStrokes && kvStrokes.length > 0) {
+              pdfAnnotStrokes = kvStrokes;
+              redrawPdfAnnot(canvas);
+              // Sync back to localStorage
+              try { localStorage.setItem("pdf-annot:" + docId, d.value); } catch(e) {}
+            }
+          } catch(e) {}
+        }
+      })
+      .catch(function() {});
+  }
   canvas.addEventListener("pointerdown", pdfAnnotStart);
   canvas.addEventListener("pointermove", pdfAnnotMove);
   canvas.addEventListener("pointerup", pdfAnnotEnd);
@@ -831,15 +882,104 @@ function clearPdfAnnot() {
 
 function savePdfAnnot() {
   if (!pdfAnnotDocId) return;
+  // Save to localStorage immediately
   try { localStorage.setItem("pdf-annot:" + pdfAnnotDocId, JSON.stringify(pdfAnnotStrokes)); } catch(e) {}
-  // Also save to KV
+  // Save to KV (persists across devices)
+  var saveBtn = document.querySelector('#pdf-annot-bar button:last-child');
+  if (saveBtn) { saveBtn.textContent = 'Saving...'; saveBtn.style.opacity = '0.7'; }
   fetch(WORKER + "/api/kv/set", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({key: "pdf-annot:" + pdfAnnotDocId, value: JSON.stringify(pdfAnnotStrokes)})
-  }).catch(function() {});
+    body: JSON.stringify({key: "annot:" + pdfAnnotDocId, value: JSON.stringify(pdfAnnotStrokes)})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (saveBtn) {
+      saveBtn.textContent = d.success ? '\u2713 Saved' : '\u2717 Failed';
+      saveBtn.style.opacity = '1';
+      saveBtn.style.background = d.success ? 'rgba(22,163,74,0.9)' : 'rgba(220,38,38,0.9)';
+      setTimeout(function() {
+        saveBtn.textContent = '\uD83D\uDCBE Save';
+        saveBtn.style.background = 'rgba(45,106,159,0.9)';
+      }, 2000);
+    }
+  })
+  .catch(function() {
+    if (saveBtn) { saveBtn.textContent = '\u2717 Failed'; saveBtn.style.opacity = '1'; }
+  });
 }
 
+
+function toggleNotesPanel() {
+  var panel = document.getElementById('pdf-notes-panel');
+  if (!panel) return;
+  var isHidden = panel.style.display === 'none' || panel.style.display === '';
+  panel.style.display = isHidden ? 'flex' : 'none';
+  if (isHidden) {
+    var ta = document.getElementById('pdf-notes-text');
+    if (ta) ta.focus();
+  }
+}
+
+function saveDocNotes() {
+  if (!pdfAnnotDocId) return;
+  var ta = document.getElementById('pdf-notes-text');
+  var st = document.getElementById('pdf-notes-status');
+  if (!ta) return;
+  var text = ta.value;
+  if (st) st.textContent = 'Saving...';
+  fetch(WORKER + '/api/kv/set', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({key: 'notes:doc:' + pdfAnnotDocId, value: text})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (st) st.textContent = d.success ? ('Saved ' + new Date().toLocaleTimeString('en-GB')) : 'Save failed';
+  })
+  .catch(function() { if (st) st.textContent = 'Save failed'; });
+}
+
+function runOcrOnDoc() {
+  if (!currentDoc) return;
+  var pane = document.getElementById('doc-pane');
+  var ocrBtn = document.querySelector('#pdf-annot-bar button:last-child');
+  if (ocrBtn) { ocrBtn.textContent = 'OCR...'; ocrBtn.style.opacity = '0.7'; }
+  var payload = {};
+  if (currentDoc.url) payload.url = currentDoc.url;
+  else if (currentDoc.content) payload.content = currentDoc.content.split(',')[1] || currentDoc.content;
+  fetch(WORKER + '/api/ocr/mistral', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (ocrBtn) { ocrBtn.textContent = '\uD83D\uDD0D OCR'; ocrBtn.style.opacity = '1'; }
+    var text = d.text || d.content || d.result || '';
+    if (!text) { alert('OCR returned no text. Check the document is a readable PDF.'); return; }
+    // Open notes panel and paste OCR result
+    var ta = document.getElementById('pdf-notes-text');
+    if (!ta) { toggleNotesPanel(); ta = document.getElementById('pdf-notes-text'); }
+    if (ta) {
+      ta.value = (ta.value ? ta.value + '\n\n--- OCR ---\n' : '') + text;
+      toggleNotesPanel();
+      var st = document.getElementById('pdf-notes-status');
+      if (st) st.textContent = 'OCR text added — click Save to persist';
+    }
+  })
+  .catch(function(e) {
+    if (ocrBtn) { ocrBtn.textContent = '\uD83D\uDD0D OCR'; ocrBtn.style.opacity = '1'; }
+    alert('OCR error: ' + e.message);
+  });
+}
+
+function showSaveIndicator() {
+  var ind = document.getElementById('pdf-save-indicator');
+  if (!ind) return;
+  ind.style.display = 'block';
+  setTimeout(function() { ind.style.display = 'none'; }, 2000);
+}
 </script>
 </body>
 </html>
