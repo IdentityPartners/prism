@@ -5148,6 +5148,65 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success: false, error: e.message}, 500, origin); }
     }
 
+
+    // ── Gmail single message fetch ────────────────────────────────────────────────
+    if (path === '/api/google/gmail/message' && request.method === 'GET') {
+      try {
+        const msgId = url.searchParams.get('id') || '';
+        if (!msgId) return json({error:'id required'}, 400, origin);
+        const tokenData = env.PRISM_KV ? await env.PRISM_KV.get('google:oauth:token','json') : null;
+        if (!tokenData || !tokenData.access_token) return json({status:'not_connected'}, 200, origin);
+        let accessToken = tokenData.access_token;
+        // Auto-refresh if expired
+        if (tokenData.expires_at && Date.now() > tokenData.expires_at - 60000 && tokenData.refresh_token) {
+          const cid = k(env,['google_client_id','GOOGLE_CLIENT_ID']) || '';
+          const cs = k(env,['google_client_secret','GOOGLE_CLIENT_SECRET']) || '';
+          const rr = await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({refresh_token:tokenData.refresh_token,client_id:cid,client_secret:cs,grant_type:'refresh_token'}).toString()});
+          const rd = await rr.json();
+          if (rd.access_token) { accessToken = rd.access_token; tokenData.access_token = accessToken; tokenData.expires_at = Date.now()+(rd.expires_in||3600)*1000; if (env.PRISM_KV) await env.PRISM_KV.put('google:oauth:token',JSON.stringify(tokenData)); }
+        }
+        const msgResp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/' + msgId + '?format=full', {headers:{'Authorization':'Bearer '+accessToken}});
+        if (!msgResp.ok) { const err = await msgResp.text(); return json({status:'api_error',code:msgResp.status,error:err.substring(0,300)},200,origin); }
+        const msg = await msgResp.json();
+        const hdrs = msg.payload && msg.payload.headers ? msg.payload.headers : [];
+        const gh = function(n) { return (hdrs.find(function(h){return h.name===n;})||{}).value||''; };
+        // Extract body
+        let bodyText = '';
+        let bodyHtml = '';
+        function extractParts(parts) {
+          if (!parts) return;
+          for (const part of parts) {
+            if (part.mimeType === 'text/plain' && part.body && part.body.data) {
+              bodyText = atob(part.body.data.replace(/-/g,'+').replace(/_/g,'/'));
+            } else if (part.mimeType === 'text/html' && part.body && part.body.data) {
+              bodyHtml = atob(part.body.data.replace(/-/g,'+').replace(/_/g,'/'));
+            } else if (part.parts) {
+              extractParts(part.parts);
+            }
+          }
+        }
+        if (msg.payload) {
+          if (msg.payload.body && msg.payload.body.data) {
+            bodyText = atob(msg.payload.body.data.replace(/-/g,'+').replace(/_/g,'/'));
+          }
+          extractParts(msg.payload.parts);
+        }
+        return json({
+          message: {
+            id: msg.id,
+            subject: gh('Subject') || '(no subject)',
+            from: gh('From'),
+            to: gh('To'),
+            date: gh('Date'),
+            snippet: msg.snippet || '',
+            body: bodyText,
+            bodyHtml: bodyHtml,
+            unread: (msg.labelIds||[]).includes('UNREAD')
+          }
+        }, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
     return json({ error: 'Not found', path }, 404, origin);
   },
 
