@@ -49,6 +49,9 @@
       <button class="btn btn-secondary" onclick="loadInbox()" style="font-size:0.75rem;padding:4px 8px;" title="Refresh">
         <span class="iconify" data-icon="ph:arrows-clockwise-bold"></span>
       </button>
+      <button class="btn btn-primary" onclick="openCompose(null)" style="font-size:0.75rem;padding:4px 10px;">
+        <span class="iconify" data-icon="ph:pencil-bold" style="vertical-align:middle;"></span> Compose
+      </button>
       <a href="https://mail.google.com" target="_blank" class="btn btn-secondary" style="font-size:0.75rem;padding:4px 8px;" title="Open Gmail">
         <span class="iconify" data-icon="ph:arrow-square-out-bold"></span>
       </a>
@@ -87,6 +90,7 @@
 <script>
 var WORKER = "https://prism-api.identitypartners.workers.dev";
 var currentLabel = "INBOX";
+var currentMsg = null;
 var currentMsgId = null;
 
 document.addEventListener("DOMContentLoaded", function() {
@@ -172,6 +176,7 @@ function openMessage(el) {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       var msg = d.message || {};
+      currentMsg = msg;
       document.getElementById("detail-subject").textContent = msg.subject || "(no subject)";
       document.getElementById("detail-meta").textContent =
         "From: " + (msg.from || "") + "  ·  " + (msg.date ? new Date(msg.date).toLocaleString("en-GB") : "");
@@ -197,6 +202,69 @@ function openMessage(el) {
       document.getElementById("detail-content").innerHTML =
         "<div style=\"color:#dc2626;\">Error loading message: " + esc(e.message) + "</div>";
     });
+}
+
+
+function openCompose(replyTo) {
+  var existing = document.getElementById("compose-overlay");
+  if (existing) existing.remove();
+  var overlay = document.createElement("div");
+  overlay.id = "compose-overlay";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;";
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var toVal = replyTo ? (replyTo.from || "") : "";
+  var subVal = replyTo ? ("Re: " + (replyTo.subject || "")) : "";
+  var modal = document.createElement("div");
+  modal.style.cssText = "background:var(--bg-elevated);border-radius:12px;width:min(640px,94vw);display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,0.4);overflow:hidden;";
+  modal.innerHTML =
+    "<div style=\"padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;\">"
+    + "<span style=\"font-size:0.95rem;font-weight:700;flex:1;\">New Message</span>"
+    + "<button onclick=\"document.getElementById('compose-overlay').remove()\" style=\"background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--fg-muted);\">&#x2715;</button>"
+    + "</div>"
+    + "<div style=\"padding:12px 16px;display:flex;flex-direction:column;gap:8px;\">"
+    + "<div style=\"display:flex;align-items:center;gap:8px;\"><label style=\"font-size:0.82rem;font-weight:600;width:52px;flex-shrink:0;\">From</label>"
+    + "<select id=\"compose-from\" style=\"flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);font-family:inherit;\">"
+    + "<option value=\"hello@identitypartners.uk\">hello@identitypartners.uk</option>"
+    + "<option value=\"simon@identitypartners.uk\">simon@identitypartners.uk</option>"
+    + "</select></div>"
+    + "<div style=\"display:flex;align-items:center;gap:8px;\"><label style=\"font-size:0.82rem;font-weight:600;width:52px;flex-shrink:0;\">To</label>"
+    + "<input id=\"compose-to\" value=\"" + esc(toVal) + "\" style=\"flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);font-family:inherit;\"></div>"
+    + "<div style=\"display:flex;align-items:center;gap:8px;\"><label style=\"font-size:0.82rem;font-weight:600;width:52px;flex-shrink:0;\">Subject</label>"
+    + "<input id=\"compose-subject\" value=\"" + esc(subVal) + "\" style=\"flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--fg);font-family:inherit;\"></div>"
+    + "<textarea id=\"compose-body\" style=\"padding:8px;border:1px solid var(--border);border-radius:6px;font-size:0.88rem;background:var(--bg);color:var(--fg);font-family:inherit;min-height:220px;resize:vertical;line-height:1.6;\" placeholder=\"Write your message...\"></textarea>"
+    + "<div style=\"display:flex;gap:8px;justify-content:flex-end;\">"
+    + "<div id=\"compose-status\" style=\"flex:1;font-size:0.82rem;color:var(--fg-muted);align-self:center;\"></div>"
+    + "<button class=\"btn btn-secondary\" onclick=\"document.getElementById('compose-overlay').remove()\">Cancel</button>"
+    + "<button class=\"btn btn-primary\" onclick=\"sendEmail()\">Send</button>"
+    + "</div></div>";
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  setTimeout(function() { var t = document.getElementById("compose-to"); if (t) t.focus(); }, 50);
+}
+
+function sendEmail() {
+  var to = document.getElementById("compose-to").value.trim();
+  var subject = document.getElementById("compose-subject").value.trim();
+  var body = document.getElementById("compose-body").value.trim();
+  var from = document.getElementById("compose-from").value;
+  var status = document.getElementById("compose-status");
+  if (!to || !body) { if (status) status.textContent = "To and message are required."; return; }
+  if (status) status.textContent = "Sending...";
+  fetch(WORKER + "/api/google/gmail/send", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({to: to, subject: subject, text: body, from: from})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      document.getElementById("compose-overlay").remove();
+      loadInbox();
+    } else {
+      if (status) status.textContent = "Failed: " + (d.error || "unknown").substring(0, 120);
+    }
+  })
+  .catch(function(e) { if (status) status.textContent = "Error: " + e.message; });
 }
 
 function esc(s) {
