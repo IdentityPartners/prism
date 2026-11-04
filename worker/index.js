@@ -4707,7 +4707,7 @@ data: ${JSON.stringify(data)}
     if (path === '/comms/google/auth' && request.method === 'GET') {
       const clientId = k(env, ['google_client_id','GOOGLE_CLIENT_ID']) || '';
       const redirectUri = k(env, ['google_redirect_uri','GOOGLE_REDIRECT_URI']) || 'https://prism.identitypartners.uk/comms/google/callback';
-      const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.readonly email profile openid');
+      const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.compose email profile openid');
       const state = Math.random().toString(36).slice(2);
       if (env.PRISM_KV) await env.PRISM_KV.put('google:oauth:state', state, {expirationTtl: 600});
       const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + clientId + '&redirect_uri=' + encodeURIComponent(redirectUri) + '&response_type=code&scope=' + scope + '&access_type=offline&prompt=consent&state=' + state;
@@ -5205,6 +5205,45 @@ data: ${JSON.stringify(data)}
           }
         }, 200, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+
+    if (path === '/api/google/gmail/send' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const tokenData = env.PRISM_KV ? await env.PRISM_KV.get('google:oauth:token','json') : null;
+        if (!tokenData || !tokenData.access_token) return json({success:false,error:'Not connected'},400,origin);
+        let accessToken = tokenData.access_token;
+        if (tokenData.expires_at && Date.now() > tokenData.expires_at - 60000 && tokenData.refresh_token) {
+          const cid = k(env,['google_client_id','GOOGLE_CLIENT_ID'])||'';
+          const cs = k(env,['google_client_secret','GOOGLE_CLIENT_SECRET'])||'';
+          const rr = await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({refresh_token:tokenData.refresh_token,client_id:cid,client_secret:cs,grant_type:'refresh_token'}).toString()});
+          const rd = await rr.json();
+          if (rd.access_token){accessToken=rd.access_token;tokenData.access_token=accessToken;tokenData.expires_at=Date.now()+(rd.expires_in||3600)*1000;if(env.PRISM_KV)await env.PRISM_KV.put('google:oauth:token',JSON.stringify(tokenData));}
+        }
+        const to = body.to || '';
+        const subject = body.subject || '(no subject)';
+        const text = body.text || '';
+        const fromAlias = body.from || 'hello@identitypartners.uk';
+        const raw = [
+          'From: Simon Johnson <' + fromAlias + '>',
+          'To: ' + to,
+          'Subject: ' + subject,
+          'Content-Type: text/plain; charset=utf-8',
+          'MIME-Version: 1.0',
+          '',
+          text
+        ].join('\r\n');
+        const encoded = btoa(unescape(encodeURIComponent(raw))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+        const sendResp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{
+          method:'POST',
+          headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},
+          body:JSON.stringify({raw:encoded})
+        });
+        if (!sendResp.ok){const err=await sendResp.text();return json({success:false,error:err.substring(0,300)},200,origin);}
+        const sendData = await sendResp.json();
+        return json({success:true,id:sendData.id},200,origin);
+      } catch(e){return json({success:false,error:e.message},500,origin);}
     }
 
     return json({ error: 'Not found', path }, 404, origin);
