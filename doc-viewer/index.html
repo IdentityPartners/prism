@@ -50,6 +50,7 @@
 </style>
   <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
   <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 </head>
 <body>
 <script src="/shared/prism.js"></script>
@@ -859,31 +860,119 @@ function clearPdfAnnot() {
 
 function savePdfAnnot() {
   if (!pdfAnnotDocId) return;
-  // Save to localStorage immediately
-  try { localStorage.setItem("pdf-annot:" + pdfAnnotDocId, JSON.stringify(pdfAnnotStrokes)); } catch(e) {}
-  // Save to KV (persists across devices)
   var saveBtn = document.querySelector('#pdf-annot-bar button:last-child');
-  if (saveBtn) { saveBtn.textContent = 'Saving...'; saveBtn.style.opacity = '0.7'; }
-  fetch(WORKER + "/api/kv/set", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({key: "annot:" + pdfAnnotDocId, value: JSON.stringify(pdfAnnotStrokes)})
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(d) {
-    if (saveBtn) {
-      saveBtn.textContent = d.success ? '\u2713 Saved' : '\u2717 Failed';
-      saveBtn.style.opacity = '1';
-      saveBtn.style.background = d.success ? 'rgba(22,163,74,0.9)' : 'rgba(220,38,38,0.9)';
-      setTimeout(function() {
-        saveBtn.textContent = '\uD83D\uDCBE Save';
-        saveBtn.style.background = 'rgba(45,106,159,0.9)';
-      }, 2000);
-    }
-  })
-  .catch(function() {
-    if (saveBtn) { saveBtn.textContent = '\u2717 Failed'; saveBtn.style.opacity = '1'; }
-  });
+  function setBtn(text, bg) {
+    if (!saveBtn) return;
+    saveBtn.textContent = text;
+    saveBtn.style.background = bg || 'rgba(45,106,159,0.9)';
+    saveBtn.style.opacity = '1';
+  }
+  // 1. Save strokes to localStorage + KV for fast reload
+  try { localStorage.setItem('pdf-annot:' + pdfAnnotDocId, JSON.stringify(pdfAnnotStrokes)); } catch(e) {}
+  fetch(WORKER + '/api/kv/set', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({key: 'annot:' + pdfAnnotDocId, value: JSON.stringify(pdfAnnotStrokes)})
+  }).catch(function() {});
+
+  // 2. If no strokes, nothing to burn in
+  if (!pdfAnnotStrokes || !pdfAnnotStrokes.length) {
+    setBtn('\u2713 Saved', 'rgba(22,163,74,0.9)');
+    setTimeout(function() { setBtn('\uD83D\uDCBE Save'); }, 2000);
+    return;
+  }
+
+  // 3. Burn strokes into PDF using pdf-lib (client-side)
+  if (!currentDoc || !currentDoc.url || typeof PDFLib === 'undefined') {
+    setBtn('\u2713 Saved (KV only)', 'rgba(22,163,74,0.9)');
+    setTimeout(function() { setBtn('\uD83D\uDCBE Save'); }, 2000);
+    return;
+  }
+
+  setBtn('Burning into PDF...', 'rgba(92,45,63,0.9)');
+
+  // Fetch the PDF bytes
+  fetch(currentDoc.url)
+    .then(function(r) {
+      if (!r.ok) throw new Error('Could not fetch PDF: ' + r.status);
+      return r.arrayBuffer();
+    })
+    .then(function(pdfBytes) {
+      return PDFLib.PDFDocument.load(pdfBytes);
+    })
+    .then(function(pdfDoc) {
+      var pages = pdfDoc.getPages();
+      var page = pages[0]; // annotations on first page for now
+      var pageWidth = page.getWidth();
+      var pageHeight = page.getHeight();
+
+      // Get canvas dimensions for coordinate mapping
+      var canvas = document.getElementById('pdf-annot-canvas');
+      var canvasW = canvas ? canvas.offsetWidth : 800;
+      var canvasH = canvas ? canvas.offsetHeight : 1000;
+      var scaleX = pageWidth / canvasW;
+      var scaleY = pageHeight / canvasH;
+
+      // Draw each stroke as a PDF path
+      pdfAnnotStrokes.forEach(function(stroke) {
+        if (!stroke.pts || stroke.pts.length < 2) return;
+        var color = stroke.tool === 'hi'
+          ? PDFLib.rgb(1, 0.9, 0)      // yellow highlight
+          : PDFLib.rgb(0.06, 0.23, 0.23); // teal pen
+
+        var opacity = stroke.tool === 'hi' ? 0.4 : 0.85;
+        var lineWidth = stroke.tool === 'hi' ? (stroke.size || 12) * scaleX : (stroke.size || 2) * scaleX;
+
+        // Build SVG-style path string for pdf-lib
+        var pts = stroke.pts;
+        var pathStr = 'M ' + (pts[0].x * scaleX).toFixed(2) + ' ' + (pageHeight - pts[0].y * scaleY).toFixed(2);
+        for (var i = 1; i < pts.length; i++) {
+          pathStr += ' L ' + (pts[i].x * scaleX).toFixed(2) + ' ' + (pageHeight - pts[i].y * scaleY).toFixed(2);
+        }
+
+        page.drawSvgPath(pathStr, {
+          borderColor: color,
+          borderWidth: lineWidth,
+          borderOpacity: opacity,
+          opacity: 0,
+        });
+      });
+
+      return pdfDoc.save();
+    })
+    .then(function(annotatedBytes) {
+      // 4. Upload annotated PDF to Google Drive via worker
+      setBtn('Uploading to Drive...', 'rgba(92,45,63,0.9)');
+      var b64 = btoa(String.fromCharCode.apply(null, new Uint8Array(annotatedBytes)));
+      var fileName = (currentDoc.title || currentDoc.name || 'document') + ' (annotated).pdf';
+      return fetch(WORKER + '/api/gdrive/upload', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          fileName: fileName,
+          content: 'data:application/pdf;base64,' + b64,
+          mimeType: 'application/pdf',
+          folder: 'Argentica Annotations'
+        })
+      });
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success || d.id) {
+        setBtn('\u2713 Saved to Drive', 'rgba(22,163,74,0.9)');
+        // Store the Drive URL against this doc
+        if (d.webViewLink || d.shareUrl) {
+          try { localStorage.setItem('annot-drive:' + pdfAnnotDocId, d.webViewLink || d.shareUrl); } catch(e) {}
+        }
+      } else {
+        setBtn('\u2713 KV saved (Drive: ' + (d.error || 'check auth').substring(0,20) + ')', 'rgba(245,158,11,0.9)');
+      }
+      setTimeout(function() { setBtn('\uD83D\uDCBE Save'); }, 3000);
+    })
+    .catch(function(e) {
+      // Drive upload failed — strokes still in KV
+      setBtn('\u2713 KV saved (Drive failed)', 'rgba(245,158,11,0.9)');
+      setTimeout(function() { setBtn('\uD83D\uDCBE Save'); }, 3000);
+    });
 }
 
 
