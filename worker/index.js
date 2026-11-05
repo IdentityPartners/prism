@@ -5246,6 +5246,40 @@ data: ${JSON.stringify(data)}
       } catch(e){return json({success:false,error:e.message},500,origin);}
     }
 
+
+    // ── Request queue ─────────────────────────────────────────────────────────
+    if (path === '/api/requests' && request.method === 'GET') {
+      try {
+        const list = env.PRISM_KV ? await env.PRISM_KV.get('requests:list','json') : null;
+        return json({requests: list || []}, 200, origin);
+      } catch(e) { return json({requests:[]}, 200, origin); }
+    }
+    if (path === '/api/requests' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('req-' + Date.now());
+        const req2 = {...body, id, createdAt: body.createdAt || new Date().toISOString(), status: 'open'};
+        if (env.PRISM_KV) {
+          const list = await env.PRISM_KV.get('requests:list','json') || [];
+          list.unshift(req2);
+          await env.PRISM_KV.put('requests:list', JSON.stringify(list));
+        }
+        return json({success:true, id}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+    if (path.startsWith('/api/requests/') && request.method === 'PATCH') {
+      try {
+        const id = path.replace('/api/requests/','');
+        const body = await request.json();
+        if (env.PRISM_KV) {
+          const list = await env.PRISM_KV.get('requests:list','json') || [];
+          const idx = list.findIndex(function(r){return r.id===id;});
+          if (idx >= 0) { list[idx] = {...list[idx], ...body}; await env.PRISM_KV.put('requests:list', JSON.stringify(list)); }
+        }
+        return json({success:true}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
     return json({ error: 'Not found', path }, 404, origin);
   },
 
