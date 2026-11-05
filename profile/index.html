@@ -72,5 +72,29 @@ function loadProfile() {
   }catch(e){}
 }
 </script>
+
+<script>
+// Load and display memory
+function loadMemory() {
+  var WORKER = 'https://prism-api.identitypartners.workers.dev';
+  var container = document.getElementById('memory-list');
+  if (!container) return;
+  container.innerHTML = '<div style="color:var(--fg-muted);font-size:0.85rem;">Loading...</div>';
+  fetch(WORKER + '/api/memory')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var mems = d.memories || [];
+      if (!mems.length) { container.innerHTML = '<div style="color:var(--fg-muted);font-size:0.85rem;">No memories stored yet.</div>'; return; }
+      container.innerHTML = mems.map(function(m) {
+        return '<div style="padding:8px 10px;background:var(--bg-sunken);border-radius:6px;margin-bottom:6px;">'
+          + '<div style="font-size:0.75rem;font-weight:700;color:var(--accent);margin-bottom:2px;">' + esc(m.key) + '</div>'
+          + '<div style="font-size:0.85rem;">' + esc(m.value) + '</div>'
+          + '</div>';
+      }).join('');
+    });
+}
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+document.addEventListener('DOMContentLoaded', loadMemory);
+</script>
 </body>
 </html>
