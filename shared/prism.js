@@ -770,6 +770,7 @@ function buildSidebar(activePage) {
       {label:'Workflows', icon:'fluent-emoji:gear', href:'/agenti/workflow-wizard/'},
       {label:'Orchestrator', icon:'fluent-emoji:control-knobs', href:'/orchestrator/'},
     ]},
+    {type:'item', label:'Request', icon:'fluent-emoji:clipboard', href:'/request/'},
     {type:'section', label:'System'},
     {type:'group', label:'System', icon:'fluent-emoji:wrench', children:[
       {label:'Profile & Memory', icon:'fluent-emoji:bust-in-silhouette', href:'/profile/'},
