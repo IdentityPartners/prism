@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Request — Argentica</title>
+<link rel="stylesheet" href="/shared/prism.css">
+<link rel="stylesheet" href="/shared/themes.css">
+<script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+<style>
+.req-wrap { max-width: 680px; margin: 0 auto; padding: 24px 20px; }
+.req-hdr { margin-bottom: 24px; }
+.req-hdr h1 { font-size: 1.3rem; font-weight: 700; margin: 0 0 4px; }
+.req-hdr p { font-size: 0.88rem; color: var(--fg-muted); margin: 0; }
+.card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; }
+.field input, .field select, .field textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 0.9rem; background: var(--bg); color: var(--fg); font-family: inherit;
+}
+.field textarea { min-height: 100px; resize: vertical; line-height: 1.6; }
+.field select { cursor: pointer; }
+.type-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-top: 4px; }
+.type-btn { padding: 10px 8px; border: 2px solid var(--border); border-radius: 8px; cursor: pointer;
+  text-align: center; font-size: 0.82rem; font-weight: 600; background: var(--bg); color: var(--fg);
+  transition: all 0.15s; }
+.type-btn:hover { border-color: var(--accent); color: var(--accent); }
+.type-btn.selected { border-color: var(--accent); background: var(--accent); color: #fff; }
+.type-btn .icon { font-size: 1.4rem; display: block; margin-bottom: 4px; }
+.priority-row { display: flex; gap: 8px; }
+.priority-btn { flex: 1; padding: 8px; border: 2px solid var(--border); border-radius: 6px;
+  cursor: pointer; text-align: center; font-size: 0.82rem; font-weight: 600;
+  background: var(--bg); color: var(--fg); transition: all 0.15s; }
+.priority-btn.selected.low { border-color: #16a34a; background: #16a34a; color: #fff; }
+.priority-btn.selected.medium { border-color: #f59e0b; background: #f59e0b; color: #fff; }
+.priority-btn.selected.high { border-color: #dc2626; background: #dc2626; color: #fff; }
+.btn { padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;
+  font-size: 0.9rem; font-weight: 600; font-family: inherit; transition: opacity 0.15s; }
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-secondary { background: var(--bg-sunken); color: var(--fg); border: 1px solid var(--border); }
+.submitted { display: none; text-align: center; padding: 40px 20px; }
+.submitted .icon { font-size: 3rem; margin-bottom: 12px; }
+.queue-list { margin-top: 8px; }
+.queue-item { padding: 10px 12px; background: var(--bg-sunken); border-radius: 6px; margin-bottom: 6px;
+  display: flex; align-items: flex-start; gap: 10px; }
+.queue-item .qi-type { font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 4px; flex-shrink: 0; margin-top: 1px; }
+.qi-repair { background: #fee2e2; color: #dc2626; }
+.qi-feature { background: #dbeafe; color: #1d4ed8; }
+.qi-layout { background: #f3e8ff; color: #7c3aed; }
+.qi-content { background: #d1fae5; color: #065f46; }
+.qi-other { background: var(--bg-elevated); color: var(--fg-muted); }
+.queue-item .qi-body { flex: 1; }
+.queue-item .qi-title { font-size: 0.88rem; font-weight: 600; margin-bottom: 2px; }
+.queue-item .qi-meta { font-size: 0.75rem; color: var(--fg-muted); }
+.badge-high { color: #dc2626; font-weight: 700; }
+.badge-medium { color: #f59e0b; font-weight: 700; }
+.badge-low { color: #16a34a; font-weight: 700; }
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="req-wrap">
+
+  <div class="req-hdr">
+    <h1><span class="iconify" data-icon="ph:clipboard-text-bold" style="vertical-align:middle;margin-right:8px;"></span>Request</h1>
+    <p>Log a repair, new feature, layout change, or content request for Argentica.</p>
+  </div>
+
+  <div id="form-area">
+    <div class="card">
+      <div class="field">
+        <label>Type of request</label>
+        <div class="type-grid">
+          <div class="type-btn" onclick="selectType('repair',this)">
+            <span class="icon">&#x1F527;</span>Repair
+          </div>
+          <div class="type-btn" onclick="selectType('feature',this)">
+            <span class="icon">&#x2728;</span>New Feature
+          </div>
+          <div class="type-btn" onclick="selectType('layout',this)">
+            <span class="icon">&#x1F4D0;</span>Layout Change
+          </div>
+          <div class="type-btn" onclick="selectType('content',this)">
+            <span class="icon">&#x1F4DD;</span>Content / Copy
+          </div>
+          <div class="type-btn" onclick="selectType('integration',this)">
+            <span class="icon">&#x1F517;</span>Integration
+          </div>
+          <div class="type-btn" onclick="selectType('other',this)">
+            <span class="icon">&#x2753;</span>Other
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Module / area affected</label>
+        <select id="req-module">
+          <option value="">— Select —</option>
+          <option>Chat</option>
+          <option>Document Manager</option>
+          <option>Study Hub</option>
+          <option>Research</option>
+          <option>Drafting</option>
+          <option>Canvas / Create</option>
+          <option>Social / Refract</option>
+          <option>Email</option>
+          <option>Calendar</option>
+          <option>CRM</option>
+          <option>Agents</option>
+          <option>Workflows</option>
+          <option>Monetisation</option>
+          <option>Home</option>
+          <option>Navigation / Layout</option>
+          <option>Settings</option>
+          <option>Dev Team</option>
+          <option>Whole system</option>
+          <option>Other</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Priority</label>
+        <div class="priority-row">
+          <div class="priority-btn low" onclick="selectPriority('low',this)">Low</div>
+          <div class="priority-btn medium" onclick="selectPriority('medium',this)">Medium</div>
+          <div class="priority-btn high" onclick="selectPriority('high',this)">High</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Title <span style="color:var(--fg-muted);font-weight:400;">(one line)</span></label>
+        <input type="text" id="req-title" placeholder="e.g. PDF viewer shows dark rectangle instead of document">
+      </div>
+
+      <div class="field">
+        <label>Description</label>
+        <textarea id="req-desc" placeholder="What is happening / what do you want? Be as specific as possible. Include the URL if relevant."></textarea>
+      </div>
+
+      <div class="field">
+        <label>Expected outcome <span style="color:var(--fg-muted);font-weight:400;">(optional)</span></label>
+        <textarea id="req-outcome" style="min-height:60px;" placeholder="What should it look like / do when fixed?"></textarea>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;margin-top:4px;">
+        <button class="btn btn-primary" onclick="submitRequest()">Submit Request</button>
+        <div id="req-status" style="font-size:0.85rem;color:var(--fg-muted);"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="submitted" id="submitted-msg">
+    <div class="icon">&#x2705;</div>
+    <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px;">Request logged</div>
+    <div style="font-size:0.88rem;color:var(--fg-muted);margin-bottom:16px;">It will appear in the queue below.</div>
+    <button class="btn btn-secondary" onclick="resetForm()">Log another</button>
+  </div>
+
+  <div class="card" style="margin-top:8px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <span style="font-size:0.95rem;font-weight:700;flex:1;">Request queue</span>
+      <button class="btn btn-secondary" onclick="loadQueue()" style="font-size:0.78rem;padding:4px 10px;">Refresh</button>
+    </div>
+    <div class="queue-list" id="queue-list">
+      <div style="color:var(--fg-muted);font-size:0.85rem;">Loading...</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+var WORKER = "https://prism-api.identitypartners.workers.dev";
+var selectedType = "";
+var selectedPriority = "medium";
+
+document.addEventListener("DOMContentLoaded", function() {
+  var mount = document.getElementById("sidebar-mount");
+  if (mount && typeof buildSidebar === "function") {
+    var sb = buildSidebar("/request/");
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  selectPriority("medium", document.querySelector(".priority-btn.medium"));
+  loadQueue();
+});
+
+function selectType(type, btn) {
+  selectedType = type;
+  document.querySelectorAll(".type-btn").forEach(function(b) { b.classList.remove("selected"); });
+  btn.classList.add("selected");
+}
+
+function selectPriority(priority, btn) {
+  selectedPriority = priority;
+  document.querySelectorAll(".priority-btn").forEach(function(b) { b.classList.remove("selected"); });
+  if (btn) btn.classList.add("selected");
+}
+
+function submitRequest() {
+  var title = document.getElementById("req-title").value.trim();
+  var desc = document.getElementById("req-desc").value.trim();
+  var module = document.getElementById("req-module").value;
+  var outcome = document.getElementById("req-outcome").value.trim();
+  var status = document.getElementById("req-status");
+
+  if (!selectedType) { status.textContent = "Please select a request type."; return; }
+  if (!title) { status.textContent = "Please enter a title."; return; }
+  if (!desc) { status.textContent = "Please describe the request."; return; }
+
+  status.textContent = "Submitting...";
+
+  var request = {
+    id: "req-" + Date.now(),
+    type: selectedType,
+    module: module,
+    priority: selectedPriority,
+    title: title,
+    description: desc,
+    outcome: outcome,
+    status: "open",
+    createdAt: new Date().toISOString()
+  };
+
+  fetch(WORKER + "/api/requests", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(request)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      document.getElementById("form-area").style.display = "none";
+      document.getElementById("submitted-msg").style.display = "block";
+      loadQueue();
+    } else {
+      status.textContent = "Failed: " + (d.error || "unknown");
+    }
+  })
+  .catch(function(e) { status.textContent = "Error: " + e.message; });
+}
+
+function resetForm() {
+  document.getElementById("form-area").style.display = "block";
+  document.getElementById("submitted-msg").style.display = "none";
+  document.getElementById("req-title").value = "";
+  document.getElementById("req-desc").value = "";
+  document.getElementById("req-outcome").value = "";
+  document.getElementById("req-module").value = "";
+  document.getElementById("req-status").textContent = "";
+  selectedType = "";
+  document.querySelectorAll(".type-btn").forEach(function(b) { b.classList.remove("selected"); });
+  selectPriority("medium", document.querySelector(".priority-btn.medium"));
+}
+
+function loadQueue() {
+  var list = document.getElementById("queue-list");
+  fetch(WORKER + "/api/requests")
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var requests = d.requests || [];
+      if (!requests.length) {
+        list.innerHTML = "<div style=\"color:var(--fg-muted);font-size:0.85rem;\">No requests yet.</div>";
+        return;
+      }
+      // Sort: high first, then medium, then low; within each by date desc
+      var order = {high:0, medium:1, low:2};
+      requests.sort(function(a,b) {
+        var po = (order[a.priority]||1) - (order[b.priority]||1);
+        if (po !== 0) return po;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+      list.innerHTML = requests.map(function(req) {
+        var typeClass = "qi-" + (req.type || "other");
+        var priorityClass = "badge-" + (req.priority || "medium");
+        var dt = req.createdAt ? new Date(req.createdAt).toLocaleDateString("en-GB", {day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : "";
+        return "<div class=\"queue-item\">"
+          + "<div class=\"qi-type " + typeClass + "\">" + esc(req.type || "other") + "</div>"
+          + "<div class=\"qi-body\">"
+          + "<div class=\"qi-title\">" + esc(req.title) + "</div>"
+          + "<div class=\"qi-meta\">"
+          + (req.module ? esc(req.module) + " &middot; " : "")
+          + "<span class=\"" + priorityClass + "\">" + esc(req.priority || "medium") + "</span>"
+          + " &middot; " + dt
+          + (req.status !== "open" ? " &middot; <em>" + esc(req.status) + "</em>" : "")
+          + "</div>"
+          + (req.description ? "<div style=\"font-size:0.82rem;color:var(--fg-muted);margin-top:3px;\">" + esc(req.description.substring(0,120)) + (req.description.length > 120 ? "..." : "") + "</div>" : "")
+          + "</div></div>";
+      }).join("");
+    })
+    .catch(function(e) {
+      list.innerHTML = "<div style=\"color:#dc2626;font-size:0.85rem;\">Error: " + e.message + "</div>";
+    });
+}
+
+function esc(s) {
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+</script>
+</body>
+</html>
