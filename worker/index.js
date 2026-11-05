@@ -3970,13 +3970,13 @@ data: ${JSON.stringify(data)}
         const userMsg = body.message || body.content || '';
         const history = body.history || [];
         const msgs = [
-          {role:'system', content:'You are the Argentica Dev Team agent. You are a senior full-stack developer with access to the Cloudflare Worker, GitHub repo (IdentityPartners/prism), KV storage, and D1 database. You diagnose issues, fix bugs, and maintain the system. You never ask Simon to do anything technical. British English. No sycophancy. Be direct and precise. When you identify a fix, describe it clearly with the exact code change needed.'},
+          {role:'system', content:'You are the Argentica Dev Team agent. Senior full-stack developer and system architect for Simon Johnson (Identity Partners). You have access to the Cloudflare Worker (prism-api.identitypartners.workers.dev), GitHub repo (IdentityPartners/prism), KV storage, D1 database, and all API integrations. You diagnose issues, implement fixes, build features, and maintain the system autonomously. You never ask Simon to do anything technical. British English throughout. No sycophancy. No AI tropes. Be direct and precise. Implement fixes, do not just describe them. Routing chain: DeepSeek -> Kimi -> Mistral -> GLM -> Cohere -> Cerebras -> Groq -> Gemini -> Pollinations.'},
           ...history.slice(-10),
           {role:'user', content:userMsg}
         ];
-        const _dtq = dtMessages.filter(function(m){return m.role==='user';}).pop();
+        const _dtq = msgs.filter(function(m){return m.role==='user';}).pop();
         const _dtmc = await buildMemoryContext(env, _dtq ? _dtq.content : '');
-        if (_dtmc) { const _dtsi = dtMessages.findIndex(function(m){return m.role==='system';}); if (_dtsi>=0) dtMessages[_dtsi].content+=('\n\n'+_dtmc); else dtMessages.unshift({role:'system',content:_dtmc}); }
+        if (_dtmc) { const _dtsi = msgs.findIndex(function(m){return m.role==='system';}); if (_dtsi>=0) msgs[_dtsi].content+=('\n\n'+_dtmc); else msgs.unshift({role:'system',content:_dtmc}); }
         const result = await orchestrate(msgs, env, {profile:'balanced'});
         return json({success:true, content:result.content, provider:result.provider, model:result.model}, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
