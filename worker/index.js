@@ -48,6 +48,113 @@ function k(env, names) {
   return null;
 }
 
+// ── Memory + RAG helpers ──────────────────────────────────────────────────────
+
+async function buildMemoryContext(env, query) {
+  // Load persistent memory about Simon and the system
+  const memories = [];
+  try {
+    const aboutSimon = env.PRISM_KV ? await env.PRISM_KV.get('memory:about-simon', 'json') : null;
+    if (aboutSimon) {
+      memories.push('=== WHO YOU ARE TALKING TO ===');
+      memories.push('Name: ' + (aboutSimon.name || 'Simon Johnson'));
+      memories.push('Role: ' + (aboutSimon.role || ''));
+      memories.push('Organisation: ' + (aboutSimon.organisation || 'Identity Partners'));
+      memories.push('System: ' + (aboutSimon.system || 'Argentica'));
+      memories.push('Device: ' + (aboutSimon.device || 'Surface Pro 9'));
+      memories.push('Language: ' + (aboutSimon.language || 'British English'));
+      memories.push('Academic modules: ' + JSON.stringify(aboutSimon.academic_modules || []));
+      memories.push('Research interests: ' + JSON.stringify(aboutSimon.research_interests || []));
+      if (aboutSimon.preferences) {
+        memories.push('Preferences: no sycophancy, no AI tropes, no American English, agents must execute not describe, never ask Simon to fix bugs');
+      }
+    }
+  } catch(e) {}
+
+  // Load recent memory entries
+  try {
+    const memKeys = env.PRISM_KV ? await env.PRISM_KV.list({prefix: 'memory:', limit: 10}) : {keys:[]};
+    for (const key of (memKeys.keys || []).slice(0, 5)) {
+      if (key.name === 'memory:about-simon') continue;
+      try {
+        const val = await env.PRISM_KV.get(key.name);
+        if (val && val.length < 2000) memories.push('Memory [' + key.name + ']: ' + val);
+      } catch(e) {}
+    }
+  } catch(e) {}
+
+  // RAG: search KV for content relevant to the query
+  if (query && query.length > 10) {
+    try {
+      const ragKeys = env.PRISM_KV ? await env.PRISM_KV.list({prefix: 'doc-content:', limit: 20}) : {keys:[]};
+      const queryWords = query.toLowerCase().split(/\s+/).filter(function(w){return w.length > 4;});
+      const ragResults = [];
+      for (const key of (ragKeys.keys || []).slice(0, 10)) {
+        try {
+          const val = await env.PRISM_KV.get(key.name);
+          if (!val) continue;
+          const valLower = val.toLowerCase();
+          const matches = queryWords.filter(function(w){return valLower.includes(w);}).length;
+          if (matches > 0) ragResults.push({key: key.name, val: val.substring(0, 500), matches});
+        } catch(e) {}
+      }
+      ragResults.sort(function(a,b){return b.matches-a.matches;});
+      if (ragResults.length > 0) {
+        memories.push('=== RELEVANT DOCUMENTS (RAG) ===');
+        ragResults.slice(0, 3).forEach(function(r) {
+          memories.push('[' + r.key + ']: ' + r.val + '...');
+        });
+      }
+    } catch(e) {}
+
+    // Also search notes
+    try {
+      const noteKeys = env.PRISM_KV ? await env.PRISM_KV.list({prefix: 'notes:', limit: 20}) : {keys:[]};
+      const queryWords = query.toLowerCase().split(/\s+/).filter(function(w){return w.length > 4;});
+      for (const key of (noteKeys.keys || []).slice(0, 10)) {
+        try {
+          const val = await env.PRISM_KV.get(key.name);
+          if (!val) continue;
+          const valLower = val.toLowerCase();
+          const matches = queryWords.filter(function(w){return valLower.includes(w);}).length;
+          if (matches >= 2) memories.push('[Note ' + key.name + ']: ' + val.substring(0, 300) + '...');
+        } catch(e) {}
+      }
+    } catch(e) {}
+  }
+
+  return memories.length > 0 ? memories.join('\n') : '';
+}
+
+async function saveMemoryFromConversation(env, messages, response) {
+  // Extract and save key facts from the conversation to memory
+  if (!env.PRISM_KV) return;
+  try {
+    const lastUser = messages.filter(function(m){return m.role==='user';}).pop();
+    const userText = lastUser ? lastUser.content : '';
+    const assistantText = response || '';
+    
+    // Save a rolling conversation summary
+    const summaryKey = 'memory:conversation:' + Date.now();
+    const summary = {
+      userQuery: userText.substring(0, 200),
+      assistantSummary: assistantText.substring(0, 300),
+      timestamp: new Date().toISOString()
+    };
+    await env.PRISM_KV.put(summaryKey, JSON.stringify(summary), {expirationTtl: 60 * 60 * 24 * 30}); // 30 days
+    
+    // Extract explicit memory commands: "remember that...", "note that..."
+    const rememberMatch = userText.match(/(?:remember|note|record) that (.+)/i);
+    if (rememberMatch) {
+      const fact = rememberMatch[1].trim();
+      const factKey = 'memory:fact:' + Date.now();
+      await env.PRISM_KV.put(factKey, fact, {expirationTtl: 60 * 60 * 24 * 365}); // 1 year
+    }
+  } catch(e) {}
+}
+
+
+
 // ── STRIP AI TROPES ───────────────────────────────────────────────────────────
 function stripTropes(text) {
   if (!text) return text;
@@ -950,7 +1057,11 @@ export default {
           messages[0] = { ...messages[0], content: messages[0].content + antiRoleplay };
         }
 
+    const _uq = messages.filter(function(m){return m.role==='user';}).pop();
+    const _mc = await buildMemoryContext(env, _uq ? _uq.content : '');
+    if (_mc) { const _si = messages.findIndex(function(m){return m.role==='system';}); if (_si>=0) messages[_si].content+=('\n\n'+_mc); else messages.unshift({role:'system',content:_mc}); }
         const result = await orchestrate(messages, env, { profile });
+    saveMemoryFromConversation(env, messages, result ? result.content : '').catch(function(){});
 
         // Save thread to KV
         if (env.PRISM_KV && !result.error) {
@@ -3863,6 +3974,9 @@ data: ${JSON.stringify(data)}
           ...history.slice(-10),
           {role:'user', content:userMsg}
         ];
+        const _dtq = dtMessages.filter(function(m){return m.role==='user';}).pop();
+        const _dtmc = await buildMemoryContext(env, _dtq ? _dtq.content : '');
+        if (_dtmc) { const _dtsi = dtMessages.findIndex(function(m){return m.role==='system';}); if (_dtsi>=0) dtMessages[_dtsi].content+=('\n\n'+_dtmc); else dtMessages.unshift({role:'system',content:_dtmc}); }
         const result = await orchestrate(msgs, env, {profile:'balanced'});
         return json({success:true, content:result.content, provider:result.provider, model:result.model}, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
