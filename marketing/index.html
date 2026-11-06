@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Marketing Team — Argentica</title>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
+<style>
+/* ── Layout ── */
+.mkt-wrap { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.mkt-topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 20px; background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.mkt-topbar h1 { font-size: 1.1rem; font-weight: 700; color: var(--fg); flex: 1; }
+.mkt-topbar .subtitle { font-size: 0.78rem; color: var(--fg-muted); }
+.mkt-body { display: flex; flex: 1; min-height: 0; }
+
+/* ── Team panel (left) ── */
+.team-panel {
+  width: 300px; flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  background: var(--bg-elevated);
+}
+.team-panel-hdr {
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+}
+.team-panel-hdr span { font-size: 0.8rem; font-weight: 700; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.4px; flex: 1; }
+.agent-list { flex: 1; overflow-y: auto; }
+.agent-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background 0.12s;
+}
+.agent-row:hover { background: var(--bg-sunken); }
+.agent-row.active { background: rgba(45,106,159,0.1); border-left: 3px solid var(--accent); }
+.agent-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; flex-shrink: 0; font-weight: 700;
+  color: #fff;
+}
+.agent-info { flex: 1; min-width: 0; }
+.agent-info .name { font-size: 0.82rem; font-weight: 700; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-info .role-tag { font-size: 0.7rem; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.status-briefed     { background: #f59e0b; }
+.status-in-progress { background: #3b82f6; }
+.status-awaiting    { background: #8b5cf6; }
+.status-done        { background: #10b981; }
+.status-idle        { background: #9ca3af; }
+
+/* Pipeline strip */
+.pipeline-strip {
+  padding: 10px 14px; border-top: 1px solid var(--border);
+  background: var(--bg-sunken);
+}
+.pipeline-strip .pip-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--fg-muted); margin-bottom: 6px; }
+.pip-counts { display: flex; gap: 6px; flex-wrap: wrap; }
+.pip-badge {
+  font-size: 0.68rem; padding: 2px 8px; border-radius: 10px;
+  font-weight: 600; white-space: nowrap;
+}
+.pip-briefed     { background: rgba(245,158,11,0.15); color: #b45309; }
+.pip-in-progress { background: rgba(59,130,246,0.15); color: #1d4ed8; }
+.pip-awaiting    { background: rgba(139,92,246,0.15); color: #6d28d9; }
+.pip-done        { background: rgba(16,185,129,0.15); color: #065f46; }
+.pip-idle        { background: rgba(156,163,175,0.15); color: #4b5563; }
+
+/* Bulk assign bar */
+.bulk-bar {
+  padding: 8px 14px; border-top: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+.bulk-bar textarea {
+  width: 100%; padding: 6px 8px; font-size: 0.78rem;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--fg); font-family: inherit;
+  resize: none; min-height: 48px; box-sizing: border-box;
+}
+.bulk-bar .bulk-actions { display: flex; gap: 6px; margin-top: 6px; }
+
+/* ── Agent detail (right) ── */
+.agent-detail {
+  flex: 1; display: flex; flex-direction: column; min-width: 0;
+}
+.detail-empty {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: var(--fg-muted); font-size: 0.9rem; flex-direction: column; gap: 8px;
+}
+.detail-empty .empty-icon { font-size: 2.5rem; }
+
+/* Agent detail header */
+.detail-hdr {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 20px; border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated); flex-shrink: 0;
+}
+.detail-hdr .agent-avatar { width: 44px; height: 44px; font-size: 1.2rem; }
+.detail-hdr-info { flex: 1; }
+.detail-hdr-info .name { font-size: 1rem; font-weight: 700; color: var(--fg); }
+.detail-hdr-info .model-tag { font-size: 0.72rem; color: var(--fg-muted); }
+.detail-hdr-actions { display: flex; gap: 6px; }
+
+/* Tabs */
+.detail-tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--bg-elevated); flex-shrink: 0; }
+.detail-tab {
+  padding: 8px 16px; font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; border-bottom: 2px solid transparent;
+  color: var(--fg-muted); transition: all 0.12s;
+}
+.detail-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.detail-tab:hover { color: var(--fg); }
+
+/* Tab content */
+.tab-content { flex: 1; display: none; flex-direction: column; min-height: 0; overflow: hidden; }
+.tab-content.active { display: flex; }
+
+/* Assignment tab */
+.assignment-tab { padding: 20px; overflow-y: auto; }
+.assign-card {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px; margin-bottom: 16px;
+}
+.assign-card .card-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--fg-muted); margin-bottom: 10px; }
+.assign-task { font-size: 0.9rem; color: var(--fg); line-height: 1.5; margin-bottom: 10px; }
+.assign-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.75rem; color: var(--fg-muted); margin-bottom: 12px; }
+.assign-meta strong { color: var(--fg); }
+.status-select {
+  padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 0.78rem; background: var(--bg); color: var(--fg); font-family: inherit;
+}
+.priority-dots { display: flex; gap: 3px; }
+.priority-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+.priority-dot.filled { background: var(--accent); }
+.new-assign-form { display: flex; flex-direction: column; gap: 8px; }
+.new-assign-form textarea {
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 0.85rem; background: var(--bg); color: var(--fg);
+  font-family: inherit; resize: vertical; min-height: 80px;
+}
+.new-assign-form input {
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 0.82rem; background: var(--bg); color: var(--fg); font-family: inherit;
+}
+.form-row { display: flex; gap: 8px; }
+.form-row > * { flex: 1; }
+label.field-label { font-size: 0.72rem; font-weight: 600; color: var(--fg-muted); display: block; margin-bottom: 3px; }
+
+/* Chat tab */
+.chat-tab { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.chat-msg { display: flex; gap: 8px; align-items: flex-start; }
+.chat-msg.user { flex-direction: row-reverse; }
+.chat-bubble {
+  max-width: 80%; padding: 9px 13px; border-radius: 12px;
+  font-size: 0.83rem; line-height: 1.55; color: var(--fg);
+  background: var(--bg-sunken); border: 1px solid var(--border);
+  white-space: pre-wrap; word-break: break-word;
+}
+.chat-msg.user .chat-bubble { background: var(--accent); color: #fff; border-color: var(--accent); }
+.chat-msg-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 700; flex-shrink: 0; color: #fff;
+}
+.chat-msg-avatar.user-av { background: var(--fg-muted); }
+.chat-ts { font-size: 0.65rem; color: var(--fg-muted); margin-top: 3px; }
+.typing-indicator { display: none; gap: 4px; padding: 9px 13px; background: var(--bg-sunken); border-radius: 12px; width: fit-content; border: 1px solid var(--border); }
+.typing-indicator span { width: 6px; height: 6px; border-radius: 50%; background: var(--fg-muted); animation: bounce 1.2s infinite; display: inline-block; }
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+.chat-input-row {
+  display: flex; gap: 8px; padding: 12px 16px;
+  border-top: 1px solid var(--border); background: var(--bg-elevated); flex-shrink: 0;
+}
+.chat-input-row textarea {
+  flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 0.83rem; background: var(--bg); color: var(--fg);
+  font-family: inherit; resize: none; min-height: 38px; max-height: 120px;
+}
+.chat-quick { display: flex; gap: 5px; padding: 0 16px 8px; flex-wrap: wrap; flex-shrink: 0; }
+.quick-btn {
+  font-size: 0.7rem; padding: 3px 9px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--fg-muted); cursor: pointer; font-family: inherit;
+  transition: all 0.12s;
+}
+.quick-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Buttons */
+.btn { padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.8rem; font-weight: 600; font-family: inherit; transition: opacity 0.12s; }
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-secondary { background: var(--bg-sunken); color: var(--fg); border: 1px solid var(--border); }
+.btn-danger { background: #fee2e2; color: #dc2626; }
+.btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+.btn-xs { padding: 2px 7px; font-size: 0.7rem; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 20px; right: 20px;
+  padding: 10px 16px; background: var(--accent); color: #fff;
+  border-radius: 8px; font-size: 0.8rem; font-weight: 600;
+  z-index: 9999; opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div class="mkt-wrap">
+<!-- Topbar -->
+<div class="mkt-topbar">
+<div>
+<h1>📣 Marketing Team</h1>
+<div class="subtitle">Six persistent collaborators — Identity Partners</div>
+</div>
+<button class="btn btn-secondary btn-sm" onclick="loadTeam()">↺ Refresh</button>
+</div>
+<div class="mkt-body">
+<!-- Left: Team panel -->
+<div class="team-panel">
+<div class="team-panel-hdr">
+<span>Team</span>
+<span id="team-count" style="font-size:0.7rem;color:var(--fg-muted);"></span>
+</div>
+<div class="agent-list" id="agent-list">
+<div style="padding:20px;text-align:center;color:var(--fg-muted);font-size:0.82rem;">Loading team...</div>
+</div>
+<!-- Pipeline summary -->
+<div class="pipeline-strip">
+<div class="pip-title">Pipeline</div>
+<div class="pip-counts" id="pip-counts">
+<span class="pip-badge pip-idle">Loading...</span>
+</div>
+</div>
+<!-- Bulk assign -->
+<div class="bulk-bar">
+<div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);margin-bottom:5px;">Bulk assign all agents</div>
+<textarea id="bulk-task" placeholder="e.g. Prepare content for World Mental Health Day 2026..." rows="2"></textarea>
+<div class="bulk-actions">
+<input id="bulk-deadline" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.75rem;background:var(--bg);color:var(--fg);font-family:inherit;" type="date"/>
+<select id="bulk-priority" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.75rem;background:var(--bg);color:var(--fg);font-family:inherit;">
+<option value="1">P1 - Critical</option>
+<option value="2">P2 - High</option>
+<option selected="" value="3">P3 - Normal</option>
+<option value="4">P4 - Low</option>
+<option value="5">P5 - Backlog</option>
+</select>
+<button class="btn btn-primary btn-sm" onclick="bulkAssign()">Assign all</button>
+</div>
+</div>
+</div>
+<!-- Right: Agent detail -->
+<div class="agent-detail" id="agent-detail">
+<div class="detail-empty">
+<div class="empty-icon">📋</div>
+<div>Select a team member to view their workspace</div>
+</div>
+</div>
+</div><!-- /mkt-body -->
+</div><!-- /mkt-wrap -->
+</div><!-- /main-content -->
+<div class="toast" id="toast"></div>
+<script>
+var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var allAgents = [];
+var activeAgentId = null;
+
+var AVATAR_COLOURS = [
+  '#0f3b3a','#5c2d3f','#2d6a9f','#7c3aed','#b45309','#065f46'
+];
+var AVATAR_INITIALS = {
+  'agent-marketing-head':   'HM',
+  'agent-social-manager':   'SM',
+  'agent-content-editor':   'CE',
+  'agent-visual-manager':   'VM',
+  'agent-podcast-editor':   'PE',
+  'agent-current-affairs':  'CA',
+};
+
+function avatarColour(id) {
+  var keys = Object.keys(AVATAR_INITIALS);
+  var idx = keys.indexOf(id);
+  return AVATAR_COLOURS[idx >= 0 ? idx : 0];
+}
+
+function avatarInitials(agent) {
+  if (AVATAR_INITIALS[agent.id]) return AVATAR_INITIALS[agent.id];
+  return (agent.name || 'AG').split(' ').map(function(w){return w[0];}).join('').substring(0,2).toUpperCase();
+}
+
+function statusClass(status) {
+  if (!status) return 'status-idle';
+  if (status === 'briefed') return 'status-briefed';
+  if (status === 'in progress') return 'status-in-progress';
+  if (status === 'awaiting approval') return 'status-awaiting';
+  if (status === 'done') return 'status-done';
+  return 'status-idle';
+}
+
+function statusLabel(status) {
+  if (!status) return 'Idle';
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+// ── Load team ──────────────────────────────────────────────────────────────
+function loadTeam() {
+  fetch(WORKER + '/api/marketing/agents')
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      allAgents = d.agents || [];
+      renderTeam();
+      renderPipeline();
+      document.getElementById('team-count').textContent = allAgents.length + ' members';
+      // Re-render active agent if one is selected
+      if (activeAgentId) {
+        var agent = allAgents.find(function(a){ return a.id === activeAgentId; });
+        if (agent) renderDetail(agent);
+      }
+    })
+    .catch(function(e){ toast('Load failed: ' + e.message); });
+}
+
+function renderTeam() {
+  var list = document.getElementById('agent-list');
+  if (!allAgents.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-muted);font-size:0.82rem;">No agents found.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  allAgents.forEach(function(agent) {
+    var row = document.createElement('div');
+    row.className = 'agent-row' + (agent.id === activeAgentId ? ' active' : '');
+    row.id = 'row-' + agent.id;
+    var status = agent.assignment ? agent.assignment.status : null;
+    var colour = avatarColour(agent.id);
+    var initials = avatarInitials(agent);
+    row.innerHTML =
+      '<div class="agent-avatar" style="background:' + colour + ';">' + initials + '</div>' +
+      '<div class="agent-info">' +
+        '<div class="name">' + esc(agent.name) + '</div>' +
+        '<div class="role-tag">' + esc(agent.role || agent.model || '') + '</div>' +
+      '</div>' +
+      '<div class="agent-status-dot ' + statusClass(status) + '" title="' + statusLabel(status) + '"></div>';
+    row.onclick = function() { selectAgent(agent.id); };
+    list.appendChild(row);
+  });
+}
+
+function renderPipeline() {
+  var counts = { briefed: 0, 'in progress': 0, 'awaiting approval': 0, done: 0, idle: 0 };
+  allAgents.forEach(function(a) {
+    var s = a.assignment ? a.assignment.status : 'idle';
+    if (counts[s] !== undefined) counts[s]++;
+    else counts.idle++;
+  });
+  var el = document.getElementById('pip-counts');
+  el.innerHTML =
+    (counts.briefed ? '<span class="pip-badge pip-briefed">' + counts.briefed + ' briefed</span>' : '') +
+    (counts['in progress'] ? '<span class="pip-badge pip-in-progress">' + counts['in progress'] + ' in progress</span>' : '') +
+    (counts['awaiting approval'] ? '<span class="pip-badge pip-awaiting">' + counts['awaiting approval'] + ' awaiting</span>' : '') +
+    (counts.done ? '<span class="pip-badge pip-done">' + counts.done + ' done</span>' : '') +
+    (counts.idle ? '<span class="pip-badge pip-idle">' + counts.idle + ' idle</span>' : '');
+}
+
+// ── Select agent ───────────────────────────────────────────────────────────
+function selectAgent(id) {
+  activeAgentId = id;
+  document.querySelectorAll('.agent-row').forEach(function(r){ r.classList.remove('active'); });
+  var row = document.getElementById('row-' + id);
+  if (row) row.classList.add('active');
+  var agent = allAgents.find(function(a){ return a.id === id; });
+  if (agent) renderDetail(agent);
+}
+
+// ── Render agent detail ────────────────────────────────────────────────────
+function renderDetail(agent) {
+  var detail = document.getElementById('agent-detail');
+  var colour = avatarColour(agent.id);
+  var initials = avatarInitials(agent);
+  var status = agent.assignment ? agent.assignment.status : 'idle';
+
+  detail.innerHTML =
+    // Header
+    '<div class="detail-hdr">' +
+      '<div class="agent-avatar" style="background:' + colour + ';width:44px;height:44px;font-size:1.1rem;">' + initials + '</div>' +
+      '<div class="detail-hdr-info">' +
+        '<div class="name">' + esc(agent.name) + '</div>' +
+        '<div class="model-tag">' + esc(agent.model || '') + ' &nbsp;&middot;&nbsp; ' + esc(agent.role || '') + '</div>' +
+      '</div>' +
+      '<div class="detail-hdr-actions">' +
+        '<button class="btn btn-secondary btn-sm" onclick="clearChat(\'' + agent.id + '\')">Clear chat</button>' +
+      '</div>' +
+    '</div>' +
+    // Tabs
+    '<div class="detail-tabs">' +
+      '<div class="detail-tab active" id="tab-btn-chat" onclick="showTab(\'chat\')">&#x1F4AC; Chat</div>' +
+      '<div class="detail-tab" id="tab-btn-assign" onclick="showTab(\'assign\')">&#x1F4CB; Assignment</div>' +
+    '</div>' +
+    // Chat tab
+    '<div class="tab-content active" id="tab-chat">' +
+      '<div class="chat-tab">' +
+        '<div class="chat-messages" id="chat-messages-' + agent.id + '"></div>' +
+        '<div style="padding:0 16px 4px;display:flex;gap:6px;align-items:center;">' +
+          '<div class="typing-indicator" id="typing-' + agent.id + '"><span></span><span></span><span></span></div>' +
+        '</div>' +
+        '<div class="chat-quick">' +
+          '<button class="quick-btn" onclick="quickChat(\'What is your current assignment?\')">Current task</button>' +
+          '<button class="quick-btn" onclick="quickChat(\'Give me a status update.\')">Status update</button>' +
+          '<button class="quick-btn" onclick="quickChat(\'Draft a post for Identity Partners about mental health recovery.\')">Draft a post</button>' +
+          '<button class="quick-btn" onclick="quickChat(\'What content should we prioritise this week?\')">This week</button>' +
+          '<button class="quick-btn" onclick="quickChat(\'Mark your current assignment as complete.\')">Mark done</button>' +
+        '</div>' +
+        '<div class="chat-input-row">' +
+          '<textarea id="chat-input-' + agent.id + '" placeholder="Talk to ' + esc(agent.name) + '..." rows="1" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendChat(\'' + agent.id + '\');}"></textarea>' +
+          '<button class="btn btn-primary" onclick="sendChat(\'' + agent.id + '\')">Send</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    // Assignment tab
+    '<div class="tab-content" id="tab-assign">' +
+      '<div class="assignment-tab" id="assign-content-' + agent.id + '">' +
+        renderAssignmentTab(agent) +
+      '</div>' +
+    '</div>';
+
+  // Load chat history
+  loadChatHistory(agent.id, colour);
+}
+
+function renderAssignmentTab(agent) {
+  var a = agent.assignment;
+  var html = '';
+
+  // Current assignment
+  html += '<div class="assign-card">';
+  html += '<div class="card-title">Current Assignment</div>';
+  if (a && a.task) {
+    html += '<div class="assign-task">' + esc(a.task) + '</div>';
+    html += '<div class="assign-meta">';
+    html += '<span><strong>Status:</strong> ' + esc(statusLabel(a.status)) + '</span>';
+    html += '<span><strong>Priority:</strong> ' + renderPriorityDots(a.priority || 3) + '</span>';
+    if (a.deadline) html += '<span><strong>Deadline:</strong> ' + esc(a.deadline) + '</span>';
+    html += '<span><strong>Assigned:</strong> ' + new Date(a.assignedAt).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) + '</span>';
+    html += '</div>';
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+    html += '<select class="status-select" onchange="updateStatus(\'' + agent.id + '\',this.value)">';
+    ['briefed','in progress','awaiting approval','done'].forEach(function(s) {
+      html += '<option value="' + s + '"' + (a.status === s ? ' selected' : '') + '>' + statusLabel(s) + '</option>';
+    });
+    html += '</select>';
+    html += '</div>';
+  } else {
+    html += '<div style="color:var(--fg-muted);font-size:0.82rem;">No active assignment. Use the form below to brief this agent.</div>';
+  }
+  html += '</div>';
+
+  // New assignment form
+  html += '<div class="assign-card">';
+  html += '<div class="card-title">New Assignment</div>';
+  html += '<div class="new-assign-form">';
+  html += '<div><label class="field-label">Task</label><textarea id="new-task-' + agent.id + '" placeholder="Describe the assignment in detail..."></textarea></div>';
+  html += '<div class="form-row">';
+  html += '<div><label class="field-label">Deadline</label><input type="date" id="new-deadline-' + agent.id + '"></div>';
+  html += '<div><label class="field-label">Priority</label><select id="new-priority-' + agent.id + '" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;background:var(--bg);color:var(--fg);font-family:inherit;"><option value="1">P1 - Critical</option><option value="2">P2 - High</option><option value="3" selected>P3 - Normal</option><option value="4">P4 - Low</option><option value="5">P5 - Backlog</option></select></div>';
+  html += '</div>';
+  html += '<button class="btn btn-primary btn-sm" onclick="assignTask(\'' + agent.id + '\')">Brief agent</button>';
+  html += '</div>';
+  html += '</div>';
+
+  // Agent persona
+  html += '<div class="assign-card">';
+  html += '<div class="card-title">Agent Profile</div>';
+  html += '<div style="font-size:0.8rem;color:var(--fg);line-height:1.6;">' + esc(agent.persona || 'No persona defined.').substring(0, 400) + (agent.persona && agent.persona.length > 400 ? '...' : '') + '</div>';
+  html += '<div style="margin-top:8px;font-size:0.75rem;color:var(--fg-muted);">Model: ' + esc(agent.model || '') + ' &nbsp;&middot;&nbsp; Messages: ' + (agent.messageCount || 0) + '</div>';
+  html += '</div>';
+
+  return html;
+}
+
+function renderPriorityDots(p) {
+  var html = '<span class="priority-dots">';
+  for (var i = 1; i <= 5; i++) {
+    html += '<span class="priority-dot' + (i <= p ? ' filled' : '') + '"></span>';
+  }
+  html += '</span>';
+  return html;
+}
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function showTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(function(el){ el.classList.remove('active'); });
+  document.querySelectorAll('.detail-tab').forEach(function(el){ el.classList.remove('active'); });
+  var content = document.getElementById('tab-' + tab);
+  var btn = document.getElementById('tab-btn-' + tab);
+  if (content) content.classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+// ── Chat ───────────────────────────────────────────────────────────────────
+function loadChatHistory(agentId, colour) {
+  fetch(WORKER + '/api/marketing/chat/' + agentId)
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      var msgs = document.getElementById('chat-messages-' + agentId);
+      if (!msgs) return;
+      msgs.innerHTML = '';
+      var hist = d.history || [];
+      if (!hist.length) {
+        var agent = allAgents.find(function(a){ return a.id === agentId; });
+        appendMsg(agentId, 'assistant', 'Hello. I\'m ready to work. What would you like me to do?', colour, null);
+        return;
+      }
+      hist.forEach(function(m) {
+        appendMsg(agentId, m.role, m.content, colour, m.ts);
+      });
+    })
+    .catch(function() {
+      appendMsg(agentId, 'assistant', 'Ready.', colour, null);
+    });
+}
+
+function appendMsg(agentId, role, content, colour, ts) {
+  var msgs = document.getElementById('chat-messages-' + agentId);
+  if (!msgs) return;
+  var div = document.createElement('div');
+  div.className = 'chat-msg' + (role === 'user' ? ' user' : '');
+  var av = role === 'user'
+    ? '<div class="chat-msg-avatar user-av">S</div>'
+    : '<div class="chat-msg-avatar" style="background:' + (colour || '#0f3b3a') + ';">' + (avatarInitials(allAgents.find(function(a){return a.id===agentId;})||{name:agentId}) ) + '</div>';
+  var timeStr = ts ? '<div class="chat-ts">' + new Date(ts).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) + '</div>' : '';
+  div.innerHTML = av + '<div><div class="chat-bubble">' + esc(content) + '</div>' + timeStr + '</div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function sendChat(agentId) {
+  var input = document.getElementById('chat-input-' + agentId);
+  if (!input) return;
+  var text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.style.height = 'auto';
+
+  var agent = allAgents.find(function(a){ return a.id === agentId; });
+  var colour = avatarColour(agentId);
+  appendMsg(agentId, 'user', text, colour, new Date().toISOString());
+
+  var typing = document.getElementById('typing-' + agentId);
+  if (typing) typing.style.display = 'flex';
+
+  fetch(WORKER + '/api/marketing/chat/' + agentId, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ message: text })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d) {
+    if (typing) typing.style.display = 'none';
+    appendMsg(agentId, 'assistant', d.reply || 'No response.', colour, new Date().toISOString());
+    // Refresh team to update assignment status
+    loadTeam();
+  })
+  .catch(function(e) {
+    if (typing) typing.style.display = 'none';
+    appendMsg(agentId, 'assistant', 'Error: ' + e.message, colour, null);
+  });
+}
+
+function quickChat(text) {
+  if (!activeAgentId) return;
+  var input = document.getElementById('chat-input-' + activeAgentId);
+  if (input) { input.value = text; sendChat(activeAgentId); }
+}
+
+function clearChat(agentId) {
+  if (!confirm('Clear all chat history for this agent?')) return;
+  fetch(WORKER + '/api/marketing/chat/' + agentId, { method: 'DELETE' })
+    .then(function() {
+      var msgs = document.getElementById('chat-messages-' + agentId);
+      if (msgs) msgs.innerHTML = '';
+      var colour = avatarColour(agentId);
+      appendMsg(agentId, 'assistant', 'Chat cleared. Ready for a new assignment.', colour, null);
+      toast('Chat history cleared.');
+    });
+}
+
+// ── Assignment ─────────────────────────────────────────────────────────────
+function assignTask(agentId) {
+  var task = (document.getElementById('new-task-' + agentId) || {}).value || '';
+  var deadline = (document.getElementById('new-deadline-' + agentId) || {}).value || '';
+  var priority = parseInt((document.getElementById('new-priority-' + agentId) || {}).value || '3');
+  if (!task.trim()) { toast('Write a task first.'); return; }
+  fetch(WORKER + '/api/marketing/assign', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ agentId: agentId, task: task.trim(), deadline: deadline || null, priority: priority })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      toast('Assignment sent to agent.');
+      loadTeam();
+      // Also send briefing message in chat
+      var colour = avatarColour(agentId);
+      appendMsg(agentId, 'user', 'Your new assignment: ' + task.trim(), colour, new Date().toISOString());
+      fetch(WORKER + '/api/marketing/chat/' + agentId, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ message: 'You have been assigned a new task: ' + task.trim() + (deadline ? ' Deadline: ' + deadline + '.' : '') + ' Priority: ' + priority + '/5. Please acknowledge and outline your approach.' })
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(d2) {
+        appendMsg(agentId, 'assistant', d2.reply || 'Assignment received.', colour, new Date().toISOString());
+        loadTeam();
+      });
+    } else { toast('Assignment failed: ' + (d.error || 'unknown')); }
+  });
+}
+
+function updateStatus(agentId, status) {
+  fetch(WORKER + '/api/marketing/status', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ agentId: agentId, status: status })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d) {
+    if (d.success) { toast('Status updated.'); loadTeam(); }
+    else { toast('Update failed.'); }
+  });
+}
+
+function bulkAssign() {
+  var task = document.getElementById('bulk-task').value.trim();
+  var deadline = document.getElementById('bulk-deadline').value;
+  var priority = parseInt(document.getElementById('bulk-priority').value);
+  if (!task) { toast('Write a task first.'); return; }
+  if (!confirm('Assign this task to all ' + allAgents.length + ' agents?')) return;
+  fetch(WORKER + '/api/marketing/assign-all', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ task: task, deadline: deadline || null, priority: priority })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      toast('Assigned to ' + (d.assigned || []).length + ' agents.');
+      document.getElementById('bulk-task').value = '';
+      loadTeam();
+    } else { toast('Bulk assign failed.'); }
+  });
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(function(){ el.classList.remove('show'); }, 3000);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount) {
+    var sb = buildSidebar('/marketing/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  loadTeam();
+  // Auto-resize chat inputs
+  document.addEventListener('input', function(e) {
+    if (e.target && e.target.tagName === 'TEXTAREA' && e.target.id && e.target.id.startsWith('chat-input-')) {
+      e.target.style.height = 'auto';
+      e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+    }
+  });
+});
+</script>
+</body>
+</html>

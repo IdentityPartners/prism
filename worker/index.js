@@ -3643,6 +3643,134 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
     }
 
+  // ── Marketing Team API ────────────────────────────────────────────────────────
+
+    // GET /api/marketing/agents
+    if (path === '/api/marketing/agents' && request.method === 'GET') {
+      try {
+        let list = env.PRISM_KV ? await env.PRISM_KV.get('agents:list', 'json') : null;
+        if (!list || !list.length) {
+          const keys = await env.PRISM_KV.list({ prefix: 'agents:' }).catch(() => ({ keys: [] }));
+          const agentKeys = (keys.keys || []).filter(k => k.name !== 'agents:list');
+          if (agentKeys.length > 0) {
+            const agents = await Promise.all(agentKeys.map(k => env.PRISM_KV.get(k.name, 'json').catch(() => null)));
+            list = agents.filter(Boolean);
+          }
+        }
+        const enriched = await Promise.all((list || []).map(async function(agent) {
+          const assignment = env.PRISM_KV ? await env.PRISM_KV.get('agent-assignment:' + agent.id, 'json').catch(() => null) : null;
+          const histRaw = env.PRISM_KV ? await env.PRISM_KV.get('agent-chat:' + agent.id + ':history', 'json').catch(() => null) : null;
+          return Object.assign({}, agent, { assignment: assignment || null, messageCount: histRaw ? histRaw.length : 0 });
+        }));
+        return json({ agents: enriched }, 200, origin);
+      } catch(e) { return json({ agents: [], error: e.message }, 200, origin); }
+    }
+
+    // POST /api/marketing/assign
+    if (path === '/api/marketing/assign' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const { agentId, task, deadline, priority } = body;
+        if (!agentId || !task) return json({ success: false, error: 'agentId and task required' }, 400, origin);
+        const assignment = { task, deadline: deadline || null, priority: priority || 3, status: 'briefed', assignedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        if (env.PRISM_KV) await env.PRISM_KV.put('agent-assignment:' + agentId, JSON.stringify(assignment));
+        const histKey = 'agent-chat:' + agentId + ':history';
+        const hist = env.PRISM_KV ? (await env.PRISM_KV.get(histKey, 'json') || []) : [];
+        hist.push({ role: 'system', content: 'ASSIGNMENT: ' + task + (deadline ? ' | Deadline: ' + deadline : '') + ' | Priority: ' + (priority || 3) + '/5', ts: new Date().toISOString() });
+        if (env.PRISM_KV) await env.PRISM_KV.put(histKey, JSON.stringify(hist.slice(-200)));
+        return json({ success: true, assignment }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    // POST /api/marketing/assign-all
+    if (path === '/api/marketing/assign-all' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const { task, deadline, priority } = body;
+        if (!task) return json({ success: false, error: 'task required' }, 400, origin);
+        const list = env.PRISM_KV ? (await env.PRISM_KV.get('agents:list', 'json') || []) : [];
+        const results = await Promise.all(list.map(async function(agent) {
+          const assignment = { task, deadline: deadline || null, priority: priority || 3, status: 'briefed', assignedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+          await env.PRISM_KV.put('agent-assignment:' + agent.id, JSON.stringify(assignment));
+          const histKey = 'agent-chat:' + agent.id + ':history';
+          const hist = await env.PRISM_KV.get(histKey, 'json').catch(() => []) || [];
+          hist.push({ role: 'system', content: 'ASSIGNMENT: ' + task, ts: new Date().toISOString() });
+          await env.PRISM_KV.put(histKey, JSON.stringify(hist.slice(-200)));
+          return agent.id;
+        }));
+        return json({ success: true, assigned: results }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    // POST /api/marketing/status
+    if (path === '/api/marketing/status' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const { agentId, status } = body;
+        if (!agentId || !status) return json({ success: false, error: 'agentId and status required' }, 400, origin);
+        const assignment = env.PRISM_KV ? (await env.PRISM_KV.get('agent-assignment:' + agentId, 'json') || {}) : {};
+        assignment.status = status;
+        assignment.updatedAt = new Date().toISOString();
+        if (env.PRISM_KV) await env.PRISM_KV.put('agent-assignment:' + agentId, JSON.stringify(assignment));
+        return json({ success: true, assignment }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    // GET /api/marketing/chat/:agentId
+    if (path.match(/^\/api\/marketing\/chat\/[^/]+$/) && request.method === 'GET') {
+      try {
+        const agentId = path.split('/').pop();
+        const hist = env.PRISM_KV ? (await env.PRISM_KV.get('agent-chat:' + agentId + ':history', 'json') || []) : [];
+        return json({ history: hist.filter(m => m.role !== 'system') }, 200, origin);
+      } catch(e) { return json({ history: [], error: e.message }, 200, origin); }
+    }
+
+    // POST /api/marketing/chat/:agentId
+    if (path.match(/^\/api\/marketing\/chat\/[^/]+$/) && request.method === 'POST') {
+      try {
+        const agentId = path.split('/').pop();
+        const body = await request.json();
+        const userMessage = body.message || '';
+        if (!userMessage) return json({ success: false, error: 'message required' }, 400, origin);
+        const list = env.PRISM_KV ? (await env.PRISM_KV.get('agents:list', 'json') || []) : [];
+        const agent = list.find(a => a.id === agentId) || { name: agentId, persona: '', model: 'mistral-large-latest' };
+        const assignment = env.PRISM_KV ? await env.PRISM_KV.get('agent-assignment:' + agentId, 'json').catch(() => null) : null;
+        const histKey = 'agent-chat:' + agentId + ':history';
+        const hist = env.PRISM_KV ? (await env.PRISM_KV.get(histKey, 'json') || []) : [];
+        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact`;
+        const messages = [{ role: 'system', content: systemPrompt }];
+        hist.filter(m => m.role !== 'system').slice(-20).forEach(m => messages.push({ role: m.role, content: m.content }));
+        messages.push({ role: 'user', content: userMessage });
+        const modelMap = {
+          'mistral-large-latest': { profile: 'balanced', providerOverride: 'mistral', modelOverride: 'mistral-large-4' },
+          'gemini-3.8-flash': { profile: 'balanced', providerOverride: 'gemini', modelOverride: 'gemini-3.8-flash' },
+          'deepseek-chat': { profile: 'balanced', providerOverride: 'deepseek', modelOverride: 'deepseek-chat' },
+        };
+        const modelOpts = modelMap[agent.model] || { profile: 'balanced' };
+        const result = await orchestrate(messages, env, modelOpts);
+        const reply = result.content || 'No response.';
+        hist.push({ role: 'user', content: userMessage, ts: new Date().toISOString() });
+        hist.push({ role: 'assistant', content: reply, ts: new Date().toISOString() });
+        if (env.PRISM_KV) await env.PRISM_KV.put(histKey, JSON.stringify(hist.slice(-200)));
+        if (assignment && /complete|finished|done/i.test(reply)) {
+          assignment.status = 'awaiting approval';
+          assignment.updatedAt = new Date().toISOString();
+          if (env.PRISM_KV) await env.PRISM_KV.put('agent-assignment:' + agentId, JSON.stringify(assignment));
+        }
+        return json({ success: true, reply, model: result.model || agent.model, provider: result.provider }, 200, origin);
+      } catch(e) { return json({ success: false, reply: 'Error: ' + e.message }, 500, origin); }
+    }
+
+    // DELETE /api/marketing/chat/:agentId
+    if (path.match(/^\/api\/marketing\/chat\/[^/]+$/) && request.method === 'DELETE') {
+      try {
+        const agentId = path.split('/').pop();
+        if (env.PRISM_KV) await env.PRISM_KV.put('agent-chat:' + agentId + ':history', '[]');
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+
   // ── Workflow CRUD (B2) ────────────────────────────────────────────────────────
     if (path === '/api/workflows' && request.method === 'GET') {
       try {

@@ -735,6 +735,7 @@ function buildSidebar(activePage) {
     {type:'item', label:'Chat', icon:'fluent-emoji:speech-balloon', href:'/chat/'},
     {type:'item', label:'Research', icon:'fluent-emoji:magnifying-glass-tilted-left', href:'/research/'},
     {type:'item', label:'Drafting', icon:'fluent-emoji:pencil', href:'/drafting/'},
+    {type:'item', label:'Marketing', icon:'fluent-emoji:megaphone', href:'/marketing/'},
     {type:'section', label:'Create'},
     {type:'group', label:'Create', icon:'fluent-emoji:artist-palette', children:[
       {label:'Canvas', icon:'fluent-emoji:framed-picture', href:'/creator/canvas/'},
