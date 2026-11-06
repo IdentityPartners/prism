@@ -5844,6 +5844,71 @@ data: ${JSON.stringify(data)}
             (source ? '<text x="' + cx + '" y="' + (h*0.72) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/50) + '" fill="' + IVORY + '" text-anchor="middle" opacity="0.6">Source: ' + escXml(source) + '</text>' : '') +
             '<text x="' + cx + '" y="' + (h*0.85) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/38) + '" fill="' + IVORY + '" text-anchor="middle" letter-spacing="3">IDENTITY PARTNERS</text>' +
             '<text x="' + cx + '" y="' + (h*0.92) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/65) + '" fill="' + IVORY + '" text-anchor="middle" opacity="0.7">identitypartners.uk · hello@identitypartners.uk</text>';
+} else if (postType === 'news') {
+          var headline = body.headline || text;
+          var newsSource = body.source || '';
+          var summary = body.summary || '';
+          var headlineLines = wrapText(headline, Math.floor(w/32));
+          var summaryLines = wrapText(summary, Math.floor(w/38));
+          var hlTspans = headlineLines.map(function(l,i){ return '<tspan x="' + cx + '" dy="' + (i===0?'0':Math.floor(h/18)) + '">' + escXml(l) + '</tspan>'; }).join('');
+          var sumTspans = summaryLines.slice(0,3).map(function(l,i){ return '<tspan x="' + cx + '" dy="' + (i===0?'0':Math.floor(h/28)) + '">' + escXml(l) + '</tspan>'; }).join('');
+          svgContent =
+            (bgBase64 ? '<image href="' + bgBase64 + '" x="0" y="0" width="' + w + '" height="' + h + '" preserveAspectRatio="xMidYMid slice"/>' : '<rect width="' + w + '" height="' + h + '" fill="' + TEAL + '"/>') +
+            '<rect width="' + w + '" height="' + h + '" fill="rgba(15,59,58,0.78)"/>' +
+            '<rect x="0" y="' + Math.floor(h*0.08) + '" width="' + w + '" height="' + Math.floor(h*0.1) + '" fill="' + ROSE + '"/>' +
+            '<text x="' + cx + '" y="' + Math.floor(h*0.145) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/30) + '" fill="' + IVORY + '" text-anchor="middle" font-weight="700" letter-spacing="3">CURRENT AFFAIRS</text>' +
+            '<text x="' + cx + '" y="' + Math.floor(h*0.32) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/18) + '" fill="' + IVORY + '" text-anchor="middle" font-weight="bold">' + hlTspans + '</text>' +
+            (newsSource ? '<text x="' + cx + '" y="' + Math.floor(h*0.55) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/45) + '" fill="' + WARM_GREY + '" text-anchor="middle" opacity="0.8">Source: ' + escXml(newsSource) + '</text>' : '') +
+            (summary ? '<text x="' + cx + '" y="' + Math.floor(h*0.62) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/38) + '" fill="' + IVORY + '" text-anchor="middle" opacity="0.85">' + sumTspans + '</text>' : '') +
+            '<line x1="' + (w*0.15) + '" y1="' + (h*0.78) + '" x2="' + (w*0.85) + '" y2="' + (h*0.78) + '" stroke="' + IVORY + '" stroke-width="1" opacity="0.3"/>' +
+            '<text x="' + cx + '" y="' + (h*0.85) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/38) + '" fill="' + IVORY + '" text-anchor="middle" letter-spacing="3">IDENTITY PARTNERS</text>' +
+            '<text x="' + cx + '" y="' + (h*0.92) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/65) + '" fill="' + IVORY + '" text-anchor="middle" opacity="0.7">identitypartners.uk \u00b7 hello@identitypartners.uk</text>';
+
+        } else if (postType === 'policy') {
+          var policyTitle = body.title || text;
+          var policyBodyText = body.body || body.summary || '';
+          var dept = body.department || 'UK Government';
+          var ptLines = wrapText(policyTitle, Math.floor(w/30));
+          var pbLines = wrapText(policyBodyText, Math.floor(w/36));
+          var ptTspans = ptLines.map(function(l,i){ return '<tspan x="' + (w*0.14) + '" dy="' + (i===0?'0':Math.floor(h/20)) + '">' + escXml(l) + '</tspan>'; }).join('');
+          var pbTspans = pbLines.slice(0,4).map(function(l,i){ return '<tspan x="' + (w*0.14) + '" dy="' + (i===0?'0':Math.floor(h/30)) + '">' + escXml(l) + '</tspan>'; }).join('');
+          svgContent =
+            '<rect width="' + w + '" height="' + h + '" fill="#1a1a2e"/>' +
+            '<rect x="0" y="0" width="' + Math.floor(w*0.06) + '" height="' + h + '" fill="#c8102e"/>' +
+            '<rect x="' + Math.floor(w*0.06) + '" y="0" width="' + Math.floor(w*0.03) + '" height="' + h + '" fill="#ffffff" opacity="0.9"/>' +
+            '<rect x="' + Math.floor(w*0.09) + '" y="0" width="' + Math.floor(w*0.03) + '" height="' + h + '" fill="#012169"/>' +
+            '<text x="' + (w*0.14) + '" y="' + (h*0.15) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/50) + '" fill="#ffffff" opacity="0.7" font-weight="600" letter-spacing="2">' + escXml(dept.toUpperCase()) + '</text>' +
+            '<text x="' + (w*0.14) + '" y="' + (h*0.22) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/50) + '" fill="#c8102e" font-weight="700" letter-spacing="2">POLICY UPDATE</text>' +
+            '<line x1="' + (w*0.14) + '" y1="' + (h*0.25) + '" x2="' + (w*0.88) + '" y2="' + (h*0.25) + '" stroke="#ffffff" stroke-width="1" opacity="0.3"/>' +
+            '<text x="' + (w*0.14) + '" y="' + (h*0.38) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/18) + '" fill="#ffffff" font-weight="bold">' + ptTspans + '</text>' +
+            (policyBodyText ? '<text x="' + (w*0.14) + '" y="' + (h*0.62) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/38) + '" fill="#ffffff" opacity="0.8">' + pbTspans + '</text>' : '') +
+            '<line x1="' + (w*0.14) + '" y1="' + (h*0.82) + '" x2="' + (w*0.88) + '" y2="' + (h*0.82) + '" stroke="#ffffff" stroke-width="1" opacity="0.2"/>' +
+            '<text x="' + (w*0.14) + '" y="' + (h*0.89) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/42) + '" fill="#ffffff" letter-spacing="3">IDENTITY PARTNERS</text>' +
+            '<text x="' + (w*0.14) + '" y="' + (h*0.95) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/65) + '" fill="#ffffff" opacity="0.6">identitypartners.uk \u00b7 hello@identitypartners.uk</text>';
+
+        } else if (postType === 'infographic') {
+          var infTitle = body.title || text;
+          var infPoints = body.points || [{label:'Point 1', value:'100%'}];
+          var infCount = Math.min(infPoints.length, 5);
+          var infTitleLines = wrapText(infTitle, Math.floor(w/28));
+          var infTitleTspans = infTitleLines.map(function(l,i){ return '<tspan x="' + cx + '" dy="' + (i===0?'0':Math.floor(h/22)) + '">' + escXml(l) + '</tspan>'; }).join('');
+          var infPtH = Math.floor(h * 0.5 / infCount);
+          svgContent =
+            '<rect width="' + w + '" height="' + h + '" fill="' + IVORY + '"/>' +
+            '<rect x="0" y="0" width="' + w + '" height="' + Math.floor(h*0.28) + '" fill="' + TEAL + '"/>' +
+            '<rect x="32" y="32" width="36" height="36" fill="' + ROSE + '" opacity="0.9"/>' +
+            '<text x="' + cx + '" y="' + Math.floor(h*0.16) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/18) + '" fill="' + IVORY + '" text-anchor="middle" font-weight="bold">' + infTitleTspans + '</text>' +
+            infPoints.slice(0, infCount).map(function(pt, i) {
+              var py = Math.floor(h*0.32) + i * infPtH;
+              var isEven = i % 2 === 0;
+              return '<rect x="' + Math.floor(w*0.06) + '" y="' + py + '" width="' + Math.floor(w*0.88) + '" height="' + (infPtH-8) + '" fill="' + (isEven ? '#f0ece4' : IVORY) + '" rx="4"/>' +
+                '<rect x="' + Math.floor(w*0.06) + '" y="' + py + '" width="8" height="' + (infPtH-8) + '" fill="' + (isEven ? TEAL : ROSE) + '" rx="4"/>' +
+                '<text x="' + Math.floor(w*0.12) + '" y="' + (py + Math.floor(infPtH*0.6)) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/38) + '" fill="' + TEAL + '" font-weight="600">' + escXml(String(pt.label||'')) + '</text>' +
+                '<text x="' + Math.floor(w*0.88) + '" y="' + (py + Math.floor(infPtH*0.6)) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/28) + '" fill="' + ROSE + '" text-anchor="end" font-weight="bold">' + escXml(String(pt.value||'')) + '</text>';
+            }).join('') +
+            '<text x="' + cx + '" y="' + (h*0.96) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/65) + '" fill="' + ROSE + '" text-anchor="middle">identitypartners.uk \u00b7 hello@identitypartners.uk</text>';
+            '<text x="' + cx + '" y="' + (h*0.96) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/65) + '" fill="' + ROSE + '" text-anchor="middle">identitypartners.uk \u00b7 hello@identitypartners.uk</text>';
+
         }
 
         const svg = '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' + svgContent + '</svg>';
