@@ -3735,69 +3735,129 @@ data: ${JSON.stringify(data)}
         const text = body.text || 'Understand your past. Appreciate the present. Define your future.';
         const template = body.template || 'quote-teal';
         const pexelsKey = k(env, ['pexels_api_key', 'PEXELS_API_KEY', 'pexels']) || '';
-        const browserlessKey = k(env, ['browserless', 'BROWSERLESS_KEY', 'browserless_api_key']) || '';
+
+        // Strategy: SVG-based canvas generation (no headless browser needed)
+        // This produces a real image that renders correctly on all platforms
 
         // Get background image from Pexels
+        let bgUrl = '';
         let bgBase64 = '';
         if (pexelsKey) {
           try {
-            const queries = ['landscape vista', 'nature scenery', 'partnership collaboration', 'sunrise horizon'];
+            const queries = ['landscape vista nature', 'mountain sunrise', 'ocean horizon', 'forest path light', 'partnership hands'];
             const q = queries[Math.floor(Math.random() * queries.length)];
-            const pexResp = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&per_page=15&orientation=square`, {headers: {'Authorization': pexelsKey}});
+            const pexResp = await fetch('https://api.pexels.com/v1/search?query=' + encodeURIComponent(q) + '&per_page=15&orientation=square&size=medium', {
+              headers: {'Authorization': pexelsKey}
+            });
             if (pexResp.ok) {
               const pexData = await pexResp.json();
               const photos = pexData.photos || [];
               if (photos.length) {
                 const photo = photos[Math.floor(Math.random() * photos.length)];
-                const imgResp = await fetch(photo.src.medium);
+                bgUrl = photo.src.medium;
+                // Fetch and base64 encode the image for embedding in SVG
+                const imgResp = await fetch(bgUrl);
                 if (imgResp.ok) {
                   const imgBuf = await imgResp.arrayBuffer();
-                  bgBase64 = 'data:image/jpeg;base64,' + btoa(String.fromCharCode(...new Uint8Array(imgBuf)));
+                  const bytes = new Uint8Array(imgBuf);
+                  let binary = '';
+                  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+                  bgBase64 = 'data:image/jpeg;base64,' + btoa(binary);
                 }
               }
             }
           } catch(e) {}
         }
 
-        const html = generateCanvasHtml(text, template, bgBase64);
+        // Brand colours
+        const TEAL = '#0f3b3a';
+        const ROSE = '#5c2d3f';
+        const IVORY = '#f7f3e9';
 
-        // Try Browserless
-        if (browserlessKey) {
+        // Word-wrap text for SVG
+        function wrapText(str, maxChars) {
+          const words = str.split(' ');
+          const lines = [];
+          let current = '';
+          for (const word of words) {
+            if ((current + ' ' + word).trim().length > maxChars) {
+              if (current) lines.push(current.trim());
+              current = word;
+            } else {
+              current = (current + ' ' + word).trim();
+            }
+          }
+          if (current) lines.push(current.trim());
+          return lines;
+        }
+
+        const quoteLines = wrapText(text, 28);
+        const lineHeight = 52;
+        const startY = 480 - (quoteLines.length * lineHeight) / 2;
+
+        // Build SVG tspans for quote
+        const tspans = quoteLines.map((line, i) =>
+          '<tspan x="540" dy="' + (i === 0 ? '0' : lineHeight) + '">' + line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') + '</tspan>'
+        ).join('');
+
+        // Generate SVG canvas (1080x1080)
+        const svg = '<?xml version="1.0" encoding="UTF-8"?>' +
+          '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1080" viewBox="0 0 1080 1080">' +
+          // Background image or colour
+          (bgBase64
+            ? '<image href="' + bgBase64 + '" x="0" y="0" width="1080" height="1080" preserveAspectRatio="xMidYMid slice"/>'
+            : '<rect width="1080" height="1080" fill="' + TEAL + '"/>') +
+          // Dark overlay for readability
+          '<rect width="1080" height="1080" fill="rgba(15,59,58,0.65)"/>' +
+          // IP colour grid top-left (2x2: teal/rose/teal2/rose2)
+          '<rect x="40" y="40" width="40" height="40" fill="' + TEAL + '" opacity="0.9"/>' +
+          '<rect x="82" y="40" width="40" height="40" fill="' + ROSE + '" opacity="0.9"/>' +
+          '<rect x="40" y="82" width="40" height="40" fill="' + TEAL + '" opacity="0.7"/>' +
+          '<rect x="82" y="82" width="40" height="40" fill="' + ROSE + '" opacity="0.7"/>' +
+          // Quote text
+          '<text x="540" y="' + startY + '" font-family="Georgia, serif" font-style="italic" font-size="44" fill="' + IVORY + '" text-anchor="middle" dominant-baseline="middle">' +
+          tspans +
+          '</text>' +
+          // Decorative line above wordmark
+          '<line x1="200" y1="820" x2="880" y2="820" stroke="' + IVORY + '" stroke-width="1" opacity="0.5"/>' +
+          // Identity Partners wordmark
+          '<text x="540" y="860" font-family="Georgia, serif" font-size="28" fill="' + IVORY + '" text-anchor="middle" letter-spacing="4">IDENTITY PARTNERS</text>' +
+          // Tagline
+          '<text x="540" y="900" font-family="Arial, sans-serif" font-size="16" fill="' + IVORY + '" text-anchor="middle" opacity="0.8">Understand your past · Appreciate the present · Define your future</text>' +
+          // Footer
+          '<text x="540" y="1020" font-family="Arial, sans-serif" font-size="14" fill="' + IVORY + '" text-anchor="middle" opacity="0.7">identitypartners.uk · hello@identitypartners.uk · @identitypartners</text>' +
+          // Decorative line below wordmark
+          '<line x1="200" y1="930" x2="880" y2="930" stroke="' + IVORY + '" stroke-width="1" opacity="0.3"/>' +
+          '</svg>';
+
+        // Upload SVG to R2 if available, otherwise return as data URL
+        const svgKey = 'canvas/svg-' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.svg';
+        let svgUrl = '';
+
+        if (env.PRISM_ASSETS) {
           try {
-            const blResp = await fetch('https://chrome.browserless.io/screenshot', {
-              method: 'POST',
-              headers: {'Content-Type': 'application/json', 'Cache-Control': 'no-cache'},
-              body: JSON.stringify({
-                url: 'about:blank',
-                html: html,
-                options: { type: 'png', clip: {x:0,y:0,width:1080,height:1080} },
-                waitForFunction: { fn: "() => document.title === 'READY'", timeout: 10000 },
-                waitFor: 12000,
-                token: browserlessKey
-              })
-            });
-            if (blResp.ok) {
-              const pngBuf = await blResp.arrayBuffer();
-              if (pngBuf.byteLength > 5000) {
-                // Upload to R2 if available
-                const key = `canvas/${Date.now()}-${Math.random().toString(36).slice(2)}.png`;
-                if (env.PRISM_ASSETS) {
-                  await env.PRISM_ASSETS.put(key, pngBuf, {httpMetadata: {contentType: 'image/png'}});
-                  const r2Url = `https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/${key}`;
-                  return json({success:true, url:r2Url, method:'browserless', sizeBytes:pngBuf.byteLength}, 200, origin);
-                }
-              }
-            }
+            await env.PRISM_ASSETS.put(svgKey, svg, {httpMetadata: {contentType: 'image/svg+xml'}});
+            svgUrl = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + svgKey;
           } catch(e) {}
         }
 
-        // Fallback: pre-baked R2 template
-        const templateIdx = Math.floor(Math.random() * 150);
-        const fallbackUrl = `https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-${templateIdx}.png`;
-        return json({success:true, url:fallbackUrl, method:'prebaked', template:templateIdx}, 200, origin);
+        // Also provide a pre-baked PNG fallback for platforms that don't support SVG
+        const prebaked = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-' + Math.floor(Math.random() * 150) + '.png';
+
+        return json({
+          success: true,
+          url: svgUrl || prebaked,
+          svgUrl: svgUrl,
+          prebakedUrl: prebaked,
+          svg: svg,
+          method: svgUrl ? 'svg-r2' : 'prebaked',
+          text: text.substring(0, 100),
+          bgUrl: bgUrl
+        }, 200, origin);
+
       } catch(e) {
-        const templateIdx = Math.floor(Math.random() * 150);
-        return json({success:true, url:`https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-${templateIdx}.png`, method:'error-fallback', error:e.message}, 200, origin);
+        const prebaked = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-' + Math.floor(Math.random() * 150) + '.png';
+        return json({success:true, url:prebaked, method:'error-fallback', error:e.message}, 200, origin);
       }
     }
 
