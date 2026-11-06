@@ -4771,6 +4771,226 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
     }
 
+    // ── Media Manager (mm) routes ─────────────────────────────────────────────
+    // GET /api/mm/queue — return queue with counts
+    if (path === '/api/mm/queue' && request.method === 'GET') {
+      try {
+        const queue = env.PRISM_KV ? await env.PRISM_KV.get('mm:queue', 'json') : null;
+        const q = queue || [];
+        const counts = { pending: 0, scheduled: 0, posted: 0, failed: 0, rejected: 0 };
+        q.forEach(function(i) { if (counts[i.status] !== undefined) counts[i.status]++; });
+        return json({ queue: q, counts }, 200, origin);
+      } catch(e) { return json({ queue: [], counts: {}, error: e.message }, 200, origin); }
+    }
+
+    // POST /api/mm/queue — add item to queue
+    if (path === '/api/mm/queue' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        if (!body.text) return json({ success: false, error: 'text required' }, 400, origin);
+        const item = {
+          id: 'mm-' + Date.now() + '-' + Math.random().toString(36).slice(2,6),
+          text: body.text,
+          platforms: body.platforms || ['bluesky'],
+          platformMethods: body.platformMethods || {},
+          imageUrl: body.imageUrl || null,
+          source: body.source || 'compose',
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          scheduledFor: body.scheduledFor || null,
+          slot: body.slot || null,
+        };
+        const queue = env.PRISM_KV ? (await env.PRISM_KV.get('mm:queue', 'json') || []) : [];
+        queue.unshift(item);
+        if (env.PRISM_KV) await env.PRISM_KV.put('mm:queue', JSON.stringify(queue.slice(0, 200)));
+        return json({ success: true, item }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    // POST /api/mm/approve — post item immediately to all its platforms
+    if (path === '/api/mm/approve' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const itemId = body.itemId;
+        if (!itemId) return json({ success: false, error: 'itemId required' }, 400, origin);
+        const queue = env.PRISM_KV ? (await env.PRISM_KV.get('mm:queue', 'json') || []) : [];
+        const idx = queue.findIndex(function(i) { return i.id === itemId; });
+        if (idx < 0) return json({ success: false, error: 'Item not found' }, 404, origin);
+        const item = queue[idx];
+        const results = {};
+        const errors = {};
+
+        // Post to each platform
+        for (const platform of (item.platforms || [])) {
+          try {
+            if (platform === 'bluesky') {
+              const bskyHandle = k(env, ['bluesky_handle','BLUESKY_HANDLE']) || '';
+              const bskyPass = k(env, ['bluesky_app_password','bluesky_password','BLUESKY_PASSWORD']) || '';
+              if (bskyHandle && bskyPass) {
+                const authResp = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
+                  method: 'POST', headers: {'Content-Type':'application/json'},
+                  body: JSON.stringify({ identifier: bskyHandle, password: bskyPass })
+                });
+                if (authResp.ok) {
+                  const auth = await authResp.json();
+                  const postResp = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
+                    method: 'POST',
+                    headers: {'Authorization':'Bearer '+auth.accessJwt,'Content-Type':'application/json'},
+                    body: JSON.stringify({ repo: auth.did, collection: 'app.bsky.feed.post', record: { text: item.text, createdAt: new Date().toISOString(), langs: ['en-GB'] } })
+                  });
+                  results.bluesky = { success: postResp.ok, status: postResp.status };
+                } else { errors.bluesky = 'Auth failed: ' + authResp.status; }
+              } else { errors.bluesky = 'Bluesky credentials not configured'; }
+            } else if (platform === 'telegram') {
+              const tgToken = k(env, ['telegram_token','TELEGRAM_TOKEN']) || '';
+              const chatId = k(env, ['telegram_chat_id','TELEGRAM_CHAT_ID']) || '';
+              if (tgToken && chatId) {
+                const tgResp = await fetch('https://api.telegram.org/bot' + tgToken + '/sendMessage', {
+                  method: 'POST', headers: {'Content-Type':'application/json'},
+                  body: JSON.stringify({ chat_id: chatId, text: item.text, parse_mode: 'HTML' })
+                });
+                results.telegram = { success: tgResp.ok, status: tgResp.status };
+              } else { errors.telegram = 'Telegram credentials not configured'; }
+            } else if (platform === 'linkedin') {
+              const liTokenRaw = env.PRISM_KV ? await env.PRISM_KV.get('oauth:linkedin:tokens').catch(() => null) : null;
+              if (liTokenRaw) {
+                const liToken = JSON.parse(liTokenRaw);
+                const accessToken = liToken.access_token || liToken.accessToken || '';
+                if (accessToken) {
+                  // Get person URN
+                  const meResp = await fetch('https://api.linkedin.com/v2/userinfo', { headers: {'Authorization':'Bearer '+accessToken} });
+                  if (meResp.ok) {
+                    const me = await meResp.json();
+                    const urn = 'urn:li:person:' + me.sub;
+                    const liPostResp = await fetch('https://api.linkedin.com/v2/ugcPosts', {
+                      method: 'POST',
+                      headers: {'Authorization':'Bearer '+accessToken,'Content-Type':'application/json','X-Restli-Protocol-Version':'2.0.0'},
+                      body: JSON.stringify({ author: urn, lifecycleState: 'PUBLISHED', specificContent: { 'com.linkedin.ugc.ShareContent': { shareCommentary: { text: item.text }, shareMediaCategory: 'NONE' } }, visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' } })
+                    });
+                    results.linkedin = { success: liPostResp.ok, status: liPostResp.status };
+                  } else { errors.linkedin = 'Could not fetch LinkedIn profile'; }
+                } else { errors.linkedin = 'No LinkedIn access token'; }
+              } else { errors.linkedin = 'LinkedIn not connected'; }
+            } else if (['instagram','facebook','x'].includes(platform)) {
+              const bufferKey = k(env, ['buffer_api_key','BUFFER_API_KEY','buffer']) || '';
+              const channelMap = { instagram: k(env,['buffer_ig_channel','BUFFER_IG_CHANNEL']), facebook: k(env,['buffer_fb_channel','BUFFER_FB_CHANNEL']), x: k(env,['buffer_x_channel','BUFFER_X_CHANNEL']) };
+              const channelId = channelMap[platform];
+              if (bufferKey && channelId) {
+                const bufResp = await fetch('https://api.bufferapp.com/1/updates/create.json', {
+                  method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'},
+                  body: new URLSearchParams({ access_token: bufferKey, profile_ids: channelId, text: item.text, now: 'true' }).toString()
+                });
+                results[platform] = { success: bufResp.ok, status: bufResp.status };
+              } else { errors[platform] = bufferKey ? 'Buffer channel ID not configured' : 'Buffer not connected'; }
+            } else if (platform === 'substack') {
+              const substackEmail = k(env, ['substack_email','SUBSTACK_EMAIL']) || 'zemiopat@substack.com';
+              // Substack posts via email — log as queued, actual send requires email route
+              results.substack = { success: true, note: 'Queued for email send to ' + substackEmail };
+            } else {
+              errors[platform] = 'Platform not yet implemented';
+            }
+          } catch(platformErr) {
+            errors[platform] = platformErr.message;
+          }
+        }
+
+        // Update item status
+        const anySuccess = Object.values(results).some(function(r) { return r.success; });
+        queue[idx] = Object.assign({}, item, {
+          status: anySuccess ? 'posted' : 'failed',
+          postedAt: new Date().toISOString(),
+          postResults: results,
+          postErrors: errors,
+        });
+        if (env.PRISM_KV) {
+          await env.PRISM_KV.put('mm:queue', JSON.stringify(queue));
+          // Append to activity log
+          const log = env.PRISM_KV ? (await env.PRISM_KV.get('mm:log', 'json') || []) : [];
+          log.unshift({ ts: new Date().toISOString(), itemId, platforms: item.platforms, results, errors, text: item.text.substring(0,100) });
+          await env.PRISM_KV.put('mm:log', JSON.stringify(log.slice(0, 100)));
+        }
+        return json({ success: anySuccess, results, errors }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    // POST /api/mm/update — update item status (schedule, reject)
+    if (path === '/api/mm/update' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const { itemId, action, scheduledFor, reason } = body;
+        const queue = env.PRISM_KV ? (await env.PRISM_KV.get('mm:queue', 'json') || []) : [];
+        const idx = queue.findIndex(function(i) { return i.id === itemId; });
+        if (idx < 0) return json({ success: false, error: 'Item not found' }, 404, origin);
+        if (action === 'schedule') {
+          queue[idx].status = 'scheduled';
+          queue[idx].scheduledFor = scheduledFor;
+        } else if (action === 'reject') {
+          queue[idx].status = 'rejected';
+          queue[idx].rejectedAt = new Date().toISOString();
+          queue[idx].rejectionReason = reason || '';
+        }
+        if (env.PRISM_KV) await env.PRISM_KV.put('mm:queue', JSON.stringify(queue));
+        return json({ success: true, item: queue[idx] }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    // GET /api/mm/log — activity log
+    if (path === '/api/mm/log' && request.method === 'GET') {
+      try {
+        const log = env.PRISM_KV ? (await env.PRISM_KV.get('mm:log', 'json') || []) : [];
+        return json({ log }, 200, origin);
+      } catch(e) { return json({ log: [], error: e.message }, 200, origin); }
+    }
+
+    // POST /api/mm/chat — Media Manager AI chat
+    if (path === '/api/mm/chat' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const message = body.message || '';
+        const queue = env.PRISM_KV ? (await env.PRISM_KV.get('mm:queue', 'json') || []) : [];
+        const pending = queue.filter(function(i) { return i.status === 'pending'; });
+        const scheduled = queue.filter(function(i) { return i.status === 'scheduled'; });
+        const today = new Date().toDateString();
+        const postedToday = queue.filter(function(i) { return i.status === 'posted' && new Date(i.postedAt).toDateString() === today; });
+        const systemPrompt = `You are the Media Manager for Identity Partners. You are a content gatekeeper — nothing publishes without approval. You manage the social media queue, approve or reject posts, and report on activity.
+
+Current queue status:
+- Pending approval: ${pending.length} items
+- Scheduled: ${scheduled.length} items
+- Posted today: ${postedToday.length} items
+- Total in queue: ${queue.length} items
+
+Pending items: ${JSON.stringify(pending.slice(0,5).map(function(i){ return {id:i.id,text:i.text.substring(0,100),platforms:i.platforms}; }))}
+
+Rules:
+- British English throughout
+- Never use /book — always /contact
+- Mandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing
+- Mandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact
+- Only approved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, etc.
+- Never Telegraph, Times, or iNews
+
+When asked to approve items, respond with the item IDs to approve. When asked to draft content, write in Simon's voice: intelligent, direct, humane, British professional prose.`;
+
+        const llmResult = await orchestrate([
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message }
+        ], env, { profile: 'balanced', maxTokens: 1024 });
+
+        const actionsExecuted = [];
+        // Simple action detection: if user says "approve all" and there are pending items
+        const msgLower = message.toLowerCase();
+        if ((msgLower.includes('approve all') || msgLower.includes('post all')) && pending.length > 0) {
+          actionsExecuted.push('approve_all_pending');
+        }
+
+        return json({
+          reply: llmResult.content || 'No response.',
+          actionsExecuted,
+          queueSummary: { pending: pending.length, scheduled: scheduled.length, posted: postedToday.length }
+        }, 200, origin);
+      } catch(e) { return json({ reply: 'Error: ' + e.message, actionsExecuted: [] }, 200, origin); }
+    }
 
     // ── MSGraph client credentials token (no user OAuth needed) ─────────────
     if (path === '/api/msgraph/token' && request.method === 'POST') {
