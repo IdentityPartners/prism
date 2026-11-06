@@ -5394,6 +5394,74 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
     }
 
+
+    // ── Whop API v1 ──────────────────────────────────────────────────────────
+    if (path.startsWith('/api/whop/') && request.method === 'GET') {
+      try {
+        const whopKey = k(env, ['whop_api_key', 'WHOP_API_KEY']) || '';
+        if (!whopKey) return json({error:'Whop key not configured'}, 400, origin);
+        const whopPath = path.replace('/api/whop', '');
+        const whopResp = await fetch('https://api.whop.com/api/v1' + whopPath + url.search, {
+          headers: {'Authorization': 'Bearer ' + whopKey, 'Api-Version-Date': '2026-07-01', 'Content-Type': 'application/json'}
+        });
+        const whopData = await whopResp.json();
+        return json(whopData, whopResp.status, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+    if (path.startsWith('/api/whop/') && request.method === 'POST') {
+      try {
+        const whopKey = k(env, ['whop_api_key', 'WHOP_API_KEY']) || '';
+        if (!whopKey) return json({error:'Whop key not configured'}, 400, origin);
+        const whopPath = path.replace('/api/whop', '');
+        const body = await request.json();
+        const whopResp = await fetch('https://api.whop.com/api/v1' + whopPath, {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + whopKey, 'Api-Version-Date': '2026-07-01', 'Content-Type': 'application/json'},
+          body: JSON.stringify(body)
+        });
+        const whopData = await whopResp.json();
+        return json(whopData, whopResp.status, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
+
+    // ── LinkedIn posting ──────────────────────────────────────────────────────
+    if (path === '/api/linkedin/post' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const tokenData = env.PRISM_KV ? await env.PRISM_KV.get('oauth:linkedin:tokens','json') : null;
+        if (!tokenData || !tokenData.access_token) return json({success:false,error:'LinkedIn not connected'},400,origin);
+        const accessToken = tokenData.access_token;
+        const text = body.text || '';
+        const authorUrn = body.authorUrn || 'urn:li:person:me';
+        // Get person URN if not provided
+        let personUrn = authorUrn;
+        if (personUrn === 'urn:li:person:me') {
+          const meResp = await fetch('https://api.linkedin.com/v2/userinfo', {headers:{'Authorization':'Bearer '+accessToken}});
+          if (meResp.ok) { const me = await meResp.json(); personUrn = 'urn:li:person:' + me.sub; }
+        }
+        const postBody = {
+          author: personUrn,
+          lifecycleState: 'PUBLISHED',
+          specificContent: {
+            'com.linkedin.ugc.ShareContent': {
+              shareCommentary: {text: text.substring(0, 3000)},
+              shareMediaCategory: 'NONE'
+            }
+          },
+          visibility: {'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC'}
+        };
+        const postResp = await fetch('https://api.linkedin.com/v2/ugcPosts', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json', 'X-Restli-Protocol-Version': '2.0.0'},
+          body: JSON.stringify(postBody)
+        });
+        if (!postResp.ok) { const err = await postResp.text(); return json({success:false,error:err.substring(0,300)},200,origin); }
+        const postData = await postResp.json();
+        return json({success:true,id:postData.id},200,origin);
+      } catch(e) { return json({success:false,error:e.message},500,origin); }
+    }
+
     return json({ error: 'Not found', path }, 404, origin);
   },
 
