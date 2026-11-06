@@ -3770,6 +3770,68 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
     }
 
+    // POST /api/marketing/nickname — set agent nickname
+    if (path === '/api/marketing/nickname' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const { agentId, nickname } = body;
+        if (!agentId) return json({ success: false, error: 'agentId required' }, 400, origin);
+        const list = env.PRISM_KV ? (await env.PRISM_KV.get('agents:list', 'json') || []) : [];
+        const idx = list.findIndex(a => a.id === agentId);
+        if (idx >= 0) {
+          list[idx].nickname = nickname || '';
+          await env.PRISM_KV.put('agents:list', JSON.stringify(list));
+          await env.PRISM_KV.put('agents:' + agentId, JSON.stringify(list[idx]));
+        }
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    // GET /api/marketing/jobs/:agentId — get job queue
+    if (path.match(/^\/api\/marketing\/jobs\/[^/]+$/) && request.method === 'GET') {
+      try {
+        const agentId = path.split('/').pop();
+        const jobs = env.PRISM_KV ? (await env.PRISM_KV.get('agent-jobs:' + agentId, 'json') || []) : [];
+        return json({ jobs }, 200, origin);
+      } catch(e) { return json({ jobs: [], error: e.message }, 200, origin); }
+    }
+
+    // POST /api/marketing/jobs/:agentId — add job to queue
+    if (path.match(/^\/api\/marketing\/jobs\/[^/]+$/) && request.method === 'POST') {
+      try {
+        const agentId = path.split('/').pop();
+        const body = await request.json();
+        if (!body.title) return json({ success: false, error: 'title required' }, 400, origin);
+        const jobs = env.PRISM_KV ? (await env.PRISM_KV.get('agent-jobs:' + agentId, 'json') || []) : [];
+        const job = {
+          title: body.title,
+          description: body.description || '',
+          priority: body.priority || 3,
+          recurrence: body.recurrence || 'once',
+          status: body.status || 'queued',
+          createdAt: body.createdAt || new Date().toISOString(),
+        };
+        // Insert sorted by priority
+        jobs.push(job);
+        jobs.sort((a, b) => (a.priority || 3) - (b.priority || 3));
+        if (env.PRISM_KV) await env.PRISM_KV.put('agent-jobs:' + agentId, JSON.stringify(jobs));
+        return json({ success: true, job }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    // DELETE /api/marketing/jobs/:agentId/:index — remove job by index
+    if (path.match(/^\/api\/marketing\/jobs\/[^/]+\/\d+$/) && request.method === 'DELETE') {
+      try {
+        const parts = path.split('/');
+        const agentId = parts[parts.length - 2];
+        const index = parseInt(parts[parts.length - 1]);
+        const jobs = env.PRISM_KV ? (await env.PRISM_KV.get('agent-jobs:' + agentId, 'json') || []) : [];
+        if (index >= 0 && index < jobs.length) jobs.splice(index, 1);
+        if (env.PRISM_KV) await env.PRISM_KV.put('agent-jobs:' + agentId, JSON.stringify(jobs));
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
 
   // ── Workflow CRUD (B2) ────────────────────────────────────────────────────────
     if (path === '/api/workflows' && request.method === 'GET') {

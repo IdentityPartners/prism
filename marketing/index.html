@@ -356,7 +356,7 @@ function renderTeam() {
     row.innerHTML =
       '<div class="agent-avatar" style="background:' + colour + ';">' + initials + '</div>' +
       '<div class="agent-info">' +
-        '<div class="name">' + esc(agent.name) + '</div>' +
+        '<div class="name">' + esc(agent.nickname || agent.name) + '</div>' +
         '<div class="role-tag">' + esc(agent.role || agent.model || '') + '</div>' +
       '</div>' +
       '<div class="agent-status-dot ' + statusClass(status) + '" title="' + statusLabel(status) + '"></div>';
@@ -403,10 +403,11 @@ function renderDetail(agent) {
     '<div class="detail-hdr">' +
       '<div class="agent-avatar" style="background:' + colour + ';width:44px;height:44px;font-size:1.1rem;">' + initials + '</div>' +
       '<div class="detail-hdr-info">' +
-        '<div class="name">' + esc(agent.name) + '</div>' +
+        '<div class="name" id="agent-display-name-' + agent.id + '">' + esc(agent.nickname || agent.name) + '</div>' +
         '<div class="model-tag">' + esc(agent.model || '') + ' &nbsp;&middot;&nbsp; ' + esc(agent.role || '') + '</div>' +
       '</div>' +
       '<div class="detail-hdr-actions">' +
+        '<button class="btn btn-secondary btn-sm" onclick="editNickname(\'' + agent.id + '\',\'' + esc(agent.nickname || agent.name) + '\')" title="Set nickname">Rename</button>' +
         '<button class="btn btn-secondary btn-sm" onclick="clearChat(\'' + agent.id + '\')">Clear chat</button>' +
       '</div>' +
     '</div>' +
@@ -486,6 +487,25 @@ function renderAssignmentTab(agent) {
   html += '</div>';
   html += '</div>';
 
+  // Job queue
+  html += '<div class="assign-card">';
+  html += '<div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">Job Queue <button class="btn btn-primary btn-xs" onclick="showAddJob(\'' + agent.id + '\')">+ Add job</button></div>';
+  html += '<div id="job-queue-' + agent.id + '" style="font-size:0.8rem;color:var(--fg-muted);">Loading...</div>';
+  html += '<div id="add-job-form-' + agent.id + '" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">';
+  html += '<div style="display:flex;flex-direction:column;gap:6px;">';
+  html += '<input type="text" id="job-title-' + agent.id + '" placeholder="Job title (e.g. Weekly LinkedIn post)" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;background:var(--bg);color:var(--fg);font-family:inherit;">';
+  html += '<textarea id="job-desc-' + agent.id + '" placeholder="Description / instructions..." style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;background:var(--bg);color:var(--fg);font-family:inherit;resize:vertical;min-height:50px;"></textarea>';
+  html += '<div style="display:flex;gap:6px;">';
+  html += '<select id="job-priority-' + agent.id + '" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.78rem;background:var(--bg);color:var(--fg);font-family:inherit;"><option value="1">P1 - Critical</option><option value="2">P2 - High</option><option value="3" selected>P3 - Normal</option><option value="4">P4 - Low</option><option value="5">P5 - Backlog</option></select>';
+  html += '<select id="job-recur-' + agent.id + '" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.78rem;background:var(--bg);color:var(--fg);font-family:inherit;"><option value="once">One-off</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>';
+  html += '</div>';
+  html += '<div style="display:flex;gap:6px;">';
+  html += '<button class="btn btn-primary btn-sm" onclick="addJob(\'' + agent.id + '\')">Add to queue</button>';
+  html += '<button class="btn btn-secondary btn-sm" onclick="document.getElementById(\'add-job-form-' + agent.id + '\').style.display=\'none\'">Cancel</button>';
+  html += '</div>';
+  html += '</div></div>';
+  html += '</div>';
+
   // Agent persona
   html += '<div class="assign-card">';
   html += '<div class="card-title">Agent Profile</div>';
@@ -513,6 +533,7 @@ function showTab(tab) {
   var btn = document.getElementById('tab-btn-' + tab);
   if (content) content.classList.add('active');
   if (btn) btn.classList.add('active');
+  if (tab === 'assign' && activeAgentId) loadJobQueue(activeAgentId);
 }
 
 // ── Chat ───────────────────────────────────────────────────────────────────
@@ -668,6 +689,94 @@ function bulkAssign() {
       loadTeam();
     } else { toast('Bulk assign failed.'); }
   });
+}
+
+// ── Nickname ───────────────────────────────────────────────────────────────
+function editNickname(agentId, current) {
+  var nick = prompt('Set a nickname for this agent (leave blank to use full name):', current);
+  if (nick === null) return; // cancelled
+  fetch(WORKER + '/api/marketing/nickname', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ agentId: agentId, nickname: nick.trim() })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      toast('Nickname updated.');
+      loadTeam();
+    } else { toast('Update failed.'); }
+  });
+}
+
+// ── Job Queue ──────────────────────────────────────────────────────────────
+function loadJobQueue(agentId) {
+  fetch(WORKER + '/api/marketing/jobs/' + agentId)
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      renderJobQueue(agentId, d.jobs || []);
+    })
+    .catch(function() {
+      var el = document.getElementById('job-queue-' + agentId);
+      if (el) el.textContent = 'Could not load jobs.';
+    });
+}
+
+function renderJobQueue(agentId, jobs) {
+  var el = document.getElementById('job-queue-' + agentId);
+  if (!el) return;
+  if (!jobs.length) { el.innerHTML = '<div style="color:var(--fg-muted);font-size:0.78rem;padding:4px 0;">No jobs queued. Add recurring or one-off jobs above.</div>'; return; }
+  var priorityColour = { '1':'#dc2626','2':'#f59e0b','3':'var(--accent)','4':'#6b7280','5':'#9ca3af' };
+  el.innerHTML = jobs.map(function(job, i) {
+    var pc = priorityColour[String(job.priority)] || 'var(--accent)';
+    var recurLabel = { once:'One-off', daily:'Daily', weekly:'Weekly', monthly:'Monthly' }[job.recurrence] || job.recurrence;
+    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);">' +
+      '<span style="width:8px;height:8px;border-radius:50%;background:' + pc + ';flex-shrink:0;"></span>' +
+      '<div style="flex:1;min-width:0;">' +
+        '<div style="font-size:0.8rem;font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(job.title) + '</div>' +
+        '<div style="font-size:0.7rem;color:var(--fg-muted);">P' + job.priority + ' &middot; ' + recurLabel + (job.status ? ' &middot; ' + job.status : '') + '</div>' +
+      '</div>' +
+      '<button onclick="removeJob(\'' + agentId + '\',' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:11px;padding:2px 4px;" title="Remove">x</button>' +
+    '</div>';
+  }).join('');
+}
+
+function showAddJob(agentId) {
+  var form = document.getElementById('add-job-form-' + agentId);
+  if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+function addJob(agentId) {
+  var title = (document.getElementById('job-title-' + agentId) || {}).value || '';
+  var desc = (document.getElementById('job-desc-' + agentId) || {}).value || '';
+  var priority = parseInt((document.getElementById('job-priority-' + agentId) || {}).value || '3');
+  var recurrence = (document.getElementById('job-recur-' + agentId) || {}).value || 'once';
+  if (!title.trim()) { toast('Job title required.'); return; }
+  fetch(WORKER + '/api/marketing/jobs/' + agentId, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ title: title.trim(), description: desc.trim(), priority: priority, recurrence: recurrence, status: 'queued', createdAt: new Date().toISOString() })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      toast('Job added to queue.');
+      document.getElementById('job-title-' + agentId).value = '';
+      document.getElementById('job-desc-' + agentId).value = '';
+      var form = document.getElementById('add-job-form-' + agentId);
+      if (form) form.style.display = 'none';
+      loadJobQueue(agentId);
+    } else { toast('Failed to add job.'); }
+  });
+}
+
+function removeJob(agentId, index) {
+  if (!confirm('Remove this job?')) return;
+  fetch(WORKER + '/api/marketing/jobs/' + agentId + '/' + index, { method: 'DELETE' })
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.success) { toast('Job removed.'); loadJobQueue(agentId); }
+    });
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────

@@ -1,14 +1,14 @@
 <!DOCTYPE html>
+
 <html lang="en-GB">
 <head>
 <!-- cache-bust-1792935955 -->
-
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dev Team &mdash; Argentica</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/shared/prism.css">
-<link rel="stylesheet" href="/shared/themes.css">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dev Team — Argentica</title>
+<link href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E" rel="icon" type="image/svg+xml"/>
+<link href="/shared/prism.css" rel="stylesheet"/>
+<link href="/shared/themes.css" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs/loader.js"></script>
 <style>
 .dt-shell{display:flex;height:100vh;overflow:hidden;}
@@ -50,87 +50,87 @@
 <div id="main-content">
 <div class="dt-shell">
 <div class="dt-main">
-  <div class="dt-hdr">
-    <div class="dt-avatar">&#x1F6E0;</div>
-    <div>
-      <h2>Dev Team</h2>
-      <div style="font-size:11px;color:var(--fg-muted);">Autonomous system maintenance. Can push to GitHub, test providers, read/write KV.</div>
-    </div>
-    <div style="display:flex;gap:6px;">
-      <button onclick="runDiagnostic()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);font-size:12px;">&#x1F50D; Diagnose</button>
-      <button onclick="clearChat()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);font-size:12px;">Clear</button>
-    </div>
-  </div>
-
-  <div class="dt-body">
-    <div class="dt-chat">
-      <div class="dt-messages" id="dt-messages">
-        <div class="dt-msg system"><div class="dt-bubble">Dev Team online. I can diagnose issues, test providers, push fixes to GitHub, and read/write KV. What needs fixing?</div></div>
-      </div>
-      <div class="dt-input-area">
-        <div class="dt-quick">
-          <button class="dt-quick-btn" onclick="quickMsg('Run full diagnostic')">Full diagnostic</button>
-          <button class="dt-quick-btn" onclick="quickMsg('Test all providers and report which are working')">Test providers</button>
-          <button class="dt-quick-btn" onclick="quickMsg('Check Worker status')">Worker status</button>
-          <button class="dt-quick-btn" onclick="quickMsg('What is in the queue?')">Queue status</button>
-          <button class="dt-quick-btn" onclick="quickMsg('Clean up test threads from KV')">Clean test threads</button>
-        </div>
-        <textarea class="dt-textarea" id="dt-input" placeholder="Describe the issue or task..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendDT();}"></textarea>
-        <button class="dt-send" onclick="sendDT()">Send</button>
-      </div>
-    </div>
-
-    <div class="dt-tools">
-      <div class="tool-card">
-        <h4>&#x26A1; Quick Actions</h4>
-        <button class="tool-btn" onclick="toolAction('test_providers')">&#x25B6; Test all providers</button>
-        <button class="tool-btn" onclick="toolAction('check_worker')">&#x1F50D; Check Worker status</button>
-        <button class="tool-btn" onclick="toolAction('get_queue')">&#x1F4CB; Get MM queue</button>
-        <button class="tool-btn" onclick="toolAction('check_kv')">&#x1F5C4; Check KV health</button>
-        <div class="tool-result" id="result-quick"></div>
-      </div>
-
-      <div class="tool-card">
-        <h4>&#x1F4C1; GitHub</h4>
-        <button class="tool-btn" onclick="showPushFile()">&#x2B06; Push file to GitHub</button>
-        <div id="push-file-form" style="display:none;margin-top:8px;">
-          <input type="text" id="push-path" placeholder="Path e.g. shared/prism.js" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);box-sizing:border-box;margin-bottom:4px;">
-          <div id="monaco-container" style="width:100%;height:180px;border:1px solid var(--border);border-radius:5px;margin-bottom:4px;overflow:hidden;"></div>
+<div class="dt-hdr">
+<div class="dt-avatar">🛠</div>
+<div>
+<h2>Dev Team</h2>
+<div style="font-size:11px;color:var(--fg-muted);">Autonomous system maintenance. Can push to GitHub, test providers, read/write KV.</div>
+</div>
+<div style="display:flex;gap:6px;">
+<button onclick="runDiagnostic()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);font-size:12px;">🔍 Diagnose</button>
+<button onclick="clearChat()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg);font-size:12px;">Clear</button>
+</div>
+</div>
+<div class="dt-body">
+<div class="dt-chat">
+<div class="dt-messages" id="dt-messages">
+<div class="dt-msg system"><div class="dt-bubble">Dev Team online. I can diagnose issues, test providers, push fixes to GitHub, and read/write KV. What needs fixing?</div></div>
+</div>
+<div class="dt-input-area">
+<div class="dt-quick">
+<button class="dt-quick-btn" onclick="quickMsg('Run full diagnostic')">Full diagnostic</button>
+<button class="dt-quick-btn" onclick="quickMsg('Test all providers and report which are working')">Test providers</button>
+<button class="dt-quick-btn" onclick="quickMsg('Check Worker status')">Worker status</button>
+<button class="dt-quick-btn" onclick="quickMsg('What is in the queue?')">Queue status</button>
+<button class="dt-quick-btn" onclick="quickMsg('Clean up test threads from KV')">Clean test threads</button>
+</div>
+<div id="dt-attach-strip" style="display:none;margin-bottom:5px;flex-wrap:wrap;gap:4px;"></div>
+<div style="display:flex;gap:6px;align-items:flex-end;">
+<textarea class="dt-textarea" id="dt-input" onkeydown="if(event.key==='Enter'&amp;&amp;!event.shiftKey){event.preventDefault();sendDT();}" placeholder="Describe the issue or task..." style="flex:1;"></textarea>
+<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+<button class="dt-send" onclick="sendDT()" style="height:36px;">Send</button>
+<button onclick="document.getElementById('dt-file-input').click()" style="height:36px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg-muted);cursor:pointer;font-size:12px;font-family:inherit;" title="Attach screenshot or file">Attach</button>
+<input accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.md,.json,.csv,.log" id="dt-file-input" multiple="" onchange="handleDTFiles(this)" style="display:none" type="file"/>
+</div>
+</div>
+</div>
+</div>
+<div class="dt-tools">
+<div class="tool-card">
+<h4>⚡ Quick Actions</h4>
+<button class="tool-btn" onclick="toolAction('test_providers')">▶ Test all providers</button>
+<button class="tool-btn" onclick="toolAction('check_worker')">🔍 Check Worker status</button>
+<button class="tool-btn" onclick="toolAction('get_queue')">📋 Get MM queue</button>
+<button class="tool-btn" onclick="toolAction('check_kv')">🗄 Check KV health</button>
+<div class="tool-result" id="result-quick"></div>
+</div>
+<div class="tool-card">
+<h4>📁 GitHub</h4>
+<button class="tool-btn" onclick="showPushFile()">⬆ Push file to GitHub</button>
+<div id="push-file-form" style="display:none;margin-top:8px;">
+<input id="push-path" placeholder="Path e.g. shared/prism.js" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);box-sizing:border-box;margin-bottom:4px;" type="text"/>
+<div id="monaco-container" style="width:100%;height:180px;border:1px solid var(--border);border-radius:5px;margin-bottom:4px;overflow:hidden;"></div>
 <textarea id="push-content" style="display:none;"></textarea>
-          <input type="text" id="push-message" placeholder="Commit message" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);box-sizing:border-box;margin-bottom:4px;">
-          <button onclick="executePushFile()" style="padding:5px 12px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">Push</button>
-        </div>
-        <div class="tool-result" id="result-github"></div>
-      </div>
-
-      <div class="tool-card">
-        <h4>&#x1F5C4; KV Store</h4>
-        <div style="display:flex;gap:4px;margin-bottom:4px;">
-          <input type="text" id="kv-key" placeholder="Key" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);">
-          <button onclick="kvGet()" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);">Get</button>
-        </div>
-        <textarea id="kv-value" placeholder="Value (for set)" style="width:100%;min-height:50px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);resize:vertical;box-sizing:border-box;margin-bottom:4px;"></textarea>
-        <button onclick="kvSet()" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);">Set</button>
-        <div class="tool-result" id="result-kv"></div>
-      </div>
-
-      <div class="tool-card">
-        <h4>&#x26A0; Danger Zone</h4>
-        <button class="tool-btn danger" onclick="cleanTestThreads()">&#x1F5D1; Clean test threads</button>
-        <button class="tool-btn danger" onclick="clearMMQueue()">&#x1F5D1; Clear MM queue</button>
-        <div class="tool-result" id="result-danger"></div>
-      </div>
-
-      <div class="tool-card">
-        <h4>&#x1F4CA; System Status</h4>
-        <div id="system-status" style="font-size:11px;color:var(--fg-muted);">Loading...</div>
-      </div>
-    </div>
-  </div>
+<input id="push-message" placeholder="Commit message" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);box-sizing:border-box;margin-bottom:4px;" type="text"/>
+<button onclick="executePushFile()" style="padding:5px 12px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">Push</button>
+</div>
+<div class="tool-result" id="result-github"></div>
+</div>
+<div class="tool-card">
+<h4>🗄 KV Store</h4>
+<div style="display:flex;gap:4px;margin-bottom:4px;">
+<input id="kv-key" placeholder="Key" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);" type="text"/>
+<button onclick="kvGet()" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);">Get</button>
+</div>
+<textarea id="kv-value" placeholder="Value (for set)" style="width:100%;min-height:50px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);resize:vertical;box-sizing:border-box;margin-bottom:4px;"></textarea>
+<button onclick="kvSet()" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;background:var(--bg);">Set</button>
+<div class="tool-result" id="result-kv"></div>
+</div>
+<div class="tool-card">
+<h4>⚠ Danger Zone</h4>
+<button class="tool-btn danger" onclick="cleanTestThreads()">🗑 Clean test threads</button>
+<button class="tool-btn danger" onclick="clearMMQueue()">🗑 Clear MM queue</button>
+<div class="tool-result" id="result-danger"></div>
+</div>
+<div class="tool-card">
+<h4>📊 System Status</h4>
+<div id="system-status" style="font-size:11px;color:var(--fg-muted);">Loading...</div>
 </div>
 </div>
 </div>
-
+</div>
+</div>
+</div>
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
 var chatHistory = [];
@@ -162,9 +162,58 @@ function addMsg(role, text) {
   msgs.scrollTop = msgs.scrollHeight;
 }
 
+var dtAttachments = [];
+
+function handleDTFiles(input) {
+  var files = Array.from(input.files);
+  files.forEach(function(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var isImage = file.type.startsWith('image/');
+      dtAttachments.push({
+        name: file.name,
+        type: isImage ? 'image' : 'text',
+        content: isImage ? null : e.target.result,
+        dataUrl: isImage ? e.target.result : null
+      });
+      updateDTAttachStrip();
+    };
+    if (file.type.startsWith('image/')) {
+      reader.readAsDataURL(file);
+    } else {
+      reader.readAsText(file);
+    }
+  });
+  input.value = '';
+}
+
+function updateDTAttachStrip() {
+  var strip = document.getElementById('dt-attach-strip');
+  if (!strip) return;
+  if (!dtAttachments.length) { strip.style.display = 'none'; strip.innerHTML = ''; return; }
+  strip.style.display = 'flex';
+  strip.innerHTML = dtAttachments.map(function(att, i) {
+    var icon = att.type === 'image' ? '[img]' : '[file]';
+    return '<div style="display:flex;align-items:center;gap:4px;padding:2px 8px;background:var(--bg-sunken);border:1px solid var(--border);border-radius:8px;font-size:11px;">' +
+      icon + ' ' + att.name +
+      ' <button onclick="dtAttachments.splice(' + i + ',1);updateDTAttachStrip()" style="background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:12px;padding:0;">x</button></div>';
+  }).join('');
+}
+
 function sendDT() {
   var input = document.getElementById('dt-input');
   var text = input.value.trim();
+  if (dtAttachments.length) {
+    dtAttachments.forEach(function(att) {
+      if (att.type === 'image') {
+        text += '\n\n[Screenshot attached: ' + att.name + ' — describe what you see for troubleshooting context]';
+      } else {
+        text += '\n\n[File attached: ' + att.name + ']\n' + (att.content || '').substring(0, 5000);
+      }
+    });
+    dtAttachments = [];
+    updateDTAttachStrip();
+  }
   if (!text) return;
   input.value = '';
   addMsg('user', text);

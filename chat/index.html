@@ -124,17 +124,20 @@
 .toolbar-btn:hover { border-color:var(--accent); color:var(--accent); }
 .toolbar-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
 
-/* OSK strip */
+/* OSK strip — always visible, left of textarea */
 .osk-strip {
-  background:var(--bg-elevated);
-  border-right:1px solid var(--border);
+  background:var(--bg-sunken);
+  border:1px solid var(--border);
+  border-radius:8px;
   flex-shrink:0;
-  display:none;
-  width:180px;
+  display:flex !important;
+  flex-direction:column;
+  width:200px;
+  min-width:200px;
   overflow-y:auto;
-  max-height:200px;
+  max-height:160px;
+  align-self:flex-end;
 }
-.osk-strip.show { display:flex; flex-direction:column; }
 
 /* Right panel */
 .chat-right { width:240px; flex-shrink:0; border-left:1px solid var(--border); display:flex !important; flex-direction:column; background:var(--bg-surface); overflow-y:auto; }
@@ -151,9 +154,8 @@
 .action-btn { display:block; width:100%; padding:7px 10px; margin-bottom:4px; border:1px solid var(--border); border-radius:6px; font-size:13px; cursor:pointer; background:var(--bg); color:var(--fg); font-family:inherit; text-align:left; transition:all 0.15s; }
 .action-btn:hover { border-color:var(--accent); color:var(--accent); }
 
-/* OSK: hidden by default, compact when toggled */
-.osk-strip { display: none !important; }
-.osk-strip.show { display: block !important; max-height: 160px; overflow-y: auto; }
+/* OSK: always visible left of textarea */
+/* (override removed — OSK is always-on) */
 /* Right panel: always visible on Surface Pro */
 @media(max-width: 780px) { .chat-right { display: none; } }
 @media(min-width: 781px) { .chat-right { display: flex; } }
@@ -191,7 +193,7 @@
 <div class="chat-status" id="persona-status">Argentica · ready</div>
 </div>
 <div class="chat-hdr-actions">
-<button class="toolbar-btn" id="osk-toggle-btn" onclick="toggleOSK()" title="Hide/show keyboard">⌨ KB</button>
+<!-- OSK always-on: KB toggle removed -->
 <button class="toolbar-btn" onclick="clearChat()" title="Clear">✕ Clear</button>
 <button class="toolbar-btn" onclick="exportChat()" title="Export">⬇ Export</button>
 </div>
@@ -225,7 +227,6 @@
 <button class="toolbar-btn active" id="multi-btn" onclick="toggleMultiModel()" title="Send to multiple models simultaneously" style="background:rgba(124,58,237,0.1);color:#7c3aed;border-color:#7c3aed;">⚡ Multi-model</button>
 </div>
 </div>
-<div class="osk-strip show" id="osk-strip"></div>
 <!-- Right panel -->
 <div class="chat-right">
 <div class="right-sec">
@@ -240,18 +241,18 @@
         <option value="mistral:ministral-8b-latest">Ministral 8B · 262K ctx · fast</option>
         <option value="mistral:mistral-small-latest">Mistral Small · 262K ctx · fast</option>
       </optgroup>
+      <optgroup label="✓ Google AI Pro — Paid Subscription">
+        <option value="gemini:gemini-4-argon">Gemini 4 Argon · 1M ctx · flagship reasoning · paid</option>
+        <option value="gemini:gemini-3.8-flash">Gemini 3.8 Flash · 1M ctx · Google Search · paid</option>
+      </optgroup>
       <optgroup label="Google AI Studio — Free Tier">
         <option value="gemini:gemini-3.5-flash">Gemini 3.5 Flash · 1M ctx · Google Search · free</option>
-        <option value="gemini:gemini-3.8-flash">Gemini 3.8 Flash · 1M ctx · free</option>
-        <option value="gemini:gemini-3.7-flash">Gemini 3.7 Flash · 1M ctx · free</option>
-        <option value="gemini:gemini-2.5-flash">Gemini 2.5 Flash · 1M ctx · thinking · free</option>
-        <option value="gemini:gemini-2.5-pro">Gemini 2.5 Pro · 1M ctx · thinking · free</option>
-        <option value="gemini:gemma-4-31b-it">Gemma 4 31B · 262K ctx · Google Search · free</option>
-        <option value="gemini:gemma-4-26b-a4b-it">Gemma 4 26B · 262K ctx · free</option>
         <option value="gemini:gemini-3.5-flash-lite">Gemini 3.5 Flash Lite · 1M ctx · free</option>
+        <option value="gemini:gemma-4-31b-it">Gemma 4 31B · 262K ctx · free</option>
+        <option value="gemini:gemma-4-26b-a4b-it">Gemma 4 26B · 262K ctx · free</option>
       </optgroup>
       <optgroup label="DeepSeek — Paid">
-        <option value="deepseek:deepseek-chat">DeepSeek V4 Flash · 1M ctx · built-in web</option>
+        <option value="deepseek:deepseek-chat">DeepSeek V3 · 1M ctx · built-in web · chargeable</option>
       </optgroup>
       <optgroup label="Groq — Free">
         <option value="groq:openai/gpt-oss-120b">GPT-OSS 120B · 131K ctx · ~300ms · free</option>
@@ -260,9 +261,11 @@
       <optgroup label="Cerebras — Paid Credits">
         <option value="cerebras:gpt-oss-120b">GPT-OSS 120B Cerebras · 8K ctx · very fast</option>
       </optgroup>
-      <optgroup label="OpenRouter — Free">
-        <option value="openrouter:nvidia/nemotron-3-ultra-550b-a55b:free">Nemotron Ultra 550B · 1M ctx · reasoning · slow · free</option>
+      <optgroup label="OpenRouter — Free (Frontier)">
+        <option value="openrouter:nvidia/llama-3.1-nemotron-ultra-253b-v1:free">Nemotron Ultra 253B · 131K ctx · frontier reasoning · free</option>
+        <option value="openrouter:nvidia/nemotron-3-ultra-550b-a55b:free">Nemotron Ultra 550B · 1M ctx · reasoning · free</option>
         <option value="openrouter:minimax/minimax-m3.1-flash:free">MiniMax M3.1 Flash · 1M ctx · free</option>
+        <option value="openrouter:mistralai/devstral-small:free">Devstral Small · coding · free</option>
       </optgroup>
     </select>
 <div class="model-info" id="model-info">Auto: tries Mistral Medium 3.5 first, falls through chain if unavailable.</div>
@@ -872,7 +875,7 @@ function showMultiModelPanel() {
     '<div id="multi-model-checks" style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px;">' +
     ['mistral:mistral-medium-3.5:Mistral Medium 3.5',
      'mistral:mistral-large-latest:Mistral Large Latest',
-     'mistral:zai-glm-5-2:GLM 5.2 via Mistral',
+     'mistral:zai-glm-5-2:GLM 5.3 via Mistral',
      'gemini:gemma-4-31b-it:Gemma 4 31B',
      'groq:openai/gpt-oss-120b:GPT-OSS 120B Groq',
      'deepseek:deepseek-chat:DeepSeek V4',
