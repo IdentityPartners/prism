@@ -1,6 +1,6 @@
 <!DOCTYPE html>
+
 <html lang="en-GB">
-        
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
@@ -54,7 +54,7 @@
 <div class="topbar-title">Research Hub</div>
 <div class="topbar-actions">
 <button class="btn btn-sm btn-secondary" onclick="saveRun()" title="Save this research run">💾 Save Run</button>
-        <button class="btn btn-sm btn-secondary" onclick="openKeywordManager()" title="Manage weekly keyword scrapes">📅 Weekly Scrapes</button>
+<button class="btn btn-sm btn-secondary" onclick="openKeywordManager()" title="Manage weekly keyword scrapes">📅 Weekly Scrapes</button>
 <button class="btn btn-sm btn-primary" onclick="synthesise()" title="AI synthesis of all results">✨ Synthesise</button>
 </div>
 </div>
@@ -92,24 +92,22 @@
 <button class="btn btn-ghost btn-sm" onclick="selectAllSources()" title="Select all sources">Select All</button>
 <button class="btn btn-ghost btn-sm" onclick="clearSources()" title="Clear all sources">Clear</button>
 </div>
-
 <div id="panel-api" style="display:none;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-surface);">
-  <div style="font-size:12px;font-weight:600;margin-bottom:8px;">API Sources</div>
-  <div style="font-size:12px;color:var(--fg-muted);">Select sources above and run a search to query APIs directly.</div>
+<div style="font-size:12px;font-weight:600;margin-bottom:8px;">API Sources</div>
+<div style="font-size:12px;color:var(--fg-muted);">Select sources above and run a search to query APIs directly.</div>
 </div>
 <div id="panel-scholarly" style="display:none;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-surface);">
-  <div style="font-size:12px;font-weight:600;margin-bottom:8px;">Scholarly Search</div>
-  <div style="font-size:12px;color:var(--fg-muted);">Academic papers via Semantic Scholar, arXiv, CrossRef. Run a search above.</div>
+<div style="font-size:12px;font-weight:600;margin-bottom:8px;">Scholarly Search</div>
+<div style="font-size:12px;color:var(--fg-muted);">Academic papers via Semantic Scholar, arXiv, CrossRef. Run a search above.</div>
 </div>
 <div id="panel-news" style="display:none;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-surface);">
-  <div style="font-size:12px;font-weight:600;margin-bottom:8px;">News Search</div>
-  <div style="font-size:12px;color:var(--fg-muted);">News via Tavily, Brave, Perplexity. Run a search above.</div>
+<div style="font-size:12px;font-weight:600;margin-bottom:8px;">News Search</div>
+<div style="font-size:12px;color:var(--fg-muted);">News via Tavily, Brave, Perplexity. Run a search above.</div>
 </div>
 <div id="panel-social" style="display:none;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-surface);">
-  <div style="font-size:12px;font-weight:600;margin-bottom:8px;">Social Search</div>
-  <div style="font-size:12px;color:var(--fg-muted);">Social media search via Perplexity Sonar. Run a search above.</div>
+<div style="font-size:12px;font-weight:600;margin-bottom:8px;">Social Search</div>
+<div style="font-size:12px;color:var(--fg-muted);">Social media search via Perplexity Sonar. Run a search above.</div>
 </div>
-
 <div id="panel-journals" style="display:none;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-surface);font-size:12px;color:var(--fg-muted);">Select sources and run a search above.</div>
 <div class="results-list" id="results-list">
 <div style="font-size:13px;color:var(--fg-muted);padding:20px 0;text-align:center;">Enter a search query above to begin.</div>
@@ -149,6 +147,11 @@ var ALL_SOURCES = {
     {id:'ons',name:'ONS',desc:'UK Office for National Statistics'},
     {id:'openfda',name:'OpenFDA',desc:'FDA drug/device/food data'},
     {id:'ncbi',name:'NCBI',desc:'Biomedical databases (NIH)'},
+    {id:'unpaywall',name:'Unpaywall',desc:'Free legal full-text for any DOI — key: unpaywall_email'},
+    {id:'goldsmiths_library',name:'Goldsmiths Library',desc:'Institutional catalogue search'},
+    {id:'senate_house',name:'Senate House Library',desc:'University of London library — institutional fallback'},
+    {id:'goldsmiths_ill',name:'Goldsmiths ILL',desc:'Inter-Library Loan — fulfilment fallback'},
+    {id:'google_scholar',name:'Google Scholar',desc:'Discovery/navigation only — link-out, no scraping'},
   ],
   // Scholarly tab — academic search
   scholarly: [
@@ -181,6 +184,11 @@ var ALL_SOURCES = {
     {id:'ideas_repec',name:'IDEAS/RePEc',desc:'Economics working papers'},
     {id:'nber',name:'NBER',desc:'National Bureau of Economic Research'},
     {id:'ssrn_econ',name:'EconStor',desc:'Economics open access'},
+    {id:'unpaywall',name:'Unpaywall',desc:'Free legal full-text for any DOI'},
+    {id:'goldsmiths_library',name:'Goldsmiths Library',desc:'Goldsmiths institutional search (SOAS/Senate House consortium)'},
+    {id:'senate_house',name:'Senate House Library',desc:'University of London — institutional fallback'},
+    {id:'goldsmiths_ill',name:'Goldsmiths ILL',desc:'Inter-Library Loan fulfilment fallback'},
+    {id:'google_scholar',name:'Google Scholar',desc:'Discovery/navigation only — no scraping, link-out only'},
   ],
   // News tab — news sources
   news: [
@@ -191,8 +199,7 @@ var ALL_SOURCES = {
     {id:'bbc_rss',name:'BBC News',desc:'RSS feed'},
     {id:'ft_rss',name:'Financial Times',desc:'RSS feed'},
     {id:'independent_rss',name:'The Independent',desc:'RSS feed'},
-    {id:'telegraph_rss',name:'The Telegraph',desc:'RSS feed'},
-    {id:'times_rss',name:'The Times',desc:'RSS feed'},
+    // Telegraph and Times are prohibited sources — removed
     {id:'statesman_rss',name:'New Statesman',desc:'RSS feed'},
     {id:'byline_rss',name:'Byline Times',desc:'RSS feed'},
     {id:'newscientist_rss',name:'New Scientist',desc:'RSS feed'},

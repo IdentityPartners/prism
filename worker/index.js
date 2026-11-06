@@ -1333,6 +1333,82 @@ export default {
       } catch (e) { return json({ error: e.message }, 500, origin); }
     }
 
+    // ── Scholarly / institutional research sources ────────────────────────────
+    if (path === '/api/research/scholarly' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const query = body.query || '';
+        const sources = body.sources || ['semantic_scholar','openalex','unpaywall'];
+        const results = [];
+
+        // Unpaywall — resolve DOI to free full text
+        if (sources.includes('unpaywall')) {
+          const doiMatch = query.match(/10\.\d{4,}[^\s]*/);
+          if (doiMatch) {
+            const doi = doiMatch[0];
+            const email = k(env, ['unpaywall_email','UNPAYWALL_EMAIL']) || 'hello@identitypartners.uk';
+            const upResp = await fetch('https://api.unpaywall.org/v2/' + encodeURIComponent(doi) + '?email=' + email).then(r => r.json()).catch(() => null);
+            if (upResp && upResp.title) {
+              results.push({
+                title: upResp.title,
+                url: (upResp.best_oa_location && upResp.best_oa_location.url) || upResp.doi_url,
+                content: (upResp.journal_name || '') + ' (' + (upResp.year || '') + '). OA: ' + (upResp.is_oa ? 'Yes' : 'No') + '.',
+                source: 'unpaywall',
+                doi: doi,
+                is_oa: upResp.is_oa,
+                oa_url: (upResp.best_oa_location && upResp.best_oa_location.url) || null,
+              });
+            }
+          }
+        }
+
+        // Goldsmiths Library — Ex Libris Primo public search
+        if (sources.includes('goldsmiths_library') || sources.includes('senate_house')) {
+          const libQuery = encodeURIComponent(query);
+          const goldResp = await fetch('https://goldsmiths.primo.exlibrisgroup.com/primaws/rest/pub/pnxs?inst=44GOL_INST&lang=en&limit=5&q=any,contains,' + libQuery + '&scope=MyInst_and_CI&sort=rank&tab=Everything&vid=44GOL_INST:VU1', {
+            headers: { 'Accept': 'application/json', 'User-Agent': 'Argentica/1.0 Research' }
+          }).then(r => r.json()).catch(() => null);
+          if (goldResp && goldResp.docs && goldResp.docs.length) {
+            goldResp.docs.slice(0, 5).forEach(function(doc) {
+              const pnx = doc.pnx || {};
+              const title = ((pnx.display && pnx.display.title) || [''])[0];
+              const creator = ((pnx.display && pnx.display.creator) || [''])[0];
+              const date = ((pnx.display && pnx.display.creationdate) || [''])[0];
+              const recordId = (pnx.control && pnx.control.recordid && pnx.control.recordid[0]) || '';
+              results.push({
+                title: title,
+                url: 'https://goldsmiths.primo.exlibrisgroup.com/permalink/44GOL_INST/1l3oa4j/' + recordId,
+                content: creator + ' (' + date + '). Available via Goldsmiths Library.',
+                source: sources.includes('goldsmiths_library') ? 'goldsmiths_library' : 'senate_house',
+              });
+            });
+          }
+        }
+
+        // Goldsmiths ILL — fulfilment fallback link
+        if (sources.includes('goldsmiths_ill') && results.length === 0) {
+          results.push({
+            title: 'Goldsmiths Inter-Library Loan',
+            url: 'https://www.gold.ac.uk/library/using/ill/',
+            content: 'No free full text found. Request via Goldsmiths ILL (manual process).',
+            source: 'goldsmiths_ill',
+          });
+        }
+
+        // Google Scholar — discovery link-out only
+        if (sources.includes('google_scholar')) {
+          results.push({
+            title: 'Search Google Scholar',
+            url: 'https://scholar.google.com/scholar?q=' + encodeURIComponent(query),
+            content: 'Google Scholar discovery link (navigation only — no API scraping).',
+            source: 'google_scholar',
+          });
+        }
+
+        return json({ query, results, count: results.length }, 200, origin);
+      } catch(e) { return json({ error: e.message, results: [] }, 500, origin); }
+    }
+
     // ── RSS ───────────────────────────────────────────────────────────────────
     if (path === '/api/rss' && request.method === 'GET') {
       const feedUrl = url.searchParams.get('url');
