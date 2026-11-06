@@ -3572,7 +3572,32 @@ data: ${JSON.stringify(data)}
   // ── Agent CRUD (B1) ──────────────────────────────────────────────────────────
     if (path === '/api/agents' && request.method === 'GET') {
       try {
-        const list = env.PRISM_KV ? await env.PRISM_KV.get('agents:list', 'json') : null;
+        let list = env.PRISM_KV ? await env.PRISM_KV.get('agents:list', 'json') : null;
+        // Self-heal: if agents:list is missing or empty, scan individual agents:* keys
+        if (env.PRISM_KV && (!list || list.length === 0)) {
+          const keys = await env.PRISM_KV.list({ prefix: 'agents:' }).catch(() => ({ keys: [] }));
+          const agentKeys = (keys.keys || []).filter(k => k.name !== 'agents:list');
+          if (agentKeys.length > 0) {
+            const agents = await Promise.all(agentKeys.map(k => env.PRISM_KV.get(k.name, 'json').catch(() => null)));
+            list = agents.filter(Boolean);
+            await env.PRISM_KV.put('agents:list', JSON.stringify(list));
+          }
+        }
+        // Seed the 6 Marketing agents if still empty
+        if (env.PRISM_KV && (!list || list.length === 0)) {
+          list = [
+            { id: 'agent-marketing-head', name: 'Head of Marketing & Communications', persona: 'Strategy lead for Identity Partners. Oversees all marketing output, brand voice, and team coordination. Uses Simon\'s voice specification. Manages Refract content strategy and team oversight.', tools: ['web-search', 'rss', 'bluesky-post', 'linkedin-post'], dataSources: ['guardian-rss', 'ons', 'mind', 'nhs'], outputActions: ['post-bluesky', 'post-linkedin', 'save-to-workspace'], model: 'mistral-large-latest', role: 'Head of Marketing & Communications', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            { id: 'agent-social-manager', name: 'Social Media Channel Manager', persona: 'Manages all social media channels for Identity Partners. Schedules posts, monitors engagement, coordinates the daily pipeline. Uses Simon\'s voice specification. Handles Refract content distribution.', tools: ['bluesky-post', 'linkedin-post', 'telegram-post', 'buffer-post'], dataSources: ['guardian-rss', 'ons', 'mind'], outputActions: ['post-bluesky', 'post-linkedin', 'post-telegram', 'queue-buffer'], model: 'gemini-3.8-flash', role: 'Social Media Channel Manager', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            { id: 'agent-content-editor', name: 'Original Content Editor', persona: 'Produces longform content in Simon\'s voice. Collaborates on voice development. Writes articles, essays, and thought leadership pieces for Identity Partners. Never uses AI phrasing or generic thought leadership tropes.', tools: ['web-search', 'rss', 'drafting'], dataSources: ['guardian-rss', 'ons', 'mind', 'nhs', 'lancet', 'pubmed'], outputActions: ['save-to-workspace', 'post-substack'], model: 'mistral-large-latest', role: 'Original Content Editor', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            { id: 'agent-visual-manager', name: 'Visual Assets Manager', persona: 'Creates and manages all visual assets for Identity Partners. Generates canvas posts, manages templates, performs Vision QA on all output. Ensures every asset contains IP logo, identitypartners.uk, hello@identitypartners.uk, and IP social handles.', tools: ['canvas', 'vision-qa', 'r2-upload'], dataSources: ['pexels', 'unsplash', 'pixabay', 'wikimedia'], outputActions: ['upload-r2', 'queue-buffer'], model: 'gemini-3.8-flash', role: 'Visual Assets Manager', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            { id: 'agent-podcast-editor', name: 'Podcast Editor', persona: 'Produces podcast content for Identity Partners using Cartesia (primary) and Smallest.AI (secondary) voices. Manages multi-voice episodes, YouTube upload, and Spotify RSS feed.', tools: ['cartesia-tts', 'smallest-ai-tts', 'youtube-upload', 'spotify-rss'], dataSources: ['guardian-rss', 'ons', 'mind', 'nhs'], outputActions: ['upload-youtube', 'publish-rss'], model: 'mistral-large-latest', role: 'Podcast Editor', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            { id: 'agent-current-affairs', name: 'Current Affairs Content Editor', persona: 'Monitors RSS feeds and news sources for current affairs relevant to Identity Partners\' work in addiction recovery, trauma, and mental health. Curates content, compares coverage across approved outlets, and produces structured reports. Uses only approved sources — never Telegraph, Times, or iNews.', tools: ['web-search', 'rss', 'tavily'], dataSources: ['guardian-rss', 'ons', 'mind', 'nhs', 'lancet', 'pubmed', 'new-statesman-rss'], outputActions: ['save-to-workspace', 'post-bluesky'], model: 'deepseek-chat', role: 'Current Affairs Content Editor', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          ];
+          await env.PRISM_KV.put('agents:list', JSON.stringify(list));
+          for (const agent of list) {
+            await env.PRISM_KV.put(`agents:${agent.id}`, JSON.stringify(agent));
+          }
+        }
         return json({ agents: list || [] }, 200, origin);
       } catch(e) { return json({ agents: [], error: e.message }, 200, origin); }
     }
