@@ -50,7 +50,38 @@ function k(env, names) {
 
 // ── Memory + RAG helpers ──────────────────────────────────────────────────────
 
+// Simon's voice and content guidelines — seeded into KV on first use if missing
+const SIMON_VOICE = `Register: Intelligent, direct, humane, intellectually curious British professional prose. Educated but not professorial. Approachable but not chatty. Reflective but not therapeutic. Sophisticated without needless abstraction.
+Calibration: 65% lucid professional conversation / 20% intellectual depth / 10% rhetorical personality / 5% deliberate informality.
+Audience: Educated fellow professionals and prospective clients on social media.
+Rules: Precise ordinary English. Specialist vocabulary only when it adds precision, not status. Direct — make the point. Human not institutional. Warm through attentiveness and candour, not therapeutic language. Varied sentence rhythm. Occasional wit or memorable phrase — accents, not dominant register. Critical without combative. Abstract ideas must cash out into people, relationships, practice, or consequences.
+Never: academic-journal prose on LinkedIn, generic thought leadership, management-consultancy language, breathlessly inspirational, artificially vulnerable, relentlessly earnest, psychoanalytic terminology as performance, AI phrasing (multifaceted/nuanced/profound/tapestry/landscape/intersection/delve/ever-evolving), em dashes (use standard dash sparingly), over-polished, corporate hedging, excessive disclaimers, performative modesty.
+British English throughout. No exceptions.`;
+
+const CONTENT_GUIDELINES = `Approved sources only: ONS, Mind, NHS Digital, NHS England, NICE, PHE, British Social Attitudes Survey, NatCen, Psychology Today, The Lancet, NCBI/PubMed, WHO, EU, UN, UNICEF, academic journals, university research, government departments, supranational organisations. Quality press (limited): The Guardian, Washington Post, NYT, FT, The Economist, New Statesman, New Scientist, New European.
+Prohibited sources: Telegraph, Times, iNews — do not use under any circumstances.
+Mandatory tags on all posts: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing
+Mandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact
+Never use /book — always /contact.
+Canvas assets must contain: IP logo, identitypartners.uk, hello@identitypartners.uk, IP social handles.`;
+
 async function buildMemoryContext(env, query) {
+  // Seed memory:simon-voice and memory:content-guidelines if missing
+  if (env.PRISM_KV) {
+    try {
+      const voiceExists = await env.PRISM_KV.get('memory:simon-voice').catch(() => null);
+      if (!voiceExists) {
+        await env.PRISM_KV.put('memory:simon-voice', SIMON_VOICE, {expirationTtl: 60 * 60 * 24 * 3650}).catch(() => {});
+      }
+    } catch(e) {}
+    try {
+      const guidelinesExist = await env.PRISM_KV.get('memory:content-guidelines').catch(() => null);
+      if (!guidelinesExist) {
+        await env.PRISM_KV.put('memory:content-guidelines', CONTENT_GUIDELINES, {expirationTtl: 60 * 60 * 24 * 3650}).catch(() => {});
+      }
+    } catch(e) {}
+  }
+
   // Load persistent memory about Simon and the system
   const memories = [];
   try {
@@ -345,32 +376,37 @@ async function orchestrate(messages, env, options = {}) {
 
   // Routing chains — hierarchical: Best quality first, fast fallback
   // Tier 1 (Best): GLM 5.3 + Mistral Large (paid Mistral subscription)
-  // Tier 2 (Fast+capable): Gemini 3.8 Flash, Gemini 3.5 Flash
-  // Tier 3 (Fast free): GPT-OSS Groq, GPT-OSS Cerebras
-  // Tier 4 (Paid): DeepSeek V4 Flash
-  // Tier 5 (Free OpenRouter): Nemotron Ultra, MiniMax
-  // Unconditional fallback: Pollinations
+  // Tier 1 (Paid subscription): Gemini 4 Argon, GLM 5.3, Mistral Large 4, Gemini 3.8 Flash
+  // Tier 2 (Free/fast): Cerebras, Groq, Cohere
+  // Tier 3 (Chargeable — use sparingly): Kimi, DeepSeek, xAI, NVIDIA, SambaNova, Fireworks, AnyAPI
+  // Tier 4 (Free fallbacks): Gemini 3.5 Flash-Lite, Mistral Small, OpenRouter
+  // Unconditional fallback: Pollinations (always specify model name: openai/mistral/flux)
   const CHAINS = {
-    // ── Balanced: Best quality first, reliable fallbacks ─────────────────────
-    // GLM 5.3 leads — 1M ctx, thinking, web search, best reasoning
-    // Mistral Large 4 — open-weight, multimodal, latest
-    // Gemini 3.8 Flash — current flagship FREE model (NOT 2.0 — that's ancient)
-    // GPT-OSS used only as fast fallback, not primary (Simon's preference)
     balanced: [
-      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 · 1M ctx · thinking · web search'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-4', key:MISTRAL_KEY, note:'Mistral Large 4 · open-weight · multimodal'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · FREE · 1M ctx · Google Search · vision'},
-      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3-flash', key:MISTRAL_KEY, note:'GLM 5.3 Flash · 1M ctx · multimodal · agentic'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY, note:'Mistral Medium 3.5 · frontier multimodal · agentic'},
-      CEREBRAS_KEY && {provider:'cerebras', model:'qwen-3.8-27b', key:CEREBRAS_KEY, note:'Qwen 3.8 27B · Cerebras · ~1850 tok/s'},
-      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY, note:'GPT-OSS 120B · Cerebras · ~3000 tok/s · fast fallback'},
-      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-20b', key:GROQ_KEY, note:'GPT-OSS 20B · Groq · ~1000 tok/s · fast fallback'},
-      KIMI_KEY && {provider:'kimi', model:'kimi-k2.5', key:KIMI_KEY, note:'Kimi K2.5 · 262K ctx · $0.45/1M'},
-      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · 1M ctx · web search'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro · Google AI Pro · 2M ctx'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-flash', key:GEMINI_KEY, note:'Gemini 2.5 Flash · FREE fallback'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-4', key:MISTRAL_KEY, note:'Mistral Small 4 · hybrid instruct+reasoning'},
-      GEMINI_KEY && {provider:'gemini', model:'gemma-4', key:GEMINI_KEY, note:'Gemma 4 · FREE · open-weight'},
+      // — Tier 1: Paid subscription leads —
+      GEMINI_KEY && {provider:'gemini', model:'gemini-4-argon', key:GEMINI_KEY, note:'Gemini 4 Argon · paid · flagship reasoning · 1M ctx'},
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 · paid subscription · 1M ctx · thinking · web search'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-4', key:MISTRAL_KEY, note:'Mistral Large 4 · paid subscription · 262K ctx'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · paid · current flagship Flash · 1M ctx'},
+      // — Tier 2: Free tier / fast —
+      CEREBRAS_KEY && {provider:'cerebras', model:'qwen-3.8-27b', key:CEREBRAS_KEY, note:'Qwen 3.8 27B · Cerebras · ~1850 tok/s · free tier'},
+      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY, note:'GPT-OSS 120B · Cerebras · ~3000 tok/s · free tier'},
+      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-20b', key:GROQ_KEY, note:'GPT-OSS 20B · Groq · ~1000 tok/s · free tier'},
+      COHERE_KEY && {provider:'cohere', model:'command-r-plus', key:COHERE_KEY, note:'Cohere Command R+ · paid key · RAG-optimised'},
+      // — Tier 3: Chargeable — use sparingly —
+      KIMI_KEY && {provider:'kimi', model:'kimi-k2.5', key:KIMI_KEY, note:'Kimi K2.5 · chargeable · use sparingly'},
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · chargeable · use sparingly'},
+      XAI_KEY && {provider:'xai', model:'grok-3', key:XAI_KEY, note:'xAI Grok 3 · chargeable · real-time data'},
+      NVIDIA_KEY && {provider:'nvidia', model:'meta/llama-3.1-nemotron-ultra-253b-v1', key:NVIDIA_KEY, note:'NVIDIA NIM · chargeable'},
+      SAMBANOVA_KEY && {provider:'sambanova', model:'Meta-Llama-3.3-70B-Instruct', key:SAMBANOVA_KEY, note:'SambaNova · chargeable'},
+      FIREWORKS_KEY && {provider:'fireworks', model:'accounts/fireworks/models/llama-v3p3-70b-instruct', key:FIREWORKS_KEY, note:'Fireworks · chargeable'},
+      ANYAPI_KEY && {provider:'anyapi', model:'gpt-4o', key:ANYAPI_KEY, note:'AnyAPI · chargeable'},
+      // — Tier 4: Free fallbacks —
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash-lite', key:GEMINI_KEY, note:'Gemini 3.5 Flash-Lite · free tier'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-4', key:MISTRAL_KEY, note:'Mistral Small 4 · free tier'},
+      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY, note:'OpenRouter free models'},
+      // — Unconditional fallback —
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations · no key · always responds'},
     ].filter(Boolean),
 
     // ── Fast: Low latency, high throughput ────────────────────────────────────
@@ -387,29 +423,31 @@ async function orchestrate(messages, env, options = {}) {
     research: [
       MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 · 1M ctx · thinking · web search'},
       MISTRAL_KEY && {provider:'mistral', model:'mistral-large-4', key:MISTRAL_KEY, note:'Mistral Large 4 · multimodal'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · Google Search · FREE'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro · FREE · 2M ctx'},
-      KIMI_KEY && {provider:'kimi', model:'kimi-k2-thinking', key:KIMI_KEY, note:'Kimi K2 Thinking · reasoning · 262K ctx'},
-      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · web search'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-4-argon', key:GEMINI_KEY, note:'Gemini 4 Argon · paid · flagship reasoning · 1M ctx'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · Google Search · paid'},
+      KIMI_KEY && {provider:'kimi', model:'kimi-k2-thinking', key:KIMI_KEY, note:'Kimi K2 Thinking · chargeable · reasoning · 262K ctx'},
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · chargeable · web search'},
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations · unconditional fallback'},
     ].filter(Boolean),
 
     // ── Coding: Strong instruction-following, code generation ─────────────────
     coding: [
       MISTRAL_KEY && {provider:'mistral', model:'mistral-large-4', key:MISTRAL_KEY, note:'Mistral Large 4 · code · multimodal'},
       MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 · code + thinking'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · code · paid'},
       MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY, note:'Mistral Medium 3.5 · agentic coding'},
-      NVIDIA_KEY && {provider:'nvidia', model:'meta/llama-3.1-nemotron-ultra-253b-v1', key:NVIDIA_KEY, note:'Nemotron Ultra 253B · excellent coder/reasoner'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · code · FREE'},
-      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · code'},
+      NVIDIA_KEY && {provider:'nvidia', model:'meta/llama-3.1-nemotron-ultra-253b-v1', key:NVIDIA_KEY, note:'Nemotron Ultra 253B · chargeable · coder/reasoner'},
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · chargeable · code'},
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations · unconditional fallback'},
     ].filter(Boolean),
 
     // ── Vision: Multimodal, image understanding ───────────────────────────────
     vision: [
       MISTRAL_KEY && {provider:'mistral', model:'mistral-large-4', key:MISTRAL_KEY, note:'Mistral Large 4 · multimodal'},
       MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3-flash', key:MISTRAL_KEY, note:'GLM 5.3 Flash · multimodal · visual coding'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · vision · FREE'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY, note:'Mistral Medium 3.5 · vision'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-2.5-pro', key:GEMINI_KEY, note:'Gemini 2.5 Pro · vision · 2M ctx · FREE'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · vision · paid'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-4-argon', key:GEMINI_KEY, note:'Gemini 4 Argon · vision · paid · 1M ctx'},
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations · unconditional fallback'},
     ].filter(Boolean),
 
     // ── Local: Ollama only (requires tunnel — manual activation) ──────────────
@@ -2829,7 +2867,7 @@ data: ${JSON.stringify(data)}
     if (path === '/api/live/session' && request.method === 'POST') {
       try {
         const body = await request.json();
-        const model = body.model || 'gemini-2.0-flash-live-001';
+        const model = body.model || 'gemini-live-2.5-flash-preview';
         const gKey = env.gemini_api_key || env.GEMINI_API_KEY || '';
         if (!gKey) return json({ error: 'Gemini key not configured' }, 400, origin);
         // Return WebSocket URL for client to connect directly to Gemini Live
@@ -3344,7 +3382,7 @@ data: ${JSON.stringify(data)}
         }
         if (!pdfB64) return json({error: 'No PDF content'}, 400, origin);
         const gemResp = await fetch(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GKEY,
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=' + GKEY,
           {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -5929,7 +5967,7 @@ data: ${JSON.stringify(data)}
           try {
             const geminiKey = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
             if (geminiKey) {
-              const qaResp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + geminiKey, {
+              const qaResp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=' + geminiKey, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
