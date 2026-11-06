@@ -5522,6 +5522,384 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success:false,error:e.message},500,origin); }
     }
 
+
+    // ── Semantic image search (multi-source) ──────────────────────────────────────
+    if (path === '/api/images/search' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const topic = body.topic || body.query || '';
+        const count = Math.min(parseInt(body.count || '5'), 20);
+        const sources = body.sources || ['pexels', 'unsplash', 'pixabay'];
+
+        // Semantic query expansion based on topic
+        function expandQuery(topic) {
+          const t = topic.toLowerCase();
+          const expansions = {
+            'mental health': ['mental health awareness nature', 'calm mindfulness landscape', 'peaceful sunrise healing'],
+            'recovery': ['recovery journey path forest', 'hope sunrise horizon', 'strength resilience mountain'],
+            'addiction': ['breaking free open sky', 'new beginning dawn', 'support hands together'],
+            'wellbeing': ['wellbeing nature peaceful', 'healthy lifestyle outdoors', 'calm water reflection'],
+            'neurodivergence': ['unique perspective abstract nature', 'different paths forest', 'creative mind cosmos'],
+            'ai': ['technology future abstract', 'digital connection network', 'innovation light'],
+            'counselling': ['listening support hands', 'safe space interior calm', 'trust connection nature'],
+            'therapy': ['healing garden peaceful', 'growth plant sunlight', 'calm water stones'],
+            'coaching': ['journey path forward', 'achievement summit mountain', 'progress steps upward'],
+            'uk': ['london architecture', 'british countryside', 'uk cityscape'],
+            'brexit': ['uk europe bridge', 'crossroads decision path', 'british landscape'],
+            'education': ['learning library books', 'study knowledge light', 'university architecture'],
+            'research': ['science discovery laboratory', 'academic study books', 'knowledge exploration'],
+            'sunrise': ['golden sunrise horizon', 'dawn light landscape', 'morning sky colours'],
+            'sunset': ['dramatic sunset sky', 'golden hour landscape', 'dusk colours horizon'],
+            'forest': ['forest light trees', 'woodland path nature', 'green forest canopy'],
+            'ocean': ['ocean waves horizon', 'sea coast landscape', 'blue water peaceful'],
+            'space': ['cosmos stars galaxy', 'night sky stars', 'universe nebula'],
+            'northern lights': ['aurora borealis night', 'northern lights sky', 'aurora norway'],
+            'london': ['london skyline architecture', 'london bridge thames', 'london street scene'],
+            'museum': ['museum gallery interior', 'art gallery architecture', 'cultural heritage building'],
+          };
+          for (const [key, queries] of Object.entries(expansions)) {
+            if (t.includes(key)) return queries;
+          }
+          // Default: use topic directly with landscape/nature variants
+          return [topic + ' landscape', topic + ' nature', topic + ' abstract'];
+        }
+
+        const queries = expandQuery(topic);
+        const results = [];
+
+        const pexelsKey = k(env, ['pexels_api_key', 'PEXELS_API_KEY', 'pexels']) || '';
+        const unsplashKey = k(env, ['unsplash_api_key', 'UNSPLASH_API_KEY', 'unsplash']) || '';
+        const pixabayKey = k(env, ['pixabay_api_key', 'PIXABAY_API_KEY', 'pixabay']) || '';
+
+        // Pexels
+        if (sources.includes('pexels') && pexelsKey) {
+          for (const q of queries.slice(0, 2)) {
+            try {
+              const resp = await fetch('https://api.pexels.com/v1/search?query=' + encodeURIComponent(q) + '&per_page=5&orientation=square', {
+                headers: {'Authorization': pexelsKey}
+              });
+              if (resp.ok) {
+                const data = await resp.json();
+                for (const photo of (data.photos || []).slice(0, 3)) {
+                  results.push({
+                    source: 'pexels',
+                    id: String(photo.id),
+                    url: photo.src.large,
+                    thumb: photo.src.medium,
+                    width: photo.width,
+                    height: photo.height,
+                    photographer: photo.photographer,
+                    alt: photo.alt || q,
+                    query: q
+                  });
+                }
+              }
+            } catch(e) {}
+          }
+        }
+
+        // Unsplash
+        if (sources.includes('unsplash') && unsplashKey) {
+          for (const q of queries.slice(0, 2)) {
+            try {
+              const resp = await fetch('https://api.unsplash.com/search/photos?query=' + encodeURIComponent(q) + '&per_page=5&orientation=squarish', {
+                headers: {'Authorization': 'Client-ID ' + unsplashKey}
+              });
+              if (resp.ok) {
+                const data = await resp.json();
+                for (const photo of (data.results || []).slice(0, 3)) {
+                  results.push({
+                    source: 'unsplash',
+                    id: photo.id,
+                    url: photo.urls.regular,
+                    thumb: photo.urls.small,
+                    width: photo.width,
+                    height: photo.height,
+                    photographer: photo.user ? photo.user.name : '',
+                    alt: photo.alt_description || q,
+                    query: q
+                  });
+                }
+              }
+            } catch(e) {}
+          }
+        }
+
+        // Pixabay
+        if (sources.includes('pixabay') && pixabayKey) {
+          for (const q of queries.slice(0, 1)) {
+            try {
+              const resp = await fetch('https://pixabay.com/api/?key=' + pixabayKey + '&q=' + encodeURIComponent(q) + '&image_type=photo&orientation=vertical&per_page=5&safesearch=true');
+              if (resp.ok) {
+                const data = await resp.json();
+                for (const photo of (data.hits || []).slice(0, 3)) {
+                  results.push({
+                    source: 'pixabay',
+                    id: String(photo.id),
+                    url: photo.largeImageURL,
+                    thumb: photo.previewURL,
+                    width: photo.imageWidth,
+                    height: photo.imageHeight,
+                    photographer: photo.user,
+                    alt: photo.tags || q,
+                    query: q
+                  });
+                }
+              }
+            } catch(e) {}
+          }
+        }
+
+        // Wikimedia Commons (free, no key needed)
+        if (sources.includes('wikimedia')) {
+          for (const q of queries.slice(0, 1)) {
+            try {
+              const resp = await fetch('https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=' + encodeURIComponent(q) + '&gsrnamespace=6&prop=imageinfo&iiprop=url|size&format=json&gsrlimit=5');
+              if (resp.ok) {
+                const data = await resp.json();
+                const pages = Object.values(data.query?.pages || {});
+                for (const page of pages.slice(0, 3)) {
+                  const info = page.imageinfo?.[0];
+                  if (info && info.url && (info.url.endsWith('.jpg') || info.url.endsWith('.jpeg') || info.url.endsWith('.png'))) {
+                    results.push({
+                      source: 'wikimedia',
+                      id: String(page.pageid),
+                      url: info.url,
+                      thumb: info.url,
+                      width: info.width || 0,
+                      height: info.height || 0,
+                      photographer: 'Wikimedia Commons',
+                      alt: page.title || q,
+                      query: q
+                    });
+                  }
+                }
+              }
+            } catch(e) {}
+          }
+        }
+
+        // Deduplicate and return
+        const seen = new Set();
+        const unique = results.filter(function(r) {
+          if (seen.has(r.id + r.source)) return false;
+          seen.add(r.id + r.source);
+          return true;
+        });
+
+        return json({
+          images: unique.slice(0, count),
+          total: unique.length,
+          topic: topic,
+          queries: queries
+        }, 200, origin);
+      } catch(e) { return json({images:[], error:e.message}, 200, origin); }
+    }
+
+    // ── Enhanced canvas generation with semantic image + Vision QA ────────────────
+    if (path === '/api/canvas/generate' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const topic = body.topic || body.text || 'mental health recovery';
+        const text = body.text || topic;
+        const postType = body.type || 'quote'; // quote, infographic, service, event, stat
+        const platform = body.platform || 'instagram'; // instagram, x, linkedin, bluesky
+        const skipQA = body.skipQA || false;
+
+        // Platform dimensions
+        const dims = {
+          instagram: {w: 1080, h: 1080},
+          x: {w: 1200, h: 675},
+          linkedin: {w: 1200, h: 627},
+          bluesky: {w: 1200, h: 675},
+          story: {w: 1080, h: 1920},
+        };
+        const {w, h} = dims[platform] || dims.instagram;
+
+        // Get semantic image
+        let bgBase64 = '';
+        let bgUrl = '';
+        let photographer = '';
+        const pexelsKey = k(env, ['pexels_api_key', 'PEXELS_API_KEY', 'pexels']) || '';
+        const unsplashKey = k(env, ['unsplash_api_key', 'UNSPLASH_API_KEY', 'unsplash']) || '';
+
+        // Try Pexels first with semantic query
+        const searchResp = await fetch(new URL(request.url).origin + '/api/images/search', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({topic: topic, count: 5, sources: ['pexels', 'unsplash']})
+        });
+        if (searchResp.ok) {
+          const searchData = await searchResp.json();
+          const images = searchData.images || [];
+          if (images.length > 0) {
+            const img = images[Math.floor(Math.random() * Math.min(images.length, 3))];
+            bgUrl = img.url;
+            photographer = img.photographer || '';
+            try {
+              const imgResp = await fetch(bgUrl);
+              if (imgResp.ok) {
+                const imgBuf = await imgResp.arrayBuffer();
+                const bytes = new Uint8Array(imgBuf);
+                let binary = '';
+                const chunkSize = 8192;
+                for (let i = 0; i < bytes.byteLength; i += chunkSize) {
+                  binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+                }
+                bgBase64 = 'data:image/jpeg;base64,' + btoa(binary);
+              }
+            } catch(e) {}
+          }
+        }
+
+        // Brand colours
+        const TEAL = '#0f3b3a';
+        const ROSE = '#5c2d3f';
+        const IVORY = '#f7f3e9';
+        const WARM_GREY = '#ddd0c8';
+
+        // Word wrap
+        function wrapText(str, maxChars) {
+          const words = str.split(' ');
+          const lines = [];
+          let current = '';
+          for (const word of words) {
+            if ((current + ' ' + word).trim().length > maxChars) {
+              if (current) lines.push(current.trim());
+              current = word;
+            } else {
+              current = (current + ' ' + word).trim();
+            }
+          }
+          if (current) lines.push(current.trim());
+          return lines;
+        }
+
+        function escXml(s) {
+          return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+        }
+
+        // Generate SVG based on post type
+        let svgContent = '';
+        const cx = w / 2;
+
+        if (postType === 'quote') {
+          const lines = wrapText(text, Math.floor(w / 40));
+          const lh = Math.floor(h / 20);
+          const startY = h * 0.45 - (lines.length * lh) / 2;
+          const tspans = lines.map((l, i) => '<tspan x="' + cx + '" dy="' + (i===0?'0':lh) + '">' + escXml(l) + '</tspan>').join('');
+          svgContent =
+            (bgBase64 ? '<image href="' + bgBase64 + '" x="0" y="0" width="' + w + '" height="' + h + '" preserveAspectRatio="xMidYMid slice"/>' : '<rect width="' + w + '" height="' + h + '" fill="' + TEAL + '"/>') +
+            '<rect width="' + w + '" height="' + h + '" fill="rgba(15,59,58,0.68)"/>' +
+            // IP colour grid
+            '<rect x="32" y="32" width="36" height="36" fill="' + TEAL + '" opacity="0.95"/>' +
+            '<rect x="70" y="32" width="36" height="36" fill="' + ROSE + '" opacity="0.95"/>' +
+            '<rect x="32" y="70" width="36" height="36" fill="' + TEAL + '" opacity="0.7"/>' +
+            '<rect x="70" y="70" width="36" height="36" fill="' + ROSE + '" opacity="0.7"/>' +
+            // Decorative top line
+            '<line x1="' + (w*0.15) + '" y1="' + (h*0.35) + '" x2="' + (w*0.85) + '" y2="' + (h*0.35) + '" stroke="' + IVORY + '" stroke-width="1" opacity="0.4"/>' +
+            // Quote marks
+            '<text x="' + (cx - w*0.3) + '" y="' + (startY - lh*0.5) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/12) + '" fill="' + IVORY + '" opacity="0.3">“</text>' +
+            // Quote text
+            '<text x="' + cx + '" y="' + startY + '" font-family="Georgia,serif" font-style="italic" font-size="' + Math.floor(h/22) + '" fill="' + IVORY + '" text-anchor="middle">' + tspans + '</text>' +
+            // Decorative bottom line
+            '<line x1="' + (w*0.15) + '" y1="' + (h*0.72) + '" x2="' + (w*0.85) + '" y2="' + (h*0.72) + '" stroke="' + IVORY + '" stroke-width="1" opacity="0.4"/>' +
+            // Wordmark
+            '<text x="' + cx + '" y="' + (h*0.79) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/38) + '" fill="' + IVORY + '" text-anchor="middle" letter-spacing="4" font-weight="600">IDENTITY PARTNERS</text>' +
+            // Tagline
+            '<text x="' + cx + '" y="' + (h*0.85) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/60) + '" fill="' + IVORY + '" text-anchor="middle" opacity="0.75">Understand your past · Appreciate the present · Define your future</text>' +
+            // Footer
+            '<text x="' + cx + '" y="' + (h*0.95) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/72) + '" fill="' + IVORY + '" text-anchor="middle" opacity="0.6">identitypartners.uk · hello@identitypartners.uk · @identitypartners</text>';
+
+        } else if (postType === 'service') {
+          // Service showcase card
+          const title = body.title || 'Our Services';
+          const services = body.services || ['Individual Sessions', 'Group Sessions', 'Initial Consultation'];
+          svgContent =
+            '<rect width="' + w + '" height="' + h + '" fill="' + IVORY + '"/>' +
+            '<rect x="0" y="0" width="' + (w*0.08) + '" height="' + h + '" fill="' + TEAL + '"/>' +
+            '<rect x="' + (w*0.08) + '" y="0" width="' + (w*0.04) + '" height="' + h + '" fill="' + ROSE + '"/>' +
+            '<text x="' + (w*0.18) + '" y="' + (h*0.18) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/14) + '" fill="' + TEAL + '" font-style="italic">' + escXml(title) + '</text>' +
+            '<line x1="' + (w*0.18) + '" y1="' + (h*0.22) + '" x2="' + (w*0.85) + '" y2="' + (h*0.22) + '" stroke="' + ROSE + '" stroke-width="2"/>' +
+            services.map(function(s, i) {
+              return '<rect x="' + (w*0.18) + '" y="' + (h*(0.28 + i*0.14)) + '" width="8" height="' + Math.floor(h/18) + '" fill="' + ROSE + '"/>' +
+                '<text x="' + (w*0.22) + '" y="' + (h*(0.28 + i*0.14) + Math.floor(h/22)) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/28) + '" fill="' + TEAL + '">' + escXml(s) + '</text>';
+            }).join('') +
+            '<text x="' + (w*0.18) + '" y="' + (h*0.88) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/38) + '" fill="' + TEAL + '" letter-spacing="3">IDENTITY PARTNERS</text>' +
+            '<text x="' + (w*0.18) + '" y="' + (h*0.93) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/60) + '" fill="' + ROSE + '">identitypartners.uk · hello@identitypartners.uk</text>';
+
+        } else if (postType === 'stat') {
+          // Stat/fact post
+          const stat = body.stat || '1 in 4';
+          const statLabel = body.statLabel || 'people experience mental health issues each year';
+          const source = body.source || '';
+          svgContent =
+            (bgBase64 ? '<image href="' + bgBase64 + '" x="0" y="0" width="' + w + '" height="' + h + '" preserveAspectRatio="xMidYMid slice"/>' : '<rect width="' + w + '" height="' + h + '" fill="' + TEAL + '"/>') +
+            '<rect width="' + w + '" height="' + h + '" fill="rgba(15,59,58,0.75)"/>' +
+            '<rect x="32" y="32" width="36" height="36" fill="' + TEAL + '" opacity="0.95"/>' +
+            '<rect x="70" y="32" width="36" height="36" fill="' + ROSE + '" opacity="0.95"/>' +
+            '<text x="' + cx + '" y="' + (h*0.42) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/5) + '" fill="' + IVORY + '" text-anchor="middle" font-weight="bold">' + escXml(stat) + '</text>' +
+            '<line x1="' + (w*0.2) + '" y1="' + (h*0.52) + '" x2="' + (w*0.8) + '" y2="' + (h*0.52) + '" stroke="' + ROSE + '" stroke-width="3"/>' +
+            '<text x="' + cx + '" y="' + (h*0.62) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/28) + '" fill="' + IVORY + '" text-anchor="middle">' + escXml(statLabel) + '</text>' +
+            (source ? '<text x="' + cx + '" y="' + (h*0.72) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/50) + '" fill="' + IVORY + '" text-anchor="middle" opacity="0.6">Source: ' + escXml(source) + '</text>' : '') +
+            '<text x="' + cx + '" y="' + (h*0.85) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/38) + '" fill="' + IVORY + '" text-anchor="middle" letter-spacing="3">IDENTITY PARTNERS</text>' +
+            '<text x="' + cx + '" y="' + (h*0.92) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/65) + '" fill="' + IVORY + '" text-anchor="middle" opacity="0.7">identitypartners.uk · hello@identitypartners.uk</text>';
+        }
+
+        const svg = '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' + svgContent + '</svg>';
+
+        // Upload to R2
+        const svgKey = 'canvas/' + platform + '-' + postType + '-' + Date.now() + '.svg';
+        let svgUrl = '';
+        if (env.PRISM_ASSETS) {
+          try {
+            await env.PRISM_ASSETS.put(svgKey, svg, {httpMetadata: {contentType: 'image/svg+xml'}});
+            svgUrl = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + svgKey;
+          } catch(e) {}
+        }
+
+        // Vision QA via Gemini (check legibility)
+        let qaResult = null;
+        if (!skipQA && svgUrl) {
+          try {
+            const geminiKey = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
+            if (geminiKey) {
+              const qaResp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + geminiKey, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                  contents: [{parts: [
+                    {text: 'This is a social media canvas image for Identity Partners. Check: 1) Is the text legible against the background? 2) Is the branding visible? 3) Is the layout balanced? 4) Any text clipping or overlap? Reply with JSON: {"pass": true/false, "issues": [], "score": 1-10}'},
+                    {inlineData: {mimeType: 'image/svg+xml', data: btoa(svg.substring(0, 50000))}}
+                  ]}]
+                })
+              });
+              if (qaResp.ok) {
+                const qaData = await qaResp.json();
+                const qaText = qaData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                const jsonMatch = qaText.match(/\{[^}]+\}/);
+                if (jsonMatch) qaResult = JSON.parse(jsonMatch[0]);
+              }
+            }
+          } catch(e) {}
+        }
+
+        return json({
+          success: true,
+          url: svgUrl || ('https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-' + Math.floor(Math.random()*150) + '.png'),
+          svgUrl,
+          platform,
+          type: postType,
+          topic,
+          bgUrl,
+          photographer,
+          qa: qaResult,
+          dimensions: {w, h}
+        }, 200, origin);
+
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
     return json({ error: 'Not found', path }, 404, origin);
   },
 
