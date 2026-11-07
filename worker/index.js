@@ -1310,6 +1310,655 @@ function autoTag(text) {
   return tags;
 }
 
+/**
+ * Argentica — Integration Layer
+ * File: worker/src/integration.js
+ *
+ * Shared KV event bus connecting:
+ *   Marketing Team (canvas generation, job queue)
+ *   → Social Queue (approval, scheduling)
+ *   → Calendar (scheduled posts as events)
+ *   → Platform Manager (channel routing, connection status)
+ *
+ * KV key schema:
+ *   mm:queue                    — Social Queue items (pending/approved/scheduled/posted)
+ *   mm:jobs:<agentId>           — Per-agent job queues
+ *   calendar:events             — Calendar event index
+ *   calendar:event:<id>         — Individual calendar event
+ *   platform:channels           — Connected platform channel IDs
+ *   platform:status             — Platform connection health
+ *   events:log                  — Cross-module event log (last 200)
+ *
+ * Worker routes added by this file:
+ *   POST /api/events/emit        — Emit a cross-module event
+ *   GET  /api/events/log         — Recent event log
+ *   GET  /api/mm/jobs            — Job queue per agent
+ *   POST /api/mm/jobs            — Create job
+ *   POST /api/mm/jobs/reorder    — Promote/demote job
+ *   POST /api/mm/jobs/:id/retry  — Retry job
+ *   POST /api/mm/jobs/:id/pause  — Pause job
+ *   POST /api/mm/jobs/:id/cancel — Cancel job
+ *   POST /api/mm/chat            — Agent chat (routes to LLM + triggers jobs)
+ *   GET  /api/calendar/events    — Calendar events
+ *   POST /api/calendar/events    — Create calendar event
+ *   DELETE /api/calendar/events/:id — Delete event
+ *   GET  /api/platform/channels  — Connected channel IDs
+ *   POST /api/platform/channels  — Store channel ID
+ *   GET  /api/platform/status    — Platform connection health
+ *   GET  /api/buffer/fetch-channels — Fetch live channel IDs from Buffer API
+ */
+
+// ─────────────────────────────────────────────
+// EVENT BUS
+// ─────────────────────────────────────────────
+
+async function emitEvent(type, payload, env) {
+  if (!env.PRISM_KV) return;
+  try {
+    const raw = await env.PRISM_KV.get('events:log', 'json').catch(()=>null);
+    const log = raw || [];
+    log.unshift({ id: 'evt-' + Date.now(), type, payload, ts: new Date().toISOString() });
+    await env.PRISM_KV.put('events:log', JSON.stringify(log.slice(0, 200)));
+
+    // Route events to downstream handlers
+    switch(type) {
+      case 'canvas.generated':
+        await onCanvasGenerated(payload, env);
+        break;
+      case 'social.approved':
+        await onSocialApproved(payload, env);
+        break;
+      case 'social.scheduled':
+        await onSocialScheduled(payload, env);
+        break;
+      case 'social.posted':
+        await onSocialPosted(payload, env);
+        break;
+      case 'job.completed':
+        await onJobCompleted(payload, env);
+        break;
+    }
+  } catch(e) {}
+}
+
+// ─────────────────────────────────────────────
+// EVENT HANDLERS
+// ─────────────────────────────────────────────
+
+// Canvas generated → add to Social Queue as pending approval
+async function onCanvasGenerated(payload, env) {
+  await addToSocialQueue({
+    id:        'sq-' + Date.now(),
+    status:    'pending',
+    type:      'canvas',
+    topic:     payload.topic || '',
+    template:  payload.template || '',
+    platform:  payload.platform || 'instagram',
+    url:       payload.url || '',
+    svgUrl:    payload.svgUrl || '',
+    qa:        payload.qa || null,
+    agent:     payload.agent || 'visual',
+    agentNick: 'Pixel',
+    copy:      payload.copy || '',
+    hashtags:  payload.hashtags || [],
+    created:   new Date().toISOString(),
+  }, env);
+}
+
+// Social item approved → create calendar event if scheduled time provided
+async function onSocialApproved(payload, env) {
+  if (payload.scheduledFor) {
+    await createCalendarEvent({
+      id:          'cal-' + Date.now(),
+      type:        'social-post',
+      title:       payload.topic || 'Social post',
+      platform:    payload.platform || '',
+      url:         payload.url || '',
+      scheduledFor: payload.scheduledFor,
+      status:      'scheduled',
+      queueItemId: payload.id || '',
+      created:     new Date().toISOString(),
+    }, env);
+  }
+}
+
+// Social item scheduled → update calendar event status
+async function onSocialScheduled(payload, env) {
+  if (!env.PRISM_KV || !payload.calendarEventId) return;
+  try {
+    const raw = await env.PRISM_KV.get(`calendar:event:${payload.calendarEventId}`, 'json').catch(()=>null);
+    if (raw) {
+      raw.status = 'scheduled';
+      raw.bufferId = payload.bufferId || '';
+      await env.PRISM_KV.put(`calendar:event:${payload.calendarEventId}`, JSON.stringify(raw));
+    }
+  } catch(e) {}
+}
+
+// Social item posted → update calendar event to posted
+async function onSocialPosted(payload, env) {
+  if (!env.PRISM_KV || !payload.calendarEventId) return;
+  try {
+    const raw = await env.PRISM_KV.get(`calendar:event:${payload.calendarEventId}`, 'json').catch(()=>null);
+    if (raw) {
+      raw.status = 'posted';
+      raw.postedAt = new Date().toISOString();
+      raw.postUrl = payload.postUrl || '';
+      await env.PRISM_KV.put(`calendar:event:${payload.calendarEventId}`, JSON.stringify(raw));
+    }
+  } catch(e) {}
+}
+
+// Job completed → check if downstream jobs need triggering
+async function onJobCompleted(payload, env) {
+  // e.g. canvas job done → trigger copy job for same topic
+  if (payload.agentId === 'visual' && payload.topic) {
+    const copyJobs = await getAgentJobs('copy', env);
+    const alreadyQueued = copyJobs.some(j => j.topic === payload.topic && j.status !== 'done');
+    if (!alreadyQueued) {
+      await createJob('copy', {
+        title:   `Post copy — ${payload.topic}`,
+        sub:     'Simon voice · British English · mandatory hashtags',
+        topic:   payload.topic,
+        type:    'Copy generation',
+        model:   'mistral-large-4',
+        canvasUrl: payload.url || '',
+        status:  'queued',
+        eta:     estimateEta(5),
+        etaLabel:'ETA',
+      }, env);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// SOCIAL QUEUE
+// ─────────────────────────────────────────────
+
+async function addToSocialQueue(item, env) {
+  if (!env.PRISM_KV) return;
+  try {
+    const raw = await env.PRISM_KV.get('mm:queue', 'json').catch(()=>null);
+    const q = raw || [];
+    q.unshift(item);
+    await env.PRISM_KV.put('mm:queue', JSON.stringify(q.slice(0, 500)));
+  } catch(e) {}
+}
+
+async function getSocialQueue(env) {
+  if (!env.PRISM_KV) return [];
+  const raw = await env.PRISM_KV.get('mm:queue', 'json').catch(()=>null);
+  return raw || [];
+}
+
+async function updateSocialQueueItem(id, updates, env) {
+  if (!env.PRISM_KV) return;
+  try {
+    const q = await getSocialQueue(env);
+    const idx = q.findIndex(item => item.id === id);
+    if (idx >= 0) {
+      q[idx] = { ...q[idx], ...updates, updated: new Date().toISOString() };
+      await env.PRISM_KV.put('mm:queue', JSON.stringify(q));
+      // Emit downstream events
+      if (updates.status === 'approved') await emitEvent('social.approved', q[idx], env);
+      if (updates.status === 'scheduled') await emitEvent('social.scheduled', q[idx], env);
+      if (updates.status === 'posted') await emitEvent('social.posted', q[idx], env);
+    }
+  } catch(e) {}
+}
+
+// ─────────────────────────────────────────────
+// CALENDAR
+// ─────────────────────────────────────────────
+
+async function createCalendarEvent(event, env) {
+  if (!env.PRISM_KV) return;
+  try {
+    await env.PRISM_KV.put(`calendar:event:${event.id}`, JSON.stringify(event));
+    const raw = await env.PRISM_KV.get('calendar:events', 'json').catch(()=>null);
+    const index = raw || [];
+    index.unshift(event.id);
+    await env.PRISM_KV.put('calendar:events', JSON.stringify(index.slice(0, 500)));
+  } catch(e) {}
+}
+
+async function getCalendarEvents(env, from, to) {
+  if (!env.PRISM_KV) return [];
+  try {
+    const raw = await env.PRISM_KV.get('calendar:events', 'json').catch(()=>null);
+    const ids = raw || [];
+    const events = await Promise.all(ids.map(async id => {
+      const e = await env.PRISM_KV.get(`calendar:event:${id}`, 'json').catch(()=>null);
+      return e;
+    }));
+    let filtered = events.filter(Boolean);
+    if (from) filtered = filtered.filter(e => e.scheduledFor >= from);
+    if (to)   filtered = filtered.filter(e => e.scheduledFor <= to);
+    return filtered.sort((a,b) => (a.scheduledFor||'').localeCompare(b.scheduledFor||''));
+  } catch(e) { return []; }
+}
+
+async function deleteCalendarEvent(id, env) {
+  if (!env.PRISM_KV) return;
+  try {
+    await env.PRISM_KV.delete(`calendar:event:${id}`);
+    const raw = await env.PRISM_KV.get('calendar:events', 'json').catch(()=>null);
+    const index = (raw||[]).filter(i => i !== id);
+    await env.PRISM_KV.put('calendar:events', JSON.stringify(index));
+  } catch(e) {}
+}
+
+// ─────────────────────────────────────────────
+// JOB QUEUE (per-agent)
+// ─────────────────────────────────────────────
+
+function estimateEta(minutesFromNow) {
+  const d = new Date(Date.now() + minutesFromNow * 60000);
+  return d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) + ' UTC';
+}
+
+async function getAgentJobs(agentId, env) {
+  if (!env.PRISM_KV) return [];
+  const raw = await env.PRISM_KV.get(`mm:jobs:${agentId}`, 'json').catch(()=>null);
+  return raw || [];
+}
+
+async function createJob(agentId, job, env) {
+  if (!env.PRISM_KV) return;
+  try {
+    const jobs = await getAgentJobs(agentId, env);
+    const newJob = {
+      id:       'job-' + Date.now() + '-' + Math.random().toString(36).slice(2,6),
+      priority: 1,
+      status:   'queued',
+      created:  new Date().toISOString(),
+      log:      [{cls:'', t: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}), msg:'Job created'}],
+      ...job,
+    };
+    // Renumber priorities
+    jobs.unshift(newJob);
+    jobs.forEach((j,i) => j.priority = i+1);
+    await env.PRISM_KV.put(`mm:jobs:${agentId}`, JSON.stringify(jobs.slice(0,100)));
+  } catch(e) {}
+}
+
+async function updateJob(agentId, jobId, updates, env) {
+  if (!env.PRISM_KV) return;
+  try {
+    const jobs = await getAgentJobs(agentId, env);
+    const idx = jobs.findIndex(j => j.id === jobId);
+    if (idx >= 0) {
+      jobs[idx] = { ...jobs[idx], ...updates };
+      if (updates.logEntry) {
+        jobs[idx].log = jobs[idx].log || [];
+        jobs[idx].log.push(updates.logEntry);
+        delete jobs[idx].logEntry;
+      }
+      await env.PRISM_KV.put(`mm:jobs:${agentId}`, JSON.stringify(jobs));
+      if (updates.status === 'done') {
+        await emitEvent('job.completed', {agentId, jobId, ...jobs[idx]}, env);
+      }
+    }
+  } catch(e) {}
+}
+
+async function reorderJob(agentId, jobId, direction, env) {
+  if (!env.PRISM_KV) return;
+  try {
+    const jobs = await getAgentJobs(agentId, env);
+    const idx = jobs.findIndex(j => j.id === jobId);
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= jobs.length) return;
+    [jobs[idx], jobs[newIdx]] = [jobs[newIdx], jobs[idx]];
+    jobs.forEach((j,i) => j.priority = i+1);
+    await env.PRISM_KV.put(`mm:jobs:${agentId}`, JSON.stringify(jobs));
+  } catch(e) {}
+}
+
+// ─────────────────────────────────────────────
+// PLATFORM MANAGER
+// ─────────────────────────────────────────────
+
+async function getPlatformChannels(env) {
+  if (!env.PRISM_KV) return {};
+  const raw = await env.PRISM_KV.get('platform:channels', 'json').catch(()=>null);
+  return raw || {};
+}
+
+async function storePlatformChannel(platform, channelId, env) {
+  if (!env.PRISM_KV) return;
+  const channels = await getPlatformChannels(env);
+  channels[platform] = { id: channelId, updated: new Date().toISOString() };
+  await env.PRISM_KV.put('platform:channels', JSON.stringify(channels));
+  // Also store individual secrets-style keys for Worker use
+  const keyMap = { instagram:'buffer_ig_channel', facebook:'buffer_fb_channel', x:'buffer_x_channel' };
+  if (keyMap[platform]) {
+    await env.PRISM_KV.put(`platform:channel:${platform}`, channelId);
+  }
+}
+
+async function fetchBufferChannels(env) {
+  const bufferKey = k(env, ['buffer_api_key','BUFFER_API_KEY']) || '';
+  if (!bufferKey) return { error: 'No Buffer API key' };
+  try {
+    const resp = await fetch('https://api.bufferapp.com/1/profiles.json', {
+      headers: { Authorization: `Bearer ${bufferKey}` }
+    });
+    if (!resp.ok) return { error: `Buffer API ${resp.status}` };
+    const profiles = await resp.json();
+    const channels = {};
+    for (const p of profiles) {
+      const platform = p.service || p.formatted_service || 'unknown';
+      channels[platform.toLowerCase()] = {
+        id:       p.id,
+        name:     p.formatted_username || p.username || '',
+        service:  platform,
+        avatar:   p.avatar_https || p.avatar || '',
+        updated:  new Date().toISOString(),
+      };
+      // Auto-store
+      await storePlatformChannel(platform.toLowerCase(), p.id, env);
+    }
+    return { channels, count: Object.keys(channels).length };
+  } catch(e) { return { error: e.message }; }
+}
+
+async function getPlatformStatus(env) {
+  const channels = await getPlatformChannels(env);
+  const bufferKey   = k(env, ['buffer_api_key','BUFFER_API_KEY']) || '';
+  const linkedinKey = k(env, ['linkedin_primary_client_secret','LINKEDIN_CLIENT_SECRET']) || '';
+
+  // Check LinkedIn token expiry from KV
+  let linkedinExpiry = null;
+  try {
+    const ltRaw = await env.PRISM_KV?.get('oauth:linkedin:tokens', 'json').catch(()=>null);
+    if (ltRaw?.expires_at) linkedinExpiry = ltRaw.expires_at;
+  } catch(e) {}
+
+  const daysUntilLinkedinExpiry = linkedinExpiry
+    ? Math.floor((new Date(linkedinExpiry) - Date.now()) / 86400000)
+    : null;
+
+  return {
+    buffer: {
+      connected: !!bufferKey,
+      channels: Object.keys(channels),
+      channelCount: Object.keys(channels).length,
+    },
+    linkedin: {
+      connected: !!linkedinKey,
+      tokenExpiry: linkedinExpiry,
+      daysRemaining: daysUntilLinkedinExpiry,
+      warning: daysUntilLinkedinExpiry !== null && daysUntilLinkedinExpiry < 30,
+    },
+    platforms: {
+      x:         { connected: !!channels.x,         channelId: channels.x?.id || null },
+      instagram: { connected: !!channels.instagram,  channelId: channels.instagram?.id || null },
+      facebook:  { connected: !!channels.facebook,   channelId: channels.facebook?.id || null },
+      linkedin:  { connected: !!linkedinKey,         channelId: null },
+      bluesky:   { connected: !!(k(env,['bluesky_handle','BLUESKY_HANDLE'])), channelId: null },
+    },
+    updated: new Date().toISOString(),
+  };
+}
+
+// ─────────────────────────────────────────────
+// AGENT CHAT ROUTER
+// ─────────────────────────────────────────────
+// Routes chat messages to the correct agent persona + triggers jobs
+
+const AGENT_PERSONAS = {
+  visual: {
+    name: 'Pixel', role: 'Visual Assets Manager',
+    system: `You are Pixel, the Visual Assets Manager for Argentica / Identity Partners. You generate social media canvas assets. When given a topic or occasion, you: derive semantic image search terms, select the appropriate template, generate the SVG asset, upload to R2, and queue for approval. You are precise, efficient, and never ask Simon for templates — you derive everything from the topic. British English. No sycophancy.`,
+  },
+  copy: {
+    name: 'Quill', role: 'Copy & Content Writer',
+    system: `You are Quill, the Copy & Content Writer for Argentica / Identity Partners. You write social media copy in Simon Johnson's voice: lucid, relational, intellectually confident professional prose with controlled rhetorical flair. Intellectually serious without performing intellectualism. Personable without becoming therapeutic. Always British English. Quote posts use Simon's own words or specifically cited quotes from researchers, clinicians, or people with lived experience — always attributed. News posts reference a specific story from a specific approved outlet with IP's commentary. No generic inspirational quotes. No sycophancy.`,
+  },
+  research: {
+    name: 'Scout', role: 'Research Analyst',
+    system: `You are Scout, the Research Analyst for Argentica / Identity Partners. You find and synthesise data from trusted sources: ONS, Mind, NHS Digital, NHS England, NICE, PHE, NatCen, The Lancet, NCBI/PubMed, WHO, academic journals, university research, government departments. Quality press: Guardian, Washington Post, NYT, FT, Economist, New Statesman, New Scientist. Telegraph and Times are searchable but not trusted as data sources for infographics. British English. Cite sources precisely.`,
+  },
+  social: {
+    name: 'Relay', role: 'Social Queue Manager',
+    system: `You are Relay, the Social Queue Manager for Argentica / Identity Partners. You manage the social media posting queue across X, Instagram, Facebook, LinkedIn, Bluesky. You schedule posts via Buffer, track approval status, and ensure posts go out at optimal times. British English. No sycophancy.`,
+  },
+  platform: {
+    name: 'Bridge', role: 'Platform Manager',
+    system: `You are Bridge, the Platform Manager for Argentica / Identity Partners. You manage platform connections, OAuth flows, channel IDs, and connection health. You guide through connecting new platforms and alert when tokens are expiring. British English. No sycophancy.`,
+  },
+  scheduler: {
+    name: 'Tempo', role: 'Scheduler & Calendar',
+    system: `You are Tempo, the Scheduler & Calendar agent for Argentica / Identity Partners. You manage the content calendar, awareness days, and scheduled posts. You know key dates: Mental Health Week, World Mental Health Day, Black History Month, Movember, addiction awareness days, and other relevant occasions. British English. No sycophancy.`,
+  },
+};
+
+async function agentChat(agentId, message, model, env) {
+  const persona = AGENT_PERSONAS[agentId] || AGENT_PERSONAS.visual;
+
+  // Check if message is a canvas generation request (Pixel)
+  if (agentId === 'visual') {
+    const isCanvasRequest = /awareness|infographic|myth|fact|news|service|quote|post|carousel|template/i.test(message);
+    if (isCanvasRequest) {
+      // Create a job in the visual queue
+      await createJob('visual', {
+        title:   message.substring(0, 80),
+        sub:     'Deriving template and imagery autonomously',
+        topic:   message,
+        type:    'Canvas generation',
+        model:   model || 'gemini-3.8-flash',
+        status:  'queued',
+        eta:     estimateEta(3),
+        etaLabel:'ETA',
+        progress: 0,
+        log: [{cls:'', t: new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}), msg:'Job created from chat'}],
+      }, env);
+    }
+  }
+
+  // Route to LLM
+  const messages = [
+    { role: 'system', content: persona.system },
+    { role: 'user',   content: message },
+  ];
+
+  try {
+    const result = await orchestrate(messages, env, { profile: 'balanced', preferredModel: model });
+    return { reply: result.content || 'Understood.', provider: result.provider, agent: agentId, nick: persona.name };
+  } catch(e) {
+    return { reply: `${persona.name} encountered an error: ${e.message}`, agent: agentId, nick: persona.name };
+  }
+}
+
+// ─────────────────────────────────────────────
+// WORKER ROUTE HANDLERS
+// Export as a function to splice into the main Worker fetch handler
+// Call handleIntegrationRoutes(path, request, env, origin) before the
+// final 404 return in the main fetch handler.
+// ─────────────────────────────────────────────
+
+async function handleIntegrationRoutes(path, request, env, origin) {
+
+  // ── Event bus ──────────────────────────────────────────────────────────────
+  if (path === '/api/events/emit' && request.method === 'POST') {
+    try {
+      const body = await request.json();
+      await emitEvent(body.type, body.payload || {}, env);
+      return json({ success: true }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  if (path === '/api/events/log' && request.method === 'GET') {
+    try {
+      const raw = await env.PRISM_KV?.get('events:log', 'json').catch(()=>null);
+      return json({ events: raw || [] }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  // ── Agent chat ─────────────────────────────────────────────────────────────
+  if (path === '/api/mm/chat' && request.method === 'POST') {
+    try {
+      const body    = await request.json();
+      const agentId = body.agent || 'visual';
+      const message = body.message || '';
+      const model   = body.model || '';
+      const result  = await agentChat(agentId, message, model, env);
+      return json(result, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  // ── Job queue ──────────────────────────────────────────────────────────────
+  if (path === '/api/mm/jobs' && request.method === 'GET') {
+    try {
+      const agentId = new URL(request.url).searchParams.get('agent') || 'visual';
+      const jobs    = await getAgentJobs(agentId, env);
+      return json({ jobs, agent: agentId, count: jobs.length }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  if (path === '/api/mm/jobs' && request.method === 'POST') {
+    try {
+      const body    = await request.json();
+      const agentId = body.agent || 'visual';
+      await createJob(agentId, body.job || body, env);
+      return json({ success: true }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  if (path === '/api/mm/jobs/reorder' && request.method === 'POST') {
+    try {
+      const body = await request.json();
+      await reorderJob(body.agent, body.jobId, body.direction, env);
+      return json({ success: true }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  // Job actions: retry / pause / cancel
+  const jobActionMatch = path.match(/^\/api\/mm\/jobs\/([^/]+)\/(retry|pause|cancel)$/);
+  if (jobActionMatch && request.method === 'POST') {
+    try {
+      const jobId  = jobActionMatch[1];
+      const action = jobActionMatch[2];
+      const agentId = new URL(request.url).searchParams.get('agent') || 'visual';
+      const statusMap = { retry:'queued', pause:'paused', cancel:'cancelled' };
+      if (action === 'cancel') {
+        // Remove from queue
+        const jobs = await getAgentJobs(agentId, env);
+        const filtered = jobs.filter(j => j.id !== jobId);
+        filtered.forEach((j,i) => j.priority = i+1);
+        await env.PRISM_KV?.put(`mm:jobs:${agentId}`, JSON.stringify(filtered));
+      } else {
+        await updateJob(agentId, jobId, { status: statusMap[action] }, env);
+      }
+      return json({ success: true }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  // ── Social Queue ───────────────────────────────────────────────────────────
+  if (path === '/api/mm/queue' && request.method === 'GET') {
+    try {
+      const q = await getSocialQueue(env);
+      const counts = { pending:0, approved:0, scheduled:0, posted:0, failed:0 };
+      q.forEach(item => { if (counts[item.status] !== undefined) counts[item.status]++; });
+      return json({ queue: q, counts, total: q.length }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  if (path === '/api/mm/queue' && request.method === 'POST') {
+    try {
+      const body = await request.json();
+      await addToSocialQueue({ id:'sq-'+Date.now(), created:new Date().toISOString(), ...body }, env);
+      // Emit event so downstream handlers fire
+      await emitEvent('canvas.generated', body, env);
+      return json({ success: true }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  // Update queue item status (approve / schedule / mark posted)
+  const queueItemMatch = path.match(/^\/api\/mm\/queue\/([^/]+)$/);
+  if (queueItemMatch && request.method === 'PATCH') {
+    try {
+      const id   = queueItemMatch[1];
+      const body = await request.json();
+      await updateSocialQueueItem(id, body, env);
+      return json({ success: true }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  // ── Calendar ───────────────────────────────────────────────────────────────
+  if (path === '/api/calendar/events' && request.method === 'GET') {
+    try {
+      const params = new URL(request.url).searchParams;
+      const events = await getCalendarEvents(env, params.get('from'), params.get('to'));
+      return json({ events, count: events.length }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  if (path === '/api/calendar/events' && request.method === 'POST') {
+    try {
+      const body  = await request.json();
+      const event = { id:'cal-'+Date.now(), created:new Date().toISOString(), ...body };
+      await createCalendarEvent(event, env);
+      return json({ success: true, event }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  const calEventMatch = path.match(/^\/api\/calendar\/events\/([^/]+)$/);
+  if (calEventMatch && request.method === 'DELETE') {
+    try {
+      await deleteCalendarEvent(calEventMatch[1], env);
+      return json({ success: true }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  if (calEventMatch && request.method === 'PATCH') {
+    try {
+      const id   = calEventMatch[1];
+      const body = await request.json();
+      const raw  = await env.PRISM_KV?.get(`calendar:event:${id}`, 'json').catch(()=>null);
+      if (!raw) return json({ error: 'Not found' }, 404, origin);
+      const updated = { ...raw, ...body, updated: new Date().toISOString() };
+      await env.PRISM_KV?.put(`calendar:event:${id}`, JSON.stringify(updated));
+      return json({ success: true, event: updated }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  // ── Platform Manager ───────────────────────────────────────────────────────
+  if (path === '/api/platform/channels' && request.method === 'GET') {
+    try {
+      const channels = await getPlatformChannels(env);
+      return json({ channels }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  if (path === '/api/platform/channels' && request.method === 'POST') {
+    try {
+      const body = await request.json();
+      await storePlatformChannel(body.platform, body.channelId, env);
+      return json({ success: true }, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  if (path === '/api/platform/status' && request.method === 'GET') {
+    try {
+      const status = await getPlatformStatus(env);
+      return json(status, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  if (path === '/api/buffer/fetch-channels' && request.method === 'GET') {
+    try {
+      const result = await fetchBufferChannels(env);
+      return json(result, 200, origin);
+    } catch(e) { return json({ error: e.message }, 500, origin); }
+  }
+
+  return null; // not handled — fall through to 404
+}
+
+
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -6730,6 +7379,10 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
     }
 
+
+    // ── Integration layer routes ──────────────────────────────────────────────
+    const integrationResponse = await handleIntegrationRoutes(path, request, env, origin);
+    if (integrationResponse) return integrationResponse;
 
     return json({ error: 'Not found', path }, 404, origin);
   },
