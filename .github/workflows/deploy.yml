@@ -1,5 +1,4 @@
-cname: Deploy Argentica to Cloudflare
-
+cname: .github/workflows/deploy.yml
 on:
   push:
     branches: [main]
