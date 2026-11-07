@@ -764,270 +764,527 @@ async function callModel(provider, model, key, messages, env) {
 }
 
 
+// ── Canvas system ─────────────────────────────────────────────────────────────
+// generateCanvasHtml(text, templateId, env)
+// semanticImageSearch(topic, env)
+// renderNewTemplate(templateId, data, env)
+// generateCarousel(slides, env)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LOGO_URL = 'https://prism.identitypartners.uk/shared/assets/logo-square.png';
+const R2_PUBLIC = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/';
+
+// ── Brand colours ─────────────────────────────────────────────────────────────
+const C = {
+  teal:      '#0f3b3a',
+  rose:      '#5c2d3f',
+  ivory:     '#f7f3e9',
+  grey:      '#ddd0c8',
+  teal2:     '#1a5550',
+  rose2:     '#7a4254',
+  tealLight: '#7ecfcd',
+  roseLight: '#d4899a',
+};
+
+// ── Shared SVG helpers ────────────────────────────────────────────────────────
+
+function escX(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+}
+
+function wrapWords(text, maxChars) {
+  const words = String(text||'').split(' ');
+  const lines = [];
+  let line = '';
+  for (const w of words) {
+    if ((line + ' ' + w).trim().length > maxChars && line) { lines.push(line.trim()); line = w; }
+    else { line = (line + ' ' + w).trim(); }
+  }
+  if (line) lines.push(line.trim());
+  return lines;
+}
+
+function tspanBlock(lines, x, startY, dy, extraAttrs='') {
+  return lines.map((l,i) =>
+    `<tspan x="${x}" dy="${i===0?0:dy}" ${extraAttrs}>${escX(l)}</tspan>`
+  ).join('');
+}
+
+// Real IP logo PNG — replaces the old ipGrid() coloured rectangles
+function ipLogo(x=32, y=0) {
+  return `<image href="${LOGO_URL}" x="${x}" y="${y}" width="72" height="72" preserveAspectRatio="xMidYMid meet"/>`;
+}
+
+// Footer strip — logo + URL + email + handles
+function ipFooter(W, H, bg=C.teal, fg=C.ivory) {
+  const y = H - 80;
+  return `
+  <rect x="0" y="${y}" width="${W}" height="80" fill="${bg}"/>
+  ${ipLogo(32, y+4)}
+  <text x="120" y="${y+28}" font-family="'Playfair Display',Georgia,serif" font-size="20" font-weight="600" fill="${fg}">Identity Partners</text>
+  <text x="120" y="${y+52}" font-family="Arial,sans-serif" font-size="14" fill="${fg}" opacity="0.85">identitypartners.uk · hello@identitypartners.uk</text>
+  <text x="${W-32}" y="${y+40}" font-family="Arial,sans-serif" font-size="13" fill="${fg}" opacity="0.7" text-anchor="end">@identitypartners · @IdentityPtnrs</text>`;
+}
+
+function svgOpen(W, H, bg=C.teal) {
+  return `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><defs><style>@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&amp;family=Inter:wght@400;500;600;700&amp;display=swap');</style><filter id="sh"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="rgba(0,0,0,0.85)"/></filter></defs><rect width="${W}" height="${H}" fill="${bg}"/>`;
+}
+
+// ── Semantic image search ─────────────────────────────────────────────────────
+// Calls Mistral Small to expand topic → 5 visual queries
+// Then tries Pexels → Unsplash → Pixabay → Openverse in sequence
+// Returns base64 data URI or null
+
+async function semanticImageSearch(topic, env) {
+  const mistralKey = k(env, ['mistral_api_key','MISTRAL_API_KEY']) || '';
+  const pexelsKey  = k(env, ['pexels_api_key','PEXELS_API_KEY','pexels']) || '';
+  const unsplashKey= k(env, ['unsplash_api_key','UNSPLASH_API_KEY','unsplash']) || '';
+  const pixabayKey = k(env, ['pixabay_api_key','PIXABAY_API_KEY','pixabay']) || '';
+
+  // Step 1: expand topic into 5 diverse visual search queries via Mistral Small
+  let queries = [topic];
+  if (mistralKey) {
+    try {
+      const mr = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','Authorization':`Bearer ${mistralKey}`},
+        body: JSON.stringify({
+          model: 'mistral-small-latest',
+          messages: [{role:'user', content:`You are a visual search assistant. Given the topic "${topic}", generate exactly 5 diverse, specific image search queries that would find contextually appropriate, non-clichéd photography for a professional social media post. Return only a JSON array of 5 strings, nothing else. Focus on abstract, conceptual, and environmental imagery — avoid generic stock photo clichés.`}],
+          max_tokens: 200,
+          temperature: 0.7,
+        }),
+      }).then(r=>r.json());
+      const raw = mr.choices?.[0]?.message?.content || '';
+      const match = raw.match(/\[[\s\S]*?\]/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        if (Array.isArray(parsed) && parsed.length > 0) queries = parsed.slice(0,5);
+      }
+    } catch(e) {}
+  }
+
+  // Step 2: try each query across sources until we get an image
+  async function fetchAndEncode(url) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return null;
+      const buf = await r.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let bin = '';
+      for (let i=0; i<bytes.byteLength; i+=8192) bin += String.fromCharCode(...bytes.subarray(i,i+8192));
+      const mime = r.headers.get('content-type') || 'image/jpeg';
+      return `data:${mime};base64,${btoa(bin)}`;
+    } catch(e) { return null; }
+  }
+
+  for (const q of queries) {
+    const enc = encodeURIComponent(q);
+
+    // Pexels
+    if (pexelsKey) {
+      try {
+        const pr = await fetch(`https://api.pexels.com/v1/search?query=${enc}&per_page=5&orientation=square`, {headers:{Authorization:pexelsKey}}).then(r=>r.json());
+        const photos = (pr.photos||[]).filter(p=>!['yoga','boardroom','office','corporate','meeting'].some(b=>(p.alt||'').toLowerCase().includes(b)));
+        if (photos.length) {
+          const url = photos[0].src?.large2x || photos[0].src?.large;
+          const b64 = url ? await fetchAndEncode(url) : null;
+          if (b64) return b64;
+        }
+      } catch(e) {}
+    }
+
+    // Unsplash
+    if (unsplashKey) {
+      try {
+        const ur = await fetch(`https://api.unsplash.com/search/photos?query=${enc}&per_page=5&orientation=squarish`, {headers:{Authorization:`Client-ID ${unsplashKey}`}}).then(r=>r.json());
+        const photos = ur.results || [];
+        if (photos.length) {
+          const url = photos[0].urls?.regular;
+          const b64 = url ? await fetchAndEncode(url) : null;
+          if (b64) return b64;
+        }
+      } catch(e) {}
+    }
+
+    // Pixabay
+    if (pixabayKey) {
+      try {
+        const pbr = await fetch(`https://pixabay.com/api/?key=${pixabayKey}&q=${enc}&image_type=photo&orientation=vertical&per_page=5`).then(r=>r.json());
+        const hits = pbr.hits || [];
+        if (hits.length) {
+          const url = hits[0].largeImageURL;
+          const b64 = url ? await fetchAndEncode(url) : null;
+          if (b64) return b64;
+        }
+      } catch(e) {}
+    }
+
+    // Openverse (CC-licensed, no key required)
+    try {
+      const ovr = await fetch(`https://api.openverse.org/v1/images/?q=${enc}&page_size=5&license_type=commercial`, {
+        headers:{'User-Agent':'Argentica/1.0 (hello@identitypartners.uk)'}
+      }).then(r=>r.json());
+      const results = ovr.results || [];
+      if (results.length) {
+        const url = results[0].url;
+        const b64 = url ? await fetchAndEncode(url) : null;
+        if (b64) return b64;
+      }
+    } catch(e) {}
+  }
+
+  return null; // all sources exhausted
+}
+
+// ── Upload SVG to R2 ──────────────────────────────────────────────────────────
+async function uploadToR2(svg, key, env) {
+  if (!env.PRISM_ASSETS) return null;
+  try {
+    await env.PRISM_ASSETS.put(key, svg, {httpMetadata:{contentType:'image/svg+xml'}});
+    return R2_PUBLIC + key;
+  } catch(e) { return null; }
+}
+
+// ── Queue asset for Social Queue approval ─────────────────────────────────────
+async function queueForApproval(item, env) {
+  if (!env.PRISM_KV) return;
+  try {
+    const raw = await env.PRISM_KV.get('mm:queue', 'json').catch(()=>null);
+    const q = raw || [];
+    q.unshift({
+      id: 'canvas-' + Date.now(),
+      status: 'pending',
+      type: 'canvas',
+      ...item,
+      created: new Date().toISOString(),
+    });
+    await env.PRISM_KV.put('mm:queue', JSON.stringify(q.slice(0,200)));
+  } catch(e) {}
+}
+
+// ── New template renderers ────────────────────────────────────────────────────
+
+function renderMythVsFact(data) {
+  const W=1080, H=1080;
+  const isIvory = data.variant === 'ivory';
+  const outerBg  = isIvory ? C.ivory  : C.teal;
+  const mythBg   = isIvory ? '#f0dde3': '#3a1a24';
+  const factBg   = isIvory ? '#d6eeee': '#0a2827';
+  const mythFg   = isIvory ? C.rose   : C.ivory;
+  const factFg   = isIvory ? C.teal   : C.ivory;
+  const footerBg = C.teal;
+  const panelTop = 140, panelBot = H-80, panelH = panelBot-panelTop, halfW = W/2;
+  const mythLines = wrapWords(data.myth||'', 26);
+  const factLines = wrapWords(data.fact||'', 26);
+  const textY = panelTop + 110;
+  const src = data.source ? `<text x="${W/2}" y="${panelBot-16}" text-anchor="middle" font-family="Arial,sans-serif" font-size="16" fill="${C.grey}" opacity="0.65">Source: ${escX(data.source)}</text>` : '';
+  return svgOpen(W,H,outerBg) +
+    `<rect x="0" y="0" width="${W}" height="${panelTop}" fill="${C.rose}"/>` +
+    `<text x="${W/2}" y="92" text-anchor="middle" font-family="'Playfair Display',Georgia,serif" font-size="52" font-weight="900" fill="${C.ivory}" letter-spacing="4">MYTH vs FACT</text>` +
+    `<rect x="0" y="${panelTop}" width="${halfW}" height="${panelH}" fill="${mythBg}"/>` +
+    `<rect x="${halfW}" y="${panelTop}" width="${halfW}" height="${panelH}" fill="${factBg}"/>` +
+    `<rect x="${halfW-2}" y="${panelTop}" width="4" height="${panelH}" fill="${C.grey}" opacity="0.25"/>` +
+    `<text x="${halfW/2}" y="${panelTop+62}" text-anchor="middle" font-family="Arial,sans-serif" font-size="26" font-weight="700" fill="${C.roseLight}" letter-spacing="6">MYTH</text>` +
+    `<rect x="${halfW/2-36}" y="${panelTop+72}" width="72" height="3" fill="${C.roseLight}" rx="2"/>` +
+    `<text x="${halfW/2}" y="${textY}" text-anchor="middle" font-family="'Playfair Display',Georgia,serif" font-size="30" fill="${mythFg}">` +
+      tspanBlock(mythLines, halfW/2, textY, 42, 'text-anchor="middle"') +
+    `</text>` +
+    `<text x="${halfW+halfW/2}" y="${panelTop+62}" text-anchor="middle" font-family="Arial,sans-serif" font-size="26" font-weight="700" fill="${C.tealLight}" letter-spacing="6">FACT</text>` +
+    `<rect x="${halfW+halfW/2-36}" y="${panelTop+72}" width="72" height="3" fill="${C.tealLight}" rx="2"/>` +
+    `<text x="${halfW+halfW/2}" y="${textY}" text-anchor="middle" font-family="'Playfair Display',Georgia,serif" font-size="30" fill="${factFg}">` +
+      tspanBlock(factLines, halfW+halfW/2, textY, 42, 'text-anchor="middle"') +
+    `</text>` +
+    src +
+    ipFooter(W,H,footerBg,C.ivory) +
+    `</svg>`;
+}
+
+function renderDataInfographic(data) {
+  const W=1080, H=1080;
+  const points = (data.points||[]).slice(0,5);
+  const n = Math.max(points.length,1);
+  const titleLines = wrapWords(data.title||'', 34);
+  const chartTop = data.subtitle ? 220 : 190;
+  const chartBot = H-100;
+  const rowH = Math.floor((chartBot-chartTop)/n);
+  const barLeft=320, barRight=W-140, barMaxW=barRight-barLeft, barH=Math.min(46,rowH-24);
+  const globalMax = Math.max(...points.map(p=>p.max||p.value||1));
+  const bars = points.map((pt,i)=>{
+    const pct = Math.min(1,(pt.value||0)/(pt.max||globalMax||1));
+    const bw = Math.round(pct*barMaxW);
+    const cy = chartTop + i*rowH + rowH/2;
+    const fill = i%2===0 ? C.tealLight : C.roseLight;
+    const labelLines = wrapWords(pt.label||'', 16);
+    return `<text x="${barLeft-16}" y="${cy+6}" text-anchor="end" font-family="Arial,sans-serif" font-size="20" font-weight="500" fill="${C.ivory}">` +
+      tspanBlock(labelLines, barLeft-16, cy+6, 24, 'text-anchor="end"') +
+    `</text>` +
+    `<rect x="${barLeft}" y="${cy-barH/2}" width="${barMaxW}" height="${barH}" fill="${C.ivory}" opacity="0.08" rx="5"/>` +
+    `<rect x="${barLeft}" y="${cy-barH/2}" width="${bw}" height="${barH}" fill="${fill}" rx="5"/>` +
+    `<text x="${barLeft+bw+12}" y="${cy+8}" font-family="Arial,sans-serif" font-size="24" font-weight="700" fill="${fill}">${escX(pt.value)}${escX(pt.unit||'')}</text>`;
+  }).join('');
+  return svgOpen(W,H,C.teal) +
+    `<text x="${W/2}" y="100" text-anchor="middle" font-family="'Playfair Display',Georgia,serif" font-size="46" font-weight="900" fill="${C.ivory}">` +
+      tspanBlock(titleLines, W/2, 100, 54, 'text-anchor="middle"') +
+    `</text>` +
+    (data.subtitle ? `<text x="${W/2}" y="160" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" font-weight="500" fill="${C.tealLight}">${escX(data.subtitle)}</text>` : '') +
+    `<rect x="60" y="${chartTop-18}" width="${W-120}" height="2" fill="${C.tealLight}" opacity="0.25" rx="1"/>` +
+    bars +
+    `<text x="${W/2}" y="${chartBot+20}" text-anchor="middle" font-family="Arial,sans-serif" font-size="16" fill="${C.grey}" opacity="0.6">Source: ${escX(data.source||'')}</text>` +
+    ipFooter(W,H,C.teal,C.ivory) +
+    `</svg>`;
+}
+
+function renderAwarenessDay(data, imgBase64) {
+  const W=1080, H=1080;
+  const isRose = data.variant==='rose';
+  const bg     = isRose ? C.rose : C.teal;
+  const accent = isRose ? C.roseLight : C.tealLight;
+  const overlay= isRose ? 'rgba(92,45,63,0.72)' : 'rgba(15,59,58,0.72)';
+  const campaignLines = wrapWords(data.campaignName||'', 20);
+  const messageLines  = wrapWords(data.message||'', 36);
+  const campaignY = 340;
+  const messageY  = 720;
+  return svgOpen(W,H,bg) +
+    (imgBase64 ? `<image href="${imgBase64}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/><rect width="${W}" height="${H}" fill="${overlay}"/>` : '') +
+    `<rect x="60" y="60" width="${W-120}" height="5" fill="${accent}" rx="3"/>` +
+    `<text x="${W/2}" y="${campaignY}" text-anchor="middle" font-family="'Playfair Display',Georgia,serif" font-size="78" font-weight="900" fill="${C.ivory}" letter-spacing="-1">` +
+      tspanBlock(campaignLines, W/2, campaignY, 88, 'text-anchor="middle"') +
+    `</text>` +
+    `<text x="${W/2}" y="${campaignY+campaignLines.length*88+14}" text-anchor="middle" font-family="Arial,sans-serif" font-size="30" font-weight="600" fill="${accent}" letter-spacing="3">${escX((data.date||'').toUpperCase())}</text>` +
+    `<rect x="${W/2-56}" y="${messageY-28}" width="112" height="3" fill="${accent}" rx="2"/>` +
+    `<text x="${W/2}" y="${messageY}" text-anchor="middle" font-family="'Playfair Display',Georgia,serif" font-size="30" fill="${C.ivory}" opacity="0.92">` +
+      tspanBlock(messageLines, W/2, messageY, 42, 'text-anchor="middle"') +
+    `</text>` +
+    ipFooter(W,H,bg,C.ivory) +
+    `</svg>`;
+}
+
+function renderNewsReaction(data) {
+  const W=1080, H=1080;
+  const bg='#0a0f0f';
+  const headlineLines   = wrapWords(data.headline||'', 42);
+  const commentaryLines = wrapWords(data.commentary||'', 30);
+  const outletY   = 90;
+  const headlineY = 170;
+  const ruleY     = headlineY + headlineLines.length*36 + 30;
+  const commentY  = ruleY + 60;
+  return svgOpen(W,H,bg) +
+    `<text x="60" y="${outletY}" font-family="Arial,sans-serif" font-size="20" font-weight="700" fill="${C.tealLight}" letter-spacing="2">${escX((data.outlet||'').toUpperCase())}</text>` +
+    `<text x="${W-60}" y="${outletY}" text-anchor="end" font-family="Arial,sans-serif" font-size="18" fill="${C.grey}" opacity="0.6">${escX(data.date||'')}</text>` +
+    `<text x="60" y="${headlineY}" font-family="'Playfair Display',Georgia,serif" font-size="28" font-style="italic" fill="${C.grey}">` +
+      tspanBlock(headlineLines, 60, headlineY, 36) +
+    `</text>` +
+    `<rect x="60" y="${ruleY}" width="${W-120}" height="2" fill="${C.tealLight}" opacity="0.35" rx="1"/>` +
+    `<rect x="0" y="${ruleY}" width="6" height="${H-ruleY-80}" fill="${C.tealLight}" opacity="0.55"/>` +
+    `<text x="60" y="${ruleY+34}" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="${C.tealLight}" letter-spacing="3">IDENTITY PARTNERS</text>` +
+    `<text x="60" y="${commentY}" font-family="'Playfair Display',Georgia,serif" font-size="40" font-weight="700" fill="${C.ivory}">` +
+      tspanBlock(commentaryLines, 60, commentY, 52) +
+    `</text>` +
+    ipFooter(W,H,C.teal,C.ivory) +
+    `</svg>`;
+}
+
+function renderServiceExplainer(data) {
+  const W=1080, H=1080;
+  const nameLines = wrapWords(data.serviceName||'', 26);
+  const descLines = wrapWords(data.description||'', 40);
+  const whoLines  = data.whoFor ? wrapWords(data.whoFor, 46) : [];
+  const headerH   = 60 + nameLines.length*70;
+  const descY     = headerH + 80;
+  const whoY      = descY + descLines.length*44 + 50;
+  const contact   = data.contact || 'identitypartners.uk · hello@identitypartners.uk';
+  return svgOpen(W,H,C.ivory) +
+    `<rect x="0" y="0" width="${W}" height="${headerH}" fill="${C.teal}"/>` +
+    `<text x="${W/2}" y="80" text-anchor="middle" font-family="'Playfair Display',Georgia,serif" font-size="58" font-weight="900" fill="${C.ivory}">` +
+      tspanBlock(nameLines, W/2, 80, 70, 'text-anchor="middle"') +
+    `</text>` +
+    `<rect x="60" y="${headerH}" width="${W-120}" height="5" fill="${C.tealLight}" rx="3"/>` +
+    `<text x="60" y="${descY}" font-family="'Playfair Display',Georgia,serif" font-size="30" fill="${C.teal}">` +
+      tspanBlock(descLines, 60, descY, 44) +
+    `</text>` +
+    (whoLines.length ? `<rect x="60" y="${whoY-34}" width="6" height="${whoLines.length*36+12}" fill="${C.roseLight}" rx="3"/>` +
+      `<text x="84" y="${whoY}" font-family="Arial,sans-serif" font-size="24" font-weight="500" fill="${C.rose}">` +
+        tspanBlock(whoLines, 84, whoY, 36) +
+      `</text>` : '') +
+    `<text x="${W/2}" y="${Math.min(whoY+whoLines.length*36+40, H-120)}" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" font-weight="600" fill="${C.teal}" opacity="0.7">${escX(contact)}</text>` +
+    ipFooter(W,H,C.teal,C.ivory) +
+    `</svg>`;
+}
+
+function renderSemanticImage(data, imgBase64) {
+  const W=1080, H=1080;
+  const v = data.variant||'teal';
+  const overlays = {teal:'rgba(15,59,58,0.78)', rose:'rgba(92,45,63,0.78)', dark:'rgba(10,15,15,0.82)'};
+  const accents  = {teal:C.tealLight, rose:C.roseLight, dark:C.tealLight};
+  const footerBgs= {teal:C.teal, rose:C.rose, dark:'#0a0f0f'};
+  const overlay  = overlays[v];
+  const accent   = accents[v];
+  const footerBg = footerBgs[v];
+  const textLines    = wrapWords(data.text||'', 24);
+  const subtextLines = data.subtext ? wrapWords(data.subtext, 38) : [];
+  const textY    = 620;
+  const subtextY = textY + textLines.length*72 + 20;
+  return svgOpen(W,H,footerBg) +
+    (imgBase64 ? `<image href="${imgBase64}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/>` : '') +
+    `<defs><linearGradient id="ovg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${footerBg}" stop-opacity="0.12"/><stop offset="45%" stop-color="${footerBg}" stop-opacity="0.52"/><stop offset="100%" stop-color="${footerBg}" stop-opacity="0.94"/></linearGradient></defs>` +
+    `<rect width="${W}" height="${H}" fill="url(#ovg)"/>` +
+    `<rect x="60" y="50" width="${W-120}" height="4" fill="${accent}" rx="2" opacity="0.7"/>` +
+    `<text x="${W/2}" y="${textY}" text-anchor="middle" font-family="'Playfair Display',Georgia,serif" font-size="62" font-weight="900" fill="${C.ivory}" letter-spacing="-1">` +
+      tspanBlock(textLines, W/2, textY, 74, 'text-anchor="middle"') +
+    `</text>` +
+    (subtextLines.length ? `<text x="${W/2}" y="${subtextY}" text-anchor="middle" font-family="Arial,sans-serif" font-size="26" font-weight="500" fill="${accent}">` +
+      tspanBlock(subtextLines, W/2, subtextY, 34, 'text-anchor="middle"') +
+    `</text>` : '') +
+    ipFooter(W,H,footerBg,C.ivory) +
+    `</svg>`;
+}
+
+// ── Carousel generator ────────────────────────────────────────────────────────
+// slides: [{text, subtext, variant, imageBase64}]
+// Returns array of SVG strings
+
+function generateCarousel(slides) {
+  return slides.map((slide, i) => {
+    const W=1080, H=1080;
+    const v = slide.variant || (i%2===0 ? 'teal' : 'rose');
+    const bg      = v==='rose' ? C.rose : v==='ivory' ? C.ivory : C.teal;
+    const fg      = v==='ivory' ? C.teal : C.ivory;
+    const accent  = v==='rose' ? C.roseLight : C.tealLight;
+    const overlay = v==='rose' ? 'rgba(92,45,63,0.72)' : 'rgba(15,59,58,0.72)';
+    const textLines = wrapWords(slide.text||'', 26);
+    const subLines  = slide.subtext ? wrapWords(slide.subtext, 40) : [];
+    const textY = 480;
+    const subY  = textY + textLines.length*68 + 24;
+    // Slide counter
+    const counter = `<text x="${W-48}" y="52" text-anchor="end" font-family="Arial,sans-serif" font-size="18" fill="${accent}" opacity="0.8">${i+1} / ${slides.length}</text>`;
+    return svgOpen(W,H,bg) +
+      (slide.imageBase64 ? `<image href="${slide.imageBase64}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/><rect width="${W}" height="${H}" fill="${overlay}"/>` : '') +
+      `<rect x="60" y="60" width="${W-120}" height="4" fill="${accent}" rx="2" opacity="0.65"/>` +
+      counter +
+      `<text x="${W/2}" y="${textY}" text-anchor="middle" font-family="'Playfair Display',Georgia,serif" font-size="58" font-weight="900" fill="${fg}">` +
+        tspanBlock(textLines, W/2, textY, 70, 'text-anchor="middle"') +
+      `</text>` +
+      (subLines.length ? `<text x="${W/2}" y="${subY}" text-anchor="middle" font-family="Arial,sans-serif" font-size="26" fill="${accent}">` +
+        tspanBlock(subLines, W/2, subY, 34, 'text-anchor="middle"') +
+      `</text>` : '') +
+      ipFooter(W,H,v==='ivory'?C.teal:bg, C.ivory) +
+      `</svg>`;
+  });
+}
+
+// ── Legacy generateCanvasHtml (existing templates — preserved) ────────────────
 async function generateCanvasHtml(text, templateId, env) {
-  // Full canvas template system per Simon's brief
-  // Templates: block-colour, image-bg, dual-panel, post-type, testimonial
+  const PEXELS_KEY = k(env, ['pexels_api_key', 'PEXELS_API_KEY', 'pexels']) || '';
 
-  const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
-  const PEXELS_KEY = k(env, ['pexels', 'PEXELS_API_KEY']) || '';
-
-  // Brand colours
-  const TEAL = '#0f3b3a';
-  const ROSE = '#5c2d3f';
-  const IVORY = '#f7f3e9';
-  const GREY = '#ddd0c8';
-  const TEAL2 = '#1a5550';
-  const ROSE2 = '#7a4254';
-  const TEAL_LIGHT = '#7ecfcd';
-  const ROSE_LIGHT = '#d4899a';
-
-  // Template definitions
   const TEMPLATES = {
-    // ── 1. Block colour backgrounds ──────────────────────────────────────────
-    'block-teal':   { type: 'block', bg: TEAL,  fg: IVORY, accent: GREY,       border: ROSE },
-    'block-rose':   { type: 'block', bg: ROSE,  fg: IVORY, accent: GREY,       border: TEAL },
-    'block-ivory':  { type: 'block', bg: IVORY, fg: TEAL,  accent: ROSE,       border: TEAL },
-    'block-grey':   { type: 'block', bg: GREY,  fg: TEAL,  accent: ROSE,       border: TEAL },
-    'block-teal2':  { type: 'block', bg: TEAL2, fg: IVORY, accent: GREY,       border: ROSE2 },
-    'block-rose2':  { type: 'block', bg: ROSE2, fg: IVORY, accent: GREY,       border: TEAL2 },
-    'block-split':  { type: 'block-split', bg1: TEAL, bg2: ROSE, fg: IVORY },
-
-    // ── 2. Image backgrounds ─────────────────────────────────────────────────
-    'img-sunrise':    { type: 'image', query: 'sunrise golden hour sky dramatic', overlay: 'rgba(15,59,58,0.55)' },
-    'img-sunset':     { type: 'image', query: 'sunset orange sky clouds beautiful', overlay: 'rgba(92,45,63,0.55)' },
-    'img-landscape':  { type: 'image', query: 'landscape mountains valley nature serene', overlay: 'rgba(15,59,58,0.5)' },
-    'img-seascape':   { type: 'image', query: 'ocean waves seascape coastal dramatic', overlay: 'rgba(15,59,58,0.5)' },
-    'img-cityscape':  { type: 'image', query: 'city skyline night lights urban', overlay: 'rgba(15,59,58,0.65)' },
-    'img-aurora':     { type: 'image', query: 'aurora borealis northern lights night sky', overlay: 'rgba(15,59,58,0.45)' },
-    'img-reef':       { type: 'image', query: 'great barrier reef coral underwater colourful', overlay: 'rgba(15,59,58,0.5)' },
-    'img-glacier':    { type: 'image', query: 'glacier ice blue arctic landscape', overlay: 'rgba(15,59,58,0.5)' },
-    'img-fjord':      { type: 'image', query: 'norwegian fjord dramatic landscape water', overlay: 'rgba(15,59,58,0.5)' },
-    'img-space':      { type: 'image', query: 'earth from space stars cosmos', overlay: 'rgba(0,0,0,0.4)' },
-    'img-stars':      { type: 'image', query: 'night sky stars milky way constellation', overlay: 'rgba(0,0,0,0.45)' },
-    'img-fire':       { type: 'image', query: 'cosy fireplace warm fire hygge', overlay: 'rgba(15,59,58,0.5)' },
-    'img-rain':       { type: 'image', query: 'rain window drops cosy indoor', overlay: 'rgba(15,59,58,0.55)' },
-    'img-fractal':    { type: 'image', query: 'abstract fractal pattern geometric colourful', overlay: 'rgba(15,59,58,0.55)' },
-
-    // ── 3. Dual panel ────────────────────────────────────────────────────────
-    'dual-partnership': { type: 'dual', query: 'two people partnership collaboration handshake', side: 'right' },
-    'dual-primates':    { type: 'dual', query: 'primates monkeys together family bond', side: 'right' },
-    'dual-catdog':      { type: 'dual', query: 'cat and dog together friends cute', side: 'right' },
-    'dual-children':    { type: 'dual', query: 'children playing happy joyful childhood', side: 'right' },
-    'dual-cosplay':     { type: 'dual', query: 'children dressed as professionals cute', side: 'right' },
-
-    // ── 4. Post-type imagery ─────────────────────────────────────────────────
-    'post-calendar':    { type: 'post-type', icon: 'calendar', bg: TEAL, fg: IVORY },
-    'post-research':    { type: 'post-type', icon: 'microscope', bg: TEAL2, fg: IVORY },
-    'post-library':     { type: 'post-type', icon: 'library', bg: ROSE, fg: IVORY },
-    'post-news':        { type: 'post-type', icon: 'newspaper', bg: '#1a1a2e', fg: IVORY },
-    'post-hero':        { type: 'image', query: 'hero journey path forward light', overlay: 'rgba(15,59,58,0.6)' },
-
-    // ── 5. Testimonial / feedback ────────────────────────────────────────────
-    'testimonial-teal': { type: 'testimonial', bg: TEAL, fg: IVORY, accent: TEAL_LIGHT },
-    'testimonial-rose': { type: 'testimonial', bg: ROSE, fg: IVORY, accent: ROSE_LIGHT },
-    'testimonial-ivory':{ type: 'testimonial', bg: IVORY, fg: TEAL, accent: ROSE },
+    'block-teal':   { type:'block',  bg:C.teal,  fg:C.ivory, accent:C.grey,  border:C.rose },
+    'block-rose':   { type:'block',  bg:C.rose,  fg:C.ivory, accent:C.grey,  border:C.teal },
+    'block-ivory':  { type:'block',  bg:C.ivory, fg:C.teal,  accent:C.rose,  border:C.teal },
+    'block-grey':   { type:'block',  bg:C.grey,  fg:C.teal,  accent:C.rose,  border:C.teal },
+    'block-teal2':  { type:'block',  bg:C.teal2, fg:C.ivory, accent:C.grey,  border:C.rose2 },
+    'block-rose2':  { type:'block',  bg:C.rose2, fg:C.ivory, accent:C.grey,  border:C.teal2 },
+    'block-split':  { type:'block-split', bg1:C.teal, bg2:C.rose, fg:C.ivory },
+    'img-sunrise':  { type:'image', query:'sunrise golden hour sky dramatic', overlay:'rgba(15,59,58,0.55)' },
+    'img-sunset':   { type:'image', query:'sunset orange sky clouds beautiful', overlay:'rgba(92,45,63,0.55)' },
+    'img-landscape':{ type:'image', query:'landscape mountains valley nature serene', overlay:'rgba(15,59,58,0.5)' },
+    'img-seascape': { type:'image', query:'ocean waves seascape coastal dramatic', overlay:'rgba(15,59,58,0.5)' },
+    'img-cityscape':{ type:'image', query:'city skyline night lights urban', overlay:'rgba(15,59,58,0.65)' },
+    'img-aurora':   { type:'image', query:'aurora borealis northern lights night sky', overlay:'rgba(15,59,58,0.45)' },
+    'img-space':    { type:'image', query:'earth from space stars cosmos', overlay:'rgba(0,0,0,0.4)' },
+    'img-stars':    { type:'image', query:'night sky stars milky way constellation', overlay:'rgba(0,0,0,0.45)' },
+    'dual-partnership':{ type:'dual', query:'two people partnership collaboration', side:'right' },
+    'dual-children':   { type:'dual', query:'children playing happy joyful childhood', side:'right' },
+    'post-calendar':   { type:'post-type', icon:'calendar', bg:C.teal, fg:C.ivory },
+    'post-research':   { type:'post-type', icon:'microscope', bg:C.teal2, fg:C.ivory },
+    'post-news':       { type:'post-type', icon:'newspaper', bg:'#1a1a2e', fg:C.ivory },
+    'testimonial-teal':{ type:'testimonial', bg:C.teal, fg:C.ivory, accent:C.tealLight },
+    'testimonial-rose':{ type:'testimonial', bg:C.rose, fg:C.ivory, accent:C.roseLight },
+    'testimonial-ivory':{ type:'testimonial', bg:C.ivory, fg:C.teal, accent:C.rose },
+    // New template types — routed to dedicated renderers
+    'myth-vs-fact-teal':  { type:'new', renderer:'myth-vs-fact', variant:'teal' },
+    'myth-vs-fact-ivory': { type:'new', renderer:'myth-vs-fact', variant:'ivory' },
+    'data-infographic':   { type:'new', renderer:'data-infographic' },
+    'awareness-day':      { type:'new', renderer:'awareness-day', variant:'teal' },
+    'awareness-day-rose': { type:'new', renderer:'awareness-day', variant:'rose' },
+    'news-reaction':      { type:'new', renderer:'news-reaction' },
+    'service-explainer':  { type:'new', renderer:'service-explainer' },
+    'semantic-teal':      { type:'new', renderer:'semantic-image', variant:'teal' },
+    'semantic-rose':      { type:'new', renderer:'semantic-image', variant:'rose' },
+    'semantic-dark':      { type:'new', renderer:'semantic-image', variant:'dark' },
   };
 
   const tmpl = TEMPLATES[templateId] || TEMPLATES['block-teal'];
-  const safeText = (text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const safeText = escX(text||'');
+  const W=1080, H=1080;
 
-  // Word wrap helper
-  function wrapText(t, maxChars) {
-    const words = t.split(' ');
-    const lines = [];
-    let line = '';
-    words.forEach(w => {
-      if ((line + ' ' + w).trim().length > maxChars && line) { lines.push(line.trim()); line = w; }
-      else { line = (line + ' ' + w).trim(); }
-    });
-    if (line) lines.push(line.trim());
-    return lines;
+  // Route new template types to dedicated renderers
+  if (tmpl.type === 'new') {
+    const data = { text, variant: tmpl.variant };
+    const imgBase64 = ['awareness-day','semantic-teal','semantic-rose','semantic-dark'].includes(templateId)
+      ? await semanticImageSearch(text, env) : null;
+    switch(tmpl.renderer) {
+      case 'myth-vs-fact':     return renderMythVsFact({...data, myth:text, fact:''});
+      case 'data-infographic': return renderDataInfographic({title:text, points:[], source:''});
+      case 'awareness-day':    return renderAwarenessDay({...data, campaignName:text, date:'', message:''}, imgBase64);
+      case 'news-reaction':    return renderNewsReaction({...data, outlet:'', headline:text, commentary:'', date:''});
+      case 'service-explainer':return renderServiceExplainer({...data, serviceName:text, description:'', whoFor:''});
+      case 'semantic-image':   return renderSemanticImage({...data}, imgBase64);
+    }
   }
 
-  // IP branding elements (always present)
-  function ipGrid(x, y) {
-    return '<rect x="' + x + '" y="' + y + '" width="46" height="46" rx="6" fill="' + TEAL + '" opacity="0.9"/>' +
-           '<rect x="' + (x+52) + '" y="' + y + '" width="46" height="46" rx="6" fill="' + ROSE + '" opacity="0.9"/>' +
-           '<rect x="' + x + '" y="' + (y+52) + '" width="46" height="46" rx="6" fill="' + TEAL2 + '" opacity="0.7"/>' +
-           '<rect x="' + (x+52) + '" y="' + (y+52) + '" width="46" height="46" rx="6" fill="' + ROSE2 + '" opacity="0.7"/>' +
-           '<text x="' + (x+48) + '" y="' + (y+68) + '" font-family="Playfair Display,Georgia,serif" font-size="11" font-weight="600" fill="' + TEAL_LIGHT + '" text-anchor="middle" opacity="0.9">IP</text>';
-  }
+  // Legacy template rendering (block, image, dual, post-type, testimonial)
+  function wrapText(t, maxChars) { return wrapWords(t, maxChars); }
 
-  function ipWordmark(cx, y, fg) {
-    return '<text x="' + (cx-100) + '" y="' + y + '" font-family="Playfair Display,Georgia,serif" font-size="30" font-weight="600" fill="' + TEAL_LIGHT + '" text-anchor="middle">Identity</text>' +
-           '<text x="' + (cx+100) + '" y="' + y + '" font-family="Playfair Display,Georgia,serif" font-size="30" font-weight="600" fill="' + ROSE_LIGHT + '" text-anchor="middle">Partners</text>';
-  }
-
-  function ipTagline(cx, y) {
-    return '<text x="' + cx + '" y="' + y + '" font-family="Playfair Display,Georgia,serif" font-size="16"  fill="' + GREY + '" text-anchor="middle" opacity="0.85">Understand your past &middot; Appreciate the present &middot; Define your future</text>';
-  }
-
-  function ipFooter(cx, y) {
-    return '<text x="' + cx + '" y="' + y + '" font-family="Arial,sans-serif" font-size="15" fill="' + GREY + '" text-anchor="middle" opacity="0.8">www.identitypartners.uk &middot; hello@identitypartners.uk &middot; @identitypartners</text>';
-  }
-
-  function quoteText(lines, startY, lineH, fg, shadow) {
-    const filter = shadow ? ' filter="url(#shadow)"' : '';
-    return lines.map((l, i) =>
-      '<text x="540" y="' + (startY + i * lineH) + '" font-family="Playfair Display,Georgia,serif" font-size="48"  fill="' + fg + '" text-anchor="middle"' + filter + '>' + l + '</text>'
-    ).join('');
-  }
-
-  // Fetch image from Pexels
   async function fetchPexelsImage(query) {
     if (!PEXELS_KEY) return null;
     try {
-      const resp = await fetch(
-        'https://api.pexels.com/v1/search?query=' + encodeURIComponent(query) + '&per_page=15&orientation=landscape',
-        { headers: { 'Authorization': PEXELS_KEY } }
-      );
+      const resp = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=15&orientation=landscape`, {headers:{Authorization:PEXELS_KEY}});
       if (!resp.ok) return null;
       const data = await resp.json();
-      const photos = (data.photos || []).filter(p => !['yoga','wellness','boardroom','office','corporate','meeting'].some(bad => (p.alt||'').toLowerCase().includes(bad)));
+      const photos = (data.photos||[]).filter(p=>!['yoga','wellness','boardroom','office','corporate','meeting'].some(b=>(p.alt||'').toLowerCase().includes(b)));
       if (!photos.length) return null;
-      const photo = photos[Math.floor(Math.random() * Math.min(photos.length, 5))];
+      const photo = photos[Math.floor(Math.random()*Math.min(photos.length,5))];
       const imgUrl = photo.src?.landscape || photo.src?.large2x || photo.src?.large;
       if (!imgUrl) return null;
-      // Fetch and base64 encode
       const imgResp = await fetch(imgUrl);
       if (!imgResp.ok) return null;
       const buf = await imgResp.arrayBuffer();
       const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-      const mime = imgResp.headers.get('content-type') || 'image/jpeg';
-      return 'data:' + mime + ';base64,' + b64;
+      const mime = imgResp.headers.get('content-type')||'image/jpeg';
+      return `data:${mime};base64,${b64}`;
     } catch(e) { return null; }
   }
 
-  // ── Build SVG based on template type ─────────────────────────────────────
+  const svgO = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><defs><filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="rgba(0,0,0,0.9)"/></filter></defs>`;
+
+  function ipLogoLegacy(x,y) { return `<image href="${LOGO_URL}" x="${x}" y="${y}" width="72" height="72" preserveAspectRatio="xMidYMid meet"/>`; }
+  function ipWordmark(cx,y) { return `<text x="${cx-100}" y="${y}" font-family="'Playfair Display',Georgia,serif" font-size="30" font-weight="600" fill="${C.tealLight}" text-anchor="middle">Identity</text><text x="${cx+100}" y="${y}" font-family="'Playfair Display',Georgia,serif" font-size="30" font-weight="600" fill="${C.roseLight}" text-anchor="middle">Partners</text>`; }
+  function ipTagline(cx,y) { return `<text x="${cx}" y="${y}" font-family="'Playfair Display',Georgia,serif" font-size="16" fill="${C.grey}" text-anchor="middle" opacity="0.85">Understand your past · Appreciate the present · Define your future</text>`; }
+  function ipFooterLegacy(cx,y) { return `<text x="${cx}" y="${y}" font-family="Arial,sans-serif" font-size="15" fill="${C.grey}" text-anchor="middle" opacity="0.8">www.identitypartners.uk · hello@identitypartners.uk · @identitypartners</text>`; }
+  function quoteText(lines,startY,lineH,fg) { return lines.map((l,i)=>`<text x="540" y="${startY+i*lineH}" font-family="'Playfair Display',Georgia,serif" font-size="48" fill="${fg}" text-anchor="middle">${l}</text>`).join(''); }
+
   let svg = '';
-  const W = 1080, H = 1080;
-  const svgOpen = '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '"><defs><filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="rgba(0,0,0,0.9)"/></filter></defs>';
 
-  if (tmpl.type === 'block') {
-    const lines = wrapText(safeText, 28);
-    const lineH = 68;
-    const startY = Math.max(220, 540 - (lines.length * lineH) / 2);
-    const attrY = startY + lines.length * lineH + 40;
-    svg = svgOpen +
-      '<rect width="' + W + '" height="' + H + '" fill="' + tmpl.bg + '"/>' +
-      '<rect x="0" y="0" width="' + W + '" height="12" fill="' + tmpl.border + '" opacity="0.9"/>' +
-      '<rect x="0" y="' + (H-12) + '" width="' + W + '" height="12" fill="' + tmpl.border + '" opacity="0.9"/>' +
-      ipGrid(30, 30) +
-      '<text x="80" y="210" font-family="Playfair Display,Georgia,serif" font-size="110" fill="' + tmpl.fg + '" opacity="0.08">&#x201C;</text>' +
-      quoteText(lines, startY, lineH, tmpl.fg, false) +
-      '<line x1="380" y1="' + attrY + '" x2="700" y2="' + attrY + '" stroke="' + tmpl.accent + '" stroke-width="2" opacity="0.6"/>' +
-      ipWordmark(540, attrY + 48, tmpl.fg) +
-      ipTagline(540, attrY + 82) +
-      ipFooter(540, H - 28) +
-      '</svg>';
-
-  } else if (tmpl.type === 'block-split') {
-    const lines = wrapText(safeText, 26);
-    const lineH = 64;
-    const startY = Math.max(200, 540 - (lines.length * lineH) / 2);
-    const attrY = startY + lines.length * lineH + 40;
-    svg = svgOpen +
-      '<rect width="' + W + '" height="' + H + '" fill="' + tmpl.bg1 + '"/>' +
-      '<rect x="540" y="0" width="540" height="' + H + '" fill="' + tmpl.bg2 + '"/>' +
-      '<line x1="540" y1="0" x2="540" y2="' + H + '" stroke="' + GREY + '" stroke-width="2" opacity="0.4"/>' +
-      ipGrid(30, 30) +
-      quoteText(lines, startY, lineH, tmpl.fg, false) +
-      ipWordmark(540, attrY + 48, tmpl.fg) +
-      ipTagline(540, attrY + 82) +
-      ipFooter(540, H - 28) +
-      '</svg>';
-
-  } else if (tmpl.type === 'image') {
-    const imgData = await fetchPexelsImage(tmpl.query);
-    const lines = wrapText(safeText, 28);
-    const lineH = 68;
-    const startY = Math.max(220, 540 - (lines.length * lineH) / 2);
-    const attrY = startY + lines.length * lineH + 40;
-    const bgEl = imgData
-      ? '<image href="' + imgData + '" x="0" y="0" width="' + W + '" height="' + H + '" preserveAspectRatio="xMidYMid slice"/><rect width="' + W + '" height="' + H + '" fill="' + tmpl.overlay + '"/>'
-      : '<rect width="' + W + '" height="' + H + '" fill="' + TEAL + '"/>';
-    svg = svgOpen + bgEl +
-      '<rect x="0" y="0" width="' + W + '" height="12" fill="' + GREY + '" opacity="0.8"/>' +
-      '<rect x="0" y="' + (H-12) + '" width="' + W + '" height="12" fill="' + GREY + '" opacity="0.8"/>' +
-      ipGrid(30, 30) +
-      '<text x="80" y="210" font-family="Playfair Display,Georgia,serif" font-size="110" fill="' + IVORY + '" opacity="0.08">&#x201C;</text>' +
-      quoteText(lines, startY, lineH, IVORY, true) +
-      '<line x1="380" y1="' + attrY + '" x2="700" y2="' + attrY + '" stroke="' + GREY + '" stroke-width="2" opacity="0.65"/>' +
-      ipWordmark(540, attrY + 48, IVORY) +
-      ipTagline(540, attrY + 82) +
-      ipFooter(540, H - 28) +
-      '</svg>';
-
-  } else if (tmpl.type === 'dual') {
-    const imgData = await fetchPexelsImage(tmpl.query);
-    const lines = wrapText(safeText, 22);
-    const lineH = 60;
-    const startY = Math.max(180, 540 - (lines.length * lineH) / 2);
-    const attrY = startY + lines.length * lineH + 30;
-    const textX = 270; // centre of left panel
-    const imgX = 540;  // right panel starts
-    const imgEl = imgData
-      ? '<image href="' + imgData + '" x="' + imgX + '" y="0" width="540" height="' + H + '" preserveAspectRatio="xMidYMid slice"/><rect x="' + imgX + '" y="0" width="540" height="' + H + '" fill="rgba(15,59,58,0.2)"/>'
-      : '<rect x="' + imgX + '" y="0" width="540" height="' + H + '" fill="' + ROSE + '"/>';
-    svg = svgOpen +
-      '<rect width="540" height="' + H + '" fill="' + TEAL + '"/>' +
-      imgEl +
-      '<line x1="540" y1="0" x2="540" y2="' + H + '" stroke="' + GREY + '" stroke-width="3" opacity="0.6"/>' +
-      ipGrid(30, 30) +
-      lines.map((l, i) => '<text x="' + textX + '" y="' + (startY + i * lineH) + '" font-family="Playfair Display,Georgia,serif" font-size="42"  fill="' + IVORY + '" text-anchor="middle">' + l + '</text>').join('') +
-      '<line x1="80" y1="' + attrY + '" x2="460" y2="' + attrY + '" stroke="' + GREY + '" stroke-width="2" opacity="0.6"/>' +
-      '<text x="180" y="' + (attrY+40) + '" font-family="Playfair Display,Georgia,serif" font-size="26" font-weight="600" fill="' + TEAL_LIGHT + '" text-anchor="middle">Identity</text>' +
-      '<text x="360" y="' + (attrY+40) + '" font-family="Playfair Display,Georgia,serif" font-size="26" font-weight="600" fill="' + ROSE_LIGHT + '" text-anchor="middle">Partners</text>' +
-      '<text x="270" y="' + (attrY+70) + '" font-family="Playfair Display,Georgia,serif" font-size="14"  fill="' + GREY + '" text-anchor="middle" opacity="0.85">Understand your past &middot; Appreciate the present &middot; Define your future</text>' +
-      '<text x="270" y="' + (H-28) + '" font-family="Arial,sans-serif" font-size="14" fill="' + GREY + '" text-anchor="middle" opacity="0.8">www.identitypartners.uk</text>' +
-      '</svg>';
-
-  } else if (tmpl.type === 'post-type') {
-    // Post-type: large icon/graphic + text
-    const lines = wrapText(safeText, 30);
-    const lineH = 60;
-    const startY = 580;
-    const icons = {
-      calendar: '<rect x="390" y="180" width="300" height="280" rx="20" fill="' + IVORY + '" opacity="0.15"/><text x="540" y="360" font-family="Arial,sans-serif" font-size="120" fill="' + IVORY + '" text-anchor="middle" opacity="0.6">&#x1F4C5;</text>',
-      microscope: '<text x="540" y="360" font-family="Arial,sans-serif" font-size="120" fill="' + IVORY + '" text-anchor="middle" opacity="0.6">&#x1F52C;</text>',
-      library: '<text x="540" y="360" font-family="Arial,sans-serif" font-size="120" fill="' + IVORY + '" text-anchor="middle" opacity="0.6">&#x1F4DA;</text>',
-      newspaper: '<text x="540" y="360" font-family="Arial,sans-serif" font-size="120" fill="' + IVORY + '" text-anchor="middle" opacity="0.6">&#x1F4F0;</text>',
-    };
-    svg = svgOpen +
-      '<rect width="' + W + '" height="' + H + '" fill="' + tmpl.bg + '"/>' +
-      '<rect x="0" y="0" width="' + W + '" height="12" fill="' + GREY + '" opacity="0.8"/>' +
-      '<rect x="0" y="' + (H-12) + '" width="' + W + '" height="12" fill="' + GREY + '" opacity="0.8"/>' +
-      ipGrid(30, 30) +
-      (icons[tmpl.icon] || '') +
-      lines.map((l, i) => '<text x="540" y="' + (startY + i * lineH) + '" font-family="Playfair Display,Georgia,serif" font-size="44"  fill="' + tmpl.fg + '" text-anchor="middle">' + l + '</text>').join('') +
-      ipWordmark(540, startY + lines.length * lineH + 50, tmpl.fg) +
-      ipFooter(540, H - 28) +
-      '</svg>';
-
-  } else if (tmpl.type === 'testimonial') {
-    // Testimonial: large quote marks, attribution line
-    const lines = wrapText(safeText, 30);
-    const lineH = 62;
-    const startY = Math.max(240, 520 - (lines.length * lineH) / 2);
-    const attrY = startY + lines.length * lineH + 50;
-    svg = svgOpen +
-      '<rect width="' + W + '" height="' + H + '" fill="' + tmpl.bg + '"/>' +
-      '<rect x="0" y="0" width="' + W + '" height="12" fill="' + tmpl.accent + '" opacity="0.9"/>' +
-      '<rect x="0" y="' + (H-12) + '" width="' + W + '" height="12" fill="' + tmpl.accent + '" opacity="0.9"/>' +
-      ipGrid(30, 30) +
-      '<text x="100" y="260" font-family="Playfair Display,Georgia,serif" font-size="180" fill="' + tmpl.accent + '" opacity="0.15">&#x201C;</text>' +
-      '<text x="980" y="' + (H-80) + '" font-family="Playfair Display,Georgia,serif" font-size="180" fill="' + tmpl.accent + '" opacity="0.15">&#x201D;</text>' +
-      lines.map((l, i) => '<text x="540" y="' + (startY + i * lineH) + '" font-family="Playfair Display,Georgia,serif" font-size="46"  fill="' + tmpl.fg + '" text-anchor="middle">' + l + '</text>').join('') +
-      '<line x1="340" y1="' + attrY + '" x2="740" y2="' + attrY + '" stroke="' + tmpl.accent + '" stroke-width="3" opacity="0.7"/>' +
-      '<text x="540" y="' + (attrY+44) + '" font-family="Playfair Display,Georgia,serif" font-size="22" fill="' + tmpl.accent + '" text-anchor="middle" opacity="0.9">&#x2014; Identity Partners Client</text>' +
-      ipWordmark(540, attrY + 90, tmpl.fg) +
-      ipFooter(540, H - 28) +
-      '</svg>';
+  if (tmpl.type==='block') {
+    const lines=wrapText(safeText,28), lineH=68, startY=Math.max(220,540-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+40;
+    svg=svgO+`<rect width="${W}" height="${H}" fill="${tmpl.bg}"/><rect x="0" y="0" width="${W}" height="12" fill="${tmpl.border}" opacity="0.9"/><rect x="0" y="${H-12}" width="${W}" height="12" fill="${tmpl.border}" opacity="0.9"/>`+ipLogoLegacy(30,30)+`<text x="80" y="210" font-family="'Playfair Display',Georgia,serif" font-size="110" fill="${tmpl.fg}" opacity="0.08">&#x201C;</text>`+quoteText(lines,startY,lineH,tmpl.fg)+`<line x1="380" y1="${attrY}" x2="700" y2="${attrY}" stroke="${tmpl.accent}" stroke-width="2" opacity="0.6"/>`+ipWordmark(540,attrY+48)+ipTagline(540,attrY+82)+ipFooterLegacy(540,H-28)+`</svg>`;
+  } else if (tmpl.type==='block-split') {
+    const lines=wrapText(safeText,26), lineH=64, startY=Math.max(200,540-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+40;
+    svg=svgO+`<rect width="${W}" height="${H}" fill="${tmpl.bg1}"/><rect x="540" y="0" width="540" height="${H}" fill="${tmpl.bg2}"/><line x1="540" y1="0" x2="540" y2="${H}" stroke="${C.grey}" stroke-width="2" opacity="0.4"/>`+ipLogoLegacy(30,30)+quoteText(lines,startY,lineH,tmpl.fg)+ipWordmark(540,attrY+48)+ipTagline(540,attrY+82)+ipFooterLegacy(540,H-28)+`</svg>`;
+  } else if (tmpl.type==='image') {
+    const imgData=await fetchPexelsImage(tmpl.query), lines=wrapText(safeText,28), lineH=68, startY=Math.max(220,540-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+40;
+    const bgEl=imgData?`<image href="${imgData}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/><rect width="${W}" height="${H}" fill="${tmpl.overlay}"/>`:`<rect width="${W}" height="${H}" fill="${C.teal}"/>`;
+    svg=svgO+bgEl+`<rect x="0" y="0" width="${W}" height="12" fill="${C.grey}" opacity="0.8"/><rect x="0" y="${H-12}" width="${W}" height="12" fill="${C.grey}" opacity="0.8"/>`+ipLogoLegacy(30,30)+`<text x="80" y="210" font-family="'Playfair Display',Georgia,serif" font-size="110" fill="${C.ivory}" opacity="0.08">&#x201C;</text>`+quoteText(lines,startY,lineH,C.ivory)+`<line x1="380" y1="${attrY}" x2="700" y2="${attrY}" stroke="${C.grey}" stroke-width="2" opacity="0.65"/>`+ipWordmark(540,attrY+48)+ipTagline(540,attrY+82)+ipFooterLegacy(540,H-28)+`</svg>`;
+  } else if (tmpl.type==='testimonial') {
+    const lines=wrapText(safeText,30), lineH=62, startY=Math.max(240,520-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+50;
+    svg=svgO+`<rect width="${W}" height="${H}" fill="${tmpl.bg}"/><rect x="0" y="0" width="${W}" height="12" fill="${tmpl.accent}" opacity="0.9"/><rect x="0" y="${H-12}" width="${W}" height="12" fill="${tmpl.accent}" opacity="0.9"/>`+ipLogoLegacy(30,30)+`<text x="100" y="260" font-family="'Playfair Display',Georgia,serif" font-size="180" fill="${tmpl.accent}" opacity="0.15">&#x201C;</text><text x="980" y="${H-80}" font-family="'Playfair Display',Georgia,serif" font-size="180" fill="${tmpl.accent}" opacity="0.15">&#x201D;</text>`+quoteText(lines,startY,lineH,tmpl.fg)+`<line x1="340" y1="${attrY}" x2="740" y2="${attrY}" stroke="${tmpl.accent}" stroke-width="3" opacity="0.7"/><text x="540" y="${attrY+44}" font-family="'Playfair Display',Georgia,serif" font-size="22" fill="${tmpl.accent}" text-anchor="middle" opacity="0.9">&#x2014; Identity Partners</text>`+ipWordmark(540,attrY+90)+ipFooterLegacy(540,H-28)+`</svg>`;
+  } else {
+    svg=svgO+`<rect width="${W}" height="${H}" fill="${C.teal}"/>`+ipLogoLegacy(30,30)+quoteText(wrapText(safeText,28),300,68,C.ivory)+ipFooterLegacy(540,H-28)+`</svg>`;
   }
 
-  return svg || '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080"><rect width="1080" height="1080" fill="' + TEAL + '"/><text x="540" y="540" fill="white" text-anchor="middle" font-size="40">Canvas Error</text></svg>';
+  return svg || `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080"><rect width="1080" height="1080" fill="${C.teal}"/><text x="540" y="540" fill="white" text-anchor="middle" font-size="40">Canvas Error</text></svg>`;
 }
-
 
 // ── Auto-tagging function ─────────────────────────────────────────────────────
 function autoTag(text) {
@@ -6245,274 +6502,234 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       } catch(e) { return json({images:[], error:e.message}, 200, origin); }
     }
 
-    // ── Enhanced canvas generation with semantic image + Vision QA ────────────────
-    if (path === '/api/canvas/generate' && request.method === 'POST') {
+    // ── Canvas: semantic image search (Pexels / Unsplash / Pixabay / Openverse) ──
+    if (path === '/api/canvas/search-images' && request.method === 'POST') {
       try {
         const body = await request.json();
-        const topic = body.topic || body.text || 'mental health recovery';
-        const text = body.text || topic;
-        const postType = body.type || 'quote'; // quote, infographic, service, event, stat
-        const platform = body.platform || 'instagram'; // instagram, x, linkedin, bluesky
-        const skipQA = body.skipQA || false;
+        const topic   = body.topic || '';
+        const sources = body.sources || ['pexels','unsplash','pixabay','openverse'];
+        const count   = Math.min(body.count || 12, 24);
 
-        // Platform dimensions
-        const dims = {
-          instagram: {w: 1080, h: 1080},
-          x: {w: 1200, h: 675},
-          linkedin: {w: 1200, h: 627},
-          bluesky: {w: 1200, h: 675},
-          story: {w: 1080, h: 1920},
-        };
-        const {w, h} = dims[platform] || dims.instagram;
+        const mistralKey  = k(env, ['mistral_api_key','MISTRAL_API_KEY']) || '';
+        const pexelsKey   = k(env, ['pexels_api_key','PEXELS_API_KEY','pexels']) || '';
+        const unsplashKey = k(env, ['unsplash_api_key','UNSPLASH_API_KEY','unsplash']) || '';
+        const pixabayKey  = k(env, ['pixabay_api_key','PIXABAY_API_KEY','pixabay']) || '';
 
-        // Get semantic image
-        let bgBase64 = '';
-        let bgUrl = '';
-        let photographer = '';
-        const pexelsKey = k(env, ['pexels_api_key', 'PEXELS_API_KEY', 'pexels']) || '';
-        const unsplashKey = k(env, ['unsplash_api_key', 'UNSPLASH_API_KEY', 'unsplash']) || '';
-
-        // Try Pexels first with semantic query
-        const searchResp = await fetch(new URL(request.url).origin + '/api/images/search', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({topic: topic, count: 5, sources: ['pexels', 'unsplash']})
-        });
-        if (searchResp.ok) {
-          const searchData = await searchResp.json();
-          const images = searchData.images || [];
-          if (images.length > 0) {
-            const img = images[Math.floor(Math.random() * Math.min(images.length, 3))];
-            bgUrl = img.url;
-            photographer = img.photographer || '';
-            try {
-              const imgResp = await fetch(bgUrl);
-              if (imgResp.ok) {
-                const imgBuf = await imgResp.arrayBuffer();
-                const bytes = new Uint8Array(imgBuf);
-                let binary = '';
-                const chunkSize = 8192;
-                for (let i = 0; i < bytes.byteLength; i += chunkSize) {
-                  binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
-                }
-                bgBase64 = 'data:image/jpeg;base64,' + btoa(binary);
-              }
-            } catch(e) {}
-          }
-        }
-
-        // Brand colours
-        const TEAL = '#0f3b3a';
-        const ROSE = '#5c2d3f';
-        const IVORY = '#f7f3e9';
-        const WARM_GREY = '#ddd0c8';
-
-        // Word wrap
-        function wrapText(str, maxChars) {
-          const words = str.split(' ');
-          const lines = [];
-          let current = '';
-          for (const word of words) {
-            if ((current + ' ' + word).trim().length > maxChars) {
-              if (current) lines.push(current.trim());
-              current = word;
-            } else {
-              current = (current + ' ' + word).trim();
-            }
-          }
-          if (current) lines.push(current.trim());
-          return lines;
-        }
-
-        function escXml(s) {
-          return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
-        }
-
-        // Generate SVG based on post type
-        let svgContent = '';
-        const cx = w / 2;
-
-        if (postType === 'quote') {
-          const lines = wrapText(text, Math.floor(w / 40));
-          const lh = Math.floor(h / 20);
-          const startY = h * 0.45 - (lines.length * lh) / 2;
-          const tspans = lines.map((l, i) => '<tspan x="' + cx + '" dy="' + (i===0?'0':lh) + '">' + escXml(l) + '</tspan>').join('');
-          svgContent =
-            (bgBase64 ? '<image href="' + bgBase64 + '" x="0" y="0" width="' + w + '" height="' + h + '" preserveAspectRatio="xMidYMid slice"/>' : '<rect width="' + w + '" height="' + h + '" fill="' + TEAL + '"/>') +
-            '<rect width="' + w + '" height="' + h + '" fill="rgba(15,59,58,0.68)"/>' +
-            // IP colour grid
-            '<rect x="32" y="32" width="36" height="36" fill="' + TEAL + '" opacity="0.95"/>' +
-            '<rect x="70" y="32" width="36" height="36" fill="' + ROSE + '" opacity="0.95"/>' +
-            '<rect x="32" y="70" width="36" height="36" fill="' + TEAL + '" opacity="0.7"/>' +
-            '<rect x="70" y="70" width="36" height="36" fill="' + ROSE + '" opacity="0.7"/>' +
-            // Decorative top line
-            '<line x1="' + (w*0.15) + '" y1="' + (h*0.35) + '" x2="' + (w*0.85) + '" y2="' + (h*0.35) + '" stroke="' + IVORY + '" stroke-width="1" opacity="0.4"/>' +
-            // Quote marks
-            '<text x="' + (cx - w*0.3) + '" y="' + (startY - lh*0.5) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/12) + '" fill="' + IVORY + '" opacity="0.3">“</text>' +
-            // Quote text
-            '<text x="' + cx + '" y="' + startY + '" font-family="Georgia,serif" font-style="italic" font-size="' + Math.floor(h/22) + '" fill="' + IVORY + '" text-anchor="middle">' + tspans + '</text>' +
-            // Decorative bottom line
-            '<line x1="' + (w*0.15) + '" y1="' + (h*0.72) + '" x2="' + (w*0.85) + '" y2="' + (h*0.72) + '" stroke="' + IVORY + '" stroke-width="1" opacity="0.4"/>' +
-            // Wordmark
-            '<text x="' + cx + '" y="' + (h*0.79) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/38) + '" fill="' + IVORY + '" text-anchor="middle" letter-spacing="4" font-weight="600">IDENTITY PARTNERS</text>' +
-            // Tagline
-            '<text x="' + cx + '" y="' + (h*0.85) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/60) + '" fill="' + IVORY + '" text-anchor="middle" opacity="0.75">Understand your past · Appreciate the present · Define your future</text>' +
-            // Footer
-            '<text x="' + cx + '" y="' + (h*0.95) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/72) + '" fill="' + IVORY + '" text-anchor="middle" opacity="0.6">identitypartners.uk · hello@identitypartners.uk · @identitypartners</text>';
-
-        } else if (postType === 'service') {
-          // Service showcase card
-          const title = body.title || 'Our Services';
-          const services = body.services || ['Individual Sessions', 'Group Sessions', 'Initial Consultation'];
-          svgContent =
-            '<rect width="' + w + '" height="' + h + '" fill="' + IVORY + '"/>' +
-            '<rect x="0" y="0" width="' + (w*0.08) + '" height="' + h + '" fill="' + TEAL + '"/>' +
-            '<rect x="' + (w*0.08) + '" y="0" width="' + (w*0.04) + '" height="' + h + '" fill="' + ROSE + '"/>' +
-            '<text x="' + (w*0.18) + '" y="' + (h*0.18) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/14) + '" fill="' + TEAL + '" font-style="italic">' + escXml(title) + '</text>' +
-            '<line x1="' + (w*0.18) + '" y1="' + (h*0.22) + '" x2="' + (w*0.85) + '" y2="' + (h*0.22) + '" stroke="' + ROSE + '" stroke-width="2"/>' +
-            services.map(function(s, i) {
-              return '<rect x="' + (w*0.18) + '" y="' + (h*(0.28 + i*0.14)) + '" width="8" height="' + Math.floor(h/18) + '" fill="' + ROSE + '"/>' +
-                '<text x="' + (w*0.22) + '" y="' + (h*(0.28 + i*0.14) + Math.floor(h/22)) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/28) + '" fill="' + TEAL + '">' + escXml(s) + '</text>';
-            }).join('') +
-            '<text x="' + (w*0.18) + '" y="' + (h*0.88) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/38) + '" fill="' + TEAL + '" letter-spacing="3">IDENTITY PARTNERS</text>' +
-            '<text x="' + (w*0.18) + '" y="' + (h*0.93) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/60) + '" fill="' + ROSE + '">identitypartners.uk · hello@identitypartners.uk</text>';
-
-        } else if (postType === 'stat') {
-          // Stat/fact post
-          const stat = body.stat || '1 in 4';
-          const statLabel = body.statLabel || 'people experience mental health issues each year';
-          const source = body.source || '';
-          svgContent =
-            (bgBase64 ? '<image href="' + bgBase64 + '" x="0" y="0" width="' + w + '" height="' + h + '" preserveAspectRatio="xMidYMid slice"/>' : '<rect width="' + w + '" height="' + h + '" fill="' + TEAL + '"/>') +
-            '<rect width="' + w + '" height="' + h + '" fill="rgba(15,59,58,0.75)"/>' +
-            '<rect x="32" y="32" width="36" height="36" fill="' + TEAL + '" opacity="0.95"/>' +
-            '<rect x="70" y="32" width="36" height="36" fill="' + ROSE + '" opacity="0.95"/>' +
-            '<text x="' + cx + '" y="' + (h*0.42) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/5) + '" fill="' + IVORY + '" text-anchor="middle" font-weight="bold">' + escXml(stat) + '</text>' +
-            '<line x1="' + (w*0.2) + '" y1="' + (h*0.52) + '" x2="' + (w*0.8) + '" y2="' + (h*0.52) + '" stroke="' + ROSE + '" stroke-width="3"/>' +
-            '<text x="' + cx + '" y="' + (h*0.62) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/28) + '" fill="' + IVORY + '" text-anchor="middle">' + escXml(statLabel) + '</text>' +
-            (source ? '<text x="' + cx + '" y="' + (h*0.72) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/50) + '" fill="' + IVORY + '" text-anchor="middle" opacity="0.6">Source: ' + escXml(source) + '</text>' : '') +
-            '<text x="' + cx + '" y="' + (h*0.85) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/38) + '" fill="' + IVORY + '" text-anchor="middle" letter-spacing="3">IDENTITY PARTNERS</text>' +
-            '<text x="' + cx + '" y="' + (h*0.92) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/65) + '" fill="' + IVORY + '" text-anchor="middle" opacity="0.7">identitypartners.uk · hello@identitypartners.uk</text>';
-} else if (postType === 'news') {
-          var headline = body.headline || text;
-          var newsSource = body.source || '';
-          var summary = body.summary || '';
-          var headlineLines = wrapText(headline, Math.floor(w/32));
-          var summaryLines = wrapText(summary, Math.floor(w/38));
-          var hlTspans = headlineLines.map(function(l,i){ return '<tspan x="' + cx + '" dy="' + (i===0?'0':Math.floor(h/18)) + '">' + escXml(l) + '</tspan>'; }).join('');
-          var sumTspans = summaryLines.slice(0,3).map(function(l,i){ return '<tspan x="' + cx + '" dy="' + (i===0?'0':Math.floor(h/28)) + '">' + escXml(l) + '</tspan>'; }).join('');
-          svgContent =
-            (bgBase64 ? '<image href="' + bgBase64 + '" x="0" y="0" width="' + w + '" height="' + h + '" preserveAspectRatio="xMidYMid slice"/>' : '<rect width="' + w + '" height="' + h + '" fill="' + TEAL + '"/>') +
-            '<rect width="' + w + '" height="' + h + '" fill="rgba(15,59,58,0.78)"/>' +
-            '<rect x="0" y="' + Math.floor(h*0.08) + '" width="' + w + '" height="' + Math.floor(h*0.1) + '" fill="' + ROSE + '"/>' +
-            '<text x="' + cx + '" y="' + Math.floor(h*0.145) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/30) + '" fill="' + IVORY + '" text-anchor="middle" font-weight="700" letter-spacing="3">CURRENT AFFAIRS</text>' +
-            '<text x="' + cx + '" y="' + Math.floor(h*0.32) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/18) + '" fill="' + IVORY + '" text-anchor="middle" font-weight="bold">' + hlTspans + '</text>' +
-            (newsSource ? '<text x="' + cx + '" y="' + Math.floor(h*0.55) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/45) + '" fill="' + WARM_GREY + '" text-anchor="middle" opacity="0.8">Source: ' + escXml(newsSource) + '</text>' : '') +
-            (summary ? '<text x="' + cx + '" y="' + Math.floor(h*0.62) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/38) + '" fill="' + IVORY + '" text-anchor="middle" opacity="0.85">' + sumTspans + '</text>' : '') +
-            '<line x1="' + (w*0.15) + '" y1="' + (h*0.78) + '" x2="' + (w*0.85) + '" y2="' + (h*0.78) + '" stroke="' + IVORY + '" stroke-width="1" opacity="0.3"/>' +
-            '<text x="' + cx + '" y="' + (h*0.85) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/38) + '" fill="' + IVORY + '" text-anchor="middle" letter-spacing="3">IDENTITY PARTNERS</text>' +
-            '<text x="' + cx + '" y="' + (h*0.92) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/65) + '" fill="' + IVORY + '" text-anchor="middle" opacity="0.7">identitypartners.uk \u00b7 hello@identitypartners.uk</text>';
-
-        } else if (postType === 'policy') {
-          var policyTitle = body.title || text;
-          var policyBodyText = body.body || body.summary || '';
-          var dept = body.department || 'UK Government';
-          var ptLines = wrapText(policyTitle, Math.floor(w/30));
-          var pbLines = wrapText(policyBodyText, Math.floor(w/36));
-          var ptTspans = ptLines.map(function(l,i){ return '<tspan x="' + (w*0.14) + '" dy="' + (i===0?'0':Math.floor(h/20)) + '">' + escXml(l) + '</tspan>'; }).join('');
-          var pbTspans = pbLines.slice(0,4).map(function(l,i){ return '<tspan x="' + (w*0.14) + '" dy="' + (i===0?'0':Math.floor(h/30)) + '">' + escXml(l) + '</tspan>'; }).join('');
-          svgContent =
-            '<rect width="' + w + '" height="' + h + '" fill="#1a1a2e"/>' +
-            '<rect x="0" y="0" width="' + Math.floor(w*0.06) + '" height="' + h + '" fill="#c8102e"/>' +
-            '<rect x="' + Math.floor(w*0.06) + '" y="0" width="' + Math.floor(w*0.03) + '" height="' + h + '" fill="#ffffff" opacity="0.9"/>' +
-            '<rect x="' + Math.floor(w*0.09) + '" y="0" width="' + Math.floor(w*0.03) + '" height="' + h + '" fill="#012169"/>' +
-            '<text x="' + (w*0.14) + '" y="' + (h*0.15) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/50) + '" fill="#ffffff" opacity="0.7" font-weight="600" letter-spacing="2">' + escXml(dept.toUpperCase()) + '</text>' +
-            '<text x="' + (w*0.14) + '" y="' + (h*0.22) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/50) + '" fill="#c8102e" font-weight="700" letter-spacing="2">POLICY UPDATE</text>' +
-            '<line x1="' + (w*0.14) + '" y1="' + (h*0.25) + '" x2="' + (w*0.88) + '" y2="' + (h*0.25) + '" stroke="#ffffff" stroke-width="1" opacity="0.3"/>' +
-            '<text x="' + (w*0.14) + '" y="' + (h*0.38) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/18) + '" fill="#ffffff" font-weight="bold">' + ptTspans + '</text>' +
-            (policyBodyText ? '<text x="' + (w*0.14) + '" y="' + (h*0.62) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/38) + '" fill="#ffffff" opacity="0.8">' + pbTspans + '</text>' : '') +
-            '<line x1="' + (w*0.14) + '" y1="' + (h*0.82) + '" x2="' + (w*0.88) + '" y2="' + (h*0.82) + '" stroke="#ffffff" stroke-width="1" opacity="0.2"/>' +
-            '<text x="' + (w*0.14) + '" y="' + (h*0.89) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/42) + '" fill="#ffffff" letter-spacing="3">IDENTITY PARTNERS</text>' +
-            '<text x="' + (w*0.14) + '" y="' + (h*0.95) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/65) + '" fill="#ffffff" opacity="0.6">identitypartners.uk \u00b7 hello@identitypartners.uk</text>';
-
-        } else if (postType === 'infographic') {
-          var infTitle = body.title || text;
-          var infPoints = body.points || [{label:'Point 1', value:'100%'}];
-          var infCount = Math.min(infPoints.length, 5);
-          var infTitleLines = wrapText(infTitle, Math.floor(w/28));
-          var infTitleTspans = infTitleLines.map(function(l,i){ return '<tspan x="' + cx + '" dy="' + (i===0?'0':Math.floor(h/22)) + '">' + escXml(l) + '</tspan>'; }).join('');
-          var infPtH = Math.floor(h * 0.5 / infCount);
-          svgContent =
-            '<rect width="' + w + '" height="' + h + '" fill="' + IVORY + '"/>' +
-            '<rect x="0" y="0" width="' + w + '" height="' + Math.floor(h*0.28) + '" fill="' + TEAL + '"/>' +
-            '<rect x="32" y="32" width="36" height="36" fill="' + ROSE + '" opacity="0.9"/>' +
-            '<text x="' + cx + '" y="' + Math.floor(h*0.16) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/18) + '" fill="' + IVORY + '" text-anchor="middle" font-weight="bold">' + infTitleTspans + '</text>' +
-            infPoints.slice(0, infCount).map(function(pt, i) {
-              var py = Math.floor(h*0.32) + i * infPtH;
-              var isEven = i % 2 === 0;
-              return '<rect x="' + Math.floor(w*0.06) + '" y="' + py + '" width="' + Math.floor(w*0.88) + '" height="' + (infPtH-8) + '" fill="' + (isEven ? '#f0ece4' : IVORY) + '" rx="4"/>' +
-                '<rect x="' + Math.floor(w*0.06) + '" y="' + py + '" width="8" height="' + (infPtH-8) + '" fill="' + (isEven ? TEAL : ROSE) + '" rx="4"/>' +
-                '<text x="' + Math.floor(w*0.12) + '" y="' + (py + Math.floor(infPtH*0.6)) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/38) + '" fill="' + TEAL + '" font-weight="600">' + escXml(String(pt.label||'')) + '</text>' +
-                '<text x="' + Math.floor(w*0.88) + '" y="' + (py + Math.floor(infPtH*0.6)) + '" font-family="Georgia,serif" font-size="' + Math.floor(h/28) + '" fill="' + ROSE + '" text-anchor="end" font-weight="bold">' + escXml(String(pt.value||'')) + '</text>';
-            }).join('') +
-            '<text x="' + cx + '" y="' + (h*0.96) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/65) + '" fill="' + ROSE + '" text-anchor="middle">identitypartners.uk \u00b7 hello@identitypartners.uk</text>';
-            '<text x="' + cx + '" y="' + (h*0.96) + '" font-family="Arial,sans-serif" font-size="' + Math.floor(h/65) + '" fill="' + ROSE + '" text-anchor="middle">identitypartners.uk \u00b7 hello@identitypartners.uk</text>';
-
-        }
-
-        const svg = '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' + svgContent + '</svg>';
-
-        // Upload to R2
-        const svgKey = 'canvas/' + platform + '-' + postType + '-' + Date.now() + '.svg';
-        let svgUrl = '';
-        if (env.PRISM_ASSETS) {
+        // Expand topic into 5 queries via Mistral Small
+        let queries = [topic];
+        if (mistralKey && topic) {
           try {
-            await env.PRISM_ASSETS.put(svgKey, svg, {httpMetadata: {contentType: 'image/svg+xml'}});
-            svgUrl = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + svgKey;
+            const mr = await fetch('https://api.mistral.ai/v1/chat/completions', {
+              method:'POST',
+              headers:{'Content-Type':'application/json','Authorization':`Bearer ${mistralKey}`},
+              body: JSON.stringify({
+                model:'mistral-small-latest',
+                messages:[{role:'user',content:`Generate exactly 5 diverse, specific image search queries for the topic "${topic}". Return only a JSON array of 5 strings.`}],
+                max_tokens:200, temperature:0.7,
+              }),
+            }).then(r=>r.json());
+            const raw = mr.choices?.[0]?.message?.content || '';
+            const match = raw.match(/\[[\s\S]*?\]/);
+            if (match) {
+              const parsed = JSON.parse(match[0]);
+              if (Array.isArray(parsed) && parsed.length) queries = parsed.slice(0,5);
+            }
           } catch(e) {}
         }
 
-        // Vision QA via Gemini (check legibility)
+        const images = [];
+
+        for (const q of queries) {
+          const enc = encodeURIComponent(q);
+
+          if (sources.includes('pexels') && pexelsKey) {
+            try {
+              const pr = await fetch(`https://api.pexels.com/v1/search?query=${enc}&per_page=3&orientation=square`,{headers:{Authorization:pexelsKey}}).then(r=>r.json());
+              for (const p of (pr.photos||[]).slice(0,2)) {
+                images.push({url:p.src?.large2x||p.src?.large, thumb:p.src?.medium, alt:p.alt||q, source:'Pexels', photographer:p.photographer||''});
+              }
+            } catch(e) {}
+          }
+
+          if (sources.includes('unsplash') && unsplashKey) {
+            try {
+              const ur = await fetch(`https://api.unsplash.com/search/photos?query=${enc}&per_page=3&orientation=squarish`,{headers:{Authorization:`Client-ID ${unsplashKey}`}}).then(r=>r.json());
+              for (const p of (ur.results||[]).slice(0,2)) {
+                images.push({url:p.urls?.regular, thumb:p.urls?.small, alt:p.alt_description||q, source:'Unsplash', photographer:p.user?.name||''});
+              }
+            } catch(e) {}
+          }
+
+          if (sources.includes('pixabay') && pixabayKey) {
+            try {
+              const pbr = await fetch(`https://pixabay.com/api/?key=${pixabayKey}&q=${enc}&image_type=photo&orientation=vertical&per_page=3`).then(r=>r.json());
+              for (const p of (pbr.hits||[]).slice(0,2)) {
+                images.push({url:p.largeImageURL, thumb:p.previewURL, alt:p.tags||q, source:'Pixabay', photographer:p.user||''});
+              }
+            } catch(e) {}
+          }
+
+          if (sources.includes('openverse')) {
+            try {
+              const ovr = await fetch(`https://api.openverse.org/v1/images/?q=${enc}&page_size=3&license_type=commercial`,{
+                headers:{'User-Agent':'Argentica/1.0 (hello@identitypartners.uk)'}
+              }).then(r=>r.json());
+              for (const p of (ovr.results||[]).slice(0,2)) {
+                images.push({url:p.url, thumb:p.thumbnail, alt:p.title||q, source:'Openverse', photographer:p.creator||''});
+              }
+            } catch(e) {}
+          }
+
+          if (images.length >= count) break;
+        }
+
+        return json({images: images.slice(0,count), queries, topic}, 200, origin);
+      } catch(e) { return json({images:[], error:e.message}, 200, origin); }
+    }
+
+    // ── Canvas: agentic generation ────────────────────────────────────────────
+    // POST /api/canvas/generate
+    // body: { topic, type, platform, text, variant, myth, fact, points, source,
+    //         campaignName, date, message, outlet, headline, commentary,
+    //         serviceName, description, whoFor, slides (carousel),
+    //         skipQA, skipQueue }
+    if (path === '/api/canvas/generate' && request.method === 'POST') {
+      try {
+        const body     = await request.json();
+        const topic    = body.topic || body.text || 'mental health recovery';
+        const postType = body.type  || 'quote';
+        const platform = body.platform || 'instagram';
+        const variant  = body.variant  || 'teal';
+        const skipQA   = body.skipQA   || false;
+        const skipQueue= body.skipQueue || false;
+
+        // ── Carousel ──────────────────────────────────────────────────────────
+        if (postType === 'carousel') {
+          const slides = body.slides || [{text: topic}];
+          // Fetch images for slides that need them
+          const enriched = await Promise.all(slides.map(async (slide) => {
+            const img = slide.useImage ? await semanticImageSearch(slide.text || topic, env) : null;
+            return {...slide, imageBase64: img};
+          }));
+          const svgs = generateCarousel(enriched);
+          const urls = [];
+          for (let i=0; i<svgs.length; i++) {
+            const key = `canvas/carousel-${Date.now()}-${i+1}of${svgs.length}.svg`;
+            const url = await uploadToR2(svgs[i], key, env);
+            if (url) urls.push(url);
+          }
+          if (!skipQueue && urls.length) {
+            await queueForApproval({topic, type:'carousel', platform, urls, slideCount:svgs.length}, env);
+          }
+          return json({success:true, type:'carousel', urls, slideCount:svgs.length, topic, platform}, 200, origin);
+        }
+
+        // ── Determine template from postType ──────────────────────────────────
+        const templateMap = {
+          'myth-vs-fact':      variant==='ivory' ? 'myth-vs-fact-ivory' : 'myth-vs-fact-teal',
+          'data-infographic':  'data-infographic',
+          'awareness-day':     variant==='rose'  ? 'awareness-day-rose' : 'awareness-day',
+          'news-reaction':     'news-reaction',
+          'service-explainer': 'service-explainer',
+          'semantic':          `semantic-${variant}`,
+          'quote':             `block-${variant==='rose'?'rose':variant==='ivory'?'ivory':'teal'}`,
+          'stat':              `block-teal`,
+          'testimonial':       `testimonial-${variant==='rose'?'rose':variant==='ivory'?'ivory':'teal'}`,
+          'dual':              'dual-partnership',
+          'image':             'img-landscape',
+        };
+        const templateId = body.template || templateMap[postType] || 'block-teal';
+
+        // ── Fetch semantic image if needed ────────────────────────────────────
+        let imgBase64 = null;
+        const needsImage = ['awareness-day','awareness-day-rose','semantic-teal','semantic-rose','semantic-dark','img-landscape','img-sunrise','img-sunset','img-seascape','img-cityscape','img-aurora','img-space','img-stars','dual-partnership','dual-children'].includes(templateId);
+        if (needsImage) {
+          imgBase64 = await semanticImageSearch(topic, env);
+        }
+
+        // ── Build data object for new renderers ───────────────────────────────
+        let svg = '';
+        const newTypes = ['myth-vs-fact-teal','myth-vs-fact-ivory','data-infographic','awareness-day','awareness-day-rose','news-reaction','service-explainer','semantic-teal','semantic-rose','semantic-dark'];
+
+        if (newTypes.includes(templateId)) {
+          switch(templateId) {
+            case 'myth-vs-fact-teal':
+            case 'myth-vs-fact-ivory':
+              svg = renderMythVsFact({myth:body.myth||topic, fact:body.fact||'', source:body.source||'', variant:templateId.includes('ivory')?'ivory':'teal'});
+              break;
+            case 'data-infographic':
+              svg = renderDataInfographic({title:body.title||topic, subtitle:body.subtitle||'', points:body.points||[], source:body.source||''});
+              break;
+            case 'awareness-day':
+            case 'awareness-day-rose':
+              svg = renderAwarenessDay({campaignName:body.campaignName||topic, date:body.date||'', message:body.message||'', variant:templateId.includes('rose')?'rose':'teal'}, imgBase64);
+              break;
+            case 'news-reaction':
+              svg = renderNewsReaction({outlet:body.outlet||'', headline:body.headline||topic, commentary:body.commentary||'', date:body.date||new Date().toLocaleDateString('en-GB')});
+              break;
+            case 'service-explainer':
+              svg = renderServiceExplainer({serviceName:body.serviceName||topic, description:body.description||'', whoFor:body.whoFor||'', contact:body.contact||''});
+              break;
+            case 'semantic-teal':
+            case 'semantic-rose':
+            case 'semantic-dark':
+              svg = renderSemanticImage({text:body.text||topic, subtext:body.subtext||'', variant:templateId.replace('semantic-','')}, imgBase64);
+              break;
+          }
+        } else {
+          // Legacy templates
+          svg = await generateCanvasHtml(body.text||topic, templateId, env);
+        }
+
+        if (!svg) return json({success:false, error:'SVG generation failed'}, 500, origin);
+
+        // ── Upload to R2 ──────────────────────────────────────────────────────
+        const svgKey = `canvas/${platform}-${postType}-${Date.now()}.svg`;
+        const svgUrl = await uploadToR2(svg, svgKey, env);
+
+        // ── Vision QA via Gemini ──────────────────────────────────────────────
         let qaResult = null;
         if (!skipQA && svgUrl) {
           try {
-            const geminiKey = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
+            const geminiKey = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
             if (geminiKey) {
-              const qaResp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=' + geminiKey, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                  contents: [{parts: [
-                    {text: 'This is a social media canvas image for Identity Partners. Check: 1) Is the text legible against the background? 2) Is the branding visible? 3) Is the layout balanced? 4) Any text clipping or overlap? Reply with JSON: {"pass": true/false, "issues": [], "score": 1-10}'},
-                    {inlineData: {mimeType: 'image/svg+xml', data: btoa(svg.substring(0, 50000))}}
-                  ]}]
-                })
+              const qaResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiKey}`, {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({contents:[{parts:[
+                  {text:'This is a social media canvas for Identity Partners. Check: 1) Text legible against background? 2) IP branding visible (logo, URL, handles)? 3) Layout balanced? 4) Any clipping or overlap? Reply JSON only: {"pass":true/false,"issues":[],"score":1-10}'},
+                  {inlineData:{mimeType:'image/svg+xml', data:btoa(unescape(encodeURIComponent(svg.substring(0,50000))))}}
+                ]}]}),
               });
               if (qaResp.ok) {
                 const qaData = await qaResp.json();
                 const qaText = qaData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                const jsonMatch = qaText.match(/\{[^}]+\}/);
-                if (jsonMatch) qaResult = JSON.parse(jsonMatch[0]);
+                const m = qaText.match(/\{[\s\S]*?\}/);
+                if (m) qaResult = JSON.parse(m[0]);
               }
             }
           } catch(e) {}
         }
 
+        // ── Queue for Social Queue approval ───────────────────────────────────
+        if (!skipQueue && svgUrl) {
+          await queueForApproval({topic, type:postType, template:templateId, platform, url:svgUrl, qa:qaResult}, env);
+        }
+
         return json({
           success: true,
-          url: svgUrl || ('https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ig-template-' + Math.floor(Math.random()*150) + '.png'),
+          url: svgUrl || R2_PUBLIC + 'ig-template-' + Math.floor(Math.random()*150) + '.png',
           svgUrl,
           platform,
           type: postType,
+          template: templateId,
           topic,
-          bgUrl,
-          photographer,
           qa: qaResult,
-          dimensions: {w, h}
+          queued: !skipQueue && !!svgUrl,
         }, 200, origin);
 
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
     }
+
 
     return json({ error: 'Not found', path }, 404, origin);
   },
