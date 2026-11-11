@@ -105,7 +105,7 @@
 </div>
 <script src="/shared/prism.js"></script>
 <script>
-var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var WORKER = 'https://prism.identitypartners.uk';
 var KEY_FIELDS = [
   {name:'CEREBRAS_API_KEY',label:'Cerebras API Key'},
   {name:'GROQ_API_KEY',label:'Groq API Key'},
@@ -226,7 +226,7 @@ function _saveSignupProfile_moved() { // moved to platform-manager
   // Save to localStorage for immediate use
   try { localStorage.setItem('prism-signup-profile', JSON.stringify(profile)); } catch(e) {}
   // Save to Worker KV
-  fetch('https://prism-api.identitypartners.workers.dev/api/profile/signup', {
+  fetch('https://prism.identitypartners.uk/api/profile/signup', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify(profile)
@@ -280,7 +280,7 @@ function saveDisplay() {
 function checkCRMStatus() {
   var list = document.getElementById('zoho-status-list');
   if (!list) return;
-  fetch('https://prism-api.identitypartners.workers.dev/api/zoho/status')
+  fetch('https://prism.identitypartners.uk/api/zoho/status')
   .then(function(r) { return r.json(); })
   .then(function(r) {
     var status = r.status || {};
