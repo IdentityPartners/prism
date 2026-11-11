@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Media Manager — Argentica</title>
+<link rel="stylesheet" href="/shared/prism.css"/>
+<script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+<style>
+.mm-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:16px;}
+.mm-tab{padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600;color:var(--fg-muted);border-bottom:2px solid transparent;margin-bottom:-2px;}
+.mm-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.asset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
+.asset-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:all 0.15s;}
+.asset-card:hover{border-color:var(--accent);transform:translateY(-2px);}
+.asset-thumb{width:100%;height:110px;object-fit:cover;background:var(--bg-sunken);display:flex;align-items:center;justify-content:center;font-size:32px;}
+.asset-info{padding:6px 8px;}
+.asset-name{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.asset-meta{font-size:10px;color:var(--fg-muted);}
+.search-row{display:flex;gap:8px;margin-bottom:12px;}
+.search-row input{flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--fg);}
+.gen-panel{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;}
+.gen-panel h4{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--fg-muted);margin:0 0 10px;}
+.source-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+.source-chip{padding:3px 10px;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;background:var(--bg);color:var(--fg-muted);}
+.source-chip.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+</style>
+</head>
+<body>
+<script src="/shared/prism.js"></script>
+<div id="sidebar-mount"></div>
+<div id="main-content">
+<div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
+  <h2 style="margin:0;font-size:18px;">Media Manager</h2>
+  <span style="font-size:12px;color:var(--fg-muted);">R2 assets · Images · Audio · Documents</span>
+</div>
+<div style="padding:16px 20px;">
+
+<div class="mm-tabs">
+  <div class="mm-tab active" id="tab-r2" onclick="switchTab('r2',this)">My Assets</div>
+  <div class="mm-tab" id="tab-search" onclick="switchTab('search',this)">Image Search</div>
+  <div class="mm-tab" id="tab-generate" onclick="switchTab('generate',this)">Generate</div>
+</div>
+
+<!-- My Assets -->
+<div id="panel-r2">
+  <div class="search-row">
+    <input id="r2-search" placeholder="Filter assets..." oninput="filterAssets(this.value)"/>
+    <select id="r2-type" onchange="loadR2Assets()" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--fg);">
+      <option value="">All types</option>
+      <option value="canvas/">Canvas</option>
+      <option value="study/">Study docs</option>
+      <option value="audio/">Audio</option>
+    </select>
+  </div>
+  <div class="asset-grid" id="r2-grid"><div style="color:var(--fg-muted);font-size:13px;padding:20px;">Loading assets...</div></div>
+</div>
+
+<!-- Image Search -->
+<div id="panel-search" style="display:none;">
+  <div class="gen-panel">
+    <h4>Search free image libraries</h4>
+    <div class="source-chips" id="img-sources">
+      <span class="source-chip active" data-src="pexels">Pexels</span>
+      <span class="source-chip active" data-src="unsplash">Unsplash</span>
+      <span class="source-chip active" data-src="pixabay">Pixabay</span>
+      <span class="source-chip active" data-src="openverse">Openverse</span>
+      <span class="source-chip active" data-src="wikimedia">Wikimedia</span>
+    </div>
+    <div class="search-row">
+      <input id="img-query" placeholder="e.g. mental health recovery, abstract texture..." onkeydown="if(event.key==='Enter')searchImages()"/>
+      <button onclick="searchImages()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;">Search</button>
+    </div>
+  </div>
+  <div class="asset-grid" id="img-grid"><div style="color:var(--fg-muted);font-size:13px;padding:20px;">Enter a search query above.</div></div>
+</div>
+
+<!-- Generate -->
+<div id="panel-generate" style="display:none;">
+  <div class="gen-panel">
+    <h4>Generate image with AI</h4>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:12px;color:var(--fg-muted);display:block;margin-bottom:4px;">Prompt</label>
+      <textarea id="gen-prompt" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--fg);resize:vertical;" placeholder="Describe the image you want..."></textarea>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      <select id="gen-model" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--fg);">
+        <option value="gemini">Gemini (free)</option>
+        <option value="fal">FAL.ai</option>
+        <option value="stability">Stability AI</option>
+      </select>
+      <button onclick="generateImage()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;">Generate</button>
+    </div>
+    <div id="gen-status" style="font-size:12px;color:var(--fg-muted);"></div>
+  </div>
+  <div id="gen-result"></div>
+</div>
+
+</div>
+</div>
+
+<script>
+var WORKER = 'https://prism.identitypartners.uk';
+var allAssets = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    var sb = buildSidebar('/media/');
+    mount.parentNode.insertBefore(sb, mount);
+    mount.parentNode.removeChild(mount);
+  }
+  loadR2Assets();
+  // Source chip toggles
+  document.querySelectorAll('.source-chip').forEach(function(chip) {
+    chip.onclick = function() { chip.classList.toggle('active'); };
+  });
+});
+
+function switchTab(tab, el) {
+  document.querySelectorAll('.mm-tab').forEach(function(t) { t.classList.remove('active'); });
+  el.classList.add('active');
+  ['r2','search','generate'].forEach(function(p) {
+    document.getElementById('panel-' + p).style.display = p === tab ? 'block' : 'none';
+  });
+}
+
+function loadR2Assets() {
+  var prefix = document.getElementById('r2-type').value;
+  fetch(WORKER + '/api/r2/list?prefix=' + encodeURIComponent(prefix))
+    .then(function(r) { var ct=r.headers.get('content-type')||''; if(!ct.includes('json')) return {files:[]}; return r.json(); })
+    .then(function(d) {
+      allAssets = d.files || [];
+      renderAssets(allAssets);
+    }).catch(function() { renderAssets([]); });
+}
+
+function filterAssets(q) {
+  var filtered = q ? allAssets.filter(function(a) { return a.key.toLowerCase().includes(q.toLowerCase()); }) : allAssets;
+  renderAssets(filtered);
+}
+
+function renderAssets(assets) {
+  var grid = document.getElementById('r2-grid');
+  if (!assets.length) { grid.innerHTML = '<div style="color:var(--fg-muted);font-size:13px;padding:20px;">No assets found.</div>'; return; }
+  grid.innerHTML = '';
+  assets.forEach(function(a) {
+    var card = document.createElement('div');
+    card.className = 'asset-card';
+    var ext = a.key.split('.').pop().toLowerCase();
+    var isImg = ['jpg','jpeg','png','gif','webp','svg'].includes(ext);
+    var thumb = isImg
+      ? '<img src="' + a.url + '" style="width:100%;height:110px;object-fit:cover;" loading="lazy" onerror="this.style.display='none'">'
+      : '<div class="asset-thumb">' + (ext === 'pdf' ? '📄' : ext === 'mp3' ? '🎵' : '📁') + '</div>';
+    var name = a.key.split('/').pop();
+    var size = a.size ? (a.size > 1048576 ? (a.size/1048576).toFixed(1)+'MB' : (a.size/1024).toFixed(0)+'KB') : '';
+    card.innerHTML = thumb + '<div class="asset-info"><div class="asset-name" title="' + name + '">' + name + '</div><div class="asset-meta">' + size + '</div></div>';
+    card.onclick = function() { window.open(a.url, '_blank'); };
+    grid.appendChild(card);
+  });
+}
+
+function searchImages() {
+  var query = document.getElementById('img-query').value.trim();
+  if (!query) return;
+  var sources = Array.from(document.querySelectorAll('.source-chip.active')).map(function(c) { return c.getAttribute('data-src'); });
+  var grid = document.getElementById('img-grid');
+  grid.innerHTML = '<div style="color:var(--fg-muted);font-size:13px;padding:20px;">Searching...</div>';
+  fetch(WORKER + '/api/images/search', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({query: query, sources: sources})
+  }).then(function(r) { var ct=r.headers.get('content-type')||''; if(!ct.includes('json')) return {results:[]}; return r.json(); })
+  .then(function(d) {
+    var results = d.results || d.images || [];
+    if (!results.length) { grid.innerHTML = '<div style="color:var(--fg-muted);font-size:13px;padding:20px;">No results. Try different keywords.</div>'; return; }
+    grid.innerHTML = '';
+    results.forEach(function(img) {
+      var card = document.createElement('div');
+      card.className = 'asset-card';
+      card.innerHTML = '<img src="' + (img.url || img.src) + '" style="width:100%;height:110px;object-fit:cover;" loading="lazy">'
+        + '<div class="asset-info"><div class="asset-name">' + (img.photographer || img.source || '') + '</div>'
+        + '<div class="asset-meta">' + (img.source || '') + '</div></div>';
+      card.onclick = function() {
+        if (confirm('Save to R2 for use in canvas?')) saveImageToR2(img.url || img.src, query);
+      };
+      grid.appendChild(card);
+    });
+  }).catch(function(e) { grid.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:20px;">Error: ' + e.message + '</div>'; });
+}
+
+function saveImageToR2(url, label) {
+  fetch(WORKER + '/api/canvas/search-images', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({url: url, key: 'media/' + Date.now() + '.jpg', label: label})
+  }).then(function() { alert('Saved to R2.'); loadR2Assets(); }).catch(function(){});
+}
+
+function generateImage() {
+  var prompt = document.getElementById('gen-prompt').value.trim();
+  var model = document.getElementById('gen-model').value;
+  if (!prompt) { alert('Enter a prompt.'); return; }
+  var status = document.getElementById('gen-status');
+  var result = document.getElementById('gen-result');
+  status.textContent = 'Generating...';
+  result.innerHTML = '';
+  fetch(WORKER + '/api/image/generate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({prompt: prompt, model: model})
+  }).then(function(r) { var ct=r.headers.get('content-type')||''; if(!ct.includes('json')) return {error:'Auth required'}; return r.json(); })
+  .then(function(d) {
+    status.textContent = '';
+    if (d.url || d.image_base64) {
+      var src = d.url || ('data:' + (d.mime_type||'image/png') + ';base64,' + d.image_base64);
+      result.innerHTML = '<img src="' + src + '" style="max-width:100%;border-radius:8px;margin-top:10px;" />'
+        + '<div style="margin-top:8px;"><a href="' + src + '" download="generated.png" style="padding:6px 14px;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:13px;">Download</a></div>';
+    } else {
+      status.textContent = 'Error: ' + (d.error || 'No image returned');
+    }
+  }).catch(function(e) { status.textContent = 'Error: ' + e.message; });
+}
+</script>
+</body>
+</html>
