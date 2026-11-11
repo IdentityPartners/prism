@@ -329,6 +329,8 @@
 </div><!-- /chat-shell -->
 <script>
 var WORKER = 'https://prism.identitypartners.uk';
+// Disable global OSK — chat uses compact strip instead
+window.__argentica_no_global_osk = true;
 
 function toggleRightPanel() {
   var panel = document.getElementById('chat-right-panel');
