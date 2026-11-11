@@ -251,41 +251,21 @@ function showPreview(url, templateId, svgText) {
   var modal = document.getElementById('preview-modal');
   var content = document.getElementById('preview-content');
   var dl = document.getElementById('preview-download');
-  content.innerHTML = '<div style="color:#fff;font-size:13px;padding:20px;">Loading preview...</div>';
   modal.classList.add('open');
-  
-  // Use blob URL to avoid browser hang on large data URLs
-  setTimeout(function() {
-    content.innerHTML = '';
-    var img = document.createElement('img');
-    img.style.cssText = 'max-width:90vmin;max-height:80vmin;border-radius:8px;';
-    img.onerror = function() {
-      content.innerHTML = '<div style="color:#fff;font-size:13px;padding:20px;">Preview unavailable — use Download to save.</div>';
-    };
-    // Convert data URL to blob for better browser handling
-    if (url.startsWith('data:')) {
-      try {
-        var parts = url.split(',');
-        var mime = parts[0].split(':')[1].split(';')[0];
-        var binary = atob(parts[1]);
-        var bytes = new Uint8Array(binary.length);
-        for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        var blob = new Blob([bytes], {type: mime});
-        var blobUrl = URL.createObjectURL(blob);
-        img.src = blobUrl;
-        dl.href = blobUrl;
-      } catch(e) {
-        img.src = url;
-        dl.href = url;
-      }
-    } else {
-      img.src = url;
-      dl.href = url;
-    }
-    dl.download = templateId + '-canvas.svg';
-    content.appendChild(img);
-  }, 50);
-}
+  if (svgText && svgText.trim().startsWith('<')) {
+    content.innerHTML = '<div style="max-width:90vmin;max-height:80vmin;overflow:auto;border-radius:8px;background:#fff;padding:4px;">' + svgText + '</div>';
+    var blob = new Blob([svgText], {type:'image/svg+xml'});
+    var blobUrl = URL.createObjectURL(blob);
+    if (dl) { dl.href = blobUrl; dl.download = (templateId || 'canvas') + '.svg'; }
+    return;
+  }
+  content.innerHTML = '<div style="color:#fff;font-size:13px;padding:20px;">Loading preview...</div>';
+  var img = new Image();
+  img.onload = function() { content.innerHTML = ''; content.appendChild(img); };
+  img.onerror = function() { content.innerHTML = '<div style="color:#fff;font-size:13px;padding:20px;text-align:center;">Preview unavailable — use Download to save.</div>'; };
+  img.style.cssText = 'max-width:90vmin;max-height:80vmin;border-radius:8px;display:block;';
+  img.src = url;
+  if (dl) { dl.href = url; dl.download = (templateId || 'canvas') + '.svg'; }
 
 function closePreview() {
   document.getElementById('preview-modal').classList.remove('open');
