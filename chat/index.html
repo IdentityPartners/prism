@@ -125,40 +125,63 @@
 .toolbar-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
 
 /* OSK strip — always visible, left of textarea */
-.osk-strip {
-  background:var(--bg-sunken);
-  border:1px solid var(--border);
-  border-radius:8px;
-  flex-shrink:0;
-  display:flex !important;
-  flex-direction:column;
-  width:200px;
-  min-width:200px;
-  overflow-y:auto;
-  max-height:160px;
-  align-self:flex-end;
+/* Right panel — full height, collapsible, right of chat-main */
+.chat-right {
+  width: 280px;
+  min-width: 280px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  overflow-y: auto;
+  transition: width 0.2s ease, min-width 0.2s ease;
+  position: relative;
 }
+.chat-right.collapsed {
+  width: 36px;
+  min-width: 36px;
+  overflow: hidden;
+}
+.chat-right.collapsed .right-sec,
+.chat-right.collapsed .right-panel-inner { display: none; }
+.right-panel-toggle {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+.right-panel-toggle:hover { background: var(--bg-elevated); }
+.right-panel-toggle-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fg-muted); }
+.right-panel-toggle-icon { font-size: 14px; color: var(--fg-muted); transition: transform 0.2s; }
+.chat-right.collapsed .right-panel-toggle { justify-content: center; padding: 8px 6px; }
+.chat-right.collapsed .right-panel-toggle-label { display: none; }
+.chat-right.collapsed .right-panel-toggle-icon { transform: rotate(180deg); }
+.right-panel-inner { display: flex; flex-direction: column; flex: 1; overflow-y: auto; }
+@media(max-width:750px){ .chat-right { display: none; } }
+@media(max-width:800px){ .conv-panel { display: none; } }
+.right-sec { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.right-sec h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fg-muted); margin: 0 0 8px; }
+.model-select { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: var(--bg); color: var(--fg); cursor: pointer; }
+.model-info { font-size: 11px; color: var(--fg-muted); margin-top: 4px; line-height: 1.4; }
+.profile-btns { display: flex; flex-wrap: wrap; gap: 3px; }
+.profile-btn { padding: 4px 9px; border: 1px solid var(--border); border-radius: 10px; font-size: 12px; cursor: pointer; background: var(--bg); color: var(--fg-muted); font-family: inherit; }
+.profile-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.routing-log { font-size: 11px; color: var(--fg-muted); font-family: monospace; line-height: 1.5; max-height: 100px; overflow-y: auto; white-space: pre-wrap; }
+.action-btn { display: block; width: 100%; padding: 7px 10px; margin-bottom: 4px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; cursor: pointer; background: var(--bg); color: var(--fg); font-family: inherit; text-align: left; transition: all 0.15s; }
+.action-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-/* Right panel */
-.chat-right { width:240px; flex-shrink:0; border-left:1px solid var(--border); display:flex !important; flex-direction:column; background:var(--bg-surface); overflow-y:auto; }
-@media(max-width:750px){.chat-right{display:none;}}
-@media(max-width:800px){.conv-panel{display:none;}}
-.right-sec { padding:10px 12px; border-bottom:1px solid var(--border); }
-.right-sec h4 { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--fg-muted); margin:0 0 8px; }
-.model-select { width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px; background:var(--bg); color:var(--fg); cursor:pointer; }
-.model-info { font-size:11px; color:var(--fg-muted); margin-top:4px; line-height:1.4; }
-.profile-btns { display:flex; flex-wrap:wrap; gap:3px; }
-.profile-btn { padding:4px 9px; border:1px solid var(--border); border-radius:10px; font-size:12px; cursor:pointer; background:var(--bg); color:var(--fg-muted); font-family:inherit; }
-.profile-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-.routing-log { font-size:11px; color:var(--fg-muted); font-family:monospace; line-height:1.5; max-height:100px; overflow-y:auto; white-space:pre-wrap; }
-.action-btn { display:block; width:100%; padding:7px 10px; margin-bottom:4px; border:1px solid var(--border); border-radius:6px; font-size:13px; cursor:pointer; background:var(--bg); color:var(--fg); font-family:inherit; text-align:left; transition:all 0.15s; }
-.action-btn:hover { border-color:var(--accent); color:var(--accent); }
-
-/* OSK: always visible left of textarea */
-/* (override removed — OSK is always-on) */
-/* Right panel: always visible on Surface Pro */
-@media(max-width: 780px) { .chat-right { display: none; } }
-@media(min-width: 781px) { .chat-right { display: flex; } }
+/* OSK — hidden by default, toggled via button in toolbar */
+.osk-strip { display: none; }
+.osk-strip.osk-visible { display: block; }
 </style>
 </head>
 <body>
@@ -225,10 +248,18 @@
 <button class="toolbar-btn" onclick="quickAction('image')">🎨 Image</button>
 <button class="toolbar-btn" id="dictate-btn" onclick="startDictation()">🎤 Dictate</button>
 <button class="toolbar-btn active" id="multi-btn" onclick="toggleMultiModel()" title="Send to multiple models simultaneously" style="background:rgba(124,58,237,0.1);color:#7c3aed;border-color:#7c3aed;">⚡ Multi-model</button>
+<button class="toolbar-btn" id="osk-toggle-btn" onclick="toggleOSKPanel()" title="On-screen keyboard">⌨ Keyboard</button>
 </div>
 </div>
-<!-- Right panel -->
-<div class="chat-right">
+</div><!-- /chat-input-area -->
+</div><!-- /chat-main -->
+<!-- Right panel — collapsible, full height, sibling of chat-main -->
+<div class="chat-right" id="chat-right-panel">
+<div class="right-panel-toggle" onclick="toggleRightPanel()" title="Toggle panel">
+  <span class="right-panel-toggle-label">Model &amp; Routing</span>
+  <span class="right-panel-toggle-icon">&#x276E;</span>
+</div>
+<div class="right-panel-inner">
 <div class="right-sec">
 <h4>Model</h4>
 <select class="model-select" id="model-select" onchange="setModelOverride(this.value)">
@@ -293,11 +324,40 @@
 <h4>Conversation</h4>
 <div id="conv-info" style="font-size:13px;color:var(--fg-muted);">New conversation</div>
 </div>
-</div>
-</div>
-</div>
+</div><!-- /right-panel-inner -->
+</div><!-- /chat-right -->
+</div><!-- /chat-shell -->
 <script>
 var WORKER = 'https://prism-api.identitypartners.workers.dev';
+
+function toggleRightPanel() {
+  var panel = document.getElementById('chat-right-panel');
+  if (!panel) return;
+  panel.classList.toggle('collapsed');
+  var icon = panel.querySelector('.right-panel-toggle-icon');
+  if (icon) icon.textContent = panel.classList.contains('collapsed') ? '❯' : '❮';
+  try { localStorage.setItem('chat-right-collapsed', panel.classList.contains('collapsed') ? '1' : '0'); } catch(e) {}
+}
+
+function toggleOSKPanel() {
+  var strip = document.getElementById('osk-strip');
+  if (!strip) {
+    // Build OSK on first toggle
+    // Restore right panel collapsed state
+  try {
+    if (localStorage.getItem('chat-right-collapsed') === '1') {
+      var rp = document.getElementById('chat-right-panel');
+      if (rp) { rp.classList.add('collapsed'); var icon = rp.querySelector('.right-panel-toggle-icon'); if (icon) icon.textContent = '❯'; }
+    }
+  } catch(e) {}
+  // OSK is opt-in — do not auto-build
+    strip = document.getElementById('osk-strip');
+  }
+  if (!strip) return;
+  strip.classList.toggle('osk-visible');
+  var btn = document.getElementById('osk-toggle-btn');
+  if (btn) btn.classList.toggle('active', strip.classList.contains('osk-visible'));
+}
 var currentThreadId = null;
 var chatHistory = [];
 var attachments = [];
