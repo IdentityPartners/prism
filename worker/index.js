@@ -360,6 +360,7 @@ async function orchestrate(messages, env, options = {}) {
   // Keys — canonical names from API register (2026-10-27)
   const MISTRAL_KEY = k(env, ['mistral_api_key', 'MISTRAL_API_KEY', 'mistral_p', 'mistral_f']);
   const GEMINI_KEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY', 'gemini_p', 'gemini_f']);
+  const GEMINI_FREE_KEY = k(env, ['gemini_free_key', 'GEMINI_FREE_KEY']) || GEMINI_KEY; // free tier key, falls back to paid
   const DEEPSEEK_KEY = k(env, ['deepseek_paid', 'DEEPSEEK_PAID', 'deepseek_p', 'deepseek_f1', 'deepseek_f2']);
   const GROQ_KEY = k(env, ['groq_f1', 'groq_f2', 'groq_f3', 'GROQ_F1', 'groq_free_1', 'GROQ_FREE_1']);
   const OPENROUTER_KEY = k(env, ['openrouter', 'openrouter_api_key', 'OPENROUTER_API_KEY']);
@@ -383,78 +384,84 @@ async function orchestrate(messages, env, options = {}) {
   // Unconditional fallback: Pollinations (always specify model name: openai/mistral/flux)
   const CHAINS = {
     balanced: [
-      // — Tier 1: Paid subscription leads —
-      GEMINI_KEY && {provider:'gemini', model:'gemini-4-argon', key:GEMINI_KEY, note:'Gemini 4 Argon · paid · flagship reasoning · 1M ctx'},
-      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 · paid subscription · 1M ctx · thinking · web search'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-4', key:MISTRAL_KEY, note:'Mistral Large 4 · paid subscription · 262K ctx'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · paid · current flagship Flash · 1M ctx'},
-      // — Tier 2: Free tier / fast —
-      CEREBRAS_KEY && {provider:'cerebras', model:'qwen-3.8-27b', key:CEREBRAS_KEY, note:'Qwen 3.8 27B · Cerebras · ~1850 tok/s · free tier'},
-      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY, note:'GPT-OSS 120B · Cerebras · ~3000 tok/s · free tier'},
-      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-20b', key:GROQ_KEY, note:'GPT-OSS 20B · Groq · ~1000 tok/s · free tier'},
+      // ── Tier 1: Free / subscription-included (use freely) ──
+      // Mistral subscription covers GLM 5.3 and Mistral Large — no per-token cost
+      MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 · Mistral sub · 1M ctx · thinking · web'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-large-4', key:MISTRAL_KEY, note:'Mistral Large 4 · Mistral sub · 262K ctx'},
+      // Gemini free tier key (gemini_free_key) — no cost
+      GEMINI_FREE_KEY && {provider:'gemini', model:'gemini-flash-latest', key:GEMINI_FREE_KEY, note:'Gemini Flash Latest · FREE tier key · 1M ctx'},
+      GEMINI_FREE_KEY && {provider:'gemini', model:'gemini-2.5-flash', key:GEMINI_FREE_KEY, note:'Gemini 2.5 Flash · FREE tier key'},
+      // Fast free providers
+      CEREBRAS_KEY && {provider:'cerebras', model:'qwen-3.8-27b', key:CEREBRAS_KEY, note:'Qwen 3.8 27B · Cerebras · ~1850 tok/s · free'},
+      CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY, note:'GPT-OSS 120B · Cerebras · ~3000 tok/s · free'},
+      GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-20b', key:GROQ_KEY, note:'GPT-OSS 20B · Groq · ~1000 tok/s · free'},
       COHERE_KEY && {provider:'cohere', model:'command-r-plus', key:COHERE_KEY, note:'Cohere Command R+ · paid key · RAG-optimised'},
-      // — Tier 3: Chargeable — use sparingly —
+      // OpenRouter free frontier models
+      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/llama-3.1-nemotron-ultra-253b-v1:free', key:OPENROUTER_KEY, note:'Nemotron Ultra 253B · OpenRouter · free · frontier reasoning'},
+      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY, note:'Nemotron Ultra 550B · OpenRouter · free · 1M ctx'},
+      OPENROUTER_KEY && {provider:'openrouter', model:'minimax/minimax-m3.1-flash:free', key:OPENROUTER_KEY, note:'MiniMax M3.1 Flash · OpenRouter · free · 1M ctx'},
+      // ── Tier 2: Paid Google subscription (conserve — $10/mo credit) ──
+      GEMINI_KEY && {provider:'gemini', model:'gemini-4-argon', key:GEMINI_KEY, note:'Gemini 4 Argon · PAID key · flagship · 1M ctx'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · PAID key · 1M ctx'},
+      // ── Tier 3: Chargeable — use sparingly ──
       KIMI_KEY && {provider:'kimi', model:'kimi-k2.5', key:KIMI_KEY, note:'Kimi K2.5 · chargeable · use sparingly'},
       DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · chargeable · use sparingly'},
       XAI_KEY && {provider:'xai', model:'grok-3', key:XAI_KEY, note:'xAI Grok 3 · chargeable · real-time data'},
       NVIDIA_KEY && {provider:'nvidia', model:'meta/llama-3.1-nemotron-ultra-253b-v1', key:NVIDIA_KEY, note:'NVIDIA NIM · chargeable'},
       SAMBANOVA_KEY && {provider:'sambanova', model:'Meta-Llama-3.3-70B-Instruct', key:SAMBANOVA_KEY, note:'SambaNova · chargeable'},
       FIREWORKS_KEY && {provider:'fireworks', model:'accounts/fireworks/models/llama-v3p3-70b-instruct', key:FIREWORKS_KEY, note:'Fireworks · chargeable'},
-      ANYAPI_KEY && {provider:'anyapi', model:'gpt-4o', key:ANYAPI_KEY, note:'AnyAPI · chargeable'},
-      // — Tier 4: Free fallbacks —
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash-lite', key:GEMINI_KEY, note:'Gemini 3.5 Flash-Lite · free tier'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-4', key:MISTRAL_KEY, note:'Mistral Small 4 · free tier'},
-      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/nemotron-3-ultra-550b-a55b:free', key:OPENROUTER_KEY, note:'OpenRouter free models'},
-      // — Unconditional fallback —
+      // ── Tier 4: Free fallbacks ──
+      GEMINI_FREE_KEY && {provider:'gemini', model:'gemini-3.5-flash-lite', key:GEMINI_FREE_KEY, note:'Gemini 3.5 Flash-Lite · FREE tier key'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-4', key:MISTRAL_KEY, note:'Mistral Small 4 · Mistral sub · free tier'},
+      // ── Unconditional fallback ──
       {provider:'pollinations', model:'openai', key:null, note:'Pollinations · no key · always responds'},
     ].filter(Boolean),
 
-    // ── Fast: Low latency, high throughput ────────────────────────────────────
     fast: [
       CEREBRAS_KEY && {provider:'cerebras', model:'qwen-3.8-27b', key:CEREBRAS_KEY, note:'Qwen 3.8 27B · Cerebras · ~1850 tok/s'},
       GROQ_KEY && {provider:'groq', model:'openai/gpt-oss-20b', key:GROQ_KEY, note:'GPT-OSS 20B · Groq · ~1000 tok/s'},
       CEREBRAS_KEY && {provider:'cerebras', model:'gpt-oss-120b', key:CEREBRAS_KEY, note:'GPT-OSS 120B · Cerebras · ~3000 tok/s'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.5-flash-lite', key:GEMINI_KEY, note:'Gemini 3.5 Flash-Lite · FREE · fastest'},
-      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-4', key:MISTRAL_KEY, note:'Mistral Small 4 · efficient'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.1-flash-lite', key:GEMINI_KEY, note:'Gemini 3.1 Flash-Lite · FREE'},
+      GEMINI_FREE_KEY && {provider:'gemini', model:'gemini-flash-latest', key:GEMINI_FREE_KEY, note:'Gemini Flash Latest · FREE · fastest'},
+      GEMINI_FREE_KEY && {provider:'gemini', model:'gemini-3.5-flash-lite', key:GEMINI_FREE_KEY, note:'Gemini 3.5 Flash-Lite · FREE'},
+      MISTRAL_KEY && {provider:'mistral', model:'mistral-small-4', key:MISTRAL_KEY, note:'Mistral Small 4 · Mistral sub'},
+      {provider:'pollinations', model:'openai', key:null, note:'Pollinations · unconditional fallback'},
     ].filter(Boolean),
 
-    // ── Research: Deep reasoning, large context, web search ───────────────────
     research: [
       MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 · 1M ctx · thinking · web search'},
       MISTRAL_KEY && {provider:'mistral', model:'mistral-large-4', key:MISTRAL_KEY, note:'Mistral Large 4 · multimodal'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-4-argon', key:GEMINI_KEY, note:'Gemini 4 Argon · paid · flagship reasoning · 1M ctx'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · Google Search · paid'},
-      KIMI_KEY && {provider:'kimi', model:'kimi-k2-thinking', key:KIMI_KEY, note:'Kimi K2 Thinking · chargeable · reasoning · 262K ctx'},
-      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · chargeable · web search'},
+      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/llama-3.1-nemotron-ultra-253b-v1:free', key:OPENROUTER_KEY, note:'Nemotron Ultra 253B · free · deep reasoning'},
+      GEMINI_FREE_KEY && {provider:'gemini', model:'gemini-flash-latest', key:GEMINI_FREE_KEY, note:'Gemini Flash Latest · FREE · Google Search'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-4-argon', key:GEMINI_KEY, note:'Gemini 4 Argon · PAID · flagship reasoning · 1M ctx'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · PAID · Google Search'},
+      KIMI_KEY && {provider:'kimi', model:'kimi-k2-thinking', key:KIMI_KEY, note:'Kimi K2 Thinking · chargeable · reasoning'},
+      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · chargeable'},
       {provider:'pollinations', model:'openai', key:null, note:'Pollinations · unconditional fallback'},
     ].filter(Boolean),
 
-    // ── Coding: Strong instruction-following, code generation ─────────────────
     coding: [
       MISTRAL_KEY && {provider:'mistral', model:'mistral-large-4', key:MISTRAL_KEY, note:'Mistral Large 4 · code · multimodal'},
       MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3', key:MISTRAL_KEY, note:'GLM 5.3 · code + thinking'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · code · paid'},
+      OPENROUTER_KEY && {provider:'openrouter', model:'nvidia/llama-3.1-nemotron-ultra-253b-v1:free', key:OPENROUTER_KEY, note:'Nemotron Ultra 253B · free · coder/reasoner'},
+      GEMINI_FREE_KEY && {provider:'gemini', model:'gemini-flash-latest', key:GEMINI_FREE_KEY, note:'Gemini Flash Latest · FREE · code'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · PAID · code'},
       MISTRAL_KEY && {provider:'mistral', model:'mistral-medium-3.5', key:MISTRAL_KEY, note:'Mistral Medium 3.5 · agentic coding'},
-      NVIDIA_KEY && {provider:'nvidia', model:'meta/llama-3.1-nemotron-ultra-253b-v1', key:NVIDIA_KEY, note:'Nemotron Ultra 253B · chargeable · coder/reasoner'},
-      DEEPSEEK_KEY && {provider:'deepseek', model:'deepseek-chat', key:DEEPSEEK_KEY, note:'DeepSeek V3 · chargeable · code'},
       {provider:'pollinations', model:'openai', key:null, note:'Pollinations · unconditional fallback'},
     ].filter(Boolean),
 
-    // ── Vision: Multimodal, image understanding ───────────────────────────────
     vision: [
       MISTRAL_KEY && {provider:'mistral', model:'mistral-large-4', key:MISTRAL_KEY, note:'Mistral Large 4 · multimodal'},
       MISTRAL_KEY && {provider:'mistral', model:'zai-glm-5-3-flash', key:MISTRAL_KEY, note:'GLM 5.3 Flash · multimodal · visual coding'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · vision · paid'},
-      GEMINI_KEY && {provider:'gemini', model:'gemini-4-argon', key:GEMINI_KEY, note:'Gemini 4 Argon · vision · paid · 1M ctx'},
+      GEMINI_FREE_KEY && {provider:'gemini', model:'gemini-flash-latest', key:GEMINI_FREE_KEY, note:'Gemini Flash Latest · FREE · vision'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-3.8-flash', key:GEMINI_KEY, note:'Gemini 3.8 Flash · PAID · vision'},
+      GEMINI_KEY && {provider:'gemini', model:'gemini-4-argon', key:GEMINI_KEY, note:'Gemini 4 Argon · PAID · vision · 1M ctx'},
       {provider:'pollinations', model:'openai', key:null, note:'Pollinations · unconditional fallback'},
     ].filter(Boolean),
 
-    // ── Local: Ollama only (requires tunnel — manual activation) ──────────────
     local: [
       {provider:'ollama', model:'llama3.1', key:null, note:'Ollama local (requires Cloudflare Tunnel)'},
     ],
-  }
+  };
   CHAINS.frontier = CHAINS.balanced;
   CHAINS.research_deep = CHAINS.research;
 ;
