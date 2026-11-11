@@ -57,6 +57,11 @@
       </a>
     </div>
     <div class="folder-tabs">
+      <!-- Account switcher -->
+      <div style="display:flex;gap:4px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border);">
+        <button id="acct-gmail" onclick="switchAccount('gmail')" style="padding:3px 10px;border-radius:12px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-size:11px;cursor:pointer;font-family:inherit;">Gmail</button>
+        <button id="acct-proton" onclick="switchAccount('proton')" style="padding:3px 10px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--fg-muted);font-size:11px;cursor:pointer;font-family:inherit;">Proton</button>
+      </div>
       <div class="folder-tab active" onclick="setLabel('INBOX',this)">Inbox</div>
       <div class="folder-tab" onclick="setLabel('SENT',this)">Sent</div>
       <div class="folder-tab" onclick="setLabel('STARRED',this)">Starred</div>
@@ -89,6 +94,18 @@
 
 <script>
 var WORKER = "https://prism.identitypartners.uk";
+var currentAccount = 'gmail'; // 'gmail' or 'proton'
+
+function switchAccount(acct) {
+  currentAccount = acct;
+  document.getElementById('acct-gmail').style.background = acct === 'gmail' ? 'var(--accent)' : 'var(--bg)';
+  document.getElementById('acct-gmail').style.color = acct === 'gmail' ? '#fff' : 'var(--fg-muted)';
+  document.getElementById('acct-gmail').style.borderColor = acct === 'gmail' ? 'var(--accent)' : 'var(--border)';
+  document.getElementById('acct-proton').style.background = acct === 'proton' ? 'var(--accent)' : 'var(--bg)';
+  document.getElementById('acct-proton').style.color = acct === 'proton' ? '#fff' : 'var(--fg-muted)';
+  document.getElementById('acct-proton').style.borderColor = acct === 'proton' ? 'var(--accent)' : 'var(--border)';
+  loadInbox();
+}
 var currentLabel = "INBOX";
 var currentMsg = null;
 var currentMsgId = null;
@@ -129,12 +146,16 @@ function setLabel(label, btn) {
 function loadInbox() {
   var list = document.getElementById("email-list");
   list.innerHTML = "<div style=\"padding:20px;text-align:center;color:var(--fg-muted);font-size:0.85rem;\">Loading...</div>";
-  fetch(WORKER + "/api/google/gmail?maxResults=30&label=" + currentLabel)
+  // Route to correct email provider
+  var inboxUrl = currentAccount === 'proton'
+    ? WORKER + "/api/nylas/inbox?limit=30"
+    : WORKER + "/api/google/gmail?maxResults=30&label=" + currentLabel;
+
+  fetch(inboxUrl)
     .then(function(r) {
       var ct = r.headers.get('content-type') || '';
       if (!ct.includes('application/json')) {
-        // HTML response = auth error or worker not ready
-        return { error: 'Authentication required', status: 'not_connected' };
+        return { error: currentAccount === 'proton' ? 'Proton Bridge not running — start Proton Bridge app on your device' : 'Authentication required — reconnect at /comms/google/', status: 'not_connected' };
       }
       return r.json();
     })
@@ -257,7 +278,7 @@ function sendEmail() {
   var status = document.getElementById("compose-status");
   if (!to || !body) { if (status) status.textContent = "To and message are required."; return; }
   if (status) status.textContent = "Sending...";
-  fetch(WORKER + "/api/google/gmail/send", {
+  fetch(WORKER + (currentAccount === "proton" ? "/api/nylas/send" : "/api/google/gmail/send"), {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({to: to, subject: subject, text: body, from: from})
