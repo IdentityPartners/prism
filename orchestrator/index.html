@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function loadConfig() {
   fetch(WORKER + '/api/orchestrator/config')
-    .then(function(r) { return r.json(); })
+    .then(function(r){ var ct=r.headers.get("content-type")||""; if(!ct.includes("application/json")){return {error:"Auth required — reconnect at /comms/google/",_html:true};} return r.json(); })
     .then(function(d) {
       config = d.config;
       benchmarks = d.benchmarks;
@@ -244,7 +244,7 @@ function saveChain() {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ config: config })
   })
-  .then(function(r) { return r.json(); })
+  .then(function(r){ var ct=r.headers.get("content-type")||""; if(!ct.includes("application/json")){return {error:"Auth required — reconnect at /comms/google/",_html:true};} return r.json(); })
   .then(function(d) {
     if (d.success) alert('Chain saved. Takes effect on next chat.');
     else alert('Save failed: ' + JSON.stringify(d));
@@ -258,7 +258,7 @@ function testChain() {
   fetch(WORKER + '/api/champion/test-providers', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
   })
-  .then(function(r) { return r.json(); })
+  .then(function(r){ var ct=r.headers.get("content-type")||""; if(!ct.includes("application/json")){return {error:"Auth required — reconnect at /comms/google/",_html:true};} return r.json(); })
   .then(function(d) {
     var results = d.results || [];
     var lines = ['Results (' + d.ok + '/' + d.tested + ' OK):'];
