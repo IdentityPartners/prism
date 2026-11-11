@@ -1231,6 +1231,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ── On-Screen Keyboard ────────────────────────────────────────────────────────
 function buildOSK(targetId) {
+  // Don't build if page uses compact strip
+  if (window.__argentica_no_global_osk) return;
   var target = document.getElementById(targetId);
   if (!target) return;
 
