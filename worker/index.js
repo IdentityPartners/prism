@@ -5811,7 +5811,56 @@ data: ${JSON.stringify(data)}
 
 
     // ── KV generic get/set/delete (used by Study Hub and other modules) ───────────
-    if (path === '/api/kv/get' && request.method === 'GET') {
+    // ── Secret Ingester ── proxy CF secrets API to avoid CORS ──────────────────
+    if (path === '/api/ingest-secrets' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const { secrets, cfToken, accountId, workerName } = body;
+        if (!cfToken || !accountId || !workerName) {
+          return json({ error: 'cfToken, accountId, and workerName are required' }, 400, origin);
+        }
+        if (!Array.isArray(secrets) || secrets.length === 0) {
+          return json({ error: 'secrets array is required' }, 400, origin);
+        }
+        const results = [];
+        for (const secret of secrets) {
+          const { name, value } = secret;
+          if (!name || value === undefined) {
+            results.push({ name: name || '?', success: false, error: 'name and value required' });
+            continue;
+          }
+          try {
+            const resp = await fetch(
+              `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/${workerName}/secrets`,
+              {
+                method: 'PUT',
+                headers: {
+                  'Authorization': 'Bearer ' + cfToken,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name, text: value, type: 'secret_text' }),
+              }
+            );
+            const data = await resp.json();
+            if (data.success) {
+              results.push({ name, success: true });
+            } else {
+              const errMsg = (data.errors && data.errors[0] && data.errors[0].message) || 'Unknown error';
+              results.push({ name, success: false, error: errMsg });
+            }
+          } catch (e) {
+            results.push({ name, success: false, error: e.message });
+          }
+        }
+        const pushed = results.filter(r => r.success).length;
+        const failed = results.filter(r => !r.success).length;
+        return json({ success: true, pushed, failed, results }, 200, origin);
+      } catch (e) {
+        return json({ error: e.message }, 500, origin);
+      }
+    }
+
+        if (path === '/api/kv/get' && request.method === 'GET') {
       try {
         const kvKey = url.searchParams.get('key') || '';
         if (!kvKey) return json({error:'key required'}, 400, origin);
