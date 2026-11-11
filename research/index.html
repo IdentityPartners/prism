@@ -109,6 +109,31 @@
 <div style="font-size:12px;color:var(--fg-muted);">Social media search via Perplexity Sonar. Run a search above.</div>
 </div>
 <div id="panel-journals" style="display:none;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-surface);font-size:12px;color:var(--fg-muted);">Select sources and run a search above.</div>
+<div id="search-filters" style="padding:8px 16px 4px;border-bottom:1px solid var(--border);background:var(--bg-elevated);display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+  <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--fg-muted);">Filters:</span>
+  <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg-muted);">
+    From <input type="date" id="filter-date-from" style="font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);">
+  </label>
+  <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg-muted);">
+    To <input type="date" id="filter-date-to" style="font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);">
+  </label>
+  <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg-muted);">
+    <input type="checkbox" id="filter-fulltext"> Full text / OA only
+  </label>
+  <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--fg-muted);">
+    Type:
+    <select id="filter-doctype" style="font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);">
+      <option value="all">All types</option>
+      <option value="article">Journal article</option>
+      <option value="thesis">Thesis / dissertation</option>
+      <option value="preprint">Preprint</option>
+      <option value="book">Book / chapter</option>
+      <option value="dataset">Dataset</option>
+      <option value="news">News article</option>
+    </select>
+  </label>
+  <button onclick="clearFilters()" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg-muted);cursor:pointer;">Clear filters</button>
+</div>
 <div class="results-list" id="results-list">
 <div style="font-size:13px;color:var(--fg-muted);padding:20px 0;text-align:center;">Enter a search query above to begin.</div>
 </div>
@@ -190,40 +215,44 @@ var ALL_SOURCES = {
     {id:'goldsmiths_ill',name:'Goldsmiths ILL',desc:'Inter-Library Loan fulfilment fallback'},
     {id:'google_scholar',name:'Google Scholar',desc:'Discovery/navigation only — no scraping, link-out only'},
   ],
-  // News tab — news sources
+  // News tab — news sources (Telegraph, Times, iNews prohibited)
   news: [
-    {id:'tavily',name:'Tavily News',desc:'Web news search'},
-    {id:'brave',name:'Brave News',desc:'News search'},
-    {id:'perplexity',name:'Perplexity',desc:'AI news synthesis'},
-    {id:'guardian_rss',name:'The Guardian',desc:'RSS feed'},
-    {id:'bbc_rss',name:'BBC News',desc:'RSS feed'},
-    {id:'ft_rss',name:'Financial Times',desc:'RSS feed'},
-    {id:'independent_rss',name:'The Independent',desc:'RSS feed'},
-    // Telegraph and Times are prohibited sources — removed
-    {id:'statesman_rss',name:'New Statesman',desc:'RSS feed'},
-    {id:'byline_rss',name:'Byline Times',desc:'RSS feed'},
-    {id:'newscientist_rss',name:'New Scientist',desc:'RSS feed'},
-    {id:'economist_rss',name:'The Economist',desc:'RSS feed'},
-    {id:'reuters_rss',name:'Reuters',desc:'RSS feed'},
-    {id:'sky_rss',name:'Sky News',desc:'RSS feed'},
+    {id:'tavily',name:'Tavily News',desc:'Web news search with AI answers'},
+    {id:'brave',name:'Brave News',desc:'Privacy-focused news search'},
+    {id:'perplexity',name:'Perplexity',desc:'AI news synthesis with citations'},
+    {id:'guardian_rss',name:'The Guardian',desc:'RSS — approved quality press'},
+    {id:'bbc_rss',name:'BBC News',desc:'RSS — UK public broadcaster'},
+    {id:'ft_rss',name:'Financial Times',desc:'RSS — approved quality press'},
+    {id:'independent_rss',name:'The Independent',desc:'RSS — UK news'},
+    {id:'sky_rss',name:'Sky News',desc:'RSS — UK broadcast news'},
+    {id:'reuters_rss',name:'Reuters',desc:'RSS — international wire service'},
+    {id:'wsj_rss',name:'Wall Street Journal',desc:'RSS — US financial news'},
+    {id:'nyt_rss',name:'New York Times',desc:'RSS — approved quality press'},
+    {id:'wp_rss',name:'Washington Post',desc:'RSS — approved quality press'},
+    {id:'statesman_rss',name:'New Statesman',desc:'RSS — approved political weekly'},
+    {id:'byline_rss',name:'Byline Times',desc:'RSS — investigative journalism'},
+    {id:'newscientist_rss',name:'New Scientist',desc:'RSS — approved science journalism'},
+    {id:'economist_rss',name:'The Economist',desc:'RSS — approved quality press'},
+    {id:'new_european_rss',name:'New European',desc:'RSS — approved quality press'},
   ],
   // Journals & Press tab
   journals: [
     {id:'doaj',name:'DOAJ',desc:'Directory of Open Access Journals'},
     {id:'pmc',name:'PubMed Central',desc:'Free full-text biomedical'},
-    {id:'jstor',name:'JSTOR Open',desc:'Open access journals'},
-    {id:'scielo',name:'SciELO',desc:'Latin American journals'},
-    {id:'redalyc',name:'Redalyc',desc:'Ibero-American journals'},
+    {id:'europe_pmc',name:'Europe PMC',desc:'European biomedical literature'},
+    {id:'jstor',name:'JSTOR Open',desc:'Open access JSTOR content'},
+    {id:'scielo',name:'SciELO',desc:'Latin American open access journals'},
+    {id:'redalyc',name:'Redalyc',desc:'Ibero-American open access journals'},
     {id:'ajol',name:'AJOL',desc:'African Journals Online'},
-    {id:'europe_pmc',name:'Europe PMC',desc:'European biomedical journals'},
-    {id:'statesman_rss',name:'New Statesman',desc:'Political weekly'},
-    {id:'byline_rss',name:'Byline Times',desc:'Investigative journalism'},
-    {id:'newscientist_rss',name:'New Scientist',desc:'Science journalism'},
-    {id:'lancet_rss',name:'The Lancet',desc:'Medical journal'},
-    {id:'bmj_rss',name:'BMJ',desc:'British Medical Journal'},
-    {id:'nature_rss',name:'Nature News',desc:'Science journal news'},
-    {id:'science_rss',name:'Science Magazine',desc:'AAAS journal news'},
-    {id:'guardian_rss',name:'Guardian Science',desc:'Science journalism'},
+    {id:'lancet_rss',name:'The Lancet',desc:'RSS — leading medical journal'},
+    {id:'bmj_rss',name:'BMJ',desc:'RSS — British Medical Journal'},
+    {id:'nature_rss',name:'Nature News',desc:'RSS — Nature journal news'},
+    {id:'science_rss',name:'Science Magazine',desc:'RSS — AAAS Science journal'},
+    {id:'statesman_rss',name:'New Statesman',desc:'RSS — political weekly'},
+    {id:'newscientist_rss',name:'New Scientist',desc:'RSS — science journalism'},
+    {id:'economist_rss',name:'The Economist',desc:'RSS — quality press'},
+    {id:'guardian_rss',name:'Guardian Science',desc:'RSS — science journalism'},
+    {id:'new_european_rss',name:'New European',desc:'RSS — quality press'},
   ],
   // Social tab
   social: [
@@ -257,20 +286,29 @@ function toggleSource(el) {
 }
 
 function selectAllSources() {
-  activeSources = [];
-  Object.keys(ALL_SOURCES).forEach(function(cat) {
-    ALL_SOURCES[cat].forEach(function(s) {
-      if (activeSources.indexOf(s.id) < 0) activeSources.push(s.id);
-    });
+  // Select only sources in the current tab
+  var tabSources = ALL_SOURCES[currentTab] || [];
+  tabSources.forEach(function(s) {
+    if (activeSources.indexOf(s.id) < 0) activeSources.push(s.id);
   });
   var chips = document.querySelectorAll('.source-chip');
-  for (var i = 0; i < chips.length; i++) chips[i].classList.add('active');
+  for (var i = 0; i < chips.length; i++) {
+    var src = chips[i].getAttribute('data-source');
+    if (tabSources.find(function(s){return s.id===src;})) chips[i].classList.add('active');
+  }
 }
 
 function clearSources() {
-  activeSources = [];
+  // Clear only sources in the current tab
+  var tabSources = ALL_SOURCES[currentTab] || [];
+  tabSources.forEach(function(s) {
+    activeSources = activeSources.filter(function(a){return a !== s.id;});
+  });
   var chips = document.querySelectorAll('.source-chip');
-  for (var i = 0; i < chips.length; i++) chips[i].classList.remove('active');
+  for (var i = 0; i < chips.length; i++) {
+    var src = chips[i].getAttribute('data-source');
+    if (tabSources.find(function(s){return s.id===src;})) chips[i].classList.remove('active');
+  }
 }
 
 var currentTab = "api";
@@ -349,41 +387,214 @@ function renderSourceChips(tab) {
   });
 }
 
+// ── Scholarly source IDs — routed to /api/research/scholarly ──
+var SCHOLARLY_SOURCES = ['semantic_scholar','openalex','pubmed','crossref','core','arxiv','ssrn','biorxiv','medrxiv','psyarxiv','socarxiv','osf','zenodo','base','doaj','pmc','europe_pmc','jstor','scielo','redalyc','lens','ncbi','clinicaltrials','ethos','oatd','dart_europe','ideas_repec','nber','ssrn_econ','unpaywall','goldsmiths_library','senate_house','goldsmiths_ill','google_scholar','ajol','internet_archive'];
+
+// ── RSS feed map ──
+var RSS_FEEDS = {
+  guardian_rss: 'https://www.theguardian.com/uk/rss',
+  bbc_rss: 'https://feeds.bbci.co.uk/news/rss.xml',
+  ft_rss: 'https://www.ft.com/rss/home',
+  independent_rss: 'https://www.independent.co.uk/news/rss',
+  statesman_rss: 'https://www.newstatesman.com/feed',
+  byline_rss: 'https://bylinetimes.com/feed/',
+  newscientist_rss: 'https://www.newscientist.com/feed/home/',
+  economist_rss: 'https://www.economist.com/rss/the_world_this_week_rss.xml',
+  reuters_rss: 'https://feeds.reuters.com/reuters/topNews',
+  sky_rss: 'https://feeds.skynews.com/feeds/rss/home.xml',
+  wsj_rss: 'https://feeds.a.dj.com/rss/RSSWorldNews.xml',
+  nyt_rss: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml',
+  wp_rss: 'https://feeds.washingtonpost.com/rss/world',
+  lancet_rss: 'https://www.thelancet.com/rssfeed/lancet_current.xml',
+  bmj_rss: 'https://www.bmj.com/rss/current.xml',
+  nature_rss: 'https://www.nature.com/nature.rss',
+  science_rss: 'https://www.science.org/rss/news_current.xml',
+  new_european_rss: 'https://www.theneweuropean.co.uk/feed/',
+  wsj_rss: 'https://feeds.a.dj.com/rss/RSSWorldNews.xml',
+  nyt_rss: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml',
+  wp_rss: 'https://feeds.washingtonpost.com/rss/world',
+};
+
+// ── Query optimisation — expand terms before firing ──
+function optimiseQuery(raw) {
+  var q = raw.trim();
+  // Expand common abbreviations
+  var expansions = {
+    'PTSD': 'post-traumatic stress disorder PTSD',
+    'CBT': 'cognitive behavioural therapy CBT',
+    'DBT': 'dialectical behaviour therapy DBT',
+    'ACT': 'acceptance and commitment therapy ACT',
+    'MH': 'mental health',
+    'SUD': 'substance use disorder SUD',
+    'OUD': 'opioid use disorder OUD',
+    'AUD': 'alcohol use disorder AUD',
+    'NHS': 'National Health Service NHS',
+    'ONS': 'Office for National Statistics ONS',
+  };
+  Object.keys(expansions).forEach(function(abbr) {
+    var re = new RegExp('\\b' + abbr + '\\b', 'g');
+    if (re.test(q) && q.indexOf(expansions[abbr]) < 0) {
+      q = q.replace(re, expansions[abbr]);
+    }
+  });
+  return q;
+}
+
+// ── Get active filters ──
+function getFilters() {
+  var filters = {};
+  var dateFrom = document.getElementById('filter-date-from');
+  var dateTo = document.getElementById('filter-date-to');
+  var fullText = document.getElementById('filter-fulltext');
+  var docType = document.getElementById('filter-doctype');
+  if (dateFrom && dateFrom.value) filters.date_from = dateFrom.value;
+  if (dateTo && dateTo.value) filters.date_to = dateTo.value;
+  if (fullText && fullText.checked) filters.full_text_only = true;
+  if (docType && docType.value && docType.value !== 'all') filters.doc_type = docType.value;
+  return filters;
+}
+
+function clearFilters() {
+  var df = document.getElementById('filter-date-from');
+  var dt = document.getElementById('filter-date-to');
+  var ft = document.getElementById('filter-fulltext');
+  var ty = document.getElementById('filter-doctype');
+  if (df) df.value = '';
+  if (dt) dt.value = '';
+  if (ft) ft.checked = false;
+  if (ty) ty.value = 'all';
+}
+
 function doSearch() {
   var input = document.getElementById('search-input');
   if (!input || !input.value.trim()) return;
-  currentQuery = input.value.trim();
+  var rawQuery = input.value.trim();
+  currentQuery = rawQuery;
+  var optimised = optimiseQuery(rawQuery);
+  var filters = getFilters();
   var list = document.getElementById('results-list');
-  if (list) list.innerHTML = '<div style="text-align:center;padding:20px;">'  
+
+  // Split sources by type
+  var scholarlySelected = activeSources.filter(function(s){ return SCHOLARLY_SOURCES.indexOf(s) >= 0; });
+  var rssSelected = activeSources.filter(function(s){ return RSS_FEEDS[s]; });
+  var webSelected = activeSources.filter(function(s){ return SCHOLARLY_SOURCES.indexOf(s) < 0 && !RSS_FEEDS[s]; });
+
+  var totalSources = activeSources.length;
+  if (list) list.innerHTML = '<div style="text-align:center;padding:20px;">'
     + '<div class="spinner"></div>'
-    + '<div style="margin-top:8px;font-size:12.5px;color:var(--fg-muted);">Searching ' + activeSources.length + ' sources…</div>'
-    + '<div style="margin-top:6px;font-size:11px;color:var(--fg-muted);">Up to 25 seconds</div></div>';
+    + '<div style="margin-top:8px;font-size:12.5px;color:var(--fg-muted);">Searching ' + totalSources + ' source' + (totalSources !== 1 ? 's' : '') + '…</div>'
+    + (optimised !== rawQuery ? '<div style="margin-top:4px;font-size:11px;color:var(--fg-muted);">Query expanded for broader coverage</div>' : '')
+    + '<div style="margin-top:4px;font-size:11px;color:var(--fg-muted);">Up to 45 seconds</div></div>';
 
-  var controller = new AbortController();
-  var tid = setTimeout(function() { controller.abort(); }, 25000);
+  var allFetches = [];
+  var allResults = [];
 
-  fetch(WORKER + '/api/search', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({query: currentQuery, sources: activeSources}),
-    signal: controller.signal
-  })
-  .then(function(r) { clearTimeout(tid); return r.json(); })
-  .then(function(data) {
-    var results = data.allResults || data.results || [];
-    if (!results.length && data.error) {
-      if (list) list.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:16px;">Error: ' + data.error + '</div>';
-      return;
+  // ── Web search ──
+  if (webSelected.length > 0) {
+    allFetches.push(
+      fetch(WORKER + '/api/search', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({query: optimised, sources: webSelected, filters: filters}),
+      }).then(function(r){ return r.json(); }).then(function(d){
+        allResults = allResults.concat(d.allResults || d.results || []);
+      }).catch(function(){})
+    );
+  }
+
+  // ── Scholarly search ──
+  if (scholarlySelected.length > 0) {
+    allFetches.push(
+      fetch(WORKER + '/api/research/scholarly', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({query: optimised, sources: scholarlySelected, filters: filters}),
+      }).then(function(r){ return r.json(); }).then(function(d){
+        allResults = allResults.concat(d.allResults || d.results || []);
+      }).catch(function(){})
+    );
+  }
+
+  // ── RSS feeds ──
+  rssSelected.forEach(function(feedId) {
+    var feedUrl = RSS_FEEDS[feedId];
+    if (!feedUrl) return;
+    allFetches.push(
+      fetch(WORKER + '/api/rss?url=' + encodeURIComponent(feedUrl))
+        .then(function(r){ return r.text(); })
+        .then(function(xml){
+          // Parse RSS/Atom XML
+          var items = [];
+          var entries = xml.match(/<item[\s\S]*?<\/item>|<entry[\s\S]*?<\/entry>/g) || [];
+          entries.slice(0, 20).forEach(function(entry) {
+            var title = (entry.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/) || [])[1] || '';
+            var link = (entry.match(/<link[^>]*href="([^"]+)"/) || entry.match(/<link[^>]*>(https?[^<]+)<\/link>/) || [])[1] || '';
+            var desc = (entry.match(/<description[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/) || entry.match(/<summary[^>]*>([\s\S]*?)<\/summary>/) || [])[1] || '';
+            var pubDate = (entry.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || entry.match(/<published>([\s\S]*?)<\/published>/) || [])[1] || '';
+            title = title.replace(/<[^>]+>/g,'').trim();
+            desc = desc.replace(/<[^>]+>/g,'').trim().substring(0, 300);
+            // Apply date filter
+            if (filters.date_from && pubDate) {
+              var d = new Date(pubDate);
+              if (!isNaN(d) && d < new Date(filters.date_from)) return;
+            }
+            // Apply keyword filter to RSS
+            var queryWords = rawQuery.toLowerCase().split(/\s+/).filter(function(w){return w.length > 3;});
+            var combined = (title + ' ' + desc).toLowerCase();
+            var matches = queryWords.filter(function(w){return combined.indexOf(w) >= 0;}).length;
+            if (queryWords.length > 0 && matches === 0) return; // skip irrelevant items
+            if (title) items.push({
+              title: title,
+              url: link,
+              content: desc,
+              source: feedId,
+              published_date: pubDate,
+              _type: 'news',
+              score: matches,
+            });
+          });
+          allResults = allResults.concat(items);
+        }).catch(function(){})
+    );
+  });
+
+  Promise.all(allFetches).then(function() {
+    // De-duplicate by URL
+    var seen = {};
+    var deduped = allResults.filter(function(r) {
+      if (!r.url || seen[r.url]) return false;
+      seen[r.url] = true;
+      return true;
+    });
+
+    // Apply filters client-side
+    if (filters.full_text_only) {
+      deduped = deduped.filter(function(r){ return r.is_oa || r._type === 'news' || r._type !== 'academic'; });
     }
-    currentResults = results;
-    renderResults(results);
-  })
-  .catch(function(e) {
-    clearTimeout(tid);
-    var msg = e.name === 'AbortError'
-      ? 'Search timed out (25s). Try fewer sources or a simpler query.'
-      : 'Search failed: ' + e.message;
-    if (list) list.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:16px;">' + msg + '</div>';
+    if (filters.doc_type && filters.doc_type !== 'all') {
+      var typeMap = {
+        thesis: ['ethos','oatd','dart_europe'],
+        preprint: ['arxiv','biorxiv','medrxiv','psyarxiv','socarxiv','ssrn'],
+        article: ['semantic_scholar','openalex','pubmed','crossref','core','doaj','pmc','europe_pmc','jstor','scielo','redalyc'],
+        book: ['internet_archive','goldsmiths_library','senate_house'],
+        dataset: ['zenodo','figshare','worldbank','ons','eurostat'],
+        news: ['guardian_rss','bbc_rss','ft_rss','independent_rss','statesman_rss','byline_rss','newscientist_rss','economist_rss','reuters_rss','sky_rss','wsj_rss','nyt_rss','wp_rss','lancet_rss','bmj_rss','nature_rss','science_rss'],
+      };
+      var allowed = typeMap[filters.doc_type] || [];
+      if (allowed.length > 0) {
+        deduped = deduped.filter(function(r){ return allowed.indexOf(r.source) >= 0; });
+      }
+    }
+
+    // Sort: academic by citations, news by date, web by score
+    deduped.sort(function(a, b) {
+      if (a._type === 'academic' && b._type === 'academic') return (b.citations || b.score || 0) - (a.citations || a.score || 0);
+      if (a._type === 'news' && b._type === 'news') return new Date(b.published_date||0) - new Date(a.published_date||0);
+      return (b.score || 0) - (a.score || 0);
+    });
+
+    currentResults = deduped;
+    renderResults(deduped);
   });
 }
 
