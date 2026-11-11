@@ -155,7 +155,7 @@ function loadList(q) {
   if (!endpoint) { list.innerHTML = ''; return; }
   var url = WORKER + endpoint + (q ? '?q=' + encodeURIComponent(q) : '');
   fetch(url)
-    .then(function(r) { return r.json(); })
+    .then(function(r){ var ct=r.headers.get("content-type")||""; if(!ct.includes("application/json")){return {error:"Auth required — reconnect at /comms/google/",_html:true};} return r.json(); })
     .then(function(d) {
       var items = d.contacts || d.companies || [];
       if (!items.length) {
@@ -254,7 +254,7 @@ function renderDetail(record) {
 
 function loadInteractions(contactId) {
   fetch(WORKER + '/api/crm/interactions?contact_id=' + contactId)
-    .then(function(r) { return r.json(); })
+    .then(function(r){ var ct=r.headers.get("content-type")||""; if(!ct.includes("application/json")){return {error:"Auth required — reconnect at /comms/google/",_html:true};} return r.json(); })
     .then(function(d) {
       var list = document.getElementById('interactions-list');
       if (!list) return;
@@ -291,7 +291,7 @@ function loadCalendar() {
   var body = document.getElementById('crm-body');
   body.innerHTML = '<div style="padding:12px;color:var(--fg-muted);font-size:0.85rem;">Loading calendar...</div>';
   fetch(WORKER + '/api/crm/calendar')
-    .then(function(r) { return r.json(); })
+    .then(function(r){ var ct=r.headers.get("content-type")||""; if(!ct.includes("application/json")){return {error:"Auth required — reconnect at /comms/google/",_html:true};} return r.json(); })
     .then(function(d) {
       var today = d.today || [];
       var week = d.week || [];
@@ -387,7 +387,7 @@ function saveRecord() {
   var method = editingId ? 'PUT' : 'POST';
   var url = WORKER + endpoint + (editingId ? '/' + editingId : '');
   fetch(url, {method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)})
-    .then(function(r) { return r.json(); })
+    .then(function(r){ var ct=r.headers.get("content-type")||""; if(!ct.includes("application/json")){return {error:"Auth required — reconnect at /comms/google/",_html:true};} return r.json(); })
     .then(function(d) {
       if (d.success) { closeModal(); loadList(); if (currentView === 'calendar') loadCalendar(); }
       else { alert('Save failed: ' + (d.error || 'Unknown error')); }
