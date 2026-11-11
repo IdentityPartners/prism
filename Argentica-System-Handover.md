@@ -30,7 +30,7 @@ It serves two simultaneous purposes:
 | R2 Bucket | prism-assets |
 | R2 Public URL | https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/ |
 | Zone ID | 974ca09460dd56ee61cbbece24859851 |
-| Worker size | ~364KB |
+| Worker size | ~462KB |
 | Pages project | prism |
 
 All `/api/*` requests are proxied via `functions/api/[[path]].js` to the worker. Google OAuth callback lives in `functions/comms/google/`. Nylas OAuth callback in `functions/comms/nylas/[[path]].js`.
@@ -76,7 +76,7 @@ Mistral Large → GLM 5.3 Flash → Gemini 3.8 Flash → Gemini 4 Argon → Poll
 **Rules:**
 - Ollama must never appear in the automated routing chain. Local profile only, activated manually.
 - The chain must never return 402. Pollinations is the unconditional fallback.
-- Gemini 2.0 Flash is **shut down** (1 June 2026). All references replaced with `gemini-3.8-flash`. ✓ Done.
+- Gemini 2.0 Flash is **shut down** (1 June 2026). All references replaced with `gemini-3.8-flash`. Done.
 
 ---
 
@@ -85,8 +85,8 @@ Mistral Large → GLM 5.3 Flash → Gemini 3.8 Flash → Gemini 4 Argon → Poll
 ### Working
 | Module | URL | Notes |
 |---|---|---|
-| Chat (Gerald) | /chat/ | Memory injected, thread history, OSK, GLM/Mistral responding |
-| Research | /research/ | 25s timeout, Tavily/Brave/Exa, no infinite spinner |
+| Chat (Gerald) | /chat/ | Memory injected, thread history, OSK opt-in, GLM/Mistral responding |
+| Research | /research/ | Full rebuild — see Section 12 |
 | Document Manager | /doc-viewer/ | PDF.js, annotation canvas, burn-to-PDF via pdf-lib, notes modal, OCR |
 | Study Hub | /study-hub/ | Modules/weeks in KV, auto-upload to Google Drive |
 | Drafting | /drafting/ | Quill editor |
@@ -99,9 +99,9 @@ Mistral Large → GLM 5.3 Flash → Gemini 3.8 Flash → Gemini 4 Argon → Poll
 | Google Connect | /comms/google/ | OAuth connected — gmail.send, calendar, drive scopes |
 | Nylas Connect | /comms/nylas/connect/ | Page live — Proton IMAP blocked (see gaps) |
 | Request form | /request/ | Type/module/priority/queue, KV-backed |
-| Dev Team | /dev-team/ | Memory injected, knows full system context |
+| Dev Team | /dev-team/ | Memory injected, push_to_github, update_kv_bulk, get_kv, set_kv |
 | Profile & Memory | /profile/ | Memory viewer |
-| Settings | /settings/ | Secret Ingester, theme, display |
+| Settings | /settings/ | Secret Ingester fixed (/api/ingest-secrets proxy), theme, display |
 | WriteHandy | /wh/ | IDs restored: #ink-canvas #text-layer #osk-area |
 | Canvas/Create | /canvas/ | SVG generation, Pexels backgrounds, R2 upload |
 
@@ -186,7 +186,7 @@ Never use /book — always /contact.
 - "Remember that X" in any chat saves X to persistent memory
 - RAG searches doc-content:* and notes:* KV keys before responding
 - `/api/memory` GET/POST/DELETE/search endpoints available
-- `memory:simon-voice` and `memory:content-guidelines` — auto-seeded in worker on first chat call ✓
+- `memory:simon-voice` and `memory:content-guidelines` — auto-seeded in worker on first chat call
 
 ---
 
@@ -288,72 +288,114 @@ All stored as Cloudflare Worker secrets unless noted.
 
 **Google:** `google_client_id` (944507774917-ja5tb5s78don3v5ud9jljk46lsep5v0u.apps.googleusercontent.com), `google_client_secret`, `google_redirect_uri`
 
-**Infrastructure:** `railway_token` (rlwy_acct_kXRv0oatMPiyhIOVDxMpJv2wZVldD0t1AG4cs2bl — stored in CF secrets), `github_token` (**EXPIRED — needs renewal, see Gap Analysis**), `cloudflare_token`, `msgraph_client`, `msgraph_secret`, `msgraph_tenant`, `azure_storage_account`, `azure_storage_sas`, `nylas_api_key`, `nylas_app_key`
+**Infrastructure:** `railway_token` (rlwy_acct_kXRv0oatMPiyhIOVDxMpJv2wZVldD0t1AG4cs2bl — stored in CF secrets), `github_token` (renewed 11 Nov 2026, stored in CF secrets), `cloudflare_token`, `msgraph_client`, `msgraph_secret`, `msgraph_tenant`, `azure_storage_account`, `azure_storage_sas`, `nylas_api_key`, `nylas_app_key`
 
 **KV-stored tokens:** `oauth:linkedin:tokens` — valid, expires ~5 January 2027. `google:oauth:token` — access token auto-refreshes from refresh token.
 
+**Optional keys to add for better coverage:** `core_api_key` (core.ac.uk — higher rate limits), `lens_api_key` (lens.org — patents + scholarly)
+
 ---
 
-## 12. Gap Analysis
+## 12. Research Module — Full Architecture (as of 11 Nov 2026)
+
+The research module has two worker endpoints plus RSS, all rebuilt this session. The frontend routes sources to the correct endpoint automatically.
+
+### Frontend behaviour
+- **Select All / Clear** — scoped to the currently active tab only
+- **Query optimisation** — common abbreviations expanded before firing (PTSD, CBT, DBT, NHS, ONS, etc.)
+- **Filters** — date range (from/to), full text / OA only, document type (article, thesis, preprint, book, dataset, news)
+- **Routing** — scholarly sources → `/api/research/scholarly`; web sources → `/api/search`; RSS sources → `/api/rss` (parsed client-side with keyword filtering)
+
+### `/api/search` — Web & general search
+All sources fire **in parallel** via `Promise.allSettled`. No artificial result limits. Paginated via `page` param.
+
+| Source | Results/page | Notes |
+|---|---|---|
+| Tavily | 20 | Advanced depth, AI answer |
+| Brave | 20 | Always independent |
+| Exa | 20 | Neural semantic |
+| Perplexity | 1 synthesis | Citations included |
+| Internet Archive | 20 | Books, texts, datasets |
+| Wayback Machine | — | URL availability (pass `url` param) |
+
+### `/api/research/scholarly` — Academic & institutional
+All sources fire **in parallel**. De-duplicated by DOI then URL. Sorted by citation count. Paginated via `page` param (25 results per source per page).
+
+| Source | Status | Notes |
+|---|---|---|
+| Semantic Scholar | ✓ | 200M+ papers, free |
+| OpenAlex | ✓ | 250M+ works, abstract reconstruction |
+| PubMed/NCBI | ✓ | Two-step esearch → esummary |
+| CrossRef | ✓ | DOIs, citation counts, abstracts |
+| CORE | ✓ | Key optional (`core_api_key`) |
+| arXiv | ✓ | Atom XML parsed |
+| bioRxiv | ✓ | Biology preprints |
+| medRxiv | ✓ | Medical preprints |
+| Europe PMC | ✓ | European biomedical |
+| Zenodo | ✓ | Open research data + papers |
+| ClinicalTrials.gov | ✓ | Clinical trial registry |
+| EThOS | ✓ | UK theses (British Library) |
+| OATD | ✓ | Open access theses |
+| IDEAS/RePec | ✓ | Economics working papers |
+| NBER | ✓ | US economics working papers |
+| ONS | ✓ | UK statistics |
+| World Bank | ✓ | Global development data |
+| Eurostat | ✓ | EU statistics (link-out) |
+| Lens.org | ✓ | Patents + scholarly (key optional: `lens_api_key`) |
+| BASE | ✓ | Bielefeld Academic Search Engine |
+| SciELO | ✓ | Via OpenAlex filter |
+| DOAJ | ✓ | Open access journals |
+| Unpaywall | ✓ | DOI → free full text |
+| Goldsmiths Library | ✓ | Ex Libris Primo |
+| Exa (academic) | ✓ | Restricted to academic domains |
+| Google Scholar | ✓ | Link-out only |
+| Goldsmiths ILL | ✓ | Inter-library loan fallback |
+
+### RSS news sources (parsed client-side)
+The Guardian, BBC News, Financial Times, The Independent, Sky News, Reuters, Wall Street Journal, New York Times, Washington Post, New Statesman, Byline Times, New Scientist, The Economist, New European, The Lancet, BMJ, Nature News, Science Magazine
+
+**Tested live:** 166 results from 8 sources on a single query (addiction recovery, trauma, mental health).
+
+---
+
+## 13. Gap Analysis
 
 ### Immediate — fix at start of next session (no input from Simon required)
-1. **GitHub token renewal** — generate a new PAT at github.com → Settings → Developer settings → Personal access tokens. Needs `repo` scope on IdentityPartners/prism. Store as `github_token` CF secret. Then push the chat layout fix (see item 2).
-2. **Chat layout fix ready to deploy** — files prepared in previous session (11 Nov 2026). Once GitHub token is renewed, push these two files to the repo:
-   - `chat/index.html` — right panel moved to correct position (sibling of chat-main, not inside input area), collapsible with toggle button, OSK moved to opt-in toolbar button
-   - `shared/prism.js` — OSK appends to body (not chat-input-area), gets id="osk-strip"
-3. Fix Agenti City UI to display agents from KV `agents:list`
-4. Deploy Postiz to Railway (railway_token stored)
-5. Deploy Twenty CRM to Railway (same project)
-6. Update Marketing agent model assignments in KV (confirm gemini-2.0-flash → gemini-3.8-flash)
+1. Fix Agenti City UI to display agents from KV `agents:list`
+2. Deploy Postiz to Railway (railway_token stored in CF secrets)
+3. Deploy Twenty CRM to Railway (same project)
+4. Post Now button on Social Queue items
 
 ### Requires Simon to connect Buffer first
-7. Fetch Buffer channel IDs and store as secrets (once Instagram/Facebook/X connected)
+5. Fetch Buffer channel IDs and store as secrets (once Instagram/Facebook/X connected)
 
 ### Build work — next session
-8. Marketing team interface — per-agent persistent chat, assignment queue, comms prefs, team overview
-9. Carousel post type — requires Postiz for multi-slide Instagram
-10. Proper data infographic — real ONS/Mind/NHS data, chart layout, icons, narrative flow
-11. Remaining canvas types — myth_vs_fact, lived_experience, awareness_day, playlist_carousel
-12. Post Now button on Social Queue items
-13. Podcast page — Cartesia + Smallest.AI, multi-voice, YouTube upload, Spotify RSS
-14. WebRTC voice interface — Gemini 3.8 Live for Original Content Editor
+6. Marketing team interface — per-agent persistent chat, assignment queue, comms prefs, team overview
+7. Carousel post type — requires Postiz for multi-slide Instagram
+8. Proper data infographic — real ONS/Mind/NHS data, chart layout, icons, narrative flow
+9. Remaining canvas types — myth_vs_fact, lived_experience, awareness_day, playlist_carousel
+10. Podcast page — Cartesia + Smallest.AI, multi-voice, YouTube upload, Spotify RSS
+11. WebRTC voice interface — Gemini 3.8 Live for Original Content Editor
 
 ### Requires Simon action
-15. **GitHub token** — generate new PAT (repo scope) at github.com → Settings → Developer settings → Personal access tokens → Generate new token (classic). Paste into Argentica Settings → Secret Ingester as `github_token`.
-16. Connect Instagram + Facebook + X to Buffer (3 channel limit on free plan)
-17. Add youtube.upload scope — reconnect Google at /comms/google/
-18. Fix simon@ forwarding — verify destination in Cloudflare Email Routing dashboard
-19. Reddit — contact Reddit support about broken app creation button on HumanFutures
-20. Pinterest — apply at developers.pinterest.com
-21. Medium — create account, generate integration token at medium.com → Settings → Security
-22. Tumblr — OAuth connect page needs building, then one-time auth
-23. Make.com — set up webhook for Threads (free tier, 1000 ops/month)
-24. Fish Audio — verify new key is active at fish.audio → Account → API
+12. Connect Instagram + Facebook + X to Buffer (3 channel limit on free plan)
+13. Add youtube.upload scope — reconnect Google at /comms/google/
+14. Fix simon@ forwarding — verify destination in Cloudflare Email Routing dashboard
+15. Reddit — contact Reddit support about broken app creation button on HumanFutures
+16. Pinterest — apply at developers.pinterest.com
+17. Medium — create account, generate integration token at medium.com → Settings → Security
+18. Tumblr — OAuth connect page needs building, then one-time auth
+19. Make.com — set up webhook for Threads (free tier, 1000 ops/month)
+20. Fish Audio — verify new key is active at fish.audio → Account → API
 
 ### Lower priority
-25. LinkedIn company page posting — need company page ID from linkedin.com/company/identity-partners
-26. Mastodon — account suspended, contact instance
-27. Duplicate CF secrets cleanup — ~15 duplicates using 103/150 slots
-28. Unscarred — deprecated, redirect to Argentica, archive codebase
-29. Model Monitor agent — daily check of provider API docs, auto-update routing chain
-
----
-
-## 13. What Was Done — Session 11 November 2026
-
-### Worker fixes (deployed ✓)
-- **Research fixed** — `/api/search` handler completely rewritten. Was: Tavily only, hardcoded 8 results, Brave never fired. Now: Tavily (10 results, advanced depth) + Brave (10 results, always fires independently) + Exa (10 results, neural semantic search) + Perplexity (optional AI synthesis). De-duplicated by URL, sorted by score. Tested live: 29 results from 3 sources on first query.
-- **Dev Team permissions fixed** — `/api/devteam/execute` now has: `push_to_github` (push files to IdentityPartners/prism repo), `update_kv_bulk` (write multiple KV entries at once), `get_kv`, `set_kv` (aliases for Dev Team chat use). The `push_to_github` action is live and working — it will function correctly once a valid `github_token` is stored in CF secrets.
-
-### Chat layout fix (prepared, pending GitHub token)
-- Right panel restructured: moved from inside `chat-input-area` to sibling of `chat-main` inside `chat-shell`. Now full-height, collapsible via toggle button, state persisted in localStorage.
-- OSK changed from always-on (showing constantly below input) to opt-in: hidden by default, toggled via "⌨ Keyboard" button in the input toolbar. OSK appends to body (fixed position overlay) rather than inside the input area.
-- Files ready to deploy: `chat/index.html` and `shared/prism.js`. Blocked only by expired GitHub token.
-
-### Tokens confirmed working
-- Cloudflare API token: ✓ full access (workers, KV, Pages, zones)
-- GitHub token: ✗ expired — needs renewal
-- Railway token: blocked by Cloudflare WAF from this sandbox IP — use Railway dashboard or CLI
+21. LinkedIn company page posting — need company page ID from linkedin.com/company/identity-partners
+22. Mastodon — account suspended, contact instance
+23. Duplicate CF secrets cleanup — ~15 duplicates using 103/150 slots
+24. Unscarred — deprecated, redirect to Argentica, archive codebase
+25. Model Monitor agent — daily check of provider API docs, auto-update routing chain
+26. CORE API key — apply at core.ac.uk/services/api for higher rate limits
+27. Lens.org API key — apply at lens.org for scholarly + patent search
 
 ---
 
@@ -375,3 +417,5 @@ These are non-negotiable. They apply from the first action.
 - Every canvas asset must contain: IP logo, identitypartners.uk, hello@identitypartners.uk, IP social handles
 - Gemini 2.0 Flash is shut down — never use it. Current model: gemini-3.8-flash
 - DeepSeek is chargeable and weaker than the paid Mistral/Gemini options — it belongs in Tier 3, not Tier 1
+- Secret Ingester uses `/api/ingest-secrets` worker proxy endpoint — never call CF API directly from browser
+- Research: scholarly sources route to `/api/research/scholarly`; web sources to `/api/search`; RSS to `/api/rss`
