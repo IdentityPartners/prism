@@ -2219,23 +2219,147 @@ export default {
       try {
         const body = await request.json();
         const query = body.query || '';
+        const requestedSources = body.sources || ['tavily','brave','exa'];
+        const page = body.page || 1; // pagination support
         const tavilyKey = k(env, ['tavily_api_key', 'TAVILY_API_KEY']);
         const braveKey = k(env, ['brave_api_key', 'BRAVE_API_KEY']);
-        const results = [];
-        if (tavilyKey) {
-          const tr = await fetch('https://api.tavily.com/search', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ api_key: tavilyKey, query, max_results: 8, include_answer: true }),
-          }).then(r => r.json()).catch(() => ({}));
-          if (tr.results) results.push(...tr.results.map(r => ({ title: r.title, url: r.url, content: r.content, source: 'tavily', answer: tr.answer })));
+        const exaKey = k(env, ['exa_api_key', 'EXA_API_KEY']);
+        const perplexityKey = k(env, ['perplexity', 'PERPLEXITY_API_KEY']);
+        const firecrawlKey = k(env, ['firecrawl_api_key', 'FIRECRAWL_API_KEY']);
+
+        // Fire all sources in parallel — no artificial limits
+        const fetches = [];
+
+        // Tavily — web search with AI answer, advanced depth
+        if (tavilyKey && requestedSources.includes('tavily')) {
+          fetches.push(
+            fetch('https://api.tavily.com/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tavilyKey },
+              body: JSON.stringify({ query, max_results: 20, search_depth: 'advanced', include_answer: true, include_raw_content: false, page }),
+            }).then(r => r.json()).then(tr => {
+              const items = (tr.results || []).map(r => ({ title: r.title, url: r.url, content: r.content || r.snippet || '', source: 'tavily', answer: tr.answer || null, score: r.score || 0, published_date: r.published_date || null }));
+              return { source: 'tavily', items, answer: tr.answer || null };
+            }).catch(e => ({ source: 'tavily', items: [], error: e.message }))
+          );
         }
-        if (braveKey && results.length < 5) {
-          const br = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5`, {
-            headers: { 'Accept': 'application/json', 'X-Subscription-Token': braveKey },
-          }).then(r => r.json()).catch(() => ({}));
-          if (br.web?.results) results.push(...br.web.results.map(r => ({ title: r.title, url: r.url, content: r.description, source: 'brave' })));
+
+        // Brave — independent web search
+        if (braveKey && requestedSources.includes('brave')) {
+          const offset = (page - 1) * 20;
+          fetches.push(
+            fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=20&offset=${offset}&search_lang=en&safesearch=moderate`, {
+              headers: { 'Accept': 'application/json', 'Accept-Encoding': 'gzip', 'X-Subscription-Token': braveKey },
+            }).then(r => r.json()).then(br => {
+              const items = (br.web?.results || []).map(r => ({ title: r.title, url: r.url, content: r.description || (r.extra_snippets && r.extra_snippets[0]) || '', source: 'brave', score: 0, published_date: r.age || null }));
+              return { source: 'brave', items };
+            }).catch(e => ({ source: 'brave', items: [], error: e.message }))
+          );
         }
-        return json({ query, results, count: results.length }, 200, origin);
+
+        // Exa — neural semantic search
+        if (exaKey && requestedSources.includes('exa')) {
+          fetches.push(
+            fetch('https://api.exa.ai/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-api-key': exaKey },
+              body: JSON.stringify({ query, numResults: 20, useAutoprompt: true, type: 'neural', contents: { text: { maxCharacters: 600 } }, startCrawlDate: null }),
+            }).then(r => r.json()).then(ex => {
+              const items = (ex.results || []).map(r => ({ title: r.title || r.url, url: r.url, content: r.text || r.snippet || '', source: 'exa', score: r.score || 0, published_date: r.publishedDate || null }));
+              return { source: 'exa', items };
+            }).catch(e => ({ source: 'exa', items: [], error: e.message }))
+          );
+        }
+
+        // Perplexity — AI-synthesised answer with citations
+        if (perplexityKey && requestedSources.includes('perplexity')) {
+          fetches.push(
+            fetch('https://api.perplexity.ai/chat/completions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + perplexityKey },
+              body: JSON.stringify({ model: 'sonar-pro', messages: [{ role: 'user', content: query }], max_tokens: 1200, return_citations: true }),
+            }).then(r => r.json()).then(px => {
+              const pxContent = px.choices?.[0]?.message?.content;
+              const citations = px.citations || [];
+              const items = pxContent ? [{ title: 'Perplexity AI Answer', url: 'https://www.perplexity.ai/search?q=' + encodeURIComponent(query), content: pxContent, source: 'perplexity', score: 1, citations }] : [];
+              return { source: 'perplexity', items };
+            }).catch(e => ({ source: 'perplexity', items: [], error: e.message }))
+          );
+        }
+
+        // Internet Archive full-text search
+        if (requestedSources.includes('internet_archive')) {
+          fetches.push(
+            fetch(`https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}&fl[]=identifier,title,description,creator,date,mediatype&rows=20&page=${page}&output=json`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(ia => {
+              const items = ((ia.response && ia.response.docs) || []).map(r => ({
+                title: r.title || r.identifier,
+                url: 'https://archive.org/details/' + r.identifier,
+                content: r.description || r.creator || '',
+                source: 'internet_archive',
+                score: 0,
+                published_date: r.date || null,
+                mediatype: r.mediatype,
+              }));
+              return { source: 'internet_archive', items };
+            }).catch(e => ({ source: 'internet_archive', items: [], error: e.message }))
+          );
+        }
+
+        // Wayback Machine — check if a URL is archived (pass url param instead of query)
+        if (requestedSources.includes('wayback') && body.url) {
+          const targetUrl = body.url;
+          fetches.push(
+            fetch(`https://archive.org/wayback/available?url=${encodeURIComponent(targetUrl)}`).then(r => r.json()).then(wb => {
+              const snap = wb.archived_snapshots && wb.archived_snapshots.closest;
+              const items = snap ? [{ title: 'Wayback Machine: ' + targetUrl, url: snap.url, content: 'Archived ' + snap.timestamp + '. Status: ' + snap.status, source: 'wayback', score: 0 }] : [];
+              return { source: 'wayback', items };
+            }).catch(e => ({ source: 'wayback', items: [], error: e.message }))
+          );
+        }
+
+        // Wait for all parallel fetches
+        const settled = await Promise.allSettled(fetches);
+        const allResults = [];
+        const sourceErrors = [];
+        const answers = [];
+
+        for (const s of settled) {
+          if (s.status === 'fulfilled') {
+            allResults.push(...(s.value.items || []));
+            if (s.value.error) sourceErrors.push(s.value.source + ': ' + s.value.error);
+            if (s.value.answer) answers.push({ source: s.value.source, answer: s.value.answer });
+          } else {
+            sourceErrors.push(s.reason?.message || 'unknown error');
+          }
+        }
+
+        // De-duplicate by URL
+        const seen = new Set();
+        const deduped = allResults.filter(r => {
+          if (!r.url || seen.has(r.url)) return false;
+          seen.add(r.url);
+          return true;
+        });
+
+        // Sort: perplexity first, then by score desc
+        deduped.sort((a, b) => {
+          if (a.source === 'perplexity') return -1;
+          if (b.source === 'perplexity') return 1;
+          return (b.score || 0) - (a.score || 0);
+        });
+
+        return json({
+          query,
+          results: deduped,
+          allResults: deduped,
+          count: deduped.length,
+          page,
+          sources_queried: requestedSources,
+          answers: answers.length > 0 ? answers : undefined,
+          errors: sourceErrors.length > 0 ? sourceErrors : undefined,
+        }, 200, origin);
       } catch (e) { return json({ error: e.message }, 500, origin); }
     }
 
@@ -2244,74 +2368,424 @@ export default {
       try {
         const body = await request.json();
         const query = body.query || '';
-        const sources = body.sources || ['semantic_scholar','openalex','unpaywall'];
-        const results = [];
+        const sources = body.sources || ['semantic_scholar','openalex','pubmed','crossref','core','arxiv'];
+        const page = body.page || 1;
+        const perPage = 25; // results per source per page
+        const email = k(env, ['unpaywall_email','UNPAYWALL_EMAIL']) || 'hello@identitypartners.uk';
+        const coreKey = k(env, ['core_api_key','CORE_API_KEY']);
+        const exaKey = k(env, ['exa_api_key','EXA_API_KEY']);
 
-        // Unpaywall — resolve DOI to free full text
+        const fetches = [];
+
+        // ── Semantic Scholar ── 200M+ papers, free, no key needed
+        if (sources.includes('semantic_scholar')) {
+          const offset = (page - 1) * perPage;
+          fetches.push(
+            fetch(`https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(query)}&limit=${perPage}&offset=${offset}&fields=title,authors,year,abstract,externalIds,openAccessPdf,citationCount,venue,publicationDate`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research (hello@identitypartners.uk)' },
+            }).then(r => r.json()).then(ss => {
+              const items = (ss.data || []).map(p => ({
+                title: p.title || '',
+                url: (p.openAccessPdf && p.openAccessPdf.url) || ('https://www.semanticscholar.org/paper/' + (p.paperId || '')),
+                content: p.abstract || '',
+                source: 'semantic_scholar',
+                authors: (p.authors || []).map(a => a.name).join(', '),
+                year: p.year,
+                venue: p.venue || '',
+                citations: p.citationCount || 0,
+                doi: p.externalIds && p.externalIds.DOI,
+                is_oa: !!(p.openAccessPdf && p.openAccessPdf.url),
+                _type: 'academic',
+                score: p.citationCount || 0,
+              }));
+              return { source: 'semantic_scholar', items, total: ss.total };
+            }).catch(e => ({ source: 'semantic_scholar', items: [], error: e.message }))
+          );
+        }
+
+        // ── OpenAlex ── 250M+ scholarly works, fully open
+        if (sources.includes('openalex')) {
+          const oaPage = page;
+          fetches.push(
+            fetch(`https://api.openalex.org/works?search=${encodeURIComponent(query)}&per-page=${perPage}&page=${oaPage}&select=id,title,authorships,publication_year,abstract_inverted_index,primary_location,open_access,cited_by_count,doi,type,publication_date&mailto=${email}`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(oa => {
+              const items = (oa.results || []).map(w => {
+                // Reconstruct abstract from inverted index
+                let abstract = '';
+                if (w.abstract_inverted_index) {
+                  const words = {};
+                  for (const [word, positions] of Object.entries(w.abstract_inverted_index)) {
+                    for (const pos of positions) words[pos] = word;
+                  }
+                  abstract = Object.keys(words).sort((a,b) => a-b).map(k => words[k]).join(' ');
+                }
+                const loc = w.primary_location || {};
+                const pdfUrl = (loc.pdf_url) || (w.open_access && w.open_access.oa_url) || ('https://openalex.org/' + (w.id || '').replace('https://openalex.org/',''));
+                return {
+                  title: w.title || '',
+                  url: pdfUrl,
+                  content: abstract,
+                  source: 'openalex',
+                  authors: (w.authorships || []).slice(0,5).map(a => a.author && a.author.display_name).filter(Boolean).join(', '),
+                  year: w.publication_year,
+                  venue: (loc.source && loc.source.display_name) || '',
+                  citations: w.cited_by_count || 0,
+                  doi: w.doi,
+                  is_oa: !!(w.open_access && w.open_access.is_oa),
+                  _type: 'academic',
+                  score: w.cited_by_count || 0,
+                };
+              });
+              return { source: 'openalex', items, total: oa.meta && oa.meta.count };
+            }).catch(e => ({ source: 'openalex', items: [], error: e.message }))
+          );
+        }
+
+        // ── PubMed / NCBI ── biomedical literature
+        if (sources.includes('pubmed')) {
+          const retstart = (page - 1) * perPage;
+          fetches.push(
+            // Step 1: search for IDs
+            fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=${perPage}&retstart=${retstart}&retmode=json&tool=Argentica&email=${email}`)
+              .then(r => r.json())
+              .then(async esearch => {
+                const ids = (esearch.esearchresult && esearch.esearchresult.idlist) || [];
+                if (ids.length === 0) return { source: 'pubmed', items: [], total: 0 };
+                // Step 2: fetch summaries
+                const summary = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(',')}&retmode=json&tool=Argentica&email=${email}`)
+                  .then(r => r.json()).catch(() => ({}));
+                const uids = (summary.result && summary.result.uids) || ids;
+                const items = uids.map(uid => {
+                  const art = (summary.result && summary.result[uid]) || {};
+                  return {
+                    title: art.title || uid,
+                    url: 'https://pubmed.ncbi.nlm.nih.gov/' + uid + '/',
+                    content: art.source ? art.source + (art.pubdate ? ' (' + art.pubdate + ')' : '') : '',
+                    source: 'pubmed',
+                    authors: (art.authors || []).slice(0,5).map(a => a.name).join(', '),
+                    year: art.pubdate ? art.pubdate.substring(0,4) : null,
+                    venue: art.fulljournalname || art.source || '',
+                    doi: art.elocationid || null,
+                    _type: 'academic',
+                    score: 0,
+                  };
+                });
+                return { source: 'pubmed', items, total: parseInt((esearch.esearchresult && esearch.esearchresult.count) || '0') };
+              }).catch(e => ({ source: 'pubmed', items: [], error: e.message }))
+          );
+        }
+
+        // ── CrossRef ── academic metadata + DOIs
+        if (sources.includes('crossref')) {
+          const crOffset = (page - 1) * perPage;
+          fetches.push(
+            fetch(`https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=${perPage}&offset=${crOffset}&select=DOI,title,author,published,abstract,container-title,is-referenced-by-count,URL,type&mailto=${email}`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research (hello@identitypartners.uk)' },
+            }).then(r => r.json()).then(cr => {
+              const items = ((cr.message && cr.message.items) || []).map(w => ({
+                title: (w.title && w.title[0]) || '',
+                url: w.URL || ('https://doi.org/' + w.DOI),
+                content: w.abstract ? w.abstract.replace(/<[^>]+>/g,'') : '',
+                source: 'crossref',
+                authors: (w.author || []).slice(0,5).map(a => (a.given ? a.given + ' ' : '') + (a.family || '')).join(', '),
+                year: w.published && w.published['date-parts'] && w.published['date-parts'][0] && w.published['date-parts'][0][0],
+                venue: (w['container-title'] && w['container-title'][0]) || '',
+                citations: w['is-referenced-by-count'] || 0,
+                doi: w.DOI,
+                _type: 'academic',
+                score: w['is-referenced-by-count'] || 0,
+              }));
+              return { source: 'crossref', items, total: cr.message && cr.message['total-results'] };
+            }).catch(e => ({ source: 'crossref', items: [], error: e.message }))
+          );
+        }
+
+        // ── CORE ── open access research papers
+        if (sources.includes('core') && coreKey) {
+          const coreOffset = (page - 1) * perPage;
+          fetches.push(
+            fetch('https://api.core.ac.uk/v3/search/works', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + coreKey },
+              body: JSON.stringify({ q: query, limit: perPage, offset: coreOffset, fields: ['title','authors','abstract','downloadUrl','doi','yearPublished','publisher','journals'] }),
+            }).then(r => r.json()).then(co => {
+              const items = (co.results || []).map(w => ({
+                title: w.title || '',
+                url: w.downloadUrl || (w.doi ? 'https://doi.org/' + w.doi : ''),
+                content: w.abstract || '',
+                source: 'core',
+                authors: (w.authors || []).slice(0,5).map(a => a.name || a).join(', '),
+                year: w.yearPublished,
+                venue: (w.journals && w.journals[0] && w.journals[0].title) || w.publisher || '',
+                doi: w.doi,
+                is_oa: true,
+                _type: 'academic',
+                score: 0,
+              }));
+              return { source: 'core', items, total: co.totalHits };
+            }).catch(e => ({ source: 'core', items: [], error: e.message }))
+          );
+        } else if (sources.includes('core') && !coreKey) {
+          // CORE without key — limited free tier
+          const coreOffset = (page - 1) * perPage;
+          fetches.push(
+            fetch(`https://api.core.ac.uk/v3/search/works?q=${encodeURIComponent(query)}&limit=${perPage}&offset=${coreOffset}`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(co => {
+              const items = (co.results || []).map(w => ({
+                title: w.title || '',
+                url: w.downloadUrl || (w.doi ? 'https://doi.org/' + w.doi : ''),
+                content: w.abstract || '',
+                source: 'core',
+                authors: (w.authors || []).slice(0,5).map(a => a.name || a).join(', '),
+                year: w.yearPublished,
+                doi: w.doi,
+                is_oa: true,
+                _type: 'academic',
+                score: 0,
+              }));
+              return { source: 'core', items };
+            }).catch(e => ({ source: 'core', items: [], error: e.message }))
+          );
+        }
+
+        // ── arXiv ── preprints: physics, maths, CS, econ, quantitative biology
+        if (sources.includes('arxiv')) {
+          const arxivStart = (page - 1) * perPage;
+          fetches.push(
+            fetch(`https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&start=${arxivStart}&max_results=${perPage}&sortBy=relevance&sortOrder=descending`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.text()).then(xml => {
+              // Parse Atom XML
+              const entries = [];
+              const entryMatches = xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g);
+              for (const m of entryMatches) {
+                const e = m[1];
+                const title = (e.match(/<title>([\s\S]*?)<\/title>/) || [])[1]?.replace(/\s+/g,' ').trim() || '';
+                const summary = (e.match(/<summary>([\s\S]*?)<\/summary>/) || [])[1]?.replace(/\s+/g,' ').trim() || '';
+                const id = (e.match(/<id>([\s\S]*?)<\/id>/) || [])[1]?.trim() || '';
+                const published = (e.match(/<published>([\s\S]*?)<\/published>/) || [])[1]?.trim() || '';
+                const authors = [...e.matchAll(/<name>([\s\S]*?)<\/name>/g)].slice(0,5).map(a => a[1].trim()).join(', ');
+                const pdfUrl = id.replace('abs','pdf');
+                entries.push({
+                  title,
+                  url: pdfUrl || id,
+                  content: summary,
+                  source: 'arxiv',
+                  authors,
+                  year: published ? published.substring(0,4) : null,
+                  published_date: published,
+                  is_oa: true,
+                  _type: 'academic',
+                  score: 0,
+                });
+              }
+              return { source: 'arxiv', items: entries };
+            }).catch(e => ({ source: 'arxiv', items: [], error: e.message }))
+          );
+        }
+
+        // ── Unpaywall ── resolve DOI to free full text
         if (sources.includes('unpaywall')) {
           const doiMatch = query.match(/10\.\d{4,}[^\s]*/);
           if (doiMatch) {
             const doi = doiMatch[0];
-            const email = k(env, ['unpaywall_email','UNPAYWALL_EMAIL']) || 'hello@identitypartners.uk';
-            const upResp = await fetch('https://api.unpaywall.org/v2/' + encodeURIComponent(doi) + '?email=' + email).then(r => r.json()).catch(() => null);
-            if (upResp && upResp.title) {
-              results.push({
-                title: upResp.title,
-                url: (upResp.best_oa_location && upResp.best_oa_location.url) || upResp.doi_url,
-                content: (upResp.journal_name || '') + ' (' + (upResp.year || '') + '). OA: ' + (upResp.is_oa ? 'Yes' : 'No') + '.',
-                source: 'unpaywall',
-                doi: doi,
-                is_oa: upResp.is_oa,
-                oa_url: (upResp.best_oa_location && upResp.best_oa_location.url) || null,
-              });
-            }
+            fetches.push(
+              fetch('https://api.unpaywall.org/v2/' + encodeURIComponent(doi) + '?email=' + email)
+                .then(r => r.json()).then(up => {
+                  if (!up || !up.title) return { source: 'unpaywall', items: [] };
+                  return { source: 'unpaywall', items: [{
+                    title: up.title,
+                    url: (up.best_oa_location && up.best_oa_location.url) || up.doi_url,
+                    content: (up.journal_name || '') + (up.year ? ' (' + up.year + ')' : '') + '. OA: ' + (up.is_oa ? 'Yes' : 'No') + '.',
+                    source: 'unpaywall',
+                    doi,
+                    is_oa: up.is_oa,
+                    oa_url: (up.best_oa_location && up.best_oa_location.url) || null,
+                    _type: 'academic',
+                    score: 0,
+                  }]};
+                }).catch(e => ({ source: 'unpaywall', items: [], error: e.message }))
+            );
           }
         }
 
-        // Goldsmiths Library — Ex Libris Primo public search
+        // ── DOAJ ── Directory of Open Access Journals
+        if (sources.includes('doaj')) {
+          const doajPage = page - 1;
+          fetches.push(
+            fetch(`https://doaj.org/api/search/articles/${encodeURIComponent(query)}?pageSize=${perPage}&page=${doajPage}`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(dj => {
+              const items = (dj.results || []).map(a => {
+                const bib = a.bibjson || {};
+                const journal = bib.journal || {};
+                return {
+                  title: bib.title || '',
+                  url: (bib.link && bib.link[0] && bib.link[0].url) || '',
+                  content: bib.abstract || '',
+                  source: 'doaj',
+                  authors: (bib.author || []).slice(0,5).map(au => au.name).join(', '),
+                  year: bib.year,
+                  venue: journal.title || '',
+                  doi: bib.identifier && bib.identifier.find(i => i.type === 'doi') && bib.identifier.find(i => i.type === 'doi').id,
+                  is_oa: true,
+                  _type: 'academic',
+                  score: 0,
+                };
+              });
+              return { source: 'doaj', items, total: dj.total };
+            }).catch(e => ({ source: 'doaj', items: [], error: e.message }))
+          );
+        }
+
+        // ── Internet Archive ── books, texts, datasets
+        if (sources.includes('internet_archive')) {
+          const iaPage = page;
+          fetches.push(
+            fetch(`https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}&fl[]=identifier,title,description,creator,date,mediatype,subject&rows=${perPage}&page=${iaPage}&output=json`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(ia => {
+              const items = ((ia.response && ia.response.docs) || []).map(r => ({
+                title: r.title || r.identifier,
+                url: 'https://archive.org/details/' + r.identifier,
+                content: (Array.isArray(r.description) ? r.description[0] : r.description) || (Array.isArray(r.creator) ? r.creator[0] : r.creator) || '',
+                source: 'internet_archive',
+                authors: Array.isArray(r.creator) ? r.creator.join(', ') : (r.creator || ''),
+                year: r.date ? r.date.substring(0,4) : null,
+                mediatype: r.mediatype,
+                is_oa: true,
+                _type: 'academic',
+                score: 0,
+              }));
+              return { source: 'internet_archive', items, total: ia.response && ia.response.numFound };
+            }).catch(e => ({ source: 'internet_archive', items: [], error: e.message }))
+          );
+        }
+
+        // ── Goldsmiths Library ── Ex Libris Primo
         if (sources.includes('goldsmiths_library') || sources.includes('senate_house')) {
           const libQuery = encodeURIComponent(query);
-          const goldResp = await fetch('https://goldsmiths.primo.exlibrisgroup.com/primaws/rest/pub/pnxs?inst=44GOL_INST&lang=en&limit=5&q=any,contains,' + libQuery + '&scope=MyInst_and_CI&sort=rank&tab=Everything&vid=44GOL_INST:VU1', {
-            headers: { 'Accept': 'application/json', 'User-Agent': 'Argentica/1.0 Research' }
-          }).then(r => r.json()).catch(() => null);
-          if (goldResp && goldResp.docs && goldResp.docs.length) {
-            goldResp.docs.slice(0, 5).forEach(function(doc) {
-              const pnx = doc.pnx || {};
-              const title = ((pnx.display && pnx.display.title) || [''])[0];
-              const creator = ((pnx.display && pnx.display.creator) || [''])[0];
-              const date = ((pnx.display && pnx.display.creationdate) || [''])[0];
-              const recordId = (pnx.control && pnx.control.recordid && pnx.control.recordid[0]) || '';
-              results.push({
-                title: title,
-                url: 'https://goldsmiths.primo.exlibrisgroup.com/permalink/44GOL_INST/1l3oa4j/' + recordId,
-                content: creator + ' (' + date + '). Available via Goldsmiths Library.',
-                source: sources.includes('goldsmiths_library') ? 'goldsmiths_library' : 'senate_house',
+          fetches.push(
+            fetch('https://goldsmiths.primo.exlibrisgroup.com/primaws/rest/pub/pnxs?inst=44GOL_INST&lang=en&limit=' + perPage + '&q=any,contains,' + libQuery + '&scope=MyInst_and_CI&sort=rank&tab=Everything&vid=44GOL_INST:VU1', {
+              headers: { 'Accept': 'application/json', 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(gold => {
+              const items = (gold.docs || []).map(doc => {
+                const pnx = doc.pnx || {};
+                const title = ((pnx.display && pnx.display.title) || [''])[0];
+                const creator = ((pnx.display && pnx.display.creator) || [''])[0];
+                const date = ((pnx.display && pnx.display.creationdate) || [''])[0];
+                const recordId = (pnx.control && pnx.control.recordid && pnx.control.recordid[0]) || '';
+                return {
+                  title,
+                  url: 'https://goldsmiths.primo.exlibrisgroup.com/permalink/44GOL_INST/1l3oa4j/' + recordId,
+                  content: creator + (date ? ' (' + date + ')' : '') + '. Available via Goldsmiths Library.',
+                  source: sources.includes('goldsmiths_library') ? 'goldsmiths_library' : 'senate_house',
+                  authors: creator,
+                  year: date,
+                  _type: 'academic',
+                  score: 0,
+                };
               });
-            });
+              return { source: 'goldsmiths_library', items };
+            }).catch(e => ({ source: 'goldsmiths_library', items: [], error: e.message }))
+          );
+        }
+
+        // ── Exa for academic/scholarly content ──
+        if (sources.includes('exa') && exaKey) {
+          fetches.push(
+            fetch('https://api.exa.ai/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-api-key': exaKey },
+              body: JSON.stringify({ query, numResults: perPage, useAutoprompt: true, type: 'neural', includeDomains: ['scholar.google.com','pubmed.ncbi.nlm.nih.gov','ncbi.nlm.nih.gov','jstor.org','researchgate.net','academia.edu','ssrn.com','tandfonline.com','wiley.com','springer.com','nature.com','sciencedirect.com','bmj.com','thelancet.com','nejm.org'], contents: { text: { maxCharacters: 800 } } }),
+            }).then(r => r.json()).then(ex => {
+              const items = (ex.results || []).map(r => ({
+                title: r.title || r.url,
+                url: r.url,
+                content: r.text || r.snippet || '',
+                source: 'exa_academic',
+                score: r.score || 0,
+                published_date: r.publishedDate || null,
+                is_oa: false,
+                _type: 'academic',
+              }));
+              return { source: 'exa_academic', items };
+            }).catch(e => ({ source: 'exa_academic', items: [], error: e.message }))
+          );
+        }
+
+        // ── Google Scholar link-out (no scraping) ──
+        if (sources.includes('google_scholar')) {
+          const items = [{
+            title: 'Search Google Scholar: ' + query,
+            url: 'https://scholar.google.com/scholar?q=' + encodeURIComponent(query),
+            content: 'Google Scholar discovery link — click to search directly.',
+            source: 'google_scholar',
+            _type: 'academic',
+            score: 0,
+          }];
+          fetches.push(Promise.resolve({ source: 'google_scholar', items }));
+        }
+
+        // ── Goldsmiths ILL fallback ──
+        if (sources.includes('goldsmiths_ill')) {
+          fetches.push(Promise.resolve({ source: 'goldsmiths_ill', items: [{
+            title: 'Goldsmiths Inter-Library Loan',
+            url: 'https://www.gold.ac.uk/library/using/ill/',
+            content: 'Request unavailable items via Goldsmiths ILL.',
+            source: 'goldsmiths_ill',
+            _type: 'academic',
+            score: 0,
+          }]}));
+        }
+
+        // Wait for all
+        const settled = await Promise.allSettled(fetches);
+        const allResults = [];
+        const sourceErrors = [];
+        const sourceTotals = {};
+
+        for (const s of settled) {
+          if (s.status === 'fulfilled') {
+            allResults.push(...(s.value.items || []));
+            if (s.value.error) sourceErrors.push(s.value.source + ': ' + s.value.error);
+            if (s.value.total != null) sourceTotals[s.value.source] = s.value.total;
+          } else {
+            sourceErrors.push(s.reason?.message || 'unknown error');
           }
         }
 
-        // Goldsmiths ILL — fulfilment fallback link
-        if (sources.includes('goldsmiths_ill') && results.length === 0) {
-          results.push({
-            title: 'Goldsmiths Inter-Library Loan',
-            url: 'https://www.gold.ac.uk/library/using/ill/',
-            content: 'No free full text found. Request via Goldsmiths ILL (manual process).',
-            source: 'goldsmiths_ill',
-          });
-        }
+        // De-duplicate by DOI first, then URL
+        const seenDois = new Set();
+        const seenUrls = new Set();
+        const deduped = allResults.filter(r => {
+          if (r.doi) {
+            const normDoi = r.doi.toLowerCase().replace(/^https?:\/\/doi\.org\//,'');
+            if (seenDois.has(normDoi)) return false;
+            seenDois.add(normDoi);
+          }
+          if (r.url) {
+            if (seenUrls.has(r.url)) return false;
+            seenUrls.add(r.url);
+          }
+          return true;
+        });
 
-        // Google Scholar — discovery link-out only
-        if (sources.includes('google_scholar')) {
-          results.push({
-            title: 'Search Google Scholar',
-            url: 'https://scholar.google.com/scholar?q=' + encodeURIComponent(query),
-            content: 'Google Scholar discovery link (navigation only — no API scraping).',
-            source: 'google_scholar',
-          });
-        }
+        // Sort by citation count / score desc
+        deduped.sort((a, b) => (b.score || b.citations || 0) - (a.score || a.citations || 0));
 
-        return json({ query, results, count: results.length }, 200, origin);
+        return json({
+          query,
+          results: deduped,
+          allResults: deduped,
+          count: deduped.length,
+          page,
+          source_totals: sourceTotals,
+          sources_queried: sources,
+          errors: sourceErrors.length > 0 ? sourceErrors : undefined,
+        }, 200, origin);
       } catch(e) { return json({ error: e.message, results: [] }, 500, origin); }
     }
 
