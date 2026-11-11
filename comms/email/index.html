@@ -130,7 +130,14 @@ function loadInbox() {
   var list = document.getElementById("email-list");
   list.innerHTML = "<div style=\"padding:20px;text-align:center;color:var(--fg-muted);font-size:0.85rem;\">Loading...</div>";
   fetch(WORKER + "/api/google/gmail?maxResults=30&label=" + currentLabel)
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      var ct = r.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) {
+        // HTML response = auth error or worker not ready
+        return { error: 'Authentication required', status: 'not_connected' };
+      }
+      return r.json();
+    })
     .then(function(d) {
       if (d.status === "not_connected") {
         list.innerHTML = "<div class=\"not-connected\"><a href=\"https://prism.identitypartners.uk/comms/google/\" class=\"btn btn-primary\">Connect Google Account</a></div>";
