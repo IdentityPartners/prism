@@ -231,7 +231,7 @@ function _saveSignupProfile_moved() { // moved to platform-manager
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify(profile)
   })
-  .then(function(r) { return r.json(); })
+  .then(function(r){ var ct=r.headers.get("content-type")||""; if(!ct.includes("application/json")){return {error:"Auth required — reconnect at /comms/google/",_html:true};} return r.json(); })
   .then(function(r) {
     var status = document.getElementById('sp-status');
     if (status) status.textContent = r.success ? '✓ Profile saved to Cloudflare KV' : 'Error: ' + (r.error||'unknown');
@@ -281,7 +281,7 @@ function checkCRMStatus() {
   var list = document.getElementById('zoho-status-list');
   if (!list) return;
   fetch('https://prism.identitypartners.uk/api/zoho/status')
-  .then(function(r) { return r.json(); })
+  .then(function(r){ var ct=r.headers.get("content-type")||""; if(!ct.includes("application/json")){return {error:"Auth required — reconnect at /comms/google/",_html:true};} return r.json(); })
   .then(function(r) {
     var status = r.status || {};
     var services = [
