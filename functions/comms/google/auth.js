@@ -6,7 +6,7 @@ export async function onRequest(context) {
   const { request } = context;
   const url = new URL(request.url);
   
-  const workerUrl = 'https://prism-api.identitypartners.workers.dev' + url.pathname + url.search;
+  const workerUrl = 'https://prism.identitypartners.uk' + url.pathname + url.search;
   
   try {
     const response = await fetch(workerUrl, {
