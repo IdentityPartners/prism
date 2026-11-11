@@ -259,7 +259,7 @@ function renderPDF(doc) {
     // Transparent canvas overlay for handwriting/annotations
     var annotCanvas = document.createElement('canvas');
     annotCanvas.id = 'pdf-annot-canvas';
-    annotCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:2;touch-action:none;pointer-events:none;';
+    annotCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:2;touch-action:none;pointer-events:all;cursor:crosshair;';
 
     // Annotation toolbar
     var annotBar = document.createElement('div');
@@ -269,11 +269,13 @@ function renderPDF(doc) {
       '<button onclick="setAnnotTool(\'pen\')" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(255,255,255,0.9);color:#0f3b3a;">&#x270F; Pen</button>'
       + '<button onclick="setAnnotTool(\'hi\')" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(255,220,0,0.85);color:#333;">&#x1F58C; Hi</button>'
       + '<button onclick="setAnnotTool(\'erase\')" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(255,255,255,0.9);color:#0f3b3a;">&#x2715; Erase</button>'
-      + '<button onclick="toggleAnnotMode()" id="annot-toggle" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(255,255,255,0.25);color:#fff;">Draw: OFF</button>'
+      + '<button onclick="toggleAnnotMode()" id="annot-toggle" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(255,255,255,0.25);color:#fff;">✏ Annotate: ON</button>'
       + '<button onclick="clearPdfAnnot()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(220,38,38,0.85);color:#fff;">Clear</button>'
       + '<button onclick="savePdfAnnot()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(45,106,159,0.9);color:#fff;">&#x1F4BE; Save</button>'
       + '<button onclick="toggleNotesPanel()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(255,255,255,0.2);color:#fff;">&#x1F4DD; Notes</button>'
-      + '<button onclick="runOcrOnDoc()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(92,45,63,0.9);color:#fff;">&#x1F50D; OCR</button>';
+      + '<button onclick="runOcrOnDoc()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(92,45,63,0.9);color:#fff;">&#x1F50D; OCR</button>'
+      + '<button onclick="chatWithDoc()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;background:rgba(15,59,58,0.85);color:#fff;font-size:11px;margin-left:4px;">&#x1F4AC; Chat</button>'
+      + '<button onclick="readAloud()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;background:rgba(92,45,63,0.85);color:#fff;font-size:11px;margin-left:4px;">&#x1F50A; Read</button>';
 
     // Open-in-Drive button (top-right)
     var openBtn = document.createElement('a');
@@ -310,7 +312,7 @@ function renderPDF(doc) {
       }
       // Switch to direct PDF.js embed
       iframe.src = 'https://mozilla.github.io/pdf.js/web/viewer.html?file=' + encodeURIComponent(doc.url);
-    }, 12000);
+    }, 5000);
 
     pane.appendChild(saveIndicator);
     // Load notes for this doc
@@ -735,12 +737,56 @@ function zoomIn() { var c = document.querySelector('.doc-content'); if (c) c.sty
 function zoomOut() { var c = document.querySelector('.doc-content'); if (c) c.style.fontSize = Math.max(10, parseFloat(c.style.fontSize || '16') - 1) + 'px'; }
 
 
+// ── Chat with document ──────────────────────────────────────────
+function chatWithDoc() {
+  if (!docData) return;
+  var title = docData.name || 'this document';
+  var content = docData.content || '';
+  // Open chat with document context
+  var chatUrl = '/chat/?doc=' + encodeURIComponent(docData.id || '') + '&title=' + encodeURIComponent(title);
+  // Also post to chat API to prime the context
+  if (content && content.length > 100) {
+    var excerpt = content.substring(0, 3000);
+    var msg = 'I am reading "' + title + '". Here is an excerpt:\n\n' + excerpt + '\n\n[Document loaded as context. Ask me anything about it.]';
+    fetch(WORKER + '/api/kv/set', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key: 'doc-context:current', value: JSON.stringify({id: docData.id, name: title, excerpt: excerpt})})
+    }).catch(function(){});
+  }
+  window.open(chatUrl, '_blank');
+}
+
+// ── Read document aloud ──────────────────────────────────────────
+function readAloud() {
+  if (!docData) return;
+  var text = docData.content || '';
+  if (!text || text.length < 10) { alert('No text content to read. Try OCR first.'); return; }
+  var excerpt = text.replace(/<[^>]+>/g, '').substring(0, 2000);
+  fetch(WORKER + '/api/tts/read', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text: excerpt, voice: 'british'})
+  }).then(function(r){ return r.json(); })
+  .then(function(d) {
+    if (d.audio_url || d.url) {
+      var audio = new Audio(d.audio_url || d.url);
+      audio.play();
+    } else if (d.audio_base64) {
+      var audio = new Audio('data:audio/mp3;base64,' + d.audio_base64);
+      audio.play();
+    } else {
+      alert('Read aloud unavailable. Check Cartesia/Deepgram key.');
+    }
+  }).catch(function(e){ alert('Read aloud error: ' + e.message); });
+}
+
 // ── PDF annotation canvas overlay ────────────────────────────────────────────
 var pdfAnnotStrokes = [];
 var pdfAnnotCurrent = null;
 var pdfAnnotDrawing = false;
 var pdfAnnotTool = "pen";
-var pdfAnnotMode = false;
+var pdfAnnotMode = true; // annotation mode on by default
 var pdfAnnotDocId = null;
 
 function initPdfAnnotCanvas(canvas, docId) {
