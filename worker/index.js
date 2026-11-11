@@ -3077,24 +3077,34 @@ export default {
           );
         }
 
-        // ── SciELO ── Latin American open access
+        // ── SciELO ── Latin American open access (via OpenAlex filter)
         if (sources.includes('scielo')) {
+          // SciELO has no public JSON search API — query via OpenAlex filtered to SciELO sources
           fetches.push(
-            fetch(`https://search.scielo.org/api/v1/search/?q=${encodeURIComponent(query)}&count=${perPage}&from=${(page-1)*perPage}&format=json&lang=en`, {
+            fetch(`https://api.openalex.org/works?search=${encodeURIComponent(query)}&filter=primary_location.source.host_organization:https://openalex.org/P4310320595&per-page=${perPage}&page=${page}&mailto=${email}`, {
               headers: { 'User-Agent': 'Argentica/1.0 Research' },
             }).then(r => r.json()).then(sc => {
-              const items = (sc.hits && sc.hits.hits || []).map(h => {
-                const s = h._source || {};
+              const items = (sc.results || []).map(w => {
+                let abstract = '';
+                if (w.abstract_inverted_index) {
+                  const words = {};
+                  for (const [word, positions] of Object.entries(w.abstract_inverted_index)) {
+                    for (const pos of positions) words[pos] = word;
+                  }
+                  abstract = Object.keys(words).sort((a,b)=>a-b).map(k=>words[k]).join(' ');
+                }
+                const loc = w.primary_location || {};
                 return {
-                  title: (Array.isArray(s.ti) ? s.ti[0] : s.ti) || '',
-                  url: s.ur ? 'https://www.scielo.br/j/' + s.ur : '',
-                  content: (Array.isArray(s.ab) ? s.ab[0] : s.ab) || '',
+                  title: w.title || '',
+                  url: (loc.pdf_url) || (w.open_access && w.open_access.oa_url) || ('https://openalex.org/' + (w.id||'').replace('https://openalex.org/','')),
+                  content: abstract,
                   source: 'scielo',
-                  authors: (s.au || []).slice(0,5).join(', '),
-                  year: s.dp ? s.dp.substring(0,4) : null,
+                  authors: (w.authorships||[]).slice(0,5).map(a=>a.author&&a.author.display_name).filter(Boolean).join(', '),
+                  year: w.publication_year,
+                  doi: w.doi,
                   is_oa: true,
                   _type: 'academic',
-                  score: 0,
+                  score: w.cited_by_count || 0,
                 };
               });
               return { source: 'scielo', items };
