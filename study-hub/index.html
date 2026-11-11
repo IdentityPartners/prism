@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function loadModules() {
   fetch(WORKER + '/api/kv/get?key=study:modules')
-    .then(function(r) { return r.json(); })
+    .then(function(r){ var ct=r.headers.get("content-type")||""; if(!ct.includes("application/json")){return {error:"Auth required — reconnect at /comms/google/",_html:true};} return r.json(); })
     .then(function(d) {
       if (d.value) {
         try { modules = JSON.parse(d.value); } catch(e) {}
@@ -507,7 +507,7 @@ function reUploadResource(resource) {
             body: JSON.stringify(uploadBody)
           });
         })
-        .then(function(r) { return r.json(); })
+        .then(function(r){ var ct=r.headers.get("content-type")||""; if(!ct.includes("application/json")){return {error:"Auth required — reconnect at /comms/google/",_html:true};} return r.json(); })
         .then(function(d) {
           resource.url = d.webViewLink || d.shareUrl || d.webUrl || null;
           resource.storage = resource.url ? 'uploaded' : 'failed';
@@ -644,7 +644,7 @@ function handleUpload(files) {
             : {fileName: file.name, content: b64, folder: 'Argentica/Study'};
           return fetch(uploadUrl, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(uploadBody)});
         })
-        .then(function(r) { return r.json(); })
+        .then(function(r){ var ct=r.headers.get("content-type")||""; if(!ct.includes("application/json")){return {error:"Auth required — reconnect at /comms/google/",_html:true};} return r.json(); })
         .then(function(d) {
           var res = (currentWeek.resources || []).find(function(r) { return r.id === resourceId; });
           if (res) {
