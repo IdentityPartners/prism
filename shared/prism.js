@@ -773,7 +773,7 @@ function buildSidebar(activePage) {
 
     // ── Tools ─────────────────────────────────────────────────
     {type:'section', label:'Tools'},
-    {type:'group', label:'Tools', icon:'fluent-emoji:toolbox', children:[
+    {type:'group', label:'Tools', icon:'fluent-emoji:hammer-and-wrench', children:[
       {label:'Agents', icon:'fluent-emoji:robot', href:'/agenti/agent-builder/'},
       {label:'Workflows', icon:'fluent-emoji:gear', href:'/agenti/workflow-wizard/'},
       {label:'Personas', icon:'fluent-emoji:performing-arts', href:'/personas/'},
@@ -1067,6 +1067,21 @@ function makeHelpBtn(guideName, tooltip) {
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
   ThemeSystem.init();
+  // Auto-build sidebar if sidebar-mount exists and buildSidebar hasn't been called yet
+  var mount = document.getElementById('sidebar-mount');
+  if (mount && typeof buildSidebar === 'function') {
+    try {
+      var activePath = window.location.pathname;
+      var sb = buildSidebar(activePath);
+      if (sb && mount.parentNode) {
+        mount.parentNode.insertBefore(sb, mount);
+        mount.parentNode.removeChild(mount);
+      }
+    } catch(e) {
+      // buildSidebar failed — log silently
+      if (window.console) console.warn('buildSidebar error:', e);
+    }
+  }
   Sidebar.init();
 });
 
