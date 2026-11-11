@@ -740,7 +740,8 @@ function buildSidebar(activePage) {
       {label:'Study Hub', icon:'fluent-emoji:books', href:'/study-hub/'},
       {label:'Document Manager', icon:'fluent-emoji:open-book', href:'/doc-viewer/'},
       {label:'Research', icon:'fluent-emoji:magnifying-glass-tilted-left', href:'/research/'},
-      {label:'Notebooks', icon:'fluent-emoji:notebook', href:'/drafting/'},
+      {label:'Notebooks & WriteHandy', icon:'fluent-emoji:notebook', href:'/drafting/'},
+      {label:'Debate Society', icon:'fluent-emoji:speaking-head', href:'/debate/'},
     ]},
 
     // ── Social ────────────────────────────────────────────────
@@ -775,8 +776,6 @@ function buildSidebar(activePage) {
     {type:'group', label:'Tools', icon:'fluent-emoji:toolbox', children:[
       {label:'Agents', icon:'fluent-emoji:robot', href:'/agenti/agent-builder/'},
       {label:'Workflows', icon:'fluent-emoji:gear', href:'/agenti/workflow-wizard/'},
-      {label:'WriteHandy', icon:'fluent-emoji:writing-hand', href:'/writehandy/'},
-      {label:'Debate Society', icon:'fluent-emoji:speaking-head', href:'/debate/'},
       {label:'Personas', icon:'fluent-emoji:performing-arts', href:'/personas/'},
       {label:'Workspaces', icon:'fluent-emoji:file-folder', href:'/workspaces/'},
     ]},
