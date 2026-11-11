@@ -1254,7 +1254,7 @@ function buildOSK(targetId) {
   var collapsed = false;
 
   var wrapper = document.createElement('div');
-  wrapper.id = 'osk-wrapper';
+  wrapper.id = 'osk-strip';
   wrapper.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:8000;background:var(--bg-elevated);border-top:2px solid var(--border);padding:4px 4px 10px;user-select:none;';
 
   var collapseBar = document.createElement('div');
@@ -1342,8 +1342,8 @@ function buildOSK(targetId) {
 
   renderKeys();
 
-  var anchor = target.closest('.chat-input-area') || target.closest('form') || document.body;
-  anchor.appendChild(wrapper);
+  // Always append OSK to body so it overlays correctly
+  document.body.appendChild(wrapper);
 
   target.addEventListener('input', function() {
     target.style.height = 'auto';
