@@ -730,61 +730,62 @@ var OSK = (function() {
 function buildSidebar(activePage) {
   // Nav structure: flat items and grouped dropdowns
   var navStructure = [
-    // ── Study ─────────────────────────────────────────────────
+    // ── Always visible ────────────────────────────────────────
     {type:'item', label:'Home', icon:'fluent-emoji:house', href:'/home/'},
     {type:'item', label:'Chat', icon:'fluent-emoji:speech-balloon', href:'/chat/'},
-    {type:'section', label:'Study'},
-    {type:'group', label:'Study', icon:'fluent-emoji:books', children:[
+
+    // ── Library ───────────────────────────────────────────────
+    {type:'section', label:'Library'},
+    {type:'group', label:'Library', icon:'fluent-emoji:books', children:[
       {label:'Study Hub', icon:'fluent-emoji:books', href:'/study-hub/'},
       {label:'Document Manager', icon:'fluent-emoji:open-book', href:'/doc-viewer/'},
       {label:'Research', icon:'fluent-emoji:magnifying-glass-tilted-left', href:'/research/'},
-      {label:'Drafting', icon:'fluent-emoji:pencil', href:'/drafting/'},
+      {label:'Notebooks', icon:'fluent-emoji:notebook', href:'/drafting/'},
     ]},
-    // ── Create ────────────────────────────────────────────────
-    {type:'section', label:'Create'},
-    {type:'group', label:'Create', icon:'fluent-emoji:artist-palette', children:[
+
+    // ── Social ────────────────────────────────────────────────
+    {type:'section', label:'Social'},
+    {type:'group', label:'Social', icon:'fluent-emoji:megaphone', children:[
+      {label:'Marketing Team', icon:'fluent-emoji:people-hugging', href:'/marketing/'},
       {label:'Canvas', icon:'fluent-emoji:framed-picture', href:'/creator/canvas/'},
       {label:'Templates', icon:'fluent-emoji:card-index-dividers', href:'/creator/canvas/templates/'},
       {label:'Refract', icon:'fluent-emoji:gem-stone', href:'/atomise/'},
       {label:'Carousel', icon:'fluent-emoji:film-frames', href:'/creator/carousel/'},
+      {label:'Social Queue', icon:'fluent-emoji:outbox-tray', href:'/social-queue/'},
       {label:'Podcasts', icon:'fluent-emoji:microphone', href:'/creator/podcasts/'},
       {label:'Music', icon:'fluent-emoji:musical-notes', href:'/creator/music/'},
       {label:'Media Manager', icon:'fluent-emoji:open-file-folder', href:'/media/'},
-    ]},
-    // ── Commercial ────────────────────────────────────────────
-    {type:'section', label:'Commercial'},
-    {type:'group', label:'Marketing', icon:'fluent-emoji:megaphone', children:[
-      {label:'Marketing Team', icon:'fluent-emoji:people-hugging', href:'/marketing/'},
-      {label:'Social Queue', icon:'fluent-emoji:outbox-tray', href:'/social-queue/'},
-      {label:'Platform Manager', icon:'fluent-emoji:link', href:'/platform-manager/'},
       {label:'Monetisation', icon:'fluent-emoji:money-bag', href:'/monetisation/'},
     ]},
-    {type:'group', label:'CRM & Clients', icon:'fluent-emoji:briefcase', children:[
-      {label:'CRM', icon:'fluent-emoji:busts-in-silhouette', href:'/crm/'},
-      {label:'Twenty CRM', icon:'fluent-emoji:address-book', href:'/comms/twenty/'},
-    ]},
+
     // ── Comms ─────────────────────────────────────────────────
     {type:'section', label:'Comms'},
     {type:'group', label:'Comms', icon:'fluent-emoji:envelope', children:[
       {label:'Email', icon:'fluent-emoji:e-mail', href:'/comms/email/'},
       {label:'Calendar', icon:'fluent-emoji:spiral-calendar', href:'/comms/calendar/'},
       {label:'Messages', icon:'fluent-emoji:speech-balloon', href:'/messages/'},
+      {label:'CRM', icon:'fluent-emoji:busts-in-silhouette', href:'/crm/'},
+      {label:'Twenty CRM', icon:'fluent-emoji:address-book', href:'/comms/twenty/'},
+      {label:'Platform Manager', icon:'fluent-emoji:link', href:'/platform-manager/'},
       {label:'Google Account', icon:'fluent-emoji:envelope-with-arrow', href:'/comms/google/'},
     ]},
-    // ── Intelligence ──────────────────────────────────────────
-    {type:'section', label:'Intelligence'},
-    {type:'group', label:'Intelligence', icon:'fluent-emoji:brain', children:[
+
+    // ── Tools ─────────────────────────────────────────────────
+    {type:'section', label:'Tools'},
+    {type:'group', label:'Tools', icon:'fluent-emoji:toolbox', children:[
       {label:'Agents', icon:'fluent-emoji:robot', href:'/agenti/agent-builder/'},
       {label:'Workflows', icon:'fluent-emoji:gear', href:'/agenti/workflow-wizard/'},
-      {label:'Orchestrator', icon:'fluent-emoji:control-knobs', href:'/orchestrator/'},
+      {label:'WriteHandy', icon:'fluent-emoji:writing-hand', href:'/writehandy/'},
       {label:'Debate Society', icon:'fluent-emoji:speaking-head', href:'/debate/'},
       {label:'Personas', icon:'fluent-emoji:performing-arts', href:'/personas/'},
+      {label:'Workspaces', icon:'fluent-emoji:file-folder', href:'/workspaces/'},
     ]},
+
     // ── System ────────────────────────────────────────────────
     {type:'section', label:'System'},
     {type:'group', label:'System', icon:'fluent-emoji:wrench', children:[
       {label:'Profile & Memory', icon:'fluent-emoji:bust-in-silhouette', href:'/profile/'},
-      {label:'WriteHandy', icon:'fluent-emoji:writing-hand', href:'/writehandy/'},
+      {label:'Orchestrator', icon:'fluent-emoji:control-knobs', href:'/orchestrator/'},
       {label:'Dev Team', icon:'fluent-emoji:hammer-and-wrench', href:'/dev-team/'},
       {label:'Settings', icon:'fluent-emoji:gear', href:'/settings/'},
       {label:'Request', icon:'fluent-emoji:clipboard', href:'/request/'},
