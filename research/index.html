@@ -147,7 +147,7 @@
 </div>
 <script src="/shared/prism.js"></script>
 <script>
-var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var WORKER = 'https://prism.identitypartners.uk';
 var activeSources = ['tavily','brave','exa','semantic_scholar','pubmed','crossref','openalex','core'];
 
 var ALL_SOURCES = {
@@ -821,7 +821,7 @@ function saveKeywords() {
   if (!input) return;
   var keywords = input.value.split('\n').map(function(k){return k.trim();}).filter(Boolean);
   try { localStorage.setItem('prism-research-keywords', JSON.stringify(keywords)); } catch(e) {}
-  fetch('https://prism-api.identitypartners.workers.dev/api/research/keywords', {
+  fetch('https://prism.identitypartners.uk/api/research/keywords', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body:JSON.stringify({keywords:keywords, schedule:schedule?schedule.value:'weekly'})
   }).then(function(){Toast.success(keywords.length + ' keywords saved for ' + (schedule?schedule.value:'weekly') + ' scrapes');});
@@ -839,7 +839,7 @@ function runKeywordScrape() {
   Toast.info('Running research scrape for ' + keywords.length + ' keywords...');
   var list = document.getElementById('results-list');
   if (list) list.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div><div style="margin-top:10px;font-size:13px;color:var(--fg-muted);">Toby is searching ' + keywords.length + ' keywords across all sources...</div></div>';
-  fetch('https://prism-api.identitypartners.workers.dev/api/research/scheduled', {
+  fetch('https://prism.identitypartners.uk/api/research/scheduled', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body:JSON.stringify({keywords:keywords, sources:activeSources.length>0?activeSources:['tavily','semantic_scholar','pubmed','exa','crossref']})
   })
