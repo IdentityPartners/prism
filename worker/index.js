@@ -2741,6 +2741,367 @@ export default {
           }]}));
         }
 
+        // ── bioRxiv ── biology preprints
+        if (sources.includes('biorxiv')) {
+          fetches.push(
+            fetch(`https://api.biorxiv.org/details/biorxiv/2000-01-01/${new Date().toISOString().split('T')[0]}/${(page-1)*perPage}`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(bx => {
+              const allPapers = (bx.collection || []);
+              const filtered = allPapers.filter(p => {
+                const text = ((p.title || '') + ' ' + (p.abstract || '')).toLowerCase();
+                return query.toLowerCase().split(/\s+/).filter(w => w.length > 3).some(w => text.includes(w));
+              }).slice(0, perPage);
+              const items = filtered.map(p => ({
+                title: p.title || '',
+                url: 'https://www.biorxiv.org/content/' + p.doi,
+                content: p.abstract || '',
+                source: 'biorxiv',
+                authors: p.authors || '',
+                year: p.date ? p.date.substring(0,4) : null,
+                doi: p.doi,
+                is_oa: true,
+                _type: 'academic',
+                score: 0,
+              }));
+              return { source: 'biorxiv', items };
+            }).catch(e => ({ source: 'biorxiv', items: [], error: e.message }))
+          );
+        }
+
+        // ── medRxiv ── medical preprints
+        if (sources.includes('medrxiv')) {
+          fetches.push(
+            fetch(`https://api.biorxiv.org/details/medrxiv/2000-01-01/${new Date().toISOString().split('T')[0]}/${(page-1)*perPage}`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(mx => {
+              const allPapers = (mx.collection || []);
+              const filtered = allPapers.filter(p => {
+                const text = ((p.title || '') + ' ' + (p.abstract || '')).toLowerCase();
+                return query.toLowerCase().split(/\s+/).filter(w => w.length > 3).some(w => text.includes(w));
+              }).slice(0, perPage);
+              const items = filtered.map(p => ({
+                title: p.title || '',
+                url: 'https://www.medrxiv.org/content/' + p.doi,
+                content: p.abstract || '',
+                source: 'medrxiv',
+                authors: p.authors || '',
+                year: p.date ? p.date.substring(0,4) : null,
+                doi: p.doi,
+                is_oa: true,
+                _type: 'academic',
+                score: 0,
+              }));
+              return { source: 'medrxiv', items };
+            }).catch(e => ({ source: 'medrxiv', items: [], error: e.message }))
+          );
+        }
+
+        // ── Europe PMC ── European biomedical literature
+        if (sources.includes('europe_pmc') || sources.includes('pmc')) {
+          const pmcOffset = (page - 1) * perPage;
+          fetches.push(
+            fetch(`https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(query)}&resultType=core&pageSize=${perPage}&cursorMark=*&format=json&email=${email}`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(ep => {
+              const items = ((ep.resultList && ep.resultList.result) || []).map(p => ({
+                title: p.title || '',
+                url: p.fullTextUrlList && p.fullTextUrlList.fullTextUrl && p.fullTextUrlList.fullTextUrl[0] && p.fullTextUrlList.fullTextUrl[0].url || ('https://europepmc.org/article/' + (p.source || 'MED') + '/' + p.id),
+                content: p.abstractText || '',
+                source: sources.includes('europe_pmc') ? 'europe_pmc' : 'pmc',
+                authors: p.authorString || '',
+                year: p.pubYear,
+                venue: p.journalTitle || '',
+                doi: p.doi,
+                is_oa: p.isOpenAccess === 'Y',
+                _type: 'academic',
+                score: p.citedByCount || 0,
+                citations: p.citedByCount || 0,
+              }));
+              return { source: 'europe_pmc', items, total: ep.hitCount };
+            }).catch(e => ({ source: 'europe_pmc', items: [], error: e.message }))
+          );
+        }
+
+        // ── Zenodo ── open research data + papers
+        if (sources.includes('zenodo')) {
+          fetches.push(
+            fetch(`https://zenodo.org/api/records?q=${encodeURIComponent(query)}&size=${perPage}&page=${page}&sort=mostrecent`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(zn => {
+              const items = (zn.hits && zn.hits.hits || []).map(r => {
+                const meta = r.metadata || {};
+                return {
+                  title: meta.title || '',
+                  url: r.links && r.links.html || ('https://zenodo.org/record/' + r.id),
+                  content: meta.description ? meta.description.replace(/<[^>]+>/g,'').substring(0,400) : '',
+                  source: 'zenodo',
+                  authors: (meta.creators || []).slice(0,5).map(c => c.name).join(', '),
+                  year: meta.publication_date ? meta.publication_date.substring(0,4) : null,
+                  doi: meta.doi,
+                  is_oa: true,
+                  _type: 'academic',
+                  score: 0,
+                };
+              });
+              return { source: 'zenodo', items, total: zn.hits && zn.hits.total };
+            }).catch(e => ({ source: 'zenodo', items: [], error: e.message }))
+          );
+        }
+
+        // ── ClinicalTrials.gov ──
+        if (sources.includes('clinicaltrials')) {
+          fetches.push(
+            fetch(`https://clinicaltrials.gov/api/query/full_studies?expr=${encodeURIComponent(query)}&min_rnk=${(page-1)*perPage+1}&max_rnk=${page*perPage}&fmt=json`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(ct => {
+              const studies = (ct.FullStudiesResponse && ct.FullStudiesResponse.FullStudies) || [];
+              const items = studies.map(s => {
+                const study = s.Study || {};
+                const proto = study.ProtocolSection || {};
+                const id = proto.IdentificationModule || {};
+                const desc = proto.DescriptionModule || {};
+                const status = proto.StatusModule || {};
+                return {
+                  title: id.BriefTitle || id.OfficialTitle || '',
+                  url: 'https://clinicaltrials.gov/study/' + (id.NCTId || ''),
+                  content: desc.BriefSummary || '',
+                  source: 'clinicaltrials',
+                  year: status.StartDateStruct && status.StartDateStruct.StartDate ? status.StartDateStruct.StartDate.substring(0,4) : null,
+                  _type: 'academic',
+                  score: 0,
+                };
+              });
+              return { source: 'clinicaltrials', items };
+            }).catch(e => ({ source: 'clinicaltrials', items: [], error: e.message }))
+          );
+        }
+
+        // ── EThOS ── UK theses (British Library)
+        if (sources.includes('ethos')) {
+          fetches.push(
+            fetch(`https://ethos.bl.uk/api/search?query=${encodeURIComponent(query)}&rows=${perPage}&start=${(page-1)*perPage}`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research', 'Accept': 'application/json' },
+            }).then(r => r.json()).then(et => {
+              const items = (et.documents || et.results || []).map(t => ({
+                title: t.title || '',
+                url: t.ethos_url || ('https://ethos.bl.uk/OrderDetails.do?uin=' + (t.ethos_id || '')),
+                content: t.abstract || t.description || '',
+                source: 'ethos',
+                authors: t.author || '',
+                year: t.year || t.awarded_date,
+                venue: t.institution || '',
+                is_oa: !!(t.open_access),
+                _type: 'academic',
+                score: 0,
+              }));
+              return { source: 'ethos', items };
+            }).catch(e => ({ source: 'ethos', items: [], error: e.message }))
+          );
+        }
+
+        // ── OATD ── Open Access Theses and Dissertations
+        if (sources.includes('oatd')) {
+          fetches.push(
+            fetch(`https://oatd.org/oatd/search?q=${encodeURIComponent(query)}&start=${(page-1)*perPage}`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research', 'Accept': 'application/json' },
+            }).then(r => r.json()).then(oa => {
+              const items = (oa.results || []).map(t => ({
+                title: t.title || '',
+                url: t.url || '',
+                content: t.description || t.abstract || '',
+                source: 'oatd',
+                authors: t.author || '',
+                year: t.date ? t.date.substring(0,4) : null,
+                venue: t.school || '',
+                is_oa: true,
+                _type: 'academic',
+                score: 0,
+              }));
+              return { source: 'oatd', items };
+            }).catch(e => ({ source: 'oatd', items: [], error: e.message }))
+          );
+        }
+
+        // ── IDEAS/RePec ── economics working papers
+        if (sources.includes('ideas_repec')) {
+          fetches.push(
+            fetch(`https://api.repec.org/search.php?query=${encodeURIComponent(query)}&rows=${perPage}&start=${(page-1)*perPage}&format=json`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(rp => {
+              const items = (rp.items || rp.results || []).map(p => ({
+                title: p.title || '',
+                url: p.url || ('https://ideas.repec.org/search.html?q=' + encodeURIComponent(query)),
+                content: p.abstract || p.description || '',
+                source: 'ideas_repec',
+                authors: p.author || p.authors || '',
+                year: p.year || p.date,
+                _type: 'academic',
+                score: 0,
+              }));
+              return { source: 'ideas_repec', items };
+            }).catch(e => ({ source: 'ideas_repec', items: [], error: e.message }))
+          );
+        }
+
+        // ── NBER ── National Bureau of Economic Research working papers
+        if (sources.includes('nber')) {
+          fetches.push(
+            fetch(`https://api.nber.org/papers.json?q=${encodeURIComponent(query)}&page=${page}&per_page=${perPage}`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(nb => {
+              const items = (nb.papers || nb.results || []).map(p => ({
+                title: p.title || '',
+                url: p.url || ('https://www.nber.org/papers/' + (p.id || '')),
+                content: p.abstract || '',
+                source: 'nber',
+                authors: (p.authors || []).map(a => a.name || a).join(', '),
+                year: p.year || (p.date && p.date.substring(0,4)),
+                is_oa: true,
+                _type: 'academic',
+                score: 0,
+              }));
+              return { source: 'nber', items };
+            }).catch(e => ({ source: 'nber', items: [], error: e.message }))
+          );
+        }
+
+        // ── ONS ── UK Office for National Statistics
+        if (sources.includes('ons')) {
+          fetches.push(
+            fetch(`https://api.beta.ons.gov.uk/v1/search?q=${encodeURIComponent(query)}&limit=${perPage}&offset=${(page-1)*perPage}`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research', 'Accept': 'application/json' },
+            }).then(r => r.json()).then(ons => {
+              const items = (ons.items || ons.results || []).map(r => ({
+                title: r.description && r.description.title || r.title || '',
+                url: r.uri ? 'https://www.ons.gov.uk' + r.uri : '',
+                content: r.description && r.description.summary || r.summary || '',
+                source: 'ons',
+                year: r.description && r.description.releaseDate ? r.description.releaseDate.substring(0,4) : null,
+                _type: 'academic',
+                score: 0,
+              }));
+              return { source: 'ons', items };
+            }).catch(e => ({ source: 'ons', items: [], error: e.message }))
+          );
+        }
+
+        // ── World Bank ── global development data
+        if (sources.includes('worldbank')) {
+          fetches.push(
+            fetch(`https://search.worldbank.org/api/v2/wds?qterm=${encodeURIComponent(query)}&rows=${perPage}&os=${(page-1)*perPage}&format=json`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(wb => {
+              const items = (wb.documents ? Object.values(wb.documents).filter(d => d && d.display_title) : []).slice(0, perPage).map(d => ({
+                title: d.display_title || d.docdt || '',
+                url: d.url || d.pdfurl || '',
+                content: d.teaser || d.abstract || '',
+                source: 'worldbank',
+                authors: d.author || '',
+                year: d.docdt ? d.docdt.substring(0,4) : null,
+                is_oa: true,
+                _type: 'academic',
+                score: 0,
+              }));
+              return { source: 'worldbank', items };
+            }).catch(e => ({ source: 'worldbank', items: [], error: e.message }))
+          );
+        }
+
+        // ── Eurostat ── EU statistics
+        if (sources.includes('eurostat')) {
+          fetches.push(
+            fetch(`https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/${encodeURIComponent(query)}?format=JSON&lang=EN`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(es => {
+              // Eurostat returns dataset metadata — provide a search link
+              const items = [{
+                title: 'Eurostat: ' + query,
+                url: 'https://ec.europa.eu/eurostat/databrowser/explore/all/all_themes?lang=en&search=' + encodeURIComponent(query),
+                content: 'Search Eurostat statistical database for: ' + query,
+                source: 'eurostat',
+                is_oa: true,
+                _type: 'academic',
+                score: 0,
+              }];
+              return { source: 'eurostat', items };
+            }).catch(e => ({ source: 'eurostat', items: [], error: e.message }))
+          );
+        }
+
+        // ── Lens.org ── patents + scholarly
+        if (sources.includes('lens')) {
+          fetches.push(
+            fetch('https://api.lens.org/scholarly/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (k(env, ['lens_api_key','LENS_API_KEY']) || '') },
+              body: JSON.stringify({ query: { match: { title: query } }, size: perPage, from: (page-1)*perPage, include: ['title','authors','abstract','year_published','doi','open_access','source'] }),
+            }).then(r => r.json()).then(ln => {
+              const items = (ln.data || []).map(p => ({
+                title: p.title || '',
+                url: p.doi ? 'https://doi.org/' + p.doi : 'https://www.lens.org/lens/search/scholar?q=' + encodeURIComponent(query),
+                content: p.abstract || '',
+                source: 'lens',
+                authors: (p.authors || []).slice(0,5).map(a => a.display_name || a.first_name + ' ' + a.last_name).join(', '),
+                year: p.year_published,
+                doi: p.doi,
+                is_oa: p.open_access && p.open_access.is_oa,
+                _type: 'academic',
+                score: 0,
+              }));
+              return { source: 'lens', items };
+            }).catch(e => ({ source: 'lens', items: [], error: e.message }))
+          );
+        }
+
+        // ── BASE ── Bielefeld Academic Search Engine
+        if (sources.includes('base')) {
+          fetches.push(
+            fetch(`https://api.base-search.net/cgi-bin/BaseHttpSearchInterface.fcgi?func=PerformSearch&query=${encodeURIComponent(query)}&hits=${perPage}&offset=${(page-1)*perPage}&format=json`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(bs => {
+              const docs = (bs.response && bs.response.docs) || [];
+              const items = docs.map(d => ({
+                title: (Array.isArray(d.dctitle) ? d.dctitle[0] : d.dctitle) || '',
+                url: (Array.isArray(d.dcidentifier) ? d.dcidentifier[0] : d.dcidentifier) || '',
+                content: (Array.isArray(d.dcdescription) ? d.dcdescription[0] : d.dcdescription) || '',
+                source: 'base',
+                authors: (Array.isArray(d.dccreator) ? d.dccreator.slice(0,5).join(', ') : d.dccreator) || '',
+                year: d.dcyear,
+                is_oa: d.dcoa === '1',
+                _type: 'academic',
+                score: 0,
+              }));
+              return { source: 'base', items, total: bs.response && bs.response.numFound };
+            }).catch(e => ({ source: 'base', items: [], error: e.message }))
+          );
+        }
+
+        // ── SciELO ── Latin American open access
+        if (sources.includes('scielo')) {
+          fetches.push(
+            fetch(`https://search.scielo.org/api/v1/search/?q=${encodeURIComponent(query)}&count=${perPage}&from=${(page-1)*perPage}&format=json&lang=en`, {
+              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            }).then(r => r.json()).then(sc => {
+              const items = (sc.hits && sc.hits.hits || []).map(h => {
+                const s = h._source || {};
+                return {
+                  title: (Array.isArray(s.ti) ? s.ti[0] : s.ti) || '',
+                  url: s.ur ? 'https://www.scielo.br/j/' + s.ur : '',
+                  content: (Array.isArray(s.ab) ? s.ab[0] : s.ab) || '',
+                  source: 'scielo',
+                  authors: (s.au || []).slice(0,5).join(', '),
+                  year: s.dp ? s.dp.substring(0,4) : null,
+                  is_oa: true,
+                  _type: 'academic',
+                  score: 0,
+                };
+              });
+              return { source: 'scielo', items };
+            }).catch(e => ({ source: 'scielo', items: [], error: e.message }))
+          );
+        }
+
         // Wait for all
         const settled = await Promise.allSettled(fetches);
         const allResults = [];
