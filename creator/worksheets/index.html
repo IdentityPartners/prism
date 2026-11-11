@@ -110,7 +110,7 @@
 
 <script src="/shared/prism.js"></script>
 <script>
-var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var WORKER = 'https://prism.identitypartners.uk';
 var currentWS = '';
 
 // Inline markdown renderer — does not depend on shared prism.js loading order
@@ -232,7 +232,7 @@ function generatePDF() {
   var topic = document.getElementById('ws-topic').value || 'worksheet';
   var btn = document.getElementById('pdf-btn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating PDF...'; }
-  fetch('https://prism-api.identitypartners.workers.dev/api/worksheet/pdf', {
+  fetch('https://prism.identitypartners.uk/api/worksheet/pdf', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({content: currentWS, title: topic})
