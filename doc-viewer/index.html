@@ -234,18 +234,72 @@ function renderPDF(doc) {
     }).catch(function(e) { showViewerOptions(doc); });
     return;
   }
-  // For external URLs: use Google Docs Viewer iframe (handles CORS)
+  // For external URLs: R2 public URLs load directly via PDF.js; Drive URLs use iframe
   if (doc.url) {
     pane.innerHTML = '';
     pane.style.padding = '0';
     pane.style.overflow = 'hidden';
     pane.style.position = 'relative';
+
+    // R2 public URLs — fetch directly and render with PDF.js (no auth, CORS-enabled)
+    var isR2 = doc.url.includes('r2.dev') || doc.url.includes('pub-b14d0b51a7f148a3bedafc559b4292da');
+    if (isR2 && typeof pdfjsLib !== 'undefined') {
+      var loadingDiv = document.createElement('div');
+      loadingDiv.id = 'pdf-loading';
+      loadingDiv.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#f0f0f0;font-size:14px;color:#666;';
+      loadingDiv.textContent = 'Loading document...';
+      pane.appendChild(loadingDiv);
+      // Fetch PDF bytes directly
+      fetch(doc.url)
+        .then(function(r) { return r.arrayBuffer(); })
+        .then(function(buf) {
+          var ld = document.getElementById('pdf-loading');
+          if (ld) ld.remove();
+          document.getElementById('pdf-controls').style.display = 'flex';
+          return pdfjsLib.getDocument({data: buf}).promise;
+        })
+        .then(function(pdf) {
+          pdfDoc = pdf;
+          document.getElementById('page-total').textContent = 'of ' + pdf.numPages;
+          renderPDFPage(1);
+          // Add annotation canvas
+          var annotCanvas = document.createElement('canvas');
+          annotCanvas.id = 'pdf-annot-canvas';
+          annotCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:2;touch-action:none;pointer-events:all;cursor:crosshair;';
+          pane.appendChild(annotCanvas);
+          var dpr = window.devicePixelRatio || 1;
+          annotCanvas.width = pane.offsetWidth * dpr;
+          annotCanvas.height = pane.offsetHeight * dpr;
+          var ctx2d = annotCanvas.getContext('2d');
+          if (ctx2d) ctx2d.scale(dpr, dpr);
+          initPdfAnnotCanvas(annotCanvas, doc.id);
+        })
+        .catch(function(e) {
+          var ld = document.getElementById('pdf-loading');
+          if (ld) ld.textContent = 'Failed to load: ' + e.message;
+        });
+      // Add annotation bar and open button
+      var annotBar = document.createElement('div');
+      annotBar.id = 'pdf-annot-bar';
+      annotBar.style.cssText = 'position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:10;display:flex;gap:4px;background:rgba(0,0,0,0.6);padding:4px 8px;border-radius:20px;';
+      annotBar.innerHTML =
+        '<button onclick="setAnnotTool('pen')" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;background:rgba(255,255,255,0.2);color:#fff;font-size:11px;">✏ Pen</button>'
+        + '<button onclick="setAnnotTool('hi')" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;background:rgba(255,255,255,0.2);color:#fff;font-size:11px;">🖊 Hi</button>'
+        + '<button onclick="setAnnotTool('erase')" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;background:rgba(255,255,255,0.2);color:#fff;font-size:11px;">⌫ Erase</button>'
+        + '<button onclick="toggleAnnotMode()" id="annot-toggle" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;background:rgba(45,106,159,0.9);color:#fff;font-size:11px;">✏ Annotate: ON</button>'
+        + '<button onclick="clearPdfAnnot()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;background:rgba(255,255,255,0.2);color:#fff;font-size:11px;">Clear</button>'
+        + '<button onclick="savePdfAnnot()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;background:rgba(255,255,255,0.2);color:#fff;font-size:11px;">💾 Save</button>'
+        + '<button onclick="chatWithDoc()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;background:rgba(15,59,58,0.85);color:#fff;font-size:11px;">💬 Chat</button>'
+        + '<button onclick="readAloud()" style="padding:4px 8px;border:none;border-radius:12px;cursor:pointer;background:rgba(92,45,63,0.85);color:#fff;font-size:11px;">🔊 Read</button>';
+      pane.appendChild(annotBar);
+      return; // handled
+    }
+
     var driveMatch = doc.url.match(/\/file\/d\/([^/]+)/);
     var viewerUrl;
     if (driveMatch) {
       viewerUrl = 'https://drive.google.com/file/d/' + driveMatch[1] + '/preview';
     } else if (doc.url.match(/\.pdf(\?|$)/i) || doc.url.match(/application\/pdf/)) {
-      // Use PDF.js for direct PDF URLs — more reliable than Google Docs viewer
       viewerUrl = 'https://mozilla.github.io/pdf.js/web/viewer.html?file=' + encodeURIComponent(doc.url);
     } else {
       viewerUrl = 'https://docs.google.com/viewer?url=' + encodeURIComponent(doc.url) + '&embedded=true';
