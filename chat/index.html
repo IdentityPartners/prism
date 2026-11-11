@@ -237,8 +237,18 @@
 <div class="attach-strip" id="attach-strip"><span style="font-size:11px;color:var(--fg-muted);padding:2px 0;">📎 Click Attach to add files (PDF, DOCX, MD, TXT, CSV, images)</span></div>
 <div class="input-row">
 <input accept=".md,.txt,.pdf,.csv,.json,.docx,.png,.jpg,.jpeg" id="file-input" multiple="" onchange="handleFiles(this)" style="display:none" type="file"/>
+<div class="osk-strip" id="osk-strip">
+  <button class="osk-key" onmousedown="event.preventDefault();oskDel()" ontouchstart="event.preventDefault();oskDel()" title="Delete">&#x232B;</button>
+  <button class="osk-key" onmousedown="event.preventDefault();oskInsert('\n')" ontouchstart="event.preventDefault();oskInsert('\n')" title="New line">&#x21B5;</button>
+  <button class="osk-key" onmousedown="event.preventDefault();oskInsert('.')" ontouchstart="event.preventDefault();oskInsert('.')" title="Full stop">.</button>
+  <button class="osk-key" onmousedown="event.preventDefault();oskInsert(',')" ontouchstart="event.preventDefault();oskInsert(',')" title="Comma">,</button>
+  <button class="osk-key" onmousedown="event.preventDefault();oskInsert('?')" ontouchstart="event.preventDefault();oskInsert('?')" title="Question">?</button>
+  <button class="osk-key" onmousedown="event.preventDefault();oskInsert('!')" ontouchstart="event.preventDefault();oskInsert('!')" title="Exclamation">!</button>
+  <button class="osk-key" onmousedown="event.preventDefault();oskInsert(String.fromCharCode(39))" ontouchstart="event.preventDefault();oskInsert(String.fromCharCode(39))" title="Apostrophe">&apos;</button>
+  <button class="osk-key" onmousedown="event.preventDefault();oskInsert(' - ')" ontouchstart="event.preventDefault();oskInsert(' - ')" title="Dash">-</button>
+</div>
 <textarea class="chat-textarea" id="chat-input" oninput="autoGrow(this)" onkeydown="handleKey(event)" placeholder="What are we working on? (Enter to send, Shift+Enter for new line)" rows="1"></textarea>
-<button class="send-btn" id="send-btn" onclick="sendMessage()" title="Send">↑</button>
+<button class="send-btn" id="send-btn" onclick="sendMessage()" title="Send">&#x2191;</button>
 </div>
 <div class="input-toolbar">
 <button class="toolbar-btn" onclick="document.getElementById('file-input').click()" title="Attach file">📎 Attach</button>
@@ -341,25 +351,27 @@ function toggleRightPanel() {
   try { localStorage.setItem('chat-right-collapsed', panel.classList.contains('collapsed') ? '1' : '0'); } catch(e) {}
 }
 
-function toggleOSKPanel() {
-  var strip = document.getElementById('osk-strip');
-  if (!strip) {
-    // Build OSK on first toggle
-    // Restore right panel collapsed state
-  try {
-    if (localStorage.getItem('chat-right-collapsed') === '1') {
-      var rp = document.getElementById('chat-right-panel');
-      if (rp) { rp.classList.add('collapsed'); var icon = rp.querySelector('.right-panel-toggle-icon'); if (icon) icon.textContent = '❯'; }
-    }
-  } catch(e) {}
-  // OSK is opt-in — do not auto-build
-    strip = document.getElementById('osk-strip');
-  }
-  if (!strip) return;
-  strip.classList.toggle('osk-visible');
-  var btn = document.getElementById('osk-toggle-btn');
-  if (btn) btn.classList.toggle('active', strip.classList.contains('osk-visible'));
+// OSK compact strip helpers
+function oskInsert(text) {
+  var inp = document.getElementById('chat-input');
+  if (!inp) return;
+  var s = inp.selectionStart, e = inp.selectionEnd;
+  inp.setRangeText(text, s, e, 'end');
+  inp.dispatchEvent(new Event('input', {bubbles:true}));
+  inp.focus();
+  inp.style.height = 'auto';
+  inp.style.height = Math.min(inp.scrollHeight, 300) + 'px';
 }
+function oskDel() {
+  var inp = document.getElementById('chat-input');
+  if (!inp) return;
+  var s = inp.selectionStart, e = inp.selectionEnd;
+  if (s !== e) { inp.setRangeText('', s, e, 'end'); }
+  else if (s > 0) { inp.setRangeText('', s-1, s, 'end'); }
+  inp.dispatchEvent(new Event('input', {bubbles:true}));
+  inp.focus();
+}
+function toggleOSKPanel() { /* compact strip is always visible */ }
 var currentThreadId = null;
 var chatHistory = [];
 var attachments = [];
@@ -400,7 +412,7 @@ document.addEventListener('DOMContentLoaded', function() {
     mount.parentNode.insertBefore(sb, mount);
     mount.parentNode.removeChild(mount);
   }
-  if (typeof buildOSK === 'function') buildOSK('chat-input');
+  // OSK is static HTML strip — no dynamic build needed
   loadConversations();
   try { profile = localStorage.getItem('chat-profile') || 'balanced'; } catch(e) {}
   document.getElementById('chat-input').focus();
