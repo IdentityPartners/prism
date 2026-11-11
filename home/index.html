@@ -315,7 +315,7 @@
 </div>
 
 <script>
-var WORKER = 'https://prism-api.identitypartners.workers.dev';
+var WORKER = 'https://prism.identitypartners.uk';
 var quickMode = 'chat';
 var tasks = [];
 var thinkerIdx = 0;
@@ -637,7 +637,7 @@ function loadSocialQueue() {
     var heroEl = document.getElementById('hero-bg');
     if (!heroEl) return;
     // Use a curated Pexels landscape via worker
-    fetch('https://prism-api.identitypartners.workers.dev/api/image-search?q=' + encodeURIComponent(BG_QUERIES[Math.floor(Math.random() * BG_QUERIES.length)]) + '&source=pexels&limit=5')
+    fetch('https://prism.identitypartners.uk/api/image-search?q=' + encodeURIComponent(BG_QUERIES[Math.floor(Math.random() * BG_QUERIES.length)]) + '&source=pexels&limit=5')
       .then(function(r) { return r.json(); })
       .then(function(data) {
         var results = data.results || [];
@@ -657,12 +657,12 @@ function loadSocialQueue() {
 function loadHomeCalendar() {
   var el = document.getElementById('home-calendar-events');
   if (!el) return;
-  fetch('https://prism-api.identitypartners.workers.dev/api/google/status')
+  fetch('https://prism.identitypartners.uk/api/google/status')
       .then(function(r){return r.json();})
       .then(function(s){
         var calUrl = s.connected
-          ? 'https://prism-api.identitypartners.workers.dev/api/google/calendar'
-          : 'https://prism-api.identitypartners.workers.dev/api/crm/calendar';
+          ? 'https://prism.identitypartners.uk/api/google/calendar'
+          : 'https://prism.identitypartners.uk/api/crm/calendar';
         return fetch(calUrl);
       })
     .then(function(r) { return r.json(); })
@@ -693,7 +693,7 @@ function loadHomeCalendar() {
 
 // ── WIP jobs ──────────────────────────────────────────────────────────────────
 function loadHomeWIP() {
-  fetch('https://prism-api.identitypartners.workers.dev/api/jobs')
+  fetch('https://prism.identitypartners.uk/api/jobs')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var jobs = data.jobs || [];
