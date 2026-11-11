@@ -171,7 +171,8 @@
   transition: all 0.15s;
 }
 .qi-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
-.qi-btn.approve { background: var(--accent); color: #fff; border-color: var(--accent); }
+.qi-btn.approve { background: #0f3b3a; color: #fff; border-color: #0f3b3a; font-weight: 700; }
+.qi-btn.approve:hover { background: #1a5550; border-color: #1a5550; }
 .qi-btn.approve:hover { opacity: 0.85; }
 .qi-btn.reject { color: #dc2626; border-color: #dc2626; }
 .qi-btn.reject:hover { background: #dc2626; color: #fff; }
@@ -655,7 +656,7 @@ function renderQueue() {
     var actions = '';
     if (item.status === 'pending' || item.status === 'scheduled') {
       actions = '<div class="qi-actions">' +
-        '<button class="qi-btn approve" onclick="approveItem(\''+item.id+'\',event)">&#x2713; Approve &amp; post</button>' +
+        '<button class="qi-btn approve" onclick="approveItem(\''+item.id+'\',event)">&#x1F4E4; Post Now</button>' +
         '<button class="qi-btn" onclick="scheduleItem(\''+item.id+'\',event)">&#x1F4C5; Schedule</button>' +
         '<button class="qi-btn reject" onclick="rejectItem(\''+item.id+'\',event)">&#x2715; Reject</button>' +
         '</div>';
