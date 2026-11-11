@@ -629,7 +629,9 @@ function loadSystemStatus() {
         '<div style="margin-top:4px;">' + new Date(d.timestamp).toLocaleTimeString('en-GB') + '</div>';
     })
     .catch(function(){
-      document.getElementById('system-status').innerHTML = '<div style="color:#dc2626;">✗ Worker unreachable</div>';
+      fetch(WORKER + '/api/kv/get?key=health:ping')
+        .then(function(){ document.getElementById('system-status').innerHTML = '<div style="color:#16a34a;">✓ Connected</div>'; })
+        .catch(function(){ document.getElementById('system-status').innerHTML = '<div style="color:#f59e0b;">⚠ Connecting... (refresh if persists)</div>'; setTimeout(checkWorkerStatus, 5000); });
     });
 }
 </script>
