@@ -138,6 +138,24 @@ var TEMPLATES = [
     {id:'post-quote',name:'Client Quote',desc:'Testimonial style',bg:'#f7f3e9',fg:'#0f3b3a',accent:'#5c2d3f'},
     {id:'post-stat',name:'Statistic',desc:'Data highlight',bg:'#0f3b3a',fg:'#f7f3e9',accent:'#7ecfcd'},
     {id:'post-news',name:'News Reaction',desc:'Current affairs',bg:'#1a1a2e',fg:'#e0e0ff',accent:'#a78bfa'},
+  ]},,
+  {group:'Photographic Backgrounds', items:[
+    {id:'photo-dawn',name:'Dawn Light',desc:'Warm sunrise — Pexels',bg:'#7c2d12',fg:'#fff7ed',accent:'#fed7aa',
+     bgQuery:'sunrise golden hour warm light sky',bgFallback:'https://images.pexels.com/photos/1261728/pexels-photo-1261728.jpeg'},
+    {id:'photo-ocean',name:'Ocean',desc:'Coastal seascape — Pexels',bg:'#0c2340',fg:'#e0f2fe',accent:'#7dd3fc',
+     bgQuery:'ocean waves seascape coastal dramatic',bgFallback:'https://images.pexels.com/photos/1295138/pexels-photo-1295138.jpeg'},
+    {id:'photo-forest',name:'Forest',desc:'Deep woodland — Pexels',bg:'#1a3a2a',fg:'#f0fdf4',accent:'#86efac',
+     bgQuery:'forest trees woodland misty green',bgFallback:'https://images.pexels.com/photos/167698/pexels-photo-167698.jpeg'},
+    {id:'photo-city',name:'City Night',desc:'Urban lights — Pexels',bg:'#0d1520',fg:'#e8f0f8',accent:'#4a9fd4',
+     bgQuery:'city skyline night lights urban',bgFallback:'https://images.pexels.com/photos/1486222/pexels-photo-1486222.jpeg'},
+    {id:'photo-abstract',name:'Abstract',desc:'Geometric texture — Pexels',bg:'#1a1a2e',fg:'#faf5ff',accent:'#d8b4fe',
+     bgQuery:'abstract geometric texture colourful',bgFallback:'https://images.pexels.com/photos/1103970/pexels-photo-1103970.jpeg'},
+    {id:'photo-hands',name:'Connection',desc:'Human connection — Pexels',bg:'#0f3b3a',fg:'#f7f3e9',accent:'#ddd0c8',
+     bgQuery:'hands connection human warmth care',bgFallback:'https://images.pexels.com/photos/1024993/pexels-photo-1024993.jpeg'},
+    {id:'photo-path',name:'Path Forward',desc:'Journey metaphor — Pexels',bg:'#1c1a17',fg:'#fafaf9',accent:'#d6d3d1',
+     bgQuery:'path road journey forward nature',bgFallback:'https://images.pexels.com/photos/531321/pexels-photo-531321.jpeg'},
+    {id:'photo-water',name:'Still Water',desc:'Calm reflection — Pexels',bg:'#0c2340',fg:'#e0f2fe',accent:'#7dd3fc',
+     bgQuery:'still water reflection calm lake',bgFallback:'https://images.pexels.com/photos/1366919/pexels-photo-1366919.jpeg'},
   ]},
 ];
 
@@ -193,7 +211,12 @@ function renderTemplates() {
 function previewTemplate(t) {
   var text = document.getElementById('gen-text').value.trim() || 'Understand your past. Appreciate the present. Define your future.';
   document.getElementById('gen-template').value = t.id;
-  generateCanvasWithTemplate(t.id, text);
+  // If template has a background query, set it
+  if (t.bgQuery) {
+    var bgInput = document.getElementById('gen-bg');
+    if (bgInput) bgInput.value = t.bgQuery;
+  }
+  generateCanvasWithTemplate(t.id, text, t.bgQuery || '', t.bgFallback || '');
 }
 
 function generateCanvas() {
@@ -203,7 +226,7 @@ function generateCanvas() {
   generateCanvasWithTemplate(template, text);
 }
 
-function generateCanvasWithTemplate(templateId, text) {
+function generateCanvasWithTemplate(templateId, text, bgQuery, bgFallback) {
   var status = document.getElementById('gen-status');
   status.textContent = 'Generating... (may take 5-10s for logo)';
   var genTimeout = setTimeout(function() {
@@ -226,7 +249,7 @@ function generateCanvasWithTemplate(templateId, text) {
     // Step 2: Generate full version with logo in background
     return fetch(WORKER + '/api/canvas/generate', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({text:text, template:templateId, bgQuery:selectedBgQuery})
+      body:JSON.stringify({text:text, template:templateId, bgQuery:bgQuery||selectedBgQuery||'', bgFallback:bgFallback||''})
     });
   })
   .then(function(r){return r.json();})
