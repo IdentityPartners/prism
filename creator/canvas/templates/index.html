@@ -195,7 +195,15 @@ function renderTemplates() {
       card.onclick = function() { previewTemplate(t); };
       var preview = document.createElement('div');
       preview.className = 'template-preview';
-      preview.style.background = t.bg;
+      // Show photographic background if available, otherwise colour block
+      if (t.bgFallback) {
+        preview.style.backgroundImage = 'url(' + t.bgFallback + ')';
+        preview.style.backgroundSize = 'cover';
+        preview.style.backgroundPosition = 'center';
+        preview.style.background = t.bg; // fallback colour
+      } else {
+        preview.style.background = t.bg;
+      }
       preview.innerHTML = '<div style="font-family:Georgia,serif;font-size:11px;font-style:italic;color:'+t.fg+';text-align:center;padding:10px;opacity:0.9;">Identity<br>Partners</div>';
       var info = document.createElement('div');
       info.className = 'template-info';
