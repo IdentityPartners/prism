@@ -12,5 +12,9 @@ binding = "PRISM_D1"
 database_name = "prism-d1"
 database_id = "e953848b-7d62-4629-bb4d-271da0d03fd5"
 
+[[r2_buckets]]
+binding = "PRISM_ASSETS"
+bucket_name = "prism-assets"
+
 [triggers]
 crons = ["0 8 * * *", "0 13 * * *", "0 20 * * *"]
