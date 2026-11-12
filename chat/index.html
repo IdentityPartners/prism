@@ -179,9 +179,34 @@
 .action-btn { display: block; width: 100%; padding: 7px 10px; margin-bottom: 4px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; cursor: pointer; background: var(--bg); color: var(--fg); font-family: inherit; text-align: left; transition: all 0.15s; }
 .action-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-/* OSK — hidden by default, toggled via button in toolbar */
-.osk-strip { display: none; }
-.osk-strip.osk-visible { display: block; }
+/* OSK compact strip — always visible, left of textarea */
+.osk-strip {
+  display: flex !important;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  width: 44px;
+  align-self: stretch;
+}
+.osk-key {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-sunken);
+  color: var(--fg);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+.osk-key:active { background: var(--accent); color: #fff; border-color: var(--accent); }
 </style>
 </head>
 <body>
