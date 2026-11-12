@@ -343,14 +343,14 @@ function pushSecrets() {
     var xhr = new XMLHttpRequest();
     // Send in batches of 10 via Worker endpoint (avoids CORS)
     var batchSize = 10;
-    var batch = {};
+    var batch = [];
     var batchKeys = [];
     
-    // Collect next batch
+    // Collect next batch as array of {name, value} objects
     var batchIdx = idx;
     while (batchIdx < parsedSecrets.length && batchKeys.length < batchSize) {
       if (!parsedSecrets[batchIdx].skip) {
-        batch[parsedSecrets[batchIdx].key] = parsedSecrets[batchIdx].value;
+        batch.push({name: parsedSecrets[batchIdx].key, value: parsedSecrets[batchIdx].value});
         batchKeys.push(batchIdx);
         parsedSecrets[batchIdx].status = 'pushing';
       }
