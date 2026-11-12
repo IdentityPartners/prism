@@ -160,17 +160,25 @@ var TEMPLATES = [
 ];
 
 document.addEventListener('DOMContentLoaded', function() {
-  var mount = document.getElementById('sidebar-mount');
-  if (mount && typeof buildSidebar === 'function') {
-    var sb = buildSidebar('/creator/canvas/');
-    mount.parentNode.insertBefore(sb, mount);
-    mount.parentNode.removeChild(mount);
+  // prism.js auto-builds sidebar — only build here if it hasn't run yet
+  if (!document.querySelector('.sidebar')) {
+    var mount = document.getElementById('sidebar-mount');
+    if (mount && typeof buildSidebar === 'function') {
+      try {
+        var sb = buildSidebar('/creator/canvas/templates/');
+        if (sb && mount.parentNode) {
+          mount.parentNode.insertBefore(sb, mount);
+          mount.parentNode.removeChild(mount);
+        }
+      } catch(e) {}
+    }
   }
-  renderTemplates();
+  try { renderTemplates(); } catch(e) { console.error('renderTemplates error:', e); }
 });
 
 function renderTemplates() {
   var container = document.getElementById('template-groups');
+  if (!container) { setTimeout(renderTemplates, 200); return; }
   container.innerHTML = '';
   TEMPLATES.forEach(function(group) {
     var section = document.createElement('div');
