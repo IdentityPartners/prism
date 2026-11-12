@@ -3,6 +3,9 @@ main = "worker/index.js"
 compatibility_date = "2024-09-01"
 compatibility_flags = ["nodejs_compat"]
 
+# File is pre-compiled — skip bundling
+no_bundle = true
+
 [[kv_namespaces]]
 binding = "PRISM_KV"
 id = "8d1a583cc99a482380aacb526d873030"
