@@ -1,4 +1,4 @@
-name: Deploy Argentica to Cloudflare
+name: Argentica Deploy
 
 on:
   push:
@@ -13,32 +13,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Deploy Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: deploy
+      - name: Deploy Worker via CF API
+        run: |
+          echo "Deploying worker/index.js to prism-api..."
+          RESPONSE=$(curl -s -X PUT \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CF_ACCOUNT_ID }}/workers/scripts/prism-api" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -F 'metadata={"main_module":"index.js","compatibility_date":"2024-09-01","compatibility_flags":["nodejs_compat"],"bindings":[{"type":"kv_namespace","name":"PRISM_KV","namespace_id":"8d1a583cc99a482380aacb526d873030"},{"type":"d1","name":"PRISM_D1","id":"e953848b-7d62-4629-bb4d-271da0d03fd5"},{"type":"r2_bucket","name":"PRISM_ASSETS","bucket_name":"prism-assets"}]};type=application/json' \
+            -F 'index.js=@worker/index.js;type=application/javascript+module')
+          echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print('Success:',d.get('success')); [print('Error:',e) for e in d.get('errors',[])]"
 
   deploy-pages:
-    name: Deploy Pages
+    name: Pages Auto-Deploys
     runs-on: ubuntu-latest
-    needs: deploy-worker
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Deploy Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: pages deploy . --project-name=prism --branch=main
+      - name: Note
+        run: echo "Cloudflare Pages deploys automatically from this push via CF GitHub integration."
