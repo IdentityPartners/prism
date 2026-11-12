@@ -635,42 +635,39 @@ function handleUpload(files) {
     reader.onload = function(e) {
       var b64 = e.target.result.split(',')[1] || btoa(e.target.result);
       var mimeType = file.type || 'application/octet-stream';
-      // Upload to OneDrive via MSGraph (no R2 binding needed)
-      // Try Google Drive first, fall back to OneDrive
-      fetch(WORKER + '/api/google/status')
-        .then(function(sr) { var ct=sr.headers.get('content-type')||''; if(!ct.includes('json')) return {connected:false}; return sr.json(); })
-        .then(function(status) {
-          var uploadUrl = status.connected ? WORKER + '/api/gdrive/upload' : WORKER + '/api/onedrive/upload';
-          var uploadBody = status.connected
-            ? {fileName: file.name, content: b64, mimeType: mimeType, folder: 'Argentica/Study'}
-            : {fileName: file.name, content: b64, folder: 'Argentica/Study'};
-          return fetch(uploadUrl, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(uploadBody)});
-        })
-        .then(function(r) { var ct=r.headers.get('content-type')||''; if(!ct.includes('json')) return {error:'Auth required — reconnect at /comms/google/'}; return r.json(); })
-        .then(function(d) {
-          var res = (currentWeek.resources || []).find(function(r) { return r.id === resourceId; });
-          if (!res) return;
-          // Use the direct download URL (not webViewLink which requires auth)
-          var directUrl = d.webContentLink || d.shareUrl || d.webUrl || d.webViewLink || null;
-          if (directUrl) {
-            res.url = directUrl;
-            res.storage = d.webContentLink ? 'gdrive' : 'onedrive';
-            res.storageId = d.id || null;
-            saveModules();
-            renderTree();
-          } else {
-            res.storage = 'failed';
-            res.error = d.error || 'Upload failed';
-            saveModules();
-            renderTree();
-            alert('Upload failed: ' + (d.error || 'Connect Google Drive at /comms/google/ or OneDrive at /comms/'));
-          }
-        })
-        .catch(function(err) {
-          var res = (currentWeek.resources || []).find(function(r) { return r.id === resourceId; });
-          if (res) { res.storage = 'failed'; saveModules(); }
-          alert('Upload error: ' + err.message);
-        });
+      // Upload to OneDrive via MSGraph — reliable, no OAuth expiry issues
+      fetch(WORKER + '/api/onedrive/upload', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({fileName: file.name, content: b64, folder: 'Argentica/Study'})
+      })
+      .then(function(r) { var ct=r.headers.get('content-type')||''; if(!ct.includes('json')) return {error:'OneDrive auth required — check MSGraph credentials'}; return r.json(); })
+      .then(function(d) {
+        var res = (currentWeek.resources || []).find(function(r) { return r.id === resourceId; });
+        if (!res) return;
+        // OneDrive returns webUrl (viewable) and @microsoft.graph.downloadUrl (direct download)
+        var viewUrl = d.webUrl || d.shareUrl || null;
+        var downloadUrl = d['@microsoft.graph.downloadUrl'] || d.downloadUrl || viewUrl;
+        if (viewUrl || downloadUrl) {
+          res.url = downloadUrl || viewUrl; // prefer direct download URL for doc viewer
+          res.viewUrl = viewUrl;
+          res.storage = 'onedrive';
+          res.storageId = d.id || null;
+          saveModules();
+          renderTree();
+        } else {
+          res.storage = 'failed';
+          res.error = d.error || 'OneDrive upload failed';
+          saveModules();
+          renderTree();
+          alert('Upload failed: ' + (d.error || 'Check OneDrive/MSGraph credentials in Settings'));
+        }
+      })
+      .catch(function(err) {
+        var res = (currentWeek.resources || []).find(function(r) { return r.id === resourceId; });
+        if (res) { res.storage = 'failed'; saveModules(); }
+        alert('Upload error: ' + err.message);
+      });
     };
     reader.readAsDataURL(file);
   });
