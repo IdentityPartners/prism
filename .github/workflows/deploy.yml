@@ -13,15 +13,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy Worker via CF API
+      - name: Deploy Worker via CF API (with bindings)
         run: |
-          echo "Deploying worker/index.js to prism-api..."
+          echo "Deploying worker/index.js to prism-api with KV+D1+R2 bindings..."
+          METADATA='{"main_module":"index.js","compatibility_date":"2024-09-01","compatibility_flags":["nodejs_compat"],"bindings":[{"type":"kv_namespace","name":"PRISM_KV","namespace_id":"8d1a583cc99a482380aacb526d873030"},{"type":"d1","name":"PRISM_D1","id":"e953848b-7d62-4629-bb4d-271da0d03fd5"},{"type":"r2_bucket","name":"PRISM_ASSETS","bucket_name":"prism-assets"}]}'
           RESPONSE=$(curl -s -X PUT \
             "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CF_ACCOUNT_ID }}/workers/scripts/prism-api" \
             -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            -F 'metadata={"main_module":"index.js","compatibility_date":"2024-09-01","compatibility_flags":["nodejs_compat"],"bindings":[{"type":"kv_namespace","name":"PRISM_KV","namespace_id":"8d1a583cc99a482380aacb526d873030"},{"type":"d1","name":"PRISM_D1","id":"e953848b-7d62-4629-bb4d-271da0d03fd5"},{"type":"r2_bucket","name":"PRISM_ASSETS","bucket_name":"prism-assets"}]};type=application/json' \
-            -F 'index.js=@worker/index.js;type=application/javascript+module')
-          echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print('Success:',d.get('success')); [print('Error:',e) for e in d.get('errors',[])]"
+            -F "metadata=$METADATA;type=application/json" \
+            -F "index.js=@worker/index.js;type=application/javascript+module")
+          SUCCESS=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('success','false'))")
+          echo "Deploy success: $SUCCESS"
+          if [ "$SUCCESS" != "True" ]; then
+            echo "Errors: $(echo $RESPONSE | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("errors",[]))')"
+            exit 1
+          fi
 
   deploy-pages:
     name: Pages Auto-Deploys
