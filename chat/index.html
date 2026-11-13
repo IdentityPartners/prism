@@ -187,8 +187,32 @@
   flex-shrink: 0;
   width: 44px;
   align-self: stretch;
+  z-index: 10;
+  position: relative;
 }
-.osk-key {
+.osk-strip-key {
+  flex: 1 !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 5px !important;
+  background: var(--bg-sunken) !important;
+  color: var(--fg) !important;
+  font-size: 13px !important;
+  font-family: inherit !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  touch-action: manipulation !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+.osk-strip-key:active { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; }
+.osk-strip-key {
   flex: 1;
   min-height: 0;
   border: 1px solid var(--border);
@@ -206,7 +230,7 @@
   -webkit-user-select: none;
   touch-action: manipulation;
 }
-.osk-key:active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.osk-strip-key:active { background: var(--accent); color: #fff; border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -263,14 +287,14 @@
 <div class="input-row">
 <input accept=".md,.txt,.pdf,.csv,.json,.docx,.png,.jpg,.jpeg" id="file-input" multiple="" onchange="handleFiles(this)" style="display:none" type="file"/>
 <div class="osk-strip" id="osk-strip">
-  <button class="osk-key" onmousedown="event.preventDefault();oskDel()" ontouchstart="event.preventDefault();oskDel()" title="Delete">&#x232B;</button>
-  <button class="osk-key" onmousedown="event.preventDefault();oskInsert('\n')" ontouchstart="event.preventDefault();oskInsert('\n')" title="New line">&#x21B5;</button>
-  <button class="osk-key" onmousedown="event.preventDefault();oskInsert('.')" ontouchstart="event.preventDefault();oskInsert('.')" title="Full stop">.</button>
-  <button class="osk-key" onmousedown="event.preventDefault();oskInsert(',')" ontouchstart="event.preventDefault();oskInsert(',')" title="Comma">,</button>
-  <button class="osk-key" onmousedown="event.preventDefault();oskInsert('?')" ontouchstart="event.preventDefault();oskInsert('?')" title="Question">?</button>
-  <button class="osk-key" onmousedown="event.preventDefault();oskInsert('!')" ontouchstart="event.preventDefault();oskInsert('!')" title="Exclamation">!</button>
-  <button class="osk-key" onmousedown="event.preventDefault();oskInsert(String.fromCharCode(39))" ontouchstart="event.preventDefault();oskInsert(String.fromCharCode(39))" title="Apostrophe">&apos;</button>
-  <button class="osk-key" onmousedown="event.preventDefault();oskInsert(' - ')" ontouchstart="event.preventDefault();oskInsert(' - ')" title="Dash">-</button>
+  <button class="osk-strip-key" onmousedown="event.preventDefault();oskDel()" ontouchstart="event.preventDefault();oskDel()" title="Delete">&#x232B;</button>
+  <button class="osk-strip-key" onmousedown="event.preventDefault();oskInsert('\n')" ontouchstart="event.preventDefault();oskInsert('\n')" title="New line">&#x21B5;</button>
+  <button class="osk-strip-key" onmousedown="event.preventDefault();oskInsert('.')" ontouchstart="event.preventDefault();oskInsert('.')" title="Full stop">.</button>
+  <button class="osk-strip-key" onmousedown="event.preventDefault();oskInsert(',')" ontouchstart="event.preventDefault();oskInsert(',')" title="Comma">,</button>
+  <button class="osk-strip-key" onmousedown="event.preventDefault();oskInsert('?')" ontouchstart="event.preventDefault();oskInsert('?')" title="Question">?</button>
+  <button class="osk-strip-key" onmousedown="event.preventDefault();oskInsert('!')" ontouchstart="event.preventDefault();oskInsert('!')" title="Exclamation">!</button>
+  <button class="osk-strip-key" onmousedown="event.preventDefault();oskInsert(String.fromCharCode(39))" ontouchstart="event.preventDefault();oskInsert(String.fromCharCode(39))" title="Apostrophe">&apos;</button>
+  <button class="osk-strip-key" onmousedown="event.preventDefault();oskInsert(' - ')" ontouchstart="event.preventDefault();oskInsert(' - ')" title="Dash">-</button>
 </div>
 <textarea class="chat-textarea" id="chat-input" oninput="autoGrow(this)" onkeydown="handleKey(event)" placeholder="What are we working on? (Enter to send, Shift+Enter for new line)" rows="1"></textarea>
 <button class="send-btn" id="send-btn" onclick="sendMessage()" title="Send">&#x2191;</button>
