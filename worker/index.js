@@ -1665,30 +1665,45 @@ async function storePlatformChannel(platform, channelId, env) {
   }
 }
 
-async function fetchBufferChannels(env) {
+async function bufferGql(query, variables, env) {
   const bufferKey = k(env, ['buffer_api_key','BUFFER_API_KEY']) || '';
   if (!bufferKey) return { error: 'No Buffer API key' };
   try {
-    // Buffer API v1 authenticates with an access_token query parameter —
-    // it does not accept Bearer headers, which returned 401 regardless of key
-    const resp = await fetch('https://api.bufferapp.com/1/profiles.json?access_token=' + encodeURIComponent(bufferKey));
-    if (!resp.ok) return { error: `Buffer API ${resp.status}` };
-    const profiles = await resp.json();
-    const channels = {};
-    for (const p of profiles) {
-      const platform = p.service || p.formatted_service || 'unknown';
-      channels[platform.toLowerCase()] = {
-        id:       p.id,
-        name:     p.formatted_username || p.username || '',
-        service:  platform,
-        avatar:   p.avatar_https || p.avatar || '',
-        updated:  new Date().toISOString(),
-      };
-      // Auto-store
-      await storePlatformChannel(platform.toLowerCase(), p.id, env);
-    }
-    return { channels, count: Object.keys(channels).length };
+    const resp = await fetch('https://api.buffer.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + bufferKey },
+      body: JSON.stringify({ query, variables: variables || {} })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) return { error: 'Buffer API ' + resp.status + (data.errors && data.errors[0] && data.errors[0].message ? ': ' + data.errors[0].message : '') };
+    if (data.errors && data.errors.length) return { error: 'Buffer: ' + data.errors[0].message };
+    return data;
   } catch(e) { return { error: e.message }; }
+}
+
+async function fetchBufferChannels(env) {
+  // Buffer's current API is GraphQL at api.buffer.com with Bearer auth.
+  // The legacy REST API (api.bufferapp.com/1) is deprecated and rejects
+  // newly issued personal keys with 401.
+  const orgRes = await bufferGql('query { account { organizations { id } } }', null, env);
+  if (orgRes.error) return { error: orgRes.error };
+  const orgs = (orgRes.data && orgRes.data.account && orgRes.data.account.organizations) || [];
+  if (!orgs.length) return { error: 'No Buffer organizations found for this key' };
+  const channels = {};
+  const debug = { organizations: orgs.length, perOrg: [] };
+  for (const org of orgs) {
+    const chRes = await bufferGql('query($id: OrganizationId!) { channels(input: { organizationId: $id }) { id name service } }', { id: org.id }, env);
+    debug.perOrg.push(chRes.error ? { error: chRes.error } : { found: ((chRes.data && chRes.data.channels) || []).length });
+    if (chRes.error) continue;
+    for (const c of ((chRes.data && chRes.data.channels) || [])) {
+      let platform = String(c.service || 'unknown').toLowerCase();
+      if (platform === 'twitter') platform = 'x'; // Buffer still calls X "twitter"
+      channels[platform] = { id: c.id, name: c.name || '', service: c.service, updated: new Date().toISOString() };
+      await storePlatformChannel(platform, c.id, env);
+    }
+  }
+  if (!Object.keys(channels).length) return { error: 'No channels found — check that Instagram, Facebook and X are connected in the Buffer account this key belongs to', debug };
+  return { channels, count: Object.keys(channels).length };
 }
 
 async function getPlatformStatus(env) {
@@ -6983,14 +6998,24 @@ data: ${JSON.stringify(data)}
             } else if (['instagram','facebook','x'].includes(platform)) {
               const bufferKey = k(env, ['buffer_api_key','BUFFER_API_KEY','buffer']) || '';
               const channelMap = { instagram: k(env,['buffer_ig_channel','BUFFER_IG_CHANNEL']), facebook: k(env,['buffer_fb_channel','BUFFER_FB_CHANNEL']), x: k(env,['buffer_x_channel','BUFFER_X_CHANNEL']) };
-              const channelId = channelMap[platform];
+              let channelId = channelMap[platform];
+              if (!channelId && env.PRISM_KV) {
+                channelId = await env.PRISM_KV.get('platform:channel:' + platform).catch(() => null);
+              }
               if (bufferKey && channelId) {
-                const bufResp = await fetch('https://api.bufferapp.com/1/updates/create.json', {
-                  method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'},
-                  body: new URLSearchParams({ access_token: bufferKey, profile_ids: channelId, text: item.text, now: 'true' }).toString()
-                });
-                results[platform] = { success: bufResp.ok, status: bufResp.status };
-              } else { errors[platform] = bufferKey ? 'Buffer channel ID not configured' : 'Buffer not connected'; }
+                // Buffer's current API: GraphQL createPost with Bearer auth
+                const dueAt = item.scheduledFor || new Date().toISOString();
+                const gqlRes = await bufferGql(
+                  'mutation($text: String!, $channelId: ChannelId!, $dueAt: DateTime!) { createPost(input: { text: $text, channelId: $channelId, schedulingType: automatic, mode: customScheduled, dueAt: $dueAt }) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }',
+                  { text: item.text, channelId, dueAt }, env
+                );
+                if (gqlRes.error) { errors[platform] = gqlRes.error; results[platform] = { success: false }; }
+                else {
+                  const created = gqlRes.data && gqlRes.data.createPost;
+                  const ok = !!(created && created.post && created.post.id);
+                  results[platform] = { success: ok, postId: ok ? created.post.id : undefined, error: created && created.message };
+                }
+              } else { errors[platform] = bufferKey ? 'Buffer channel ID not configured — run Fetch Buffer channels' : 'Buffer not connected'; }
             } else if (platform === 'substack') {
               const substackEmail = k(env, ['substack_email','SUBSTACK_EMAIL']) || 'zemiopat@substack.com';
               // Substack posts via email — log as queued, actual send requires email route
