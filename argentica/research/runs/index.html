@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Planned runs</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="runs">
+  <div class="arg-pagehead">
+    <h1>Planned runs</h1>
+    <div class="sub">Standing searches for new material. Each brief runs against the news and the literature; run them on demand or let the cron slots pick them up.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>New brief</h3>
+      <input type="text" id="run-name" placeholder="Brief name — e.g. Goffman stigma coverage" style="margin-bottom:8px;">
+      <textarea id="run-query" style="min-height:60px;" placeholder="The search itself — plain English or boolean"></textarea>
+      <div class="row mt" style="flex-wrap:wrap; gap:8px;">
+        <select id="run-scope" style="max-width:170px;">
+          <option value="both">News + literature</option>
+          <option value="news">News only</option>
+          <option value="scholarly">Literature only</option>
+        </select>
+        <button id="run-save">Save brief</button>
+        <button class="ghost" id="run-now">Save &amp; run now</button>
+      </div>
+      <div class="muted mt" id="run-status"></div>
+    </div>
+
+    <div class="card">
+      <h3>Saved briefs</h3>
+      <div class="item-list" id="runs-list"><div class="muted">Loading…</div></div>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <h3>Latest run results</h3>
+    <div id="run-results" class="muted">Run a brief to see what it found.</div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('runs');
+const { api, esc } = ARG;
+
+let runs = [];
+
+async function loadRuns() {
+  try {
+    const d = await api('/kv/get?key=research:runs');
+    const raw = d.value || d.result || d.data;
+    runs = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : [];
+  } catch (e) { runs = []; }
+  const el = document.getElementById('runs-list');
+  if (!runs.length) { el.innerHTML = '<div class="muted">No briefs yet. Create one on the left.</div>'; return; }
+  el.innerHTML = runs.map((r, i) =>
+    '<div class="item"><div><div><strong>' + esc(r.name) + '</strong> <span class="badge">' + esc(r.scope) + '</span></div>' +
+    '<div class="muted">' + esc(r.query) + (r.lastRun ? ' · last run ' + new Date(r.lastRun).toLocaleDateString('en-GB') : '') + '</div></div>' +
+    '<div class="row"><button class="ghost small" onclick="runBrief(' + i + ')">Run</button>' +
+    '<button class="ghost small" onclick="delBrief(' + i + ')">Delete</button></div></div>'
+  ).join('');
+}
+
+async function saveRuns() {
+  try {
+    await api('/kv/set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'research:runs', value: JSON.stringify(runs) }) });
+  } catch (e) {}
+}
+
+document.getElementById('run-save').addEventListener('click', () => saveBrief(false));
+document.getElementById('run-now').addEventListener('click', () => saveBrief(true));
+
+async function saveBrief(runNow) {
+  const name = document.getElementById('run-name').value.trim();
+  const query = document.getElementById('run-query').value.trim();
+  const scope = document.getElementById('run-scope').value;
+  if (!name || !query) { ARG.toast('A name and a query, please.'); return; }
+  runs.unshift({ name, query, scope, created: new Date().toISOString(), lastRun: null });
+  await saveRuns();
+  document.getElementById('run-name').value = '';
+  document.getElementById('run-query').value = '';
+  loadRuns();
+  if (runNow) runBrief(0);
+}
+
+window.runBrief = async i => {
+  const r = runs[i];
+  const out = document.getElementById('run-results');
+  const st = document.getElementById('run-status');
+  out.innerHTML = '<div class="muted">Running "' + esc(r.name) + '"…</div>';
+  const items = [];
+  const jobs = [];
+  if (r.scope === 'news' || r.scope === 'both') {
+    jobs.push((async () => {
+      const feeds = ['https://www.theguardian.com/uk/society/rss', 'https://feeds.bbci.co.uk/news/health/rss.xml'];
+      await Promise.all(feeds.map(async url => {
+        try {
+          const text = await (await fetch('/api/rss?url=' + encodeURIComponent(url))).text();
+          const doc = new DOMParser().parseFromString(text, 'text/xml');
+          doc.querySelectorAll('item').forEach(it => {
+            const title = (it.querySelector('title') || {}).textContent || '';
+            const link = (it.querySelector('link') || {}).textContent || '';
+            const ql = r.query.toLowerCase().split(/\s+(?:and|or|not)?\s*/).filter(w => w.length > 2);
+            if (ql.some(k => title.toLowerCase().includes(k))) items.push({ source: 'News', title, url: link });
+          });
+        } catch (e) {}
+      }));
+    })());
+  }
+  if (r.scope === 'scholarly' || r.scope === 'both') {
+    jobs.push(api('/research/scholarly', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: r.query, sources: ['semantic_scholar', 'openalex', 'crossref', 'pubmed'] }) })
+      .then(d => { const res = d.results || d.sources || []; (Array.isArray(res) ? res : Object.values(res)).forEach(s => (s.items || []).forEach(x => items.push({ source: x.source || 'Literature', title: x.title, url: x.url, meta: [x.authors, x.year].filter(Boolean).join(', ') }))); })
+      .catch(() => {}));
+  }
+  await Promise.all(jobs);
+  runs[i].lastRun = new Date().toISOString();
+  await saveRuns();
+  loadRuns();
+  const seen = new Set();
+  const uniq = items.filter(x => { const k = (x.url || x.title || '').replace(/[#?].*$/, ''); if (seen.has(k)) return false; seen.add(k); return true; });
+  out.innerHTML = uniq.length
+    ? '<div class="item-list">' + uniq.slice(0, 30).map(x =>
+        '<div class="item"><div><a href="' + esc(x.url || '#') + '" target="_blank" rel="noopener">' + esc(x.title) + '</a> <span class="badge teal">' + esc(x.source) + '</span>' +
+        (x.meta ? '<div class="muted">' + esc(x.meta) + '</div>' : '') + '</div></div>').join('') + '</div>'
+    : '<div class="muted">Nothing new for this brief.</div>';
+  st.textContent = 'Run complete: ' + uniq.length + ' results.';
+};
+
+window.delBrief = async i => {
+  runs.splice(i, 1);
+  await saveRuns();
+  loadRuns();
+};
+
+loadRuns();
+</script>
+</body>
+</html>

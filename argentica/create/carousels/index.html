@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Carousels</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="carousels">
+  <div class="arg-pagehead">
+    <h1>Carousels</h1>
+    <div class="sub">Multi-slide posts for Instagram and LinkedIn. Draft the slides, Gerald expands them, the worker renders each frame.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>Slides</h3>
+      <textarea id="slides" style="min-height:150px;" placeholder="One slide per line — e.g.&#10;5 myths about addiction recovery&#10;Myth 1: willpower is enough&#10;Myth 2: relapse means failure"></textarea>
+      <div class="row mt" style="flex-wrap:wrap; gap:8px;">
+        <button class="ghost small" id="expand">Let Gerald draft the slides</button>
+        <button id="render">Render carousel</button>
+      </div>
+      <div class="muted mt" id="car-status"></div>
+    </div>
+
+    <div class="card">
+      <h3>Frames</h3>
+      <div id="car-out" class="muted">Nothing rendered yet.</div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('carousels');
+const { api, esc } = ARG;
+
+document.getElementById('expand').addEventListener('click', async () => {
+  const first = document.getElementById('slides').value.trim();
+  const st = document.getElementById('car-status');
+  st.textContent = 'Gerald is drafting…';
+  try {
+    const d = await api('/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'Write a 6-slide social media carousel for Identity Partners' + (first ? ' on the theme: ' + first : ' about a common myth in addiction recovery') + '. Return ONLY the slide text, one slide per line, no numbering, no commentary. British English. Simon\'s voice: intelligent, direct, humane. No hashtags, no contact details.' }], profile: 'balanced' })
+    });
+    document.getElementById('slides').value = (d.content || '').split('\n').map(l => l.trim()).filter(Boolean).join('\n');
+    st.textContent = 'Draft ready — edit the lines, then render.';
+  } catch (e) { st.textContent = 'Draft failed: ' + e.message; }
+});
+
+document.getElementById('render').addEventListener('click', async () => {
+  const lines = document.getElementById('slides').value.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 10);
+  const st = document.getElementById('car-status');
+  const out = document.getElementById('car-out');
+  if (!lines.length) { ARG.toast('Write the slides first.'); return; }
+  st.textContent = 'Rendering ' + lines.length + ' frames…';
+  out.innerHTML = '';
+  try {
+    const data = await api('/canvas/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'carousel', platform: 'instagram', slides: lines.map((text, i) => ({ text, useImage: i === 0 })), skipQueue: true })
+    });
+    const urls = data.urls || [];
+    if (urls.length) {
+      out.innerHTML = '<div class="row" style="flex-wrap:wrap; gap:10px;">' +
+        urls.map(u => '<img src="' + esc(u) + '" style="width:150px; border-radius:8px; border:1px solid var(--line);">').join('') + '</div>' +
+        '<div class="mt"><button class="small" onclick="window._lastCanvasUrl=\'' + esc(urls[0]) + '\';sessionStorage.setItem(\'arg:canvas-url\',\'' + esc(urls[0]) + '\');location.href=\'/argentica/commercial/publishing/\'">Send to Publishing</button></div>';
+      st.textContent = urls.length + ' frames rendered.';
+    } else {
+      st.textContent = 'Nothing came back: ' + esc(data.error || 'try again.');
+    }
+  } catch (e) { st.textContent = 'Render failed: ' + e.message; }
+});
+</script>
+</body>
+</html>

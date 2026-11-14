@@ -21,17 +21,10 @@
 </style>
 </head>
 <body>
-<div class="arg-page" data-key="study">
-  <div class="zonebar">
-    <a href="/argentica/study/" class="active">Study</a>
-    <a href="/argentica/research/">Research</a>
-    <a href="/argentica/social/">Create</a>
-    <a href="/argentica/social/team/">Marketing</a>
-  </div>
-
+<div class="arg-page" data-key="library">
   <div class="arg-pagehead spread">
     <div>
-      <h1>Study</h1>
+      <h1>Library</h1>
       <div class="crumb" id="crumb"></div>
     </div>
   </div>
@@ -53,7 +46,7 @@
 
 <script src="/shared/argentica.js"></script>
 <script>
-ARG.buildShell('study');
+ARG.buildShell('library');
 const { api, esc } = ARG;
 
 const DEFAULT_STRUCTURE = {
@@ -155,7 +148,7 @@ function renderTabs() {
 
 function renderCrumb() {
   document.getElementById('crumb').innerHTML =
-    '<b>Study</b> / ' + esc(section().name) + ' / ' + esc(module_().name) + ' / <b>' + esc(curWeek) + '</b>';
+    '<b>Library</b> / ' + esc(section().name) + ' / ' + esc(module_().name) + ' / <b>' + esc(curWeek) + '</b>';
 }
 
 function docsHere() {
@@ -167,7 +160,7 @@ function docsHere() {
 }
 
 function onedrivePath(fileName) {
-  return 'Argentica/Study/' + section().name + '/' + module_().name + '/' + curWeek;
+  return 'Argentica/Library/' + section().name + '/' + module_().name + '/' + curWeek;
 }
 
 function docItem(d) {
@@ -303,7 +296,7 @@ window.archiveDoc = async id => {
     const tags = d.tags || [];
     const mod = structure.sections.flatMap(s => s.modules).find(m => tags.includes('module:' + m.id));
     const sec = tags.find(t => t.startsWith('section:'));
-    const folder = 'Argentica/Study/' + (section().name) + '/' + (mod ? mod.name : 'Unfiled') + '/' + (sec ? sec.replace('section:', '') : 'General');
+    const folder = 'Argentica/Library/' + (section().name) + '/' + (mod ? mod.name : 'Unfiled') + '/' + (sec ? sec.replace('section:', '') : 'General');
     const r = await api('/onedrive/upload', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileName: d.title, content: btoa(bin), encoding: 'base64', mimeType: 'application/octet-stream', folder })

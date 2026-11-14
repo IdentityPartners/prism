@@ -31,8 +31,8 @@
         <div class="row mt" style="justify-content:space-between;">
           <div class="row" style="gap:8px; flex-wrap:wrap;">
             <button class="ghost small" onclick="location.href='/argentica/research/'">Research</button>
-            <button class="ghost small" onclick="location.href='/argentica/social/'">New canvas</button>
-            <button class="ghost small" onclick="location.href='/argentica/study/'">Study</button>
+            <button class="ghost small" onclick="location.href='/argentica/create/'">New canvas</button>
+            <button class="ghost small" onclick="location.href='/argentica/library/'">Library</button>
           </div>
           <button id="quick-send">Speak to Gerald</button>
         </div>
@@ -203,7 +203,7 @@ const { api, esc } = ARG;
       '<span class="badge green">' + (counts.posted || posted.length) + ' posted</span>' +
       '<span class="badge">' + (counts.scheduled || 0) + ' scheduled</span></div>' +
       (last ? '<div class="muted mt">Last post: ' + esc((last.platforms || []).join(', ') || '—') + ' · ' + new Date(last.createdAt).toLocaleDateString('en-GB') + '</div>' : '<div class="muted mt">No posts yet.</div>') +
-      '<div class="mt"><button class="ghost small" onclick="location.href=\'/argentica/social/\'">Review the queue</button></div>';
+      '<div class="mt"><button class="ghost small" onclick="location.href=\'/argentica/commercial/publishing/\'">Review the queue</button></div>';
   } catch (e) {
     document.getElementById('social-body').innerHTML = '<div class="muted">Queue unavailable.</div>';
   }
