@@ -11,7 +11,7 @@
   <div class="arg-pagehead spread">
     <div>
       <h1>Email</h1>
-      <div class="sub">Gmail via Google OAuth — argentica.identitypartners@gmail.com. Reconnect from System if this shows disconnected.</div>
+      <div class="sub">Gmail via Google OAuth — reading and sending as argentica.identitypartners@gmail.com. To send from hello@identitypartners.uk, add it as a "send as" alias in that Gmail account (Settings → Accounts); it will then appear here automatically.</div>
     </div>
     <button id="refresh">Refresh</button>
   </div>
@@ -53,11 +53,15 @@ async function loadMail() {
     const msgs = data.messages || [];
     if (!msgs.length) { el.innerHTML = '<div class="muted">Inbox is clear.</div>'; return; }
     el.innerHTML = msgs.map(m => {
-      const h = m.headers || {};
+      const from = String(m.from || 'Unknown sender');
+      const name = from.replace(/ <.*>/, '').replace(/["']/g, '');
+      const email = (from.match(/<([^>]+)>/) || [, ''])[1];
+      const date = m.date ? new Date(m.date).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
       return '<div class="item"><div style="min-width:0;">' +
-        '<div><strong>' + esc(h.From || 'Unknown sender').replace(/ <.*>/, '') + '</strong></div>' +
-        '<div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(h.Subject || '(no subject)') + '</div>' +
-        '<div class="muted">' + esc(h.Date || '') + '</div></div></div>';
+        '<div class="spread"><strong>' + esc(name) + '</strong>' + (m.unread ? '<span class="badge teal">new</span>' : '') + '</div>' +
+        '<div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(m.subject || '(no subject)') + '</div>' +
+        '<div class="muted" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(String(m.snippet || '').slice(0, 120)) + '</div>' +
+        '<div class="muted">' + esc(date) + (email ? ' · ' + esc(email) : '') + '</div></div></div>';
     }).join('');
   } catch (e) { el.innerHTML = '<div class="muted">Could not load the inbox: ' + esc(e.message) + '</div>'; }
 }

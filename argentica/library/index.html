@@ -77,12 +77,15 @@ async function loadStructure() {
   } catch (e) {}
   if (!structure || !structure.sections) {
     // migrate the older flat shape if present
-    if (structure && structure.modules) {
-      structure = { sections: [{ id: 'taught', name: 'Taught', modules: structure.modules.filter(m => m.kind === 'weeks') }] };
-      const other = structure.modules.filter(m => m.kind !== 'weeks');
-      if (other.length) structure.sections.push({ id: 'other', name: 'Other', modules: other });
-    } else {
-      structure = DEFAULT_STRUCTURE;
+    const old = (structure && Array.isArray(structure.modules)) ? structure.modules : [];
+    const weeks = old.filter(m => m.kind === 'weeks');
+    const others = old.filter(m => m.kind !== 'weeks');
+    structure = { sections: [
+      { id: 'taught', name: 'Taught', modules: weeks.length ? weeks : DEFAULT_STRUCTURE.sections[0].modules }
+    ] };
+    for (const m of others) structure.sections.push({ id: m.id, name: m.name, modules: [m] });
+    for (const s of DEFAULT_STRUCTURE.sections) {
+      if (!structure.sections.some(x => x.id === s.id)) structure.sections.push(s);
     }
     saveStructure();
   }
@@ -151,8 +154,8 @@ function docsHere() {
   });
 }
 
-function onedrivePath(fileName) {
-  return 'Argentica/Library/' + section().name + '/' + module_().name + '/' + curWeek;
+function onedrivePath() {
+  return 'Library/' + section().name + '/' + module_().name + '/' + curWeek;
 }
 
 function docItem(d) {
@@ -188,20 +191,17 @@ function renderDashboard() {
     '<h3>Add to ' + esc(curWeek) + '</h3>' +
     '<div id="drop" style="border:1.5px dashed var(--grey); border-radius:10px; padding:16px; text-align:center; cursor:pointer;">' +
     '<div style="font-family:var(--serif); font-size:15px; color:var(--teal);">Drop a reading here</div>' +
-    '<div class="muted">PDF, DOCX, PPTX, image — filed to OneDrive as ' + esc(onedrivePath()) + '</div>' +
+    '<div class="muted">PDF, DOCX, PPTX, image — filed to Drive as ' + 'Library/' + section().name + '/' + module_().name + '/' + curWeek + '</div>' +
     '<input type="file" id="file" accept=".pdf,.docx,.pptx,image/*,audio/*" hidden>' +
     '</div>' + kindSelect +
     '<input type="text" id="note-title" placeholder="New note title" style="margin-top:10px;">' +
     '<textarea id="note-body" style="min-height:56px; margin-top:6px;" placeholder="Write a note…"></textarea>' +
     '<button class="small mt" id="note-save">Save note</button>' +
     '<div class="muted mt" id="upload-status"></div>' +
-    '</div>' +
-
-
+    '</div>';
 
   wireUpload();
   document.getElementById('note-save').addEventListener('click', saveNote);
-  wireWatch();
 }
 
 // ── Upload ────────────────────────────────────────────
@@ -236,15 +236,15 @@ async function upload(file) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: file.name, type: /\.pdf$/i.test(file.name) ? 'pdf' : 'file', content: up.url, tags, moduleSource: curModule })
     });
-    // File it to OneDrive in the same structure (silently — R2 remains the working copy)
+    // File it to Google Drive in the same structure (silently — R2 remains the working copy)
     try {
-      await api('/onedrive/upload', {
+      await api('/gdrive/upload', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: file.name, content: btoa(bin), encoding: 'base64', mimeType: file.type || 'application/octet-stream', folder: onedrivePath() })
+        body: JSON.stringify({ fileName: 'Library/' + section().name + '/' + module_().name + '/' + curWeek + '/' + file.name, content: btoa(bin), mimeType: file.type || 'application/octet-stream' })
       });
-      status.textContent = 'Uploaded to R2 and archived to OneDrive at ' + onedrivePath() + '.';
+      status.textContent = 'Uploaded to R2 and archived to Drive: ' + section().name + ' / ' + module_().name + ' / ' + curWeek + '.';
     } catch (e) {
-      status.textContent = 'Uploaded to R2. OneDrive archive pending: ' + (e.message || '').slice(0, 80);
+      status.textContent = 'Uploaded to R2. Drive archive pending: ' + (e.message || '').slice(0, 80);
     }
     loadDocs();
   } catch (e) { status.textContent = 'Upload failed: ' + e.message; }
@@ -259,11 +259,11 @@ async function saveNote() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: title || 'Untitled note', type: 'note', content: body, tags: ['module:' + curModule, 'section:' + curWeek], moduleSource: curModule })
     });
-    // Notes also file to OneDrive as plain text
+    // Notes also file to Google Drive as plain text
     try {
-      await api('/onedrive/upload', {
+      await api('/gdrive/upload', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: (title || 'note') + '.txt', content: (title ? title + '\n\n' : '') + body, folder: onedrivePath() })
+        body: JSON.stringify({ fileName: 'Library/' + section().name + '/' + module_().name + '/' + curWeek + '/' + (title || 'note') + '.txt', content: (title ? title + '\n\n' : '') + body, mimeType: 'text/plain' })
       });
     } catch (e) {}
     ARG.toast('Note saved.');
@@ -275,7 +275,7 @@ async function saveNote() {
 window.archiveDoc = async id => {
   const d = allDocs.find(x => x.id === id);
   if (!d) return;
-  ARG.toast('Archiving to OneDrive…');
+  ARG.toast('Archiving to Drive…');
   try {
     const resp = await fetch(d.content);
     const buf = new Uint8Array(await resp.arrayBuffer());
@@ -284,15 +284,15 @@ window.archiveDoc = async id => {
     const tags = d.tags || [];
     const mod = structure.sections.flatMap(s => s.modules).find(m => tags.includes('module:' + m.id));
     const sec = tags.find(t => t.startsWith('section:'));
-    const folder = 'Argentica/Library/' + (section().name) + '/' + (mod ? mod.name : 'Unfiled') + '/' + (sec ? sec.replace('section:', '') : 'General');
-    const r = await api('/onedrive/upload', {
+    const folder = 'Library/' + (section().name) + '/' + (mod ? mod.name : 'Unfiled') + '/' + (sec ? sec.replace('section:', '') : 'General');
+    const r = await api('/gdrive/upload', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileName: d.title, content: btoa(bin), encoding: 'base64', mimeType: 'application/octet-stream', folder })
+      body: JSON.stringify({ fileName: folder + '/' + d.title, content: btoa(bin), mimeType: 'application/octet-stream' })
     });
     await api('/documents/' + encodeURIComponent(id), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ archivedTo: r.shareUrl || folder }) });
-    ARG.toast('Archived to OneDrive.');
+    ARG.toast('Archived to Drive.');
     loadDocs();
-  } catch (e) { ARG.toast('OneDrive: ' + e.message.slice(0, 80)); }
+  } catch (e) { ARG.toast('Drive: ' + e.message.slice(0, 80)); }
 };
 
 window.openDoc = id => { location.href = '/argentica/viewer/?doc=' + encodeURIComponent(id); };
@@ -303,23 +303,6 @@ window.askAbout = id => {
 };
 
 
-// ── Watching briefs ───────────────────────────────────
-function wireWatch() {
-  (async function () {
-    try {
-      const d = await api('/news/keywords');
-      document.getElementById('watch-kw').value = (d.keywords || []).join('\n');
-    } catch (e) {}
-  })();
-  document.getElementById('watch-save').addEventListener('click', async () => {
-    const kws = document.getElementById('watch-kw').value.split('\n').map(s => s.trim()).filter(Boolean);
-    try {
-      await api('/news/keywords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keywords: kws }) });
-      document.getElementById('watch-status').textContent = 'Saved.';
-      ARG.toast('Watching briefs updated.');
-    } catch (e) { document.getElementById('watch-status').textContent = 'Could not save.'; }
-  });
-}
 
 async function loadDocs() {
   try {

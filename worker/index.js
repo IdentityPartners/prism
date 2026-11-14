@@ -6225,9 +6225,12 @@ data: ${JSON.stringify(data)}
     if (path === '/api/ingest-secrets' && request.method === 'POST') {
       try {
         const body = await request.json();
-        const { secrets, cfToken, accountId, workerName } = body;
-        if (!cfToken || !accountId || !workerName) {
-          return json({ error: 'cfToken, accountId, and workerName are required' }, 400, origin);
+        const secrets = body.secrets;
+        const cfToken = body.cfToken || k(env, ['cf_token','CF_TOKEN','cloudflare_api_token','CLOUDFLARE_API_TOKEN']) || '';
+        const accountId = body.accountId || k(env, ['cf_account_id','CF_ACCOUNT_ID']) || 'd741de91f8cfff2306cc0f850a76ee07';
+        const workerName = body.workerName || 'prism-api';
+        if (!cfToken) {
+          return json({ error: 'No Cloudflare token available. Store cf_token as a worker secret once, then ingest normally.' }, 400, origin);
         }
         if (!Array.isArray(secrets) || secrets.length === 0) {
           return json({ error: 'secrets array is required' }, 400, origin);

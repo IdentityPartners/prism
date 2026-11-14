@@ -128,20 +128,38 @@ const { api, esc } = ARG;
   credit.textContent = 'Photography will return with the next visit.';
 })();
 
-// Calendar
+// Calendar — compact month grid + today's events
 (async function () {
   try {
     const cal = await api('/google/calendar');
     const body = document.getElementById('cal-body');
-    if (cal.status !== 'ok' || (!cal.today.length && !cal.week.length)) {
+    if (cal.status !== 'ok') {
       document.getElementById('cal-dot').classList.remove('on');
-      body.innerHTML = '<div class="muted">' + (cal.status === 'ok' ? 'Nothing in the diary for the next fortnight.' : 'Google Calendar not connected. Reconnect from System → Status.') + '</div>';
+      body.innerHTML = '<div class="muted">Google Calendar not connected. Reconnect from Commercial → Platforms.</div>';
       return;
     }
-    const fmt = t => new Date(t).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    const evs = (cal.today || []).map(e => '<div class="item"><div><div>' + esc(e.title) + '</div><div class="muted">Today · ' + fmt(e.starts_at) + '</div></div></div>')
-      .concat((cal.week || []).slice(0, 5).map(e => '<div class="item"><div><div>' + esc(e.title) + '</div><div class="muted">' + fmt(e.starts_at) + '</div></div></div>'));
-    body.innerHTML = '<div class="item-list">' + evs.join('') + '</div>';
+    document.getElementById('cal-dot').classList.add('on');
+    const evs = (cal.today || []).concat(cal.week || []);
+    const today = new Date();
+    const y = today.getFullYear(), m = today.getMonth();
+    const first = new Date(y, m, 1);
+    const start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));
+    let grid = '<div style="display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:10px;">';
+    for (let i = 0; i < 35; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      const inM = d.getMonth() === m;
+      const isT = d.toDateString() === today.toDateString();
+      const has = evs.some(e => (e.starts_at || '').slice(0, 10) === d.toISOString().slice(0, 10));
+      grid += '<div style="text-align:center; font-size:10.5px; padding:2px 0; border-radius:4px;' +
+        (isT ? 'background:var(--teal); color:#fff;' : has ? 'background:rgba(15,59,58,0.12); color:var(--teal); font-weight:600;' : 'color:' + (inM ? 'var(--ink-soft)' : 'var(--line)')) +
+        '">' + d.getDate() + '</div>';
+    }
+    grid += '</div>';
+    const todayEvs = (cal.today || []);
+    body.innerHTML = grid +
+      (todayEvs.length ? todayEvs.map(e => '<div style="font-size:12.5px; margin-bottom:4px;"><strong>' + esc((e.starts_at || '').slice(11, 16)) + '</strong> ' + esc(e.title) + '</div>').join('') : '<div class="muted">Nothing else today.</div>') +
+      ((cal.week || []).length ? '<div class="muted" style="margin-top:6px;">' + (cal.week || []).length + ' more this fortnight.</div>' : '') +
+      '<div style="margin-top:10px;"><button class="ghost small" onclick="location.href=\'/argentica/comms/calendar/\'">Full calendar</button></div>';
   } catch (e) {
     document.getElementById('cal-body').innerHTML = '<div class="muted">Calendar unavailable.</div>';
   }

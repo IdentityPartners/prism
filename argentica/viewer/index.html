@@ -168,32 +168,18 @@ document.getElementById('archive').addEventListener('click', async () => {
       body: JSON.stringify({ key: 'study/annotated/' + Date.now() + '-' + safeName, content: b64, mimeType: 'application/pdf', fileName: safeName })
     });
 
-    // OneDrive — the permanent archive, filed to the same Study structure
+    // Google Drive — the permanent archive (auto-refreshing OAuth)
     let odLine = '';
-    let folder = 'Argentica/Study/Annotated';
+    const driveName = 'Library/' + (doc && doc.moduleSource ? doc.moduleSource + '/' : '') + safeName;
     try {
-      const st = await api('/kv/get?key=study:structure');
-      const raw = st.value || st.result || st.data;
-      const structure = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null;
-      const tags = (doc && doc.tags) || [];
-      const modTag = (tags.find(t => t.startsWith('module:')) || '').replace('module:', '');
-      const secTag = (tags.find(t => t.startsWith('section:')) || 'General').replace('section:', '');
-      if (structure && structure.sections) {
-        for (const s of structure.sections) {
-          const m = (s.modules || []).find(x => x.id === modTag);
-          if (m) { folder = 'Argentica/Study/' + s.name + '/' + m.name + '/' + secTag + '/Annotated'; break; }
-        }
-      }
-    } catch (e) {}
-    try {
-      const od = await api('/onedrive/upload', {
+      const od = await api('/gdrive/upload', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: safeName, content: b64, encoding: 'base64', mimeType: 'application/pdf', folder })
+        body: JSON.stringify({ fileName: driveName, content: b64, mimeType: 'application/pdf' })
       });
       odLine = od.success
-        ? '<div class="badge green">OneDrive archived</div> <a href="' + esc(od.shareUrl || '#') + '" target="_blank" rel="noopener">open</a>'
-        : '<div class="badge rose">OneDrive: ' + esc(od.error || 'failed') + '</div>';
-    } catch (e) { odLine = '<div class="badge rose">OneDrive: ' + esc(e.message) + '</div>'; }
+        ? '<div class="badge green">Drive archived</div> <a href="' + esc(od.webViewLink || '#') + '" target="_blank" rel="noopener">open</a>'
+        : '<div class="badge rose">Drive: ' + esc(od.error || 'failed') + '</div>';
+    } catch (e) { odLine = '<div class="badge rose">Drive: ' + esc(e.message) + '</div>'; }
 
     out.innerHTML =
       '<div class="spread"><div><strong>' + esc(safeName) + '</strong></div></div>' +

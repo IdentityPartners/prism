@@ -35,13 +35,15 @@
 
       <div class="chat-inputbar" style="flex-direction:column; align-items:stretch; gap:6px;">
         <textarea id="chat-input" style="min-height:64px; font-size:15px;" placeholder="Type here, or handwrite below…"></textarea>
-        <div class="row" style="justify-content:space-between;">
+        <div class="row" style="justify-content:space-between; margin-bottom:4px;">
           <div class="osk-strip" id="osk"></div>
           <div class="row" style="gap:6px;">
+            <button class="ghost small" id="osk-toggle">⌨ Compact keyboard</button>
             <button class="ghost small" id="hw-open">✎ Handwrite</button>
             <button id="send">Send</button>
           </div>
         </div>
+        <div id="osk-full" style="display:none; background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:6px; gap:3px; flex-direction:column;"></div>
       </div>
     </div>
 
@@ -53,6 +55,8 @@
           <label class="row"><input type="checkbox" class="mm" value="mistral"> Mistral Large 4</label>
           <label class="row"><input type="checkbox" class="mm" value="gemini"> Gemini Flash (free)</label>
           <label class="row"><input type="checkbox" class="mm" value="nemotron"> Nemotron Ultra 253B</label>
+          <label class="row"><input type="checkbox" class="mm" value="cerebras"> Cerebras GPT-OSS 120B</label>
+          <label class="row"><input type="checkbox" class="mm" value="groq"> Groq GPT-OSS 120B</label>
         </div>
         <label class="muted" for="profile" style="margin-top:12px;">Profile</label>
         <select id="profile" style="margin:4px 0 10px;">
@@ -106,7 +110,9 @@ const MODELS = {
   glm: { label: 'GLM 5.3', provider: 'mistral', model: 'zai-glm-5-3' },
   mistral: { label: 'Mistral Large 4', provider: 'mistral', model: 'mistral-large-4' },
   gemini: { label: 'Gemini Flash', provider: 'gemini', model: 'gemini-flash-latest' },
-  nemotron: { label: 'Nemotron 253B', provider: 'openrouter', model: 'nvidia/llama-3.1-nemotron-ultra-253b-v1:free' }
+  nemotron: { label: 'Nemotron 253B', provider: 'openrouter', model: 'nvidia/llama-3.1-nemotron-ultra-253b-v1:free' },
+  cerebras: { label: 'Cerebras GPT-OSS', provider: 'cerebras', model: 'gpt-oss-120b' },
+  groq: { label: 'Groq GPT-OSS', provider: 'groq', model: 'openai/gpt-oss-120b' }
 };
 
 function renderMsg(role, content) {
@@ -138,6 +144,66 @@ const osk = document.getElementById('osk');
     input.focus();
   });
   osk.appendChild(b);
+});
+
+// ── Full compact OSK (QWERTY) ─────────────────────────
+const oskFull = document.getElementById('osk-full');
+const OSK_ROWS = [
+  ['q','w','e','r','t','y','u','i','o','p'],
+  ['a','s','d','f','g','h','j','k','l'],
+  ['⇧','z','x','c','v','b','n','m','⌫'],
+  ['123','␣','.',',','⏎']
+];
+let oskShift = false;
+const OSK_NUM = ['1','2','3','4','5','6','7','8','9','0','-','/'];
+function oskKey(k) {
+  let s = input.selectionStart, en = input.selectionEnd;
+  if (k === '⌫') { if (s > 0) { input.value = input.value.slice(0, s - 1) + input.value.slice(en); s -= 1; } }
+  else { const ins = k === '⏎' ? '\n' : k === '␣' ? ' ' : k; input.value = input.value.slice(0, s) + ins + input.value.slice(en); s += ins.length; }
+  input.selectionStart = input.selectionEnd = s;
+  input.focus();
+}
+function buildOskFull() {
+  oskFull.innerHTML = '';
+  OSK_ROWS.forEach(row => {
+    const r = document.createElement('div');
+    r.style.display = 'flex'; r.style.gap = '3px'; r.style.justifyContent = 'center';
+    row.forEach(k => {
+      const b = document.createElement('button');
+      b.className = 'ghost small';
+      b.style.minWidth = k === '␣' ? '120px' : k.length > 1 ? '44px' : '28px';
+      b.style.padding = '4px 0';
+      b.style.fontSize = '13px';
+      b.textContent = k === '⇧' ? (oskShift ? '⇧ ✓' : '⇧') : k === '⏎' ? '⏎' : k === '␣' ? 'space' : k;
+      b.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        if (k === '⇧') { oskShift = !oskShift; buildOskFull(); return; }
+        if (k === '123') { toggleNumRow(); return; }
+        oskKey(oskShift && k.length === 1 ? k.toUpperCase() : k);
+        if (oskShift) { oskShift = false; buildOskFull(); }
+      });
+      r.appendChild(b);
+    });
+    oskFull.appendChild(r);
+  });
+}
+function toggleNumRow() {
+  const r = document.createElement('div');
+  r.style.display = 'flex'; r.style.gap = '3px'; r.style.justifyContent = 'center';
+  OSK_NUM.forEach(k => {
+    const b = document.createElement('button');
+    b.className = 'ghost small';
+    b.style.minWidth = '28px'; b.style.padding = '4px 0';
+    b.textContent = k;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); oskKey(k); });
+    r.appendChild(b);
+  });
+  if (oskFull.dataset.num === '1') { oskFull.removeChild(oskFull.firstChild); oskFull.dataset.num = '0'; }
+  else { oskFull.prepend(r); oskFull.dataset.num = '1'; }
+}
+buildOskFull();
+document.getElementById('osk-toggle').addEventListener('click', () => {
+  oskFull.style.display = oskFull.style.display === 'none' ? 'flex' : 'none';
 });
 
 // ── Handwriting overlay ────────────────────────────────

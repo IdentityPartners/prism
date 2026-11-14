@@ -18,8 +18,8 @@
       <h3>New canvas</h3>
       <label class="muted">Topic or quote</label>
       <textarea id="topic" style="margin:4px 0 12px;" placeholder="e.g. today's ONS figures on alcohol deaths, or a line about recovery"></textarea>
-      <label class="muted">Template</label>
-      <div class="row" id="tpl-grid" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
+      <label class="muted">Template — click a preview to select it</label>
+      <div id="tpl-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:10px; margin:6px 0 12px;"></div>
       <button id="gen">Generate</button>
       <div class="muted mt" id="gen-status"></div>
     </div>
@@ -58,14 +58,35 @@ const TEMPLATES = [
 let activeTemplate = 'block-teal';
 const tplGrid = document.getElementById('tpl-grid');
 tplGrid.innerHTML = TEMPLATES.map(t =>
-  '<button class="ghost small tpl" data-id="' + t.id + '" title="' + esc(t.hint) + '">' + t.label + '</button>'
+  '<button class="tpl" data-id="' + t.id + '" title="' + esc(t.hint) + '" style="border:2px solid var(--line); border-radius:8px; padding:0; background:#fff; cursor:pointer; overflow:hidden; text-align:left;">' +
+  '<div class="tpl-img" data-id="' + t.id + '" style="width:100%; aspect-ratio:1; background:var(--ivory); display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:11px;">loading…</div>' +
+  '<div style="padding:5px 7px; font-size:11.5px; color:var(--teal);">' + t.label + '</div></button>'
 ).join('');
 tplGrid.querySelector('.tpl').classList.add('active');
 tplGrid.querySelectorAll('.tpl').forEach(b => b.addEventListener('click', () => {
-  tplGrid.querySelectorAll('.tpl').forEach(x => x.classList.remove('active'));
-  b.classList.add('active');
+  tplGrid.querySelectorAll('.tpl').forEach(x => x.style.borderColor = 'var(--line)');
+  b.style.borderColor = 'var(--teal)';
   activeTemplate = b.dataset.id;
 }));
+// visual previews — live SVGs from the worker's preview endpoint
+(async function loadPreviews() {
+  for (const t of TEMPLATES) {
+    fetch('/api/canvas/preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'Understand your past. Define your future.', template: t.id })
+    }).then(r => r.text()).then(svg => {
+      const holder = tplGrid.querySelector('.tpl-img[data-id="' + t.id + '"]');
+      if (holder) {
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(blob);
+        img.style.cssText = 'width:100%; height:100%; object-fit:cover;';
+        holder.innerHTML = '';
+        holder.appendChild(img);
+      }
+    }).catch(() => {});
+  }
+})();
 
 document.getElementById('gen').addEventListener('click', async () => {
   const btn = document.getElementById('gen');

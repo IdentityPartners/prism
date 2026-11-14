@@ -31,19 +31,29 @@
   </div>
 
   <div class="card mt">
+    <h3>Platform catalogue</h3>
+    <div class="muted" style="margin-bottom:10px;">Every monetisable platform, grouped. Mark the ones you are on; the profile answers below carry to each new signup.</div>
+    <div id="plat-catalogue"></div>
+  </div>
+
+  <div class="card mt">
     <h3>Profile proliferation</h3>
-    <div class="muted" style="margin-bottom:10px;">Every monetisable platform asks the same questions. Store the answers once; the pipeline carries them to each new platform for your review.</div>
+    <div class="muted" style="margin-bottom:10px;">Store the answers once — every platform asks the same questions.</div>
     <div class="grid" style="grid-template-columns:1fr 1fr; gap:8px;">
-      <input type="text" id="pf-name" placeholder="Name / display name">
+      <input type="text" id="pf-name" placeholder="Display name">
+      <input type="text" id="pf-email" placeholder="Signup email">
       <input type="text" id="pf-bio" placeholder="Short bio">
-      <input type="text" id="pf-links" placeholder="Links (site, Substack, socials)">
-      <input type="text" id="pf-pricing" placeholder="Pricing / offering summary">
+      <input type="text" id="pf-tagline" placeholder="Tagline">
+      <input type="text" id="pf-rates" placeholder="Services & rates">
+      <input type="text" id="pf-links" placeholder="Website / socials">
     </div>
+    <textarea id="pf-longbio" style="min-height:70px; margin-top:8px;" placeholder="Long bio"></textarea>
     <div class="row mt" style="justify-content:space-between;">
       <span class="muted" id="pf-status"></span>
       <button id="pf-save">Save profile answers</button>
     </div>
   </div>
+</div>
 </div>
 
 <script src="/shared/argentica.js"></script>
@@ -75,6 +85,31 @@ document.getElementById('ss-send').addEventListener('click', async () => {
   } catch (e) { st.textContent = 'Could not send: ' + e.message; }
 });
 
+const CATALOGUE = [
+  { group: 'Coaching & directory', items: [['CoachFinder', 'coachfinder.com'], ['Coacherly', 'coacherly.com'], ['Coachli', 'coachli.io'], ['Life Coach Directory', 'lifecoach-directory.org.uk'], ['Approach a Coach', 'approachacoach.com'], ['Bark', 'bark.com']] },
+  { group: 'Marketplaces & services', items: [['Whop', 'whop.com'], ['Fiverr', 'fiverr.com'], ['Buy Me a Coffee', 'buymeacoffee.com'], ['Eventbrite', 'eventbrite.co.uk'], ['Preply', 'preply.com']] },
+  { group: 'Courses & products', items: [['Teachable', 'teachable.com'], ['Kajabi', 'kajabi.com'], ['Skillshare', 'skillshare.com'], ['Gumroad', 'gumroad.com'], ['Patreon', 'patreon.com']] },
+  { group: 'Community & listening', items: [['Circle', 'circle.so'], ['Substack', 'substack.com'], ['ADHD UK Marketplace', 'adhduk.org']] }
+];
+
+(async function loadCatalogue() {
+  let joined = {};
+  try {
+    const d = await api('/monetisation/profiles');
+    joined = d.profiles || {};
+  } catch (e) {}
+  const el = document.getElementById('plat-catalogue');
+  el.innerHTML = CATALOGUE.map(cat =>
+    '<div style="margin-top:12px;"><div class="muted" style="text-transform:uppercase; letter-spacing:0.1em; font-size:10px;">' + esc(cat.group) + '</div>' +
+    '<div class="row" style="flex-wrap:wrap; gap:6px; margin-top:6px;">' +
+    cat.items.map(([name, domain]) => {
+      const p = joined[name.toLowerCase().replace(/\W+/g, '')];
+      return '<span class="badge ' + (p ? 'green' : '') + '" title="' + esc(domain) + '">' + esc(name) + (p ? ' ✓' : '') + '</span>';
+    }).join('') +
+    '</div></div>'
+  ).join('') + '<div class="muted mt" style="margin-top:12px;">Tick a platform when you join it and it will show green. The headless signup runner lives in the old system until it is ported.</div>';
+})();
+
 (async function loadProfile() {
   try {
     const d = await api('/kv/get?key=monetisation:profile');
@@ -82,9 +117,12 @@ document.getElementById('ss-send').addEventListener('click', async () => {
     const p = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null;
     if (p) {
       document.getElementById('pf-name').value = p.name || '';
+      document.getElementById('pf-email').value = p.email || '';
       document.getElementById('pf-bio').value = p.bio || '';
+      document.getElementById('pf-tagline').value = p.tagline || '';
+      document.getElementById('pf-rates').value = p.rates || '';
       document.getElementById('pf-links').value = p.links || '';
-      document.getElementById('pf-pricing').value = p.pricing || '';
+      document.getElementById('pf-longbio').value = p.longBio || '';
     }
   } catch (e) {}
 })();
@@ -92,9 +130,12 @@ document.getElementById('ss-send').addEventListener('click', async () => {
 document.getElementById('pf-save').addEventListener('click', async () => {
   const p = {
     name: document.getElementById('pf-name').value.trim(),
+    email: document.getElementById('pf-email').value.trim(),
     bio: document.getElementById('pf-bio').value.trim(),
+    tagline: document.getElementById('pf-tagline').value.trim(),
+    rates: document.getElementById('pf-rates').value.trim(),
     links: document.getElementById('pf-links').value.trim(),
-    pricing: document.getElementById('pf-pricing').value.trim()
+    longBio: document.getElementById('pf-longbio').value.trim()
   };
   try {
     await api('/kv/set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'monetisation:profile', value: JSON.stringify(p) }) });
