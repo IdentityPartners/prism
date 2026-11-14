@@ -164,14 +164,27 @@ const { api, esc } = ARG;
         const title = (it.querySelector('title') || {}).textContent || '';
         const link = (it.querySelector('link') || {}).textContent || (it.querySelector('link') || {}).getAttribute && (it.querySelector('link') || {}).getAttribute('href') || '';
         const desc = ((it.querySelector('description') || {}).textContent || '').replace(/<[^>]*>/g, '').slice(0, 160);
-        if (kw.some(k => (title + ' ' + desc).toLowerCase().includes(k))) items.push({ title, link, desc });
+        let img = '';
+        const thumb = it.querySelector('thumbnail, content');
+        if (thumb) img = thumb.getAttribute && (thumb.getAttribute('url') || thumb.getAttribute('href')) || '';
+        if (!img) {
+          const enc = it.querySelector('enclosure');
+          if (enc && /image/.test(enc.getAttribute('type') || '')) img = enc.getAttribute('url');
+        }
+        if (!img) {
+          const m = desc && ((it.querySelector('description') || {}).textContent || '').match(/<img[^>]+src=["']([^"']+)/);
+          if (m) img = m[1];
+        }
+        if (kw.some(k => (title + ' ' + desc).toLowerCase().includes(k))) items.push({ title, link, desc, img });
       });
     } catch (e) {}
   }));
   const el = document.getElementById('news-list');
   if (!items.length) { el.innerHTML = '<div class="muted">Nothing relevant from approved sources today.</div>'; return; }
   el.innerHTML = items.slice(0, 6).map(n =>
-    '<div class="item"><div><a href="' + esc(n.link) + '" target="_blank" rel="noopener">' + esc(n.title) + '</a><div class="muted">' + esc(n.desc) + '</div></div></div>'
+    '<div class="item">' +
+    (n.img ? '<img src="' + esc(n.img) + '" style="width:64px; height:48px; object-fit:cover; border-radius:5px; flex-shrink:0;" onerror="this.remove()">' : '') +
+    '<div style="min-width:0;"><a href="' + esc(n.link) + '" target="_blank" rel="noopener">' + esc(n.title) + '</a><div class="muted">' + esc(n.desc) + '</div></div></div>'
   ).join('');
 })();
 

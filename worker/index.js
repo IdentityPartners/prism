@@ -3667,6 +3667,9 @@ export default {
         const tenantId = env.msgraph_tenant || env.MSGRAPH_TENANT || '';
         const clientId = env.msgraph_client || env.MSGRAPH_CLIENT || '';
         const clientSecret = env.msgraph_secret || env.MSGRAPH_SECRET || '';
+        // Client-credentials flow cannot use /me — it needs the target user's UPN/email.
+        const driveUser = k(env, ['msgraph_user_email','msgraph_user','onedrive_email','MSGRAPH_USER_EMAIL','MSGRAPH_USER']) || '';
+        if (!driveUser) return json({error:'OneDrive user email not configured. Add msgraph_user_email=your Microsoft account email as a secret.'}, 400, origin);
 
         // Get access token
         const tokenResp = await fetch(
@@ -3686,14 +3689,16 @@ export default {
         const accessToken = tokenData.access_token;
         if (!accessToken) return json({error: 'Could not get MSGraph token: '+JSON.stringify(tokenData).substring(0,100)}, 500, origin);
 
-        // Upload file to OneDrive
-        const fileContent = typeof content === 'string' ? new TextEncoder().encode(content) : content;
+        // Upload file to OneDrive — application permissions require /users/{email}/drive
+        const fileBytes = body.encoding === 'base64' || body.base64
+          ? Uint8Array.from(atob(content), c => c.charCodeAt(0))
+          : (typeof content === 'string' ? new TextEncoder().encode(content) : content);
         const uploadResp = await fetch(
-          `https://graph.microsoft.com/v1.0/me/drive/root:/${folder}/${encodeURIComponent(fileName)}:/content`,
+          `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(driveUser)}/drive/root:/${folder}/${encodeURIComponent(fileName)}:/content`,
           {
             method: 'PUT',
-            headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': 'text/plain'},
-            body: fileContent
+            headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': body.mimeType || 'application/octet-stream'},
+            body: fileBytes
           }
         );
         const uploadData = await uploadResp.json();
@@ -3701,7 +3706,7 @@ export default {
 
         // Create sharing link
         const shareResp = await fetch(
-          `https://graph.microsoft.com/v1.0/me/drive/items/${uploadData.id}/createLink`,
+          `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(driveUser)}/drive/items/${uploadData.id}/createLink`,
           {
             method: 'POST',
             headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': 'application/json'},

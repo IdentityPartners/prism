@@ -45,7 +45,16 @@
   </div>
 
   <div class="card mt">
-    <h3>Structure</h3>
+    <div class="spread">
+      <h3>Structure</h3>
+      <div class="row" style="gap:6px;" id="type-tabs">
+        <button class="ghost small ttab active" data-t="all">All</button>
+        <button class="ghost small ttab" data-t="reading">Readings</button>
+        <button class="ghost small ttab" data-t="note">Notes</button>
+        <button class="ghost small ttab" data-t="reference">References</button>
+        <button class="ghost small ttab" data-t="brief">Watching briefs</button>
+      </div>
+    </div>
     <div id="structure"></div>
   </div>
 
@@ -130,6 +139,22 @@ function docsFor(modId, section) {
   });
 }
 
+let currentType = 'all';
+function typeMatch(d) {
+  if (currentType === 'all') return true;
+  if (currentType === 'reading') return ['pdf', 'file'].includes(d.type);
+  if (currentType === 'brief') return (d.tags || []).includes('watching-brief');
+  return d.type === currentType;
+}
+
+document.querySelectorAll('#type-tabs .ttab').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#type-tabs .ttab').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  currentType = b.dataset.t;
+  renderStructure();
+  document.querySelectorAll('.section-docs[style*="block"]').forEach(p => p.style.display = 'none');
+}));
+
 function docRow(d) {
   return '<div class="item">' +
     '<div><div>' + esc(d.title) + ' <span class="badge">' + esc(d.type) + '</span></div>' +
@@ -144,12 +169,12 @@ function docRow(d) {
 function renderStructure() {
   const el = document.getElementById('structure');
   el.innerHTML = structure.modules.map(m => {
-    const modDocs = docsFor(m.id);
+    const modDocs = docsFor(m.id).filter(typeMatch);
     return '<div style="margin-bottom:18px;">' +
       '<div class="spread"><h4 style="font-size:15px;">' + esc(m.name) + '</h4><span class="badge teal">' + modDocs.length + ' resources</span></div>' +
       '<div class="row" style="flex-wrap:wrap; gap:6px; margin:8px 0;">' +
       sectionList(m).map(s => {
-        const n = docsFor(m.id, s).length;
+        const n = docsFor(m.id, s).filter(typeMatch).length;
         return '<button class="ghost small" onclick="toggleSection(this)" data-mod="' + esc(m.id) + '" data-sec="' + esc(s) + '">' + esc(s) + ' <span class="muted">(' + n + ')</span></button>';
       }).join('') +
       '</div><div class="section-docs" style="display:none;"></div></div>';
@@ -159,7 +184,7 @@ function renderStructure() {
 window.toggleSection = btn => {
   const panel = btn.parentElement.nextElementSibling;
   if (panel.style.display === 'none') {
-    const docs = docsFor(btn.dataset.mod, btn.dataset.sec);
+    const docs = docsFor(btn.dataset.mod, btn.dataset.sec).filter(typeMatch);
     panel.innerHTML = docs.length
       ? '<div class="item-list">' + docs.map(docRow).join('') + '</div>'
       : '<div class="muted">Nothing here yet. Upload or take a note into this section.</div>';
