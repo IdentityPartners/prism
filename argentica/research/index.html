@@ -10,7 +10,7 @@
 <div class="arg-page" data-key="research">
   <div class="arg-pagehead">
     <h1>Research</h1>
-    <div class="sub">Scholarly sources and the wider web, searched in parallel. Abbreviations are expanded before firing.</div>
+    <div class="sub">Thirty scholarly sources and four web engines, fired in parallel — you choose which. Abbreviations are expanded before firing.</div>
   </div>
 
   <div class="card">
@@ -19,11 +19,22 @@
       <button id="run">Search</button>
     </div>
     <div class="row mt" style="flex-wrap:wrap; gap:8px;">
-      <button class="ghost small mode active" data-mode="scholarly">Academic sources</button>
+      <button class="ghost small mode active" data-mode="scholarly">Scholarly</button>
       <button class="ghost small mode" data-mode="web">Web &amp; press</button>
-      <button class="ghost small mode" data-mode="both">Both</button>
+      <button class="ghost small mode" data-mode="news">News feed</button>
       <span class="muted" id="search-note" style="margin-left:auto;"></span>
     </div>
+  </div>
+
+  <div class="card mt" id="source-card">
+    <div class="spread">
+      <h3>Sources</h3>
+      <div class="row" style="gap:6px;">
+        <button class="ghost small" id="all-on">Select all</button>
+        <button class="ghost small" id="all-off">Clear</button>
+      </div>
+    </div>
+    <div id="source-groups"></div>
   </div>
 
   <div class="mt" id="results"></div>
@@ -34,20 +45,75 @@
 ARG.buildShell('research');
 const { api, esc } = ARG;
 
-let mode = 'scholarly';
+const SOURCE_GROUPS = {
+  'Journals & papers': [
+    ['semantic_scholar', 'Semantic Scholar'], ['openalex', 'OpenAlex'], ['pubmed', 'PubMed'],
+    ['crossref', 'CrossRef'], ['core', 'CORE'], ['arxiv', 'arXiv'],
+    ['doaj', 'DOAJ'], ['base', 'BASE'], ['lens', 'Lens.org'], ['unpaywall', 'Unpaywall']
+  ],
+  'Preprints & biomedical': [
+    ['biorxiv', 'bioRxiv'], ['medrxiv', 'medRxiv'], ['europe_pmc', 'Europe PMC'], ['pmc', 'PMC'],
+    ['zenodo', 'Zenodo'], ['clinicaltrials', 'ClinicalTrials.gov']
+  ],
+  'Theses & grey literature': [
+    ['ethos', 'EThOS'], ['oatd', 'OATD'], ['ideas_repec', 'IDEAS/RePec'],
+    ['nber', 'NBER'], ['internet_archive', 'Internet Archive'], ['google_scholar', 'Google Scholar (link-out)']
+  ],
+  'Data & statistics': [
+    ['ons', 'ONS'], ['eurostat', 'Eurostat'], ['worldbank', 'World Bank'], ['exa', 'Exa (neural, academic)']
+  ],
+  'Goldsmiths': [
+    ['goldsmiths_library', 'Goldsmiths Library'], ['goldsmiths_ill', 'Goldsmiths ILL'], ['senate_house', 'Senate House']
+  ]
+};
+
+const WEB_SOURCES = [['tavily', 'Tavily (AI answers)'], ['brave', 'Brave'], ['exa', 'Exa (neural)'], ['perplexity', 'Perplexity (synthesis)']];
+
+const NEWS_FEEDS = [
+  ['The Guardian', 'https://www.theguardian.com/uk/society/rss'],
+  ['BBC Health', 'https://feeds.bbci.co.uk/news/health/rss.xml'],
+  ['New Statesman', 'https://www.newstatesman.com/feed'],
+  ['New Scientist', 'https://www.newscientist.com/feed/'],
+  ['The Lancet', 'https://www.thelancet.com/rssfeed/lancet_current.xml']
+];
+
 const ABBR = { PTSD: 'post-traumatic stress disorder', CBT: 'cognitive behavioural therapy', NHS: 'National Health Service',
   ONS: 'Office for National Statistics', MAT: 'medication assisted treatment', SUD: 'substance use disorder',
   ACE: 'adverse childhood experiences', DBT: 'dialectical behaviour therapy', GAM: 'gambling' };
+
+let mode = 'scholarly';
+
+function expand(q) {
+  return q.split(/\s+/).map(w => ABBR[w.toUpperCase()] ? ABBR[w.toUpperCase()] + ' (' + w + ')' : w).join(' ');
+}
+
+function renderSources() {
+  const el = document.getElementById('source-groups');
+  if (mode === 'scholarly') {
+    el.innerHTML = Object.entries(SOURCE_GROUPS).map(([group, srcs]) =>
+      '<div style="margin-top:12px;"><div class="muted" style="text-transform:uppercase; letter-spacing:0.1em; font-size:10px;">' + esc(group) + '</div>' +
+      '<div class="row" style="flex-wrap:wrap; gap:6px; margin-top:6px;">' +
+      srcs.map(([id, label]) => '<label class="badge teal" style="cursor:pointer;"><input type="checkbox" class="src" value="' + id + '" checked> ' + esc(label) + '</label>').join('') +
+      '</div></div>'
+    ).join('');
+  } else if (mode === 'web') {
+    el.innerHTML = '<div class="row" style="flex-wrap:wrap; gap:6px; margin-top:8px;">' +
+      WEB_SOURCES.map(([id, label]) => '<label class="badge teal" style="cursor:pointer;"><input type="checkbox" class="src" value="' + id + '" checked> ' + esc(label) + '</label>').join('') +
+      '</div>';
+  } else {
+    el.innerHTML = '<div class="muted">The news tab pulls today\'s items from approved outlets, filtered by your query as a keyword.</div>';
+  }
+}
 
 document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('.mode').forEach(x => x.classList.remove('active'));
   b.classList.add('active');
   mode = b.dataset.mode;
+  renderSources();
 }));
 
-function expand(q) {
-  return q.split(/\s+/).map(w => ABBR[w.toUpperCase()] ? ABBR[w.toUpperCase()] + ' (' + w + ')' : w).join(' ');
-}
+document.getElementById('all-on').addEventListener('click', () => document.querySelectorAll('.src').forEach(c => c.checked = true));
+document.getElementById('all-off').addEventListener('click', () => document.querySelectorAll('.src').forEach(c => c.checked = false));
 
 function resultCard(r) {
   const badge = r._type === 'academic' ? '<span class="badge teal">' + esc(r.source) + '</span>' : '<span class="badge">' + esc(r.source) + '</span>';
@@ -63,43 +129,68 @@ window.saveRes = async btn => {
   try {
     await api('/documents', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: btn.dataset.title, type: 'reference', content: btn.dataset.url, tags: ['research'], moduleSource: 'phd' })
+      body: JSON.stringify({ title: btn.dataset.title, type: 'reference', content: btn.dataset.url, tags: ['module:dissertation', 'section:General', 'research'], moduleSource: 'dissertation' })
     });
     btn.textContent = 'Saved'; btn.disabled = true;
-    ARG.toast('Saved to your resources.');
+    ARG.toast('Saved to Dissertation.');
   } catch (e) { ARG.toast('Could not save.'); }
 };
 
+async function runNews(q) {
+  const out = document.getElementById('results');
+  out.innerHTML = '<div class="card"><div class="muted">Scanning approved outlets…</div></div>';
+  const kw = q.toLowerCase().split(/\s+/);
+  const items = [];
+  await Promise.all(NEWS_FEEDS.map(async ([name, url]) => {
+    try {
+      const text = await (await fetch('/api/rss?url=' + encodeURIComponent(url))).text();
+      const doc = new DOMParser().parseFromString(text, 'text/xml');
+      doc.querySelectorAll('item').forEach(it => {
+        const title = (it.querySelector('title') || {}).textContent || '';
+        const link = (it.querySelector('link') || {}).textContent || '';
+        const desc = ((it.querySelector('description') || {}).textContent || '').replace(/<[^>]*>/g, '').slice(0, 160);
+        if (!q || kw.some(k => (title + ' ' + desc).toLowerCase().includes(k))) items.push({ source: name, title, url: link, content: desc });
+      });
+    } catch (e) {}
+  }));
+  document.getElementById('search-note').textContent = items.length + ' items.';
+  out.innerHTML = items.length
+    ? '<div class="card"><h3>Today\'s press</h3><div class="item-list">' + items.slice(0, 40).map(resultCard).join('') + '</div></div>'
+    : '<div class="card"><div class="muted">Nothing relevant today.</div></div>';
+}
+
 document.getElementById('run').addEventListener('click', async () => {
   const raw = document.getElementById('q').value.trim();
+  if (mode === 'news') return runNews(raw);
   if (!raw) return;
   const q = expand(raw);
+  const sources = [...document.querySelectorAll('.src:checked')].map(c => c.value);
+  if (!sources.length) { ARG.toast('Choose at least one source.'); return; }
   const out = document.getElementById('results');
   const note = document.getElementById('search-note');
-  out.innerHTML = '<div class="card"><div class="muted">Searching…</div></div>';
-  note.textContent = 'Firing sources in parallel.';
+  out.innerHTML = '<div class="card"><div class="muted">Searching ' + sources.length + ' sources in parallel…</div></div>';
   const all = [];
   const jobs = [];
-  if (mode === 'scholarly' || mode === 'both') jobs.push(
-    api('/research/scholarly', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: q, sources: ['semantic_scholar', 'openalex', 'pubmed', 'crossref', 'core', 'arxiv', 'europe_pmc'] }) })
-    .then(d => { const r = d.results || d.sources || []; (Array.isArray(r) ? r : Object.values(r)).forEach(s => (s.items || []).forEach(i => all.push(i))); })
-    .catch(() => {})
+  if (mode === 'scholarly') jobs.push(
+    api('/research/scholarly', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, sources }) })
+      .then(d => { const r = d.results || d.sources || []; (Array.isArray(r) ? r : Object.values(r)).forEach(s => (s.items || []).forEach(i => all.push(i))); })
+      .catch(() => {})
   );
-  if (mode === 'web' || mode === 'both') jobs.push(
-    api('/search', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: q, sources: ['tavily', 'brave', 'exa'] }) })
-    .then(d => { const r = d.results || d.sources || []; (Array.isArray(r) ? r : Object.values(r)).forEach(s => (s.items || []).forEach(i => all.push(i))); })
-    .catch(() => {})
+  if (mode === 'web') jobs.push(
+    api('/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, sources }) })
+      .then(d => { const r = d.results || d.sources || []; (Array.isArray(r) ? r : Object.values(r)).forEach(s => (s.items || []).forEach(i => all.push(i))); })
+      .catch(() => {})
   );
   await Promise.all(jobs);
   const seen = new Set();
   const uniq = all.filter(r => { const k = (r.url || r.title || '').replace(/[#?].*$/, ''); if (seen.has(k)) return false; seen.add(k); return true; });
-  note.textContent = uniq.length + ' results.';
+  note.textContent = uniq.length + ' results from ' + sources.length + ' sources.';
   out.innerHTML = uniq.length
-    ? '<div class="card"><h3>Results</h3><div class="item-list">' + uniq.slice(0, 60).map(resultCard).join('') + '</div></div>'
-    : '<div class="card"><div class="muted">Nothing found. Try widening the phrasing, or switch modes.</div></div>';
+    ? '<div class="card"><h3>Results</h3><div class="item-list">' + uniq.slice(0, 80).map(resultCard).join('') + '</div></div>'
+    : '<div class="card"><div class="muted">Nothing found. Try widening the phrasing, or switch tabs.</div></div>';
 });
+
+renderSources();
 </script>
 </body>
 </html>

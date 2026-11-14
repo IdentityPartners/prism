@@ -282,3 +282,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 
 .viewer-stage { position: relative; background: #55524a; border-radius: 8px; overflow: auto; max-height: calc(100vh - 210px); }
 .viewer-stage canvas { display: block; margin: 0 auto; touch-action: none; }
+
+/* ── Template gallery buttons ─────────────────────── */
+
+button.tpl.active { background: var(--teal); color: #fff; border-color: var(--teal); }

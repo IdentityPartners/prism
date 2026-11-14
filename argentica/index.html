@@ -80,30 +80,52 @@ const { api, esc } = ARG;
 })();
 
 // Photographic header — Pexels, Unsplash, Pixabay, Openverse and Wikimedia via worker,
-// one query per weekday, never repeats within a week
+// one query per weekday, never repeats within a week. The image is preloaded and only
+// shown once it has actually loaded; candidates are tried in turn until one works.
 (async function () {
   const queries = ['calm seascape dawn', 'scottish highlands mist', 'english coastline morning',
     'quiet forest canopy', 'lake district hills', 'open sky clouds', 'autumn woodland path'];
   const q = queries[new Date().getDay() % queries.length];
-  try {
-    const data = await api('/image-search/multi', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: q, limit: 20, sources: ['pexels', 'unsplash', 'pixabay', 'openverse', 'wikimedia'] })
+  const hero = document.getElementById('hero');
+  const img = document.getElementById('hero-img');
+  const credit = document.getElementById('hero-credit');
+
+  function preload(url) {
+    return new Promise((resolve, reject) => {
+      const probe = new Image();
+      probe.onload = () => resolve(url);
+      probe.onerror = reject;
+      probe.src = url;
     });
-    const photos = data.results || data.images || [];
-    if (photos.length) {
-      const seen = JSON.parse(localStorage.getItem('arg:hero-seen') || '[]');
-      const fresh = photos.filter(p => !seen.includes(p.url));
-      const pool = fresh.length ? fresh : photos;
-      const pick = pool[Math.floor(Math.random() * pool.length)];
-      document.getElementById('hero-img').src = pick.url;
-      document.getElementById('hero-credit').textContent = 'Photo: ' + (pick.photographer || 'unknown') + ' · ' + (pick.source || '');
-      localStorage.setItem('arg:hero-seen', JSON.stringify(seen.concat([pick.url]).slice(-40)));
-    }
-  } catch (e) {
-    document.getElementById('hero-credit').textContent = 'Header image unavailable';
   }
+
+  async function fetchPool(query) {
+    try {
+      const data = await api('/image-search/multi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, limit: 20, sources: ['pexels', 'unsplash', 'pixabay', 'openverse', 'wikimedia'] })
+      });
+      return data.results || data.images || [];
+    } catch (e) { return []; }
+  }
+
+  const seen = JSON.parse(localStorage.getItem('arg:hero-seen') || '[]');
+  let pool = await fetchPool(q);
+  if (!pool.length) pool = await fetchPool('landscape');
+  const fresh = pool.filter(p => p.url && !seen.includes(p.url));
+  const candidates = (fresh.length ? fresh : pool).filter(p => p.url);
+
+  for (let i = 0; i < Math.min(candidates.length, 6); i++) {
+    try {
+      await preload(candidates[i].url);
+      img.src = candidates[i].url;
+      credit.textContent = 'Photo: ' + (candidates[i].photographer || 'unknown') + ' · ' + (candidates[i].source || '');
+      localStorage.setItem('arg:hero-seen', JSON.stringify(seen.concat([candidates[i].url]).slice(-40)));
+      return;
+    } catch (e) { /* try the next candidate */ }
+  }
+  credit.textContent = 'Photography will return with the next visit.';
 })();
 
 // Calendar

@@ -10,13 +10,17 @@
 <div class="arg-page" data-key="study">
   <div class="arg-pagehead">
     <h1>Study</h1>
-    <div class="sub">Your papers, readings and notes. Uploaded files live in R2 and open in the viewer for stylus annotation.</div>
+    <div class="sub">Modules, weeks and dissertation sections. Files live in R2 and open in the viewer for stylus annotation.</div>
   </div>
 
   <div class="grid two">
     <div class="card">
-      <h3>Upload</h3>
-      <div id="drop" style="border:1.5px dashed var(--grey); border-radius:10px; padding:26px; text-align:center; cursor:pointer;">
+      <h3>Upload to a section</h3>
+      <div class="row" style="margin-bottom:10px;">
+        <select id="up-module" style="flex:1;"></select>
+        <select id="up-section" style="flex:1;"></select>
+      </div>
+      <div id="drop" style="border:1.5px dashed var(--grey); border-radius:10px; padding:22px; text-align:center; cursor:pointer;">
         <div style="font-family:var(--serif); font-size:16px; color:var(--teal);">Drop a PDF, DOCX or image here</div>
         <div class="muted mt">or tap to choose a file</div>
         <input type="file" id="file" accept=".pdf,.docx,.pptx,image/*,audio/*" hidden>
@@ -27,50 +31,31 @@
     <div class="card">
       <h3>Find</h3>
       <div class="row">
-        <input type="text" id="study-search" placeholder="Search across your resources and notes…">
+        <input type="text" id="study-search" placeholder="Search across all resources and notes…">
         <button id="study-search-btn">Search</button>
       </div>
       <div id="search-results" class="mt"></div>
+      <div class="mt" style="border-top:1px solid var(--line); padding-top:12px;">
+        <h3 style="font-size:14px;">New note in this section</h3>
+        <input type="text" id="note-title" placeholder="Title" style="margin-bottom:8px;">
+        <textarea id="note-body" style="min-height:60px;" placeholder="Write a note…"></textarea>
+        <button class="small mt" id="note-save">Save note</button>
+      </div>
     </div>
   </div>
 
   <div class="card mt">
-    <h3>Resources</h3>
-    <div class="row" style="flex-wrap:wrap; gap:6px; margin-bottom:12px;" id="module-tabs">
-      <button class="ghost small tab active" data-m="all">All</button>
-      <button class="ghost small tab" data-m="study">Study</button>
-      <button class="ghost small tab" data-m="phd">PhD material</button>
-      <button class="ghost small tab" data-m="dissertation">Dissertation</button>
-      <button class="ghost small tab" data-m="concepts">Concepts &amp; thinkers</button>
-      <button class="ghost small tab" data-m="reference">References</button>
-    </div>
-    <div class="item-list" id="doc-list"><div class="muted">Loading…</div></div>
+    <h3>Structure</h3>
+    <div id="structure"></div>
   </div>
 
-  <div class="grid two mt">
-    <div class="card">
-      <h3>New note</h3>
-      <input type="text" id="note-title" placeholder="Title" style="margin-bottom:8px;">
-      <textarea id="note-body" style="min-height:90px;" placeholder="Write a note — it is searchable and can be opened in the viewer…"></textarea>
-      <div class="row mt" style="justify-content:space-between;">
-        <select id="note-module" style="max-width:200px;">
-          <option value="study">Study</option>
-          <option value="phd">PhD material</option>
-          <option value="dissertation">Dissertation</option>
-          <option value="concepts">Concepts &amp; thinkers</option>
-        </select>
-        <button id="note-save">Save note</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>Watching briefs</h3>
-      <div class="muted" style="margin-bottom:8px;">Keywords the pipeline watches for in the news. When something relevant breaks, you hear about it.</div>
-      <textarea id="watch-kw" style="min-height:60px;" placeholder="One keyword or phrase per line…"></textarea>
-      <div class="row mt" style="justify-content:space-between;">
-        <span class="muted" id="watch-status"></span>
-        <button id="watch-save">Save briefs</button>
-      </div>
+  <div class="card mt">
+    <h3>Watching briefs</h3>
+    <div class="muted" style="margin-bottom:8px;">Keywords the pipeline watches for in the news. When something relevant breaks, you hear about it.</div>
+    <textarea id="watch-kw" style="min-height:60px;" placeholder="One keyword or phrase per line…"></textarea>
+    <div class="row mt" style="justify-content:space-between;">
+      <span class="muted" id="watch-status"></span>
+      <button id="watch-save">Save briefs</button>
     </div>
   </div>
 </div>
@@ -80,6 +65,132 @@
 ARG.buildShell('study');
 const { api, esc } = ARG;
 
+const DEFAULT_STRUCTURE = {
+  modules: [
+    { id: 'quant', name: 'Quant Research Methods', kind: 'weeks', weeks: 12 },
+    { id: 'methodology', name: 'Methodology Now', kind: 'weeks', weeks: 12 },
+    { id: 'dissertation', name: 'Dissertation', kind: 'sections', sections: ['Literature Review', 'Elena Sources', 'Disability & Deservingness'] },
+    { id: 'phd', name: 'PhD Material', kind: 'free' },
+    { id: 'concepts', name: 'Concepts & Thinkers', kind: 'free' }
+  ]
+};
+
+let structure = null;
+let allDocs = [];
+
+// ── Structure load/save ──────────────────────────────
+async function loadStructure() {
+  try {
+    const d = await api('/kv/get?key=study:structure');
+    const raw = d.value || d.result || d.data;
+    structure = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null;
+  } catch (e) {}
+  if (!structure || !structure.modules) {
+    structure = DEFAULT_STRUCTURE;
+    saveStructure();
+  }
+  renderModuleSelects();
+  renderStructure();
+}
+
+async function saveStructure() {
+  try {
+    await api('/kv/set', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'study:structure', value: JSON.stringify(structure) })
+    });
+  } catch (e) {}
+}
+
+function sectionList(mod) {
+  if (mod.kind === 'weeks') return Array.from({ length: mod.weeks }, (_, i) => 'Week ' + (i + 1));
+  if (mod.kind === 'sections') return mod.sections;
+  return ['General'];
+}
+
+function renderModuleSelects() {
+  const sel = document.getElementById('up-module');
+  sel.innerHTML = structure.modules.map(m => '<option value="' + esc(m.id) + '">' + esc(m.name) + '</option>').join('');
+  sel.onchange = renderSectionSelect;
+  renderSectionSelect();
+}
+
+function renderSectionSelect() {
+  const mod = structure.modules.find(m => m.id === document.getElementById('up-module').value) || structure.modules[0];
+  document.getElementById('up-section').innerHTML = sectionList(mod).map(s => '<option>' + esc(s) + '</option>').join('');
+}
+
+function docsFor(modId, section) {
+  return allDocs.filter(d => {
+    const tags = d.tags || [];
+    const inMod = tags.includes('module:' + modId);
+    if (!inMod) return false;
+    if (section === undefined) return true;
+    return tags.includes('section:' + section) || (!tags.some(t => t.startsWith('section:')) && section === 'General');
+  });
+}
+
+function docRow(d) {
+  return '<div class="item">' +
+    '<div><div>' + esc(d.title) + ' <span class="badge">' + esc(d.type) + '</span></div>' +
+    '<div class="muted">Added ' + (d.updatedAt ? new Date(d.updatedAt).toLocaleDateString('en-GB') : '—') + '</div></div>' +
+    '<div class="row">' +
+    '<button class="ghost small" onclick="openDoc(\'' + esc(d.id) + '\')">Open</button>' +
+    '<button class="ghost small" onclick="askAbout(\'' + esc(d.id) + '\')">Ask</button>' +
+    '<button class="ghost small" onclick="delDoc(\'' + esc(d.id) + '\')">Delete</button>' +
+    '</div></div>';
+}
+
+function renderStructure() {
+  const el = document.getElementById('structure');
+  el.innerHTML = structure.modules.map(m => {
+    const modDocs = docsFor(m.id);
+    return '<div style="margin-bottom:18px;">' +
+      '<div class="spread"><h4 style="font-size:15px;">' + esc(m.name) + '</h4><span class="badge teal">' + modDocs.length + ' resources</span></div>' +
+      '<div class="row" style="flex-wrap:wrap; gap:6px; margin:8px 0;">' +
+      sectionList(m).map(s => {
+        const n = docsFor(m.id, s).length;
+        return '<button class="ghost small" onclick="toggleSection(this)" data-mod="' + esc(m.id) + '" data-sec="' + esc(s) + '">' + esc(s) + ' <span class="muted">(' + n + ')</span></button>';
+      }).join('') +
+      '</div><div class="section-docs" style="display:none;"></div></div>';
+  }).join('');
+}
+
+window.toggleSection = btn => {
+  const panel = btn.parentElement.nextElementSibling;
+  if (panel.style.display === 'none') {
+    const docs = docsFor(btn.dataset.mod, btn.dataset.sec);
+    panel.innerHTML = docs.length
+      ? '<div class="item-list">' + docs.map(docRow).join('') + '</div>'
+      : '<div class="muted">Nothing here yet. Upload or take a note into this section.</div>';
+    panel.style.display = 'block';
+  } else {
+    panel.style.display = 'none';
+  }
+};
+
+// ── Documents ─────────────────────────────────────────
+async function loadDocs() {
+  try {
+    const data = await api('/documents');
+    allDocs = data.documents || [];
+    renderStructure();
+  } catch (e) {}
+}
+
+window.openDoc = id => { location.href = '/argentica/viewer/?doc=' + encodeURIComponent(id); };
+window.askAbout = id => {
+  const d = allDocs.find(x => x.id === id) || {};
+  sessionStorage.setItem('arg:pending-prompt', 'Summarise "' + d.title + '" and its key arguments.');
+  location.href = '/argentica/chat/';
+};
+window.delDoc = async id => {
+  if (!confirm('Delete this resource?')) return;
+  try { await api('/documents/' + encodeURIComponent(id), { method: 'DELETE' }); ARG.toast('Deleted.'); loadDocs(); }
+  catch (e) { ARG.toast('Could not delete.'); }
+};
+
+// ── Upload ────────────────────────────────────────────
 const drop = document.getElementById('drop');
 const fileInput = document.getElementById('file');
 drop.addEventListener('click', () => fileInput.click());
@@ -90,65 +201,55 @@ fileInput.addEventListener('change', () => { if (fileInput.files[0]) upload(file
 
 async function upload(file) {
   const status = document.getElementById('upload-status');
-  status.textContent = 'Uploading "' + file.name + '"…';
+  const modId = document.getElementById('up-module').value;
+  const section = document.getElementById('up-section').value;
+  status.textContent = 'Uploading "' + file.name + '" to ' + section + '…';
   try {
     const buf = await file.arrayBuffer();
     let bin = '';
     const bytes = new Uint8Array(buf);
-    const chunk = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-    const key = 'study/' + Date.now() + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    const key = 'study/' + modId + '/' + Date.now() + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const up = await api('/r2/upload', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key, content: btoa(bin), mimeType: file.type || 'application/octet-stream', fileName: file.name })
     });
     await api('/documents', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: file.name, type: file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'file', content: up.url, tags: [], moduleSource: 'study' })
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: file.name,
+        type: file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'file',
+        content: up.url,
+        tags: ['module:' + modId, 'section:' + section],
+        moduleSource: modId
+      })
     });
-    status.textContent = 'Uploaded. "' + file.name + '" is in your resources.';
+    status.textContent = 'Uploaded to ' + section + '.';
     ARG.toast('Uploaded to R2.');
     loadDocs();
-  } catch (e) {
-    status.textContent = 'Upload failed: ' + e.message;
-  }
+  } catch (e) { status.textContent = 'Upload failed: ' + e.message; }
 }
 
-async function loadDocs() {
+// ── Notes ─────────────────────────────────────────────
+document.getElementById('note-save').addEventListener('click', async () => {
+  const title = document.getElementById('note-title').value.trim();
+  const body = document.getElementById('note-body').value.trim();
+  if (!title && !body) { ARG.toast('Nothing to save.'); return; }
+  const modId = document.getElementById('up-module').value;
+  const section = document.getElementById('up-section').value;
   try {
-    const data = await api('/documents');
-    const docs = (data.documents || []).filter(d => d.moduleSource === 'study' || (d.content || '').includes('r2.dev'));
-    const el = document.getElementById('doc-list');
-    if (!docs.length) { el.innerHTML = '<div class="muted">Nothing uploaded yet. Your readings will appear here.</div>'; return; }
-    el.innerHTML = docs.map(d =>
-      '<div class="item">' +
-      '<div><div>' + esc(d.title) + ' <span class="badge">' + esc(d.type) + '</span></div>' +
-      '<div class="muted">Added ' + (d.updatedAt ? new Date(d.updatedAt).toLocaleDateString('en-GB') : '—') + '</div></div>' +
-      '<div class="row">' +
-      '<button class="ghost small" onclick="openDoc(\'' + esc(d.id) + '\')">Open</button>' +
-      '<button class="ghost small" onclick="askAbout(\'' + esc(d.id) + '\')">Ask</button>' +
-      '<button class="ghost small" onclick="delDoc(\'' + esc(d.id) + '\')">Delete</button>' +
-      '</div></div>'
-    ).join('');
-    window._docs = docs;
-  } catch (e) {
-    document.getElementById('doc-list').innerHTML = '<div class="muted">Could not load resources.</div>';
-  }
-}
+    await api('/documents', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title || 'Untitled note', type: 'note', content: body, tags: ['module:' + modId, 'section:' + section], moduleSource: modId })
+    });
+    document.getElementById('note-title').value = '';
+    document.getElementById('note-body').value = '';
+    ARG.toast('Note saved to ' + section + '.');
+    loadDocs();
+  } catch (e) { ARG.toast('Could not save the note.'); }
+});
 
-window.openDoc = id => { location.href = '/argentica/viewer/?doc=' + encodeURIComponent(id); };
-window.askAbout = id => {
-  sessionStorage.setItem('arg:pending-prompt', 'Summarise the document "' + (window._docs.find(d => d.id === id) || {}).title + '" and its key arguments.');
-  location.href = '/argentica/chat/';
-};
-window.delDoc = async id => {
-  if (!confirm('Delete this resource?')) return;
-  try { await api('/documents/' + encodeURIComponent(id), { method: 'DELETE' }); ARG.toast('Deleted.'); loadDocs(); }
-  catch (e) { ARG.toast('Could not delete.'); }
-};
-
+// ── Search ────────────────────────────────────────────
 document.getElementById('study-search-btn').addEventListener('click', async () => {
   const q = document.getElementById('study-search').value.trim();
   const out = document.getElementById('search-results');
@@ -168,60 +269,7 @@ document.getElementById('study-search-btn').addEventListener('click', async () =
   }
 });
 
-// Module tabs
-let currentModule = 'all';
-document.querySelectorAll('#module-tabs .tab').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('#module-tabs .tab').forEach(x => x.classList.remove('active'));
-  b.classList.add('active');
-  currentModule = b.dataset.m;
-  renderDocs();
-}));
-
-function renderDocs() {
-  const docs = (window._allDocs || []).filter(d => currentModule === 'all' || d.moduleSource === currentModule || (currentModule === 'reference' && d.type === 'reference'));
-  const el = document.getElementById('doc-list');
-  if (!docs.length) { el.innerHTML = '<div class="muted">Nothing in this section yet.</div>'; return; }
-  el.innerHTML = docs.map(d =>
-    '<div class="item">' +
-    '<div><div>' + esc(d.title) + ' <span class="badge">' + esc(d.type) + '</span>' + (d.moduleSource && d.moduleSource !== 'study' ? ' <span class="badge teal">' + esc(d.moduleSource) + '</span>' : '') + '</div>' +
-    '<div class="muted">Added ' + (d.updatedAt ? new Date(d.updatedAt).toLocaleDateString('en-GB') : '—') + '</div></div>' +
-    '<div class="row">' +
-    '<button class="ghost small" onclick="openDoc(\'' + esc(d.id) + '\')">Open</button>' +
-    '<button class="ghost small" onclick="askAbout(\'' + esc(d.id) + '\')">Ask</button>' +
-    '<button class="ghost small" onclick="delDoc(\'' + esc(d.id) + '\')">Delete</button>' +
-    '</div></div>'
-  ).join('');
-  window._docs = docs;
-}
-
-async function loadDocs() {
-  try {
-    const data = await api('/documents');
-    window._allDocs = data.documents || [];
-    renderDocs();
-  } catch (e) {
-    document.getElementById('doc-list').innerHTML = '<div class="muted">Could not load resources.</div>';
-  }
-}
-
-// Notes
-document.getElementById('note-save').addEventListener('click', async () => {
-  const title = document.getElementById('note-title').value.trim();
-  const body = document.getElementById('note-body').value.trim();
-  if (!title && !body) { ARG.toast('Nothing to save.'); return; }
-  try {
-    await api('/documents', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: title || 'Untitled note', type: 'note', content: body, tags: [], moduleSource: document.getElementById('note-module').value })
-    });
-    document.getElementById('note-title').value = '';
-    document.getElementById('note-body').value = '';
-    ARG.toast('Note saved.');
-    loadDocs();
-  } catch (e) { ARG.toast('Could not save the note.'); }
-});
-
-// Watching briefs
+// ── Watching briefs ───────────────────────────────────
 (async function loadWatch() {
   try {
     const d = await api('/news/keywords');
@@ -237,6 +285,7 @@ document.getElementById('watch-save').addEventListener('click', async () => {
   } catch (e) { document.getElementById('watch-status').textContent = 'Could not save.'; }
 });
 
+loadStructure();
 loadDocs();
 </script>
 </body>

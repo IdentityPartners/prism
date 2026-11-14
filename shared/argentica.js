@@ -63,6 +63,8 @@
     { label: 'Messages', href: '/argentica/comms/messages/', key: 'messages' },
     { section: 'System' },
     { label: 'Status', href: '/argentica/system/', key: 'system' },
+    { label: 'Dev Team', href: '/argentica/system/devteam/', key: 'devteam' },
+    { label: 'Agents', href: '/argentica/system/agents/', key: 'agents' },
   ];
 
   function buildShell(activeKey) {

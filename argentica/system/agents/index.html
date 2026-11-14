@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Agents</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="agents">
+  <div class="arg-pagehead">
+    <h1>Agents</h1>
+    <div class="sub">Everyone on the roster — marketing team and your own. Build a new one, or talk to any of them.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>Build an agent</h3>
+      <div class="grid" style="gap:8px;">
+        <input type="text" id="a-name" placeholder="Name — e.g. Research Associate">
+        <textarea id="a-persona" style="min-height:70px;" placeholder="Persona — how it thinks, what it cares about…"></textarea>
+        <input type="text" id="a-tools" placeholder="Tools, comma separated (e.g. web-search, rss, canvas)">
+        <input type="text" id="a-sources" placeholder="Data sources, comma separated (e.g. guardian-rss, ons, pubmed)">
+      </div>
+      <button class="mt" id="a-create">Create agent</button>
+      <div class="muted mt" id="a-status"></div>
+    </div>
+
+    <div class="card">
+      <h3 id="chat-title">Talk to an agent</h3>
+      <div class="muted" style="margin-bottom:8px;">Pick an agent from the roster below, then type here. The conversation persists in KV.</div>
+      <div id="ag-scroll" style="max-height:260px; overflow-y:auto; margin-bottom:12px;"></div>
+      <div class="row">
+        <input type="text" id="ag-input" placeholder="Message…">
+        <button id="ag-send">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <h3>Roster</h3>
+    <div class="item-list" id="roster"><div class="muted">Loading…</div></div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('agents');
+const { api, esc } = ARG;
+
+let activeAgent = null;
+let agents = [];
+
+async function loadAgents() {
+  try {
+    const data = await api('/agents');
+    agents = data.agents || [];
+    const el = document.getElementById('roster');
+    if (!agents.length) { el.innerHTML = '<div class="muted">No agents yet.</div>'; return; }
+    el.innerHTML = agents.map(a =>
+      '<div class="item"><div><div><strong>' + esc(a.name) + '</strong>' +
+      (a.model ? ' <span class="badge teal">' + esc(a.model) + '</span>' : '') + '</div>' +
+      '<div class="muted">' + esc(String(a.persona || '').slice(0, 120)) + '</div></div>' +
+      '<button class="ghost small" onclick="pickAgent(\'' + esc(a.id) + '\')">Talk</button></div>'
+    ).join('');
+  } catch (e) { document.getElementById('roster').innerHTML = '<div class="muted">Could not load agents.</div>'; }
+}
+
+window.pickAgent = id => {
+  activeAgent = id;
+  const a = agents.find(x => x.id === id) || {};
+  document.getElementById('chat-title').textContent = 'Talk to ' + (a.name || 'agent');
+  document.getElementById('ag-scroll').innerHTML = '';
+  document.getElementById('ag-input').focus();
+};
+
+document.getElementById('ag-send').addEventListener('click', async () => {
+  const input = document.getElementById('ag-input');
+  const text = input.value.trim();
+  if (!text) return;
+  if (!activeAgent) { ARG.toast('Pick an agent from the roster first.'); return; }
+  input.value = '';
+  const sc = document.getElementById('ag-scroll');
+  sc.insertAdjacentHTML('beforeend', '<div class="msg user"><div class="who">Simon</div><div class="bubble">' + esc(text) + '</div></div>');
+  try {
+    const r = await api('/marketing/chat/' + encodeURIComponent(activeAgent), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text })
+    });
+    sc.insertAdjacentHTML('beforeend', '<div class="msg gerald"><div class="who">' + esc(r.model || 'agent') + '</div><div class="bubble" style="white-space:pre-wrap;">' + esc(r.reply || 'No response.') + '</div></div>');
+    sc.scrollTop = sc.scrollHeight;
+  } catch (e) { ARG.toast('The agent could not respond: ' + e.message); }
+});
+document.getElementById('ag-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('ag-send').click();
+});
+
+document.getElementById('a-create').addEventListener('click', async () => {
+  const name = document.getElementById('a-name').value.trim();
+  if (!name) { ARG.toast('Give it a name.'); return; }
+  try {
+    await api('/agents', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        persona: document.getElementById('a-persona').value.trim(),
+        tools: document.getElementById('a-tools').value.split(',').map(s => s.trim()).filter(Boolean),
+        dataSources: document.getElementById('a-sources').value.split(',').map(s => s.trim()).filter(Boolean)
+      })
+    });
+    ['a-name', 'a-persona', 'a-tools', 'a-sources'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('a-status').textContent = 'Created.';
+    ARG.toast('Agent created.');
+    loadAgents();
+  } catch (e) { document.getElementById('a-status').textContent = 'Could not create: ' + e.message; }
+});
+
+loadAgents();
+</script>
+</body>
+</html>

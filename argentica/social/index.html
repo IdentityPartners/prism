@@ -17,24 +17,9 @@
     <div class="card">
       <h3>New canvas post</h3>
       <label class="muted">Topic or quote</label>
-      <textarea id="topic" placeholder="e.g. today's ONS figures on alcohol deaths, or a line about recovery" style="margin:4px 0 10px;"></textarea>
-      <div class="row" style="margin-bottom:10px;">
-        <div style="flex:1;"><label class="muted">Type</label>
-          <select id="type" style="margin-top:4px;">
-            <option value="quote">Quote card</option>
-            <option value="news-reaction">News reaction</option>
-            <option value="stat">Statistic highlight</option>
-            <option value="awareness-day">Awareness day</option>
-            <option value="myth-vs-fact">Myth vs fact</option>
-            <option value="data-infographic">Data infographic</option>
-          </select></div>
-        <div style="flex:1;"><label class="muted">Variant</label>
-          <select id="variant" style="margin-top:4px;">
-            <option value="teal">Teal</option>
-            <option value="rose">Rose</option>
-            <option value="ivory">Ivory</option>
-          </select></div>
-      </div>
+      <textarea id="topic" placeholder="e.g. today's ONS figures on alcohol deaths, or a line about recovery" style="margin:4px 0 12px;"></textarea>
+      <label class="muted">Template</label>
+      <div class="row" id="tpl-grid" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
       <button id="gen">Generate canvas</button>
       <div class="muted mt" id="gen-status"></div>
       <div id="gen-preview" class="mt"></div>
@@ -95,6 +80,38 @@ const { api, esc } = ARG;
 const TAGS = '\n\n#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nhello@identitypartners.uk | www.identitypartners.uk/contact';
 let lastImageUrl = null;
 
+// ── Template gallery ────────────────────────────────
+const TEMPLATES = [
+  { id: 'block-teal', label: 'Quote · Teal', hint: 'text-dominant quote card' },
+  { id: 'block-rose', label: 'Quote · Rose', hint: 'quote card, rose palette' },
+  { id: 'block-ivory', label: 'Quote · Ivory', hint: 'quote card, ivory palette' },
+  { id: 'stat', label: 'Statistic highlight', hint: 'large number, context, source' },
+  { id: 'news-reaction', label: 'News reaction', hint: 'headline + commentary + credit' },
+  { id: 'myth-vs-fact-teal', label: 'Myth vs Fact · Teal', hint: 'two-panel correction' },
+  { id: 'myth-vs-fact-ivory', label: 'Myth vs Fact · Ivory', hint: 'two-panel correction' },
+  { id: 'data-infographic', label: 'Data infographic', hint: 'multiple data points' },
+  { id: 'awareness-day', label: 'Awareness day', hint: 'event name + date + imagery' },
+  { id: 'awareness-day-rose', label: 'Awareness day · Rose', hint: 'rose variant' },
+  { id: 'service-explainer', label: 'Service explainer', hint: 'what you offer, for whom' },
+  { id: 'semantic-teal', label: 'Photographic · Teal', hint: 'real photo background' },
+  { id: 'semantic-rose', label: 'Photographic · Rose', hint: 'real photo background' },
+  { id: 'semantic-dark', label: 'Photographic · Dark', hint: 'real photo background' },
+  { id: 'testimonial-teal', label: 'Testimonial · Teal', hint: 'quote + attribution' },
+  { id: 'dual-partnership', label: 'Side by side', hint: 'image left, text right' },
+  { id: 'img-landscape', label: 'Landscape photo', hint: 'photograph with caption' }
+];
+let activeTemplate = 'block-teal';
+const tplGrid = document.getElementById('tpl-grid');
+tplGrid.innerHTML = TEMPLATES.map(t =>
+  '<button class="ghost small tpl" data-id="' + t.id + '" title="' + esc(t.hint) + '">' + t.label + '</button>'
+).join('');
+tplGrid.querySelector('.tpl').classList.add('active');
+tplGrid.querySelectorAll('.tpl').forEach(b => b.addEventListener('click', () => {
+  tplGrid.querySelectorAll('.tpl').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  activeTemplate = b.dataset.id;
+}));
+
 document.getElementById('gen').addEventListener('click', async () => {
   const btn = document.getElementById('gen');
   const status = document.getElementById('gen-status');
@@ -107,8 +124,7 @@ document.getElementById('gen').addEventListener('click', async () => {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         topic, text: topic,
-        type: document.getElementById('type').value,
-        variant: document.getElementById('variant').value,
+        template: activeTemplate,
         platform: 'instagram', skipQueue: true
       })
     });
