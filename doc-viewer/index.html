@@ -154,15 +154,36 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadDocumentFromParams(id, name, type, url) {
-  // Try localStorage (Study Hub)
+  // If URL is provided directly, use it immediately (R2 URLs, Drive URLs etc)
+  if (url) {
+    var decodedUrl = decodeURIComponent(url);
+    var decodedName = decodeURIComponent(name || 'Document');
+    var ext = decodedName.split('.').pop().toLowerCase();
+    var stableId = id || ('url-' + btoa(decodedUrl).replace(/[^a-zA-Z0-9]/g,'').substring(0,20));
+    loadDocument({id: stableId, name: decodedName, type: type || ext, url: decodedUrl, content: ''});
+    return;
+  }
+  // Try localStorage (Study Hub) — search all resource locations
   try {
     var modules = JSON.parse(localStorage.getItem('study:modules') || '[]');
     for (var i = 0; i < modules.length; i++) {
       var m = modules[i];
+      // Search weeks
       for (var j = 0; j < (m.weeks || []).length; j++) {
         var w = m.weeks[j];
         for (var k = 0; k < (w.resources || []).length; k++) {
           var res = w.resources[k];
+          if (res.id === id || res.name === decodeURIComponent(name || '')) {
+            loadDocument(res);
+            return;
+          }
+        }
+      }
+      // Search sections (dissertation/self-led)
+      for (var j = 0; j < (m.sections || []).length; j++) {
+        var s = m.sections[j];
+        for (var k = 0; k < (s.resources || []).length; k++) {
+          var res = s.resources[k];
           if (res.id === id || res.name === decodeURIComponent(name || '')) {
             loadDocument(res);
             return;
