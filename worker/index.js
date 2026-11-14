@@ -21,6 +21,7 @@
 function cors(origin) {
   const allowed = [
     'https://prism.identitypartners.uk',
+    'https://arch.identitypartners.uk',
     'https://argentica.identitypartners.uk',
     'https://www.identitypartners.uk',
   ];
@@ -1668,9 +1669,9 @@ async function fetchBufferChannels(env) {
   const bufferKey = k(env, ['buffer_api_key','BUFFER_API_KEY']) || '';
   if (!bufferKey) return { error: 'No Buffer API key' };
   try {
-    const resp = await fetch('https://api.bufferapp.com/1/profiles.json', {
-      headers: { Authorization: `Bearer ${bufferKey}` }
-    });
+    // Buffer API v1 authenticates with an access_token query parameter —
+    // it does not accept Bearer headers, which returned 401 regardless of key
+    const resp = await fetch('https://api.bufferapp.com/1/profiles.json?access_token=' + encodeURIComponent(bufferKey));
     if (!resp.ok) return { error: `Buffer API ${resp.status}` };
     const profiles = await resp.json();
     const channels = {};
