@@ -97,7 +97,7 @@ async function loadQueue() {
     el.innerHTML = q.map(i =>
       '<div class="item">' +
       '<div style="min-width:0;">' +
-      (i.imageUrl ? '<img src="' + esc(i.imageUrl) + '" style="max-width:90px; border-radius:6px; float:left; margin-right:12px;">' : '') +
+      (i.imageUrl ? '<img src="/api/r2/file?key=' + encodeURIComponent(String(i.imageUrl).replace(/^https:\/\/[^/]+\//, '')) + '" style="max-width:90px; border-radius:6px; float:left; margin-right:12px;" onerror="this.remove()">' : '') +
       '<div>' + esc(String(i.text || '').split('\n')[0].slice(0, 140)) + '</div>' +
       '<div class="muted">' + esc((i.platforms || []).join(', ')) + ' · ' + (i.status === 'scheduled' ? 'scheduled' : 'pending') + '</div></div>' +
       '<div class="row">' +
