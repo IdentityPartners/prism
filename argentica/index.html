@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Home</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="home">
+
+  <div class="home-hero" id="hero">
+    <img class="bg" id="hero-img" alt="">
+    <div class="veil"></div>
+    <img class="logo" src="/shared/assets/logo-square.png" alt="Identity Partners">
+    <div class="inner">
+      <div class="greet" id="greet">Good morning, Simon.</div>
+      <div class="date" id="hero-date"></div>
+    </div>
+    <div class="credit" id="hero-credit"></div>
+  </div>
+
+  <div class="grid" style="grid-template-columns: 3fr 2fr;">
+    <div style="display:flex; flex-direction:column; gap:16px;">
+
+      <div class="card">
+        <h3><span class="dot on"></span>What are we working on?</h3>
+        <div class="row">
+          <textarea id="quick-chat" placeholder="Ask Gerald anything, or start a task…"></textarea>
+        </div>
+        <div class="row mt" style="justify-content:space-between;">
+          <div class="row" style="gap:8px; flex-wrap:wrap;">
+            <button class="ghost small" onclick="location.href='/argentica/research/'">Research</button>
+            <button class="ghost small" onclick="location.href='/argentica/social/'">New canvas</button>
+            <button class="ghost small" onclick="location.href='/argentica/study/'">Study</button>
+          </div>
+          <button id="quick-send">Speak to Gerald</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>In the press today</h3>
+        <div class="item-list" id="news-list"><div class="muted">Loading approved sources…</div></div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      <div class="card">
+        <h3><span class="dot" id="cal-dot"></span>Calendar</h3>
+        <div id="cal-body"><div class="muted">Checking today's diary…</div></div>
+      </div>
+      <div class="card">
+        <h3>Social</h3>
+        <div id="social-body"><div class="muted">Checking the queue…</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('home');
+const { api, esc } = ARG;
+
+// Greeting + date
+(function () {
+  const h = new Date().getHours();
+  document.getElementById('greet').textContent =
+    'Good ' + (h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening') + ', Simon.';
+  document.getElementById('hero-date').textContent =
+    new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+})();
+
+// Photographic header — Pexels via worker, one query per weekday, never repeats within a week
+(async function () {
+  const queries = ['calm seascape dawn', 'scottish highlands mist', 'english coastline morning',
+    'quiet forest canopy', 'lake district hills', 'open sky clouds', 'autumn woodland path'];
+  const q = queries[new Date().getDay() % queries.length];
+  try {
+    const data = await api('/image-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, limit: 12 })
+    });
+    const photos = data.results || [];
+    if (photos.length) {
+      const seen = JSON.parse(localStorage.getItem('arg:hero-seen') || '[]');
+      const fresh = photos.filter(p => !seen.includes(p.id));
+      const pick = (fresh.length ? fresh : photos)[Math.floor(Math.random() * (fresh.length ? fresh.length : photos.length))];
+      document.getElementById('hero-img').src = pick.src && (pick.src.landscape || pick.src.large || pick.src.original);
+      document.getElementById('hero-credit').textContent = 'Photo: ' + (pick.photographer || 'unknown') + ' · Pexels';
+      localStorage.setItem('arg:hero-seen', JSON.stringify(seen.concat([pick.id]).slice(-40)));
+    }
+  } catch (e) {
+    document.getElementById('hero-credit').textContent = 'Header image unavailable';
+  }
+})();
+
+// Calendar
+(async function () {
+  try {
+    const cal = await api('/google/calendar');
+    const body = document.getElementById('cal-body');
+    if (cal.status !== 'ok' || (!cal.today.length && !cal.week.length)) {
+      document.getElementById('cal-dot').classList.remove('on');
+      body.innerHTML = '<div class="muted">' + (cal.status === 'ok' ? 'Nothing in the diary for the next fortnight.' : 'Google Calendar not connected. Reconnect from System → Status.') + '</div>';
+      return;
+    }
+    const fmt = t => new Date(t).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const evs = (cal.today || []).map(e => '<div class="item"><div><div>' + esc(e.title) + '</div><div class="muted">Today · ' + fmt(e.starts_at) + '</div></div></div>')
+      .concat((cal.week || []).slice(0, 5).map(e => '<div class="item"><div><div>' + esc(e.title) + '</div><div class="muted">' + fmt(e.starts_at) + '</div></div></div>'));
+    body.innerHTML = '<div class="item-list">' + evs.join('') + '</div>';
+  } catch (e) {
+    document.getElementById('cal-body').innerHTML = '<div class="muted">Calendar unavailable.</div>';
+  }
+})();
+
+// News — Guardian society + BBC health RSS via worker proxy
+(async function () {
+  const feeds = [
+    'https://www.theguardian.com/uk/society/rss',
+    'https://feeds.bbci.co.uk/news/health/rss.xml'
+  ];
+  const kw = ['mental health', 'addiction', 'recovery', 'nhs', 'trauma', 'drug', 'alcohol', 'therapy', 'wellbeing', 'disability', 'poverty', 'inequality'];
+  const items = [];
+  await Promise.all(feeds.map(async url => {
+    try {
+      const res = await fetch('/api/rss?url=' + encodeURIComponent(url));
+      const text = await res.text();
+      const doc = new DOMParser().parseFromString(text, 'text/xml');
+      doc.querySelectorAll('item, entry').forEach(it => {
+        const title = (it.querySelector('title') || {}).textContent || '';
+        const link = (it.querySelector('link') || {}).textContent || (it.querySelector('link') || {}).getAttribute && (it.querySelector('link') || {}).getAttribute('href') || '';
+        const desc = ((it.querySelector('description') || {}).textContent || '').replace(/<[^>]*>/g, '').slice(0, 160);
+        if (kw.some(k => (title + ' ' + desc).toLowerCase().includes(k))) items.push({ title, link, desc });
+      });
+    } catch (e) {}
+  }));
+  const el = document.getElementById('news-list');
+  if (!items.length) { el.innerHTML = '<div class="muted">Nothing relevant from approved sources today.</div>'; return; }
+  el.innerHTML = items.slice(0, 6).map(n =>
+    '<div class="item"><div><a href="' + esc(n.link) + '" target="_blank" rel="noopener">' + esc(n.title) + '</a><div class="muted">' + esc(n.desc) + '</div></div></div>'
+  ).join('');
+})();
+
+// Social status
+(async function () {
+  try {
+    const data = await api('/mm/queue');
+    const q = data.queue || [];
+    const counts = data.counts || {};
+    const pending = q.filter(i => (i.status || 'pending') === 'pending');
+    const posted = q.filter(i => i.status === 'posted');
+    const last = posted[posted.length - 1];
+    document.getElementById('social-body').innerHTML =
+      '<div class="row" style="gap:6px; flex-wrap:wrap;">' +
+      '<span class="badge teal">' + (counts.pending || pending.length) + ' awaiting approval</span>' +
+      '<span class="badge green">' + (counts.posted || posted.length) + ' posted</span>' +
+      '<span class="badge">' + (counts.scheduled || 0) + ' scheduled</span></div>' +
+      (last ? '<div class="muted mt">Last post: ' + esc((last.platforms || []).join(', ') || '—') + ' · ' + new Date(last.createdAt).toLocaleDateString('en-GB') + '</div>' : '<div class="muted mt">No posts yet.</div>') +
+      '<div class="mt"><button class="ghost small" onclick="location.href=\'/argentica/social/\'">Review the queue</button></div>';
+  } catch (e) {
+    document.getElementById('social-body').innerHTML = '<div class="muted">Queue unavailable.</div>';
+  }
+})();
+
+// Quick chat → hand off to Gerald
+document.getElementById('quick-send').addEventListener('click', () => {
+  const v = document.getElementById('quick-chat').value.trim();
+  if (v) sessionStorage.setItem('arg:pending-prompt', v);
+  location.href = '/argentica/chat/';
+});
+</script>
+</body>
+</html>

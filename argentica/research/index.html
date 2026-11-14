@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Research</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="research">
+  <div class="arg-pagehead">
+    <h1>Research</h1>
+    <div class="sub">Scholarly sources and the wider web, searched in parallel. Abbreviations are expanded before firing.</div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <input type="text" id="q" placeholder="e.g. disability benefits media framing UK, PTSD treatment outcomes, zemiological harm…">
+      <button id="run">Search</button>
+    </div>
+    <div class="row mt" style="flex-wrap:wrap; gap:8px;">
+      <button class="ghost small mode active" data-mode="scholarly">Academic sources</button>
+      <button class="ghost small mode" data-mode="web">Web &amp; press</button>
+      <button class="ghost small mode" data-mode="both">Both</button>
+      <span class="muted" id="search-note" style="margin-left:auto;"></span>
+    </div>
+  </div>
+
+  <div class="mt" id="results"></div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('research');
+const { api, esc } = ARG;
+
+let mode = 'scholarly';
+const ABBR = { PTSD: 'post-traumatic stress disorder', CBT: 'cognitive behavioural therapy', NHS: 'National Health Service',
+  ONS: 'Office for National Statistics', MAT: 'medication assisted treatment', SUD: 'substance use disorder',
+  ACE: 'adverse childhood experiences', DBT: 'dialectical behaviour therapy', GAM: 'gambling' };
+
+document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.mode').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  mode = b.dataset.mode;
+}));
+
+function expand(q) {
+  return q.split(/\s+/).map(w => ABBR[w.toUpperCase()] ? ABBR[w.toUpperCase()] + ' (' + w + ')' : w).join(' ');
+}
+
+function resultCard(r) {
+  const badge = r._type === 'academic' ? '<span class="badge teal">' + esc(r.source) + '</span>' : '<span class="badge">' + esc(r.source) + '</span>';
+  const meta = [r.authors, r.year, r.venue, r.citations != null ? r.citations + ' citations' : null, r.published_date]
+    .filter(Boolean).map(esc).join(' · ');
+  return '<div class="item"><div style="min-width:0;">' +
+    '<div><a href="' + esc(r.url || '#') + '" target="_blank" rel="noopener">' + esc(r.title || 'Untitled') + '</a> ' + badge + '</div>' +
+    '<div class="muted">' + (meta ? meta + '<br>' : '') + esc(String(r.content || '').slice(0, 220)) + '</div></div>' +
+    '<button class="ghost small" onclick="saveRes(this)" data-title="' + esc(r.title || '') + '" data-url="' + esc(r.url || '') + '">Save</button></div>';
+}
+
+window.saveRes = async btn => {
+  try {
+    await api('/documents', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: btn.dataset.title, type: 'reference', content: btn.dataset.url, tags: ['research'], moduleSource: 'phd' })
+    });
+    btn.textContent = 'Saved'; btn.disabled = true;
+    ARG.toast('Saved to your resources.');
+  } catch (e) { ARG.toast('Could not save.'); }
+};
+
+document.getElementById('run').addEventListener('click', async () => {
+  const raw = document.getElementById('q').value.trim();
+  if (!raw) return;
+  const q = expand(raw);
+  const out = document.getElementById('results');
+  const note = document.getElementById('search-note');
+  out.innerHTML = '<div class="card"><div class="muted">Searching…</div></div>';
+  note.textContent = 'Firing sources in parallel.';
+  const all = [];
+  const jobs = [];
+  if (mode === 'scholarly' || mode === 'both') jobs.push(
+    api('/research/scholarly', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, sources: ['semantic_scholar', 'openalex', 'pubmed', 'crossref', 'core', 'arxiv', 'europe_pmc'] }) })
+    .then(d => { const r = d.results || d.sources || []; (Array.isArray(r) ? r : Object.values(r)).forEach(s => (s.items || []).forEach(i => all.push(i))); })
+    .catch(() => {})
+  );
+  if (mode === 'web' || mode === 'both') jobs.push(
+    api('/search', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, sources: ['tavily', 'brave', 'exa'] }) })
+    .then(d => { const r = d.results || d.sources || []; (Array.isArray(r) ? r : Object.values(r)).forEach(s => (s.items || []).forEach(i => all.push(i))); })
+    .catch(() => {})
+  );
+  await Promise.all(jobs);
+  const seen = new Set();
+  const uniq = all.filter(r => { const k = (r.url || r.title || '').replace(/[#?].*$/, ''); if (seen.has(k)) return false; seen.add(k); return true; });
+  note.textContent = uniq.length + ' results.';
+  out.innerHTML = uniq.length
+    ? '<div class="card"><h3>Results</h3><div class="item-list">' + uniq.slice(0, 60).map(resultCard).join('') + '</div></div>'
+    : '<div class="card"><div class="muted">Nothing found. Try widening the phrasing, or switch modes.</div></div>';
+});
+</script>
+</body>
+</html>

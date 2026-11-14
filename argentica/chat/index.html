@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Gerald</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="chat" style="max-width:none; padding:20px 24px 0;">
+  <div class="chat-wrap">
+
+    <div class="chat-left card" style="padding:12px;">
+      <div class="spread" style="margin-bottom:8px;">
+        <h3 style="margin:0; font-size:14px;">Threads</h3>
+        <button class="ghost small" id="new-thread">+ New</button>
+      </div>
+      <div id="thread-list" style="overflow-y:auto; flex:1;"><div class="muted">Loading…</div></div>
+    </div>
+
+    <div class="chat-centre">
+      <div class="arg-pagehead" style="margin-bottom:10px;">
+        <h1 style="font-size:20px;">Gerald</h1>
+        <div class="sub">Sardonic, precise, direct. He speaks to you, not about you.</div>
+      </div>
+      <div class="chat-scroll" id="chat-scroll"></div>
+      <div class="chat-inputbar">
+        <div class="osk-strip" id="osk"></div>
+        <textarea id="chat-input" placeholder="Say something…"></textarea>
+        <button id="send">Send</button>
+      </div>
+    </div>
+
+    <div class="chat-right" style="display:flex; flex-direction:column; gap:16px;">
+      <div class="card" style="padding:14px 16px;">
+        <h3 style="font-size:14px; margin-bottom:8px;">Routing</h3>
+        <label class="muted" for="profile">Profile</label>
+        <select id="profile" style="margin:4px 0 10px;">
+          <option value="balanced">Balanced</option>
+          <option value="fast">Fast</option>
+          <option value="research">Research</option>
+          <option value="coding">Coding</option>
+          <option value="vision">Vision</option>
+        </select>
+        <div class="muted">Last response</div>
+        <div id="last-model" style="font-size:13px; margin:2px 0 10px;">—</div>
+        <div class="muted">Routing log</div>
+        <div id="route-log" style="font-size:12px; margin-top:4px; color:var(--ink-soft);">Nothing yet this session.</div>
+      </div>
+      <div class="card" style="padding:14px 16px;">
+        <h3 style="font-size:14px; margin-bottom:8px;">Actions</h3>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <button class="ghost small" id="act-save">Save last to memory</button>
+          <button class="ghost small" onclick="location.href='/argentica/research/'">Open research</button>
+          <button class="ghost small" onclick="location.href='/argentica/social/'">Refract to social</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('chat');
+const { api, esc, md } = ARG;
+
+let threadId = null;
+let messages = [];
+
+const scroll = document.getElementById('chat-scroll');
+const input = document.getElementById('chat-input');
+
+function renderMsg(role, content) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + (role === 'user' ? 'user' : 'gerald');
+  div.innerHTML = '<div class="who">' + (role === 'user' ? 'Simon' : 'Gerald') + '</div><div class="bubble">' + md(content) + '</div>';
+  scroll.appendChild(div);
+  scroll.scrollTop = scroll.scrollHeight;
+  return div.querySelector('.bubble');
+}
+
+// OSK strip — stylus corrections
+const osk = document.getElementById('osk');
+['⌫', '⏎', '.', ',', '?', '!', "'", '-'].forEach(ch => {
+  const b = document.createElement('button');
+  b.textContent = ch;
+  b.className = 'osk-strip-key';
+  b.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (ch === '⌫') {
+      const s = input.selectionStart;
+      if (s > 0) { input.value = input.value.slice(0, s - 1) + input.value.slice(input.selectionEnd); input.selectionStart = input.selectionEnd = s - 1; }
+    } else if (ch === '⏎') {
+      const s = input.selectionStart;
+      input.value = input.value.slice(0, s) + '\n' + input.value.slice(input.selectionEnd);
+      input.selectionStart = input.selectionEnd = s + 1;
+    } else {
+      const s = input.selectionStart;
+      input.value = input.value.slice(0, s) + ch + input.value.slice(input.selectionEnd);
+      input.selectionStart = input.selectionEnd = s + 1;
+    }
+    input.focus();
+  });
+  osk.appendChild(b);
+});
+
+// Threads
+async function loadThreads() {
+  try {
+    const data = await api('/threads');
+    const list = document.getElementById('thread-list');
+    list.innerHTML = (data.threads || []).map(t =>
+      '<div class="thread-item' + (t.id === threadId ? ' active' : '') + '" data-id="' + esc(t.id) + '">' + esc(t.title || 'Conversation') + '</div>'
+    ).join('') || '<div class="muted">No conversations yet.</div>';
+    list.querySelectorAll('.thread-item').forEach(el => el.addEventListener('click', () => openThread(el.dataset.id)));
+  } catch (e) {}
+}
+
+async function openThread(id) {
+  try {
+    const t = await api('/threads/' + encodeURIComponent(id));
+    threadId = t.id;
+    messages = (t.messages || []).filter(m => m.role === 'user' || m.role === 'assistant');
+    scroll.innerHTML = '';
+    messages.forEach(m => renderMsg(m.role, m.content));
+    loadThreads();
+  } catch (e) { ARG.toast('Could not open that conversation.'); }
+}
+
+document.getElementById('new-thread').addEventListener('click', () => {
+  threadId = null; messages = []; scroll.innerHTML = '';
+  loadThreads(); input.focus();
+});
+
+// Send via SSE
+async function send() {
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  renderMsg('user', text);
+  messages.push({ role: 'user', content: text });
+
+  const log = document.getElementById('route-log');
+  log.textContent = 'Connecting…';
+
+  const bubble = renderMsg('assistant', '…');
+  let acc = '';
+  let thinkEl = null;
+
+  try {
+    const res = await fetch('/api/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages, profile: document.getElementById('profile').value, threadId })
+    });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) >= 0) {
+        const frame = buf.slice(0, idx); buf = buf.slice(idx + 2);
+        const evM = frame.match(/^event: (.+)$/m);
+        const dtM = frame.match(/^data: (.+)$/m);
+        if (!evM || !dtM) continue;
+        const ev = evM[1], data = JSON.parse(dtM[1]);
+        if (ev === 'status') { log.textContent = data.message || data.status; }
+        if (ev === 'thinking' && data.text) {
+          if (!thinkEl) {
+            thinkEl = document.createElement('div');
+            thinkEl.className = 'thinking';
+            thinkEl.innerHTML = '<details><summary>Thinking</summary><div></div></details>';
+            bubble.parentElement.insertBefore(thinkEl, bubble.parentElement);
+          }
+          thinkEl.querySelector('div').textContent = data.text.slice(0, 800);
+        }
+        if (ev === 'token') { acc += data.text; bubble.innerHTML = md(acc); scroll.scrollTop = scroll.scrollHeight; }
+        if (ev === 'done') {
+          acc = data.content || acc;
+          bubble.innerHTML = md(acc);
+          threadId = data.threadId || threadId;
+          document.getElementById('last-model').textContent = (data.provider || '?') + ' · ' + (data.model || '?');
+          log.textContent = 'Responded via ' + (data.provider || 'unknown') + '.';
+          messages.push({ role: 'assistant', content: acc });
+          loadThreads();
+        }
+        if (ev === 'error') { bubble.innerHTML = '<span class="muted">' + esc(data.error || 'Something went wrong.') + '</span>'; log.textContent = 'Error: ' + (data.error || ''); }
+      }
+    }
+  } catch (e) {
+    bubble.innerHTML = '<span class="muted">No response — the connection dropped. Try again.</span>';
+    log.textContent = 'Connection failed.';
+  }
+}
+
+document.getElementById('send').addEventListener('click', send);
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+document.getElementById('act-save').addEventListener('click', async () => {
+  const last = [...messages].reverse().find(m => m.role === 'assistant');
+  if (!last) { ARG.toast('Nothing to save yet.'); return; }
+  try {
+    await api('/memory/about-me', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: last.content.slice(0, 1000) })
+    });
+    ARG.toast('Saved to memory.');
+  } catch (e) { ARG.toast('Could not save to memory.'); }
+});
+
+// Pending prompt handed over from Home
+const pending = sessionStorage.getItem('arg:pending-prompt');
+if (pending) {
+  sessionStorage.removeItem('arg:pending-prompt');
+  input.value = pending;
+  send();
+} else {
+  loadThreads();
+}
+</script>
+</body>
+</html>

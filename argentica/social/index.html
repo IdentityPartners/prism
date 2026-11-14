@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Social</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="social">
+  <div class="arg-pagehead">
+    <h1>Social</h1>
+    <div class="sub">Generate a branded canvas, review the queue, approve and post. Every post carries the tags and footer automatically.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>New canvas post</h3>
+      <label class="muted">Topic or quote</label>
+      <textarea id="topic" placeholder="e.g. today's ONS figures on alcohol deaths, or a line about recovery" style="margin:4px 0 10px;"></textarea>
+      <div class="row" style="margin-bottom:10px;">
+        <div style="flex:1;"><label class="muted">Type</label>
+          <select id="type" style="margin-top:4px;">
+            <option value="quote">Quote card</option>
+            <option value="news-reaction">News reaction</option>
+            <option value="stat">Statistic highlight</option>
+            <option value="awareness-day">Awareness day</option>
+            <option value="myth-vs-fact">Myth vs fact</option>
+            <option value="data-infographic">Data infographic</option>
+          </select></div>
+        <div style="flex:1;"><label class="muted">Variant</label>
+          <select id="variant" style="margin-top:4px;">
+            <option value="teal">Teal</option>
+            <option value="rose">Rose</option>
+            <option value="ivory">Ivory</option>
+          </select></div>
+      </div>
+      <button id="gen">Generate canvas</button>
+      <div class="muted mt" id="gen-status"></div>
+      <div id="gen-preview" class="mt"></div>
+    </div>
+
+    <div class="card">
+      <h3>Compose &amp; queue</h3>
+      <label class="muted">Caption (Simon's voice — tags and footer are appended on posting)</label>
+      <textarea id="caption" style="margin:4px 0 10px; min-height:80px;" placeholder="Write the post text…"></textarea>
+      <label class="muted">Platforms</label>
+      <div class="row mt" style="flex-wrap:wrap; gap:12px; margin:4px 0 12px;">
+        <label><input type="checkbox" class="plat" value="bluesky" checked> Bluesky</label>
+        <label><input type="checkbox" class="plat" value="linkedin"> LinkedIn</label>
+        <label><input type="checkbox" class="plat" value="telegram"> Telegram</label>
+      </div>
+      <button id="queue-btn">Queue for approval</button>
+      <div class="muted mt">Mandatory on every post: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing · hello@identitypartners.uk | www.identitypartners.uk/contact</div>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <h3>Awaiting your approval</h3>
+    <div class="item-list" id="queue-list"><div class="muted">Loading…</div></div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('social');
+const { api, esc } = ARG;
+
+const TAGS = '\n\n#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nhello@identitypartners.uk | www.identitypartners.uk/contact';
+let lastImageUrl = null;
+
+document.getElementById('gen').addEventListener('click', async () => {
+  const btn = document.getElementById('gen');
+  const status = document.getElementById('gen-status');
+  const topic = document.getElementById('topic').value.trim();
+  if (!topic) { ARG.toast('Give it a topic or a line first.'); return; }
+  btn.disabled = true;
+  status.textContent = 'Finding a photographic background and rendering the canvas…';
+  try {
+    const data = await api('/canvas/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topic, text: topic,
+        type: document.getElementById('type').value,
+        variant: document.getElementById('variant').value,
+        platform: 'instagram', skipQueue: true
+      })
+    });
+    const urls = data.urls || (data.url ? [data.url] : []);
+    if (urls.length) {
+      lastImageUrl = urls[0];
+      document.getElementById('gen-preview').innerHTML =
+        urls.map(u => '<img src="' + esc(u) + '" style="max-width:100%; border-radius:8px; border:1px solid var(--line); margin-bottom:8px;">').join('') +
+        '<button class="ghost small" id="use-canvas">Use in queued post</button>';
+      document.getElementById('use-canvas').addEventListener('click', () => {
+        ARG.toast('Canvas attached. Write the caption and queue it.');
+        document.getElementById('caption').focus();
+      });
+      status.textContent = 'Canvas ready.';
+    } else {
+      status.textContent = 'Generated, but no image URL came back: ' + esc(data.error || 'try again.');
+    }
+  } catch (e) { status.textContent = 'Generation failed: ' + esc(e.message); }
+  btn.disabled = false;
+});
+
+document.getElementById('queue-btn').addEventListener('click', async () => {
+  const text = document.getElementById('caption').value.trim();
+  const platforms = [...document.querySelectorAll('.plat:checked')].map(c => c.value);
+  if (!text) { ARG.toast('Write the caption first.'); return; }
+  if (!platforms.length) { ARG.toast('Choose at least one platform.'); return; }
+  try {
+    await api('/mm/queue', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text + TAGS, platforms, imageUrl: lastImageUrl, source: 'compose' })
+    });
+    document.getElementById('caption').value = '';
+    ARG.toast('Queued for approval.');
+    loadQueue();
+  } catch (e) { ARG.toast('Could not queue: ' + e.message); }
+});
+
+async function loadQueue() {
+  const el = document.getElementById('queue-list');
+  try {
+    const data = await api('/mm/queue');
+    const q = (data.queue || []).filter(i => i.status === 'pending' || i.status === 'scheduled');
+    if (!q.length) { el.innerHTML = '<div class="muted">Nothing waiting. Generate a canvas or compose a post.</div>'; return; }
+    el.innerHTML = q.map(i =>
+      '<div class="item">' +
+      '<div style="min-width:0;">' +
+      (i.imageUrl ? '<img src="' + esc(i.imageUrl) + '" style="max-width:90px; border-radius:6px; float:left; margin-right:12px;">' : '') +
+      '<div>' + esc(String(i.text || '').split('\n')[0].slice(0, 140)) + '</div>' +
+      '<div class="muted">' + esc((i.platforms || []).join(', ')) + ' · ' + (i.status === 'scheduled' ? 'scheduled' : 'pending') + '</div></div>' +
+      '<div class="row">' +
+      (i.status === 'pending' ? '<button class="small" onclick="approve(\'' + esc(i.id) + '\')">Post now</button>' : '') +
+      '<button class="ghost small" onclick="reject(\'' + esc(i.id) + '\')">Reject</button>' +
+      '</div></div>'
+    ).join('');
+  } catch (e) { el.innerHTML = '<div class="muted">Could not load the queue.</div>'; }
+}
+
+window.approve = async id => {
+  try {
+    const r = await api('/mm/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId: id }) });
+    ARG.toast('Posted.' + (r.errors && Object.keys(r.errors).length ? ' Some platforms reported problems.' : ''));
+    loadQueue();
+  } catch (e) { ARG.toast('Posting failed: ' + e.message); }
+};
+window.reject = async id => {
+  try {
+    await api('/mm/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId: id, action: 'reject' }) });
+    ARG.toast('Rejected.'); loadQueue();
+  } catch (e) { ARG.toast('Could not reject.'); }
+};
+
+loadQueue();
+</script>
+</body>
+</html>

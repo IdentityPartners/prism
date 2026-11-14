@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Study</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="study">
+  <div class="arg-pagehead">
+    <h1>Study</h1>
+    <div class="sub">Your papers, readings and notes. Uploaded files live in R2 and open in the viewer for stylus annotation.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>Upload</h3>
+      <div id="drop" style="border:1.5px dashed var(--grey); border-radius:10px; padding:26px; text-align:center; cursor:pointer;">
+        <div style="font-family:var(--serif); font-size:16px; color:var(--teal);">Drop a PDF, DOCX or image here</div>
+        <div class="muted mt">or tap to choose a file</div>
+        <input type="file" id="file" accept=".pdf,.docx,.pptx,image/*,audio/*" hidden>
+      </div>
+      <div id="upload-status" class="muted mt"></div>
+    </div>
+
+    <div class="card">
+      <h3>Find</h3>
+      <div class="row">
+        <input type="text" id="study-search" placeholder="Search across your resources and notes…">
+        <button id="study-search-btn">Search</button>
+      </div>
+      <div id="search-results" class="mt"></div>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <h3>Resources</h3>
+    <div class="item-list" id="doc-list"><div class="muted">Loading…</div></div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('study');
+const { api, esc } = ARG;
+
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.style.borderColor = 'var(--teal)'; });
+drop.addEventListener('dragleave', () => drop.style.borderColor = 'var(--grey)');
+drop.addEventListener('drop', e => { e.preventDefault(); drop.style.borderColor = 'var(--grey)'; if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) upload(fileInput.files[0]); });
+
+async function upload(file) {
+  const status = document.getElementById('upload-status');
+  status.textContent = 'Uploading "' + file.name + '"…';
+  try {
+    const buf = await file.arrayBuffer();
+    let bin = '';
+    const bytes = new Uint8Array(buf);
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    const key = 'study/' + Date.now() + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const up = await api('/r2/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, content: btoa(bin), mimeType: file.type || 'application/octet-stream', fileName: file.name })
+    });
+    await api('/documents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: file.name, type: file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'file', content: up.url, tags: [], moduleSource: 'study' })
+    });
+    status.textContent = 'Uploaded. "' + file.name + '" is in your resources.';
+    ARG.toast('Uploaded to R2.');
+    loadDocs();
+  } catch (e) {
+    status.textContent = 'Upload failed: ' + e.message;
+  }
+}
+
+async function loadDocs() {
+  try {
+    const data = await api('/documents');
+    const docs = (data.documents || []).filter(d => d.moduleSource === 'study' || (d.content || '').includes('r2.dev'));
+    const el = document.getElementById('doc-list');
+    if (!docs.length) { el.innerHTML = '<div class="muted">Nothing uploaded yet. Your readings will appear here.</div>'; return; }
+    el.innerHTML = docs.map(d =>
+      '<div class="item">' +
+      '<div><div>' + esc(d.title) + ' <span class="badge">' + esc(d.type) + '</span></div>' +
+      '<div class="muted">Added ' + (d.updatedAt ? new Date(d.updatedAt).toLocaleDateString('en-GB') : '—') + '</div></div>' +
+      '<div class="row">' +
+      '<button class="ghost small" onclick="openDoc(\'' + esc(d.id) + '\')">Open</button>' +
+      '<button class="ghost small" onclick="askAbout(\'' + esc(d.id) + '\')">Ask</button>' +
+      '<button class="ghost small" onclick="delDoc(\'' + esc(d.id) + '\')">Delete</button>' +
+      '</div></div>'
+    ).join('');
+    window._docs = docs;
+  } catch (e) {
+    document.getElementById('doc-list').innerHTML = '<div class="muted">Could not load resources.</div>';
+  }
+}
+
+window.openDoc = id => { location.href = '/argentica/viewer/?doc=' + encodeURIComponent(id); };
+window.askAbout = id => {
+  sessionStorage.setItem('arg:pending-prompt', 'Summarise the document "' + (window._docs.find(d => d.id === id) || {}).title + '" and its key arguments.');
+  location.href = '/argentica/chat/';
+};
+window.delDoc = async id => {
+  if (!confirm('Delete this resource?')) return;
+  try { await api('/documents/' + encodeURIComponent(id), { method: 'DELETE' }); ARG.toast('Deleted.'); loadDocs(); }
+  catch (e) { ARG.toast('Could not delete.'); }
+};
+
+document.getElementById('study-search-btn').addEventListener('click', async () => {
+  const q = document.getElementById('study-search').value.trim();
+  const out = document.getElementById('search-results');
+  if (!q) return;
+  out.innerHTML = '<div class="muted">Searching…</div>';
+  try {
+    const data = await api('/rag/search', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q })
+    });
+    const hits = data.results || data.matches || [];
+    out.innerHTML = hits.length
+      ? '<div class="item-list">' + hits.map(h => '<div class="item"><div><div>' + esc(h.title || h.source || 'Result') + '</div><div class="muted">' + esc(String(h.content || h.snippet || '').slice(0, 160)) + '</div></div></div>').join('') + '</div>'
+      : '<div class="muted">Nothing found in your resources. Try the Research page for the wider literature.</div>';
+  } catch (e) {
+    out.innerHTML = '<div class="muted">Index search unavailable — try again shortly.</div>';
+  }
+});
+
+loadDocs();
+</script>
+</body>
+</html>

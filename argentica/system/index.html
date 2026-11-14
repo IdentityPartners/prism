@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — System</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="system">
+  <div class="arg-pagehead">
+    <h1>System</h1>
+    <div class="sub">Connections, routing and keys. If something shows red, it usually means a token has expired.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3><span class="dot" id="health-dot"></span>Worker health</h3>
+      <div id="health-body" class="muted">Checking…</div>
+    </div>
+    <div class="card">
+      <h3>Google account</h3>
+      <div id="google-body" class="muted">Checking…</div>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <h3>Platform connections</h3>
+    <div class="item-list" id="platforms"><div class="muted">Checking…</div></div>
+  </div>
+
+  <div class="grid two mt">
+    <div class="card">
+      <h3>Routing chain</h3>
+      <div class="muted" style="margin-bottom:8px;">Balanced profile, in order. Each model fails independently — a broken key is skipped silently.</div>
+      <div id="chain" class="item-list"><div class="muted">Loading…</div></div>
+    </div>
+    <div class="card">
+      <h3>Secret ingester</h3>
+      <div class="muted" style="margin-bottom:8px;">Paste KEY=value pairs, one per line. They go straight to the worker as secrets.</div>
+      <textarea id="secrets" style="min-height:110px; font-family:monospace; font-size:12.5px;" placeholder="example_api_key=abc123"></textarea>
+      <button class="mt" id="ingest">Push secrets</button>
+      <div class="muted mt" id="ingest-status"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('system');
+const { api, esc } = ARG;
+
+(async function health() {
+  try {
+    const res = await fetch('https://prism-api.identitypartners.workers.dev/health');
+    const data = await res.json();
+    document.getElementById('health-dot').classList.add('on');
+    document.getElementById('health-body').innerHTML =
+      '<div>Worker: <strong style="color:var(--teal);">' + esc(data.worker || data.status) + '</strong> · responding normally.</div>' +
+      '<div class="muted mt">Checked ' + new Date().toLocaleTimeString('en-GB') + '.</div>';
+  } catch (e) {
+    document.getElementById('health-body').textContent = 'Worker not responding — storage bindings may be missing from the last deploy.';
+  }
+})();
+
+(async function google() {
+  try {
+    const s = await api('/google/status');
+    document.getElementById('google-body').innerHTML = s.connected
+      ? '<span class="badge green">Connected</span> Gmail, Calendar and Drive are live. Reconnect only if this turns red.'
+      : '<span class="badge rose">Disconnected</span> <a href="/comms/google/">Reconnect Google</a>';
+  } catch (e) {
+    document.getElementById('google-body').textContent = 'Status unavailable.';
+  }
+})();
+
+(async function platforms() {
+  try {
+    const s = await api('/platform/status');
+    const list = s.platforms || s.channels || s;
+    const rows = Object.entries(list).map(([name, p]) => {
+      const ok = p && (p.connected === true || p.connected === 'true');
+      return '<div class="item"><div>' + esc(name.charAt(0).toUpperCase() + name.slice(1)) + '</div>' +
+        (ok ? '<span class="badge green">Connected</span>' : '<span class="badge">Not connected</span>') + '</div>';
+    });
+    document.getElementById('platforms').innerHTML = rows.join('') || '<div class="muted">No status available.</div>';
+  } catch (e) {
+    document.getElementById('platforms').innerHTML = '<div class="muted">Could not read platform status.</div>';
+  }
+})();
+
+(async function chain() {
+  try {
+    const cfg = await api('/orchestrator/config');
+    const bal = (cfg.config || cfg).balanced || cfg.balanced || [];
+    document.getElementById('chain').innerHTML = bal.map((m, i) =>
+      '<div class="item"><div><div>' + (i + 1) + '. ' + esc(m.label || m.model) + '</div>' +
+      '<div class="muted">' + esc(m.provider) + (m.ctx ? ' · ' + Math.round(m.ctx / 1024) + 'K context' : '') + '</div></div>' +
+      (m.thinking ? '<span class="badge teal">thinking</span>' : '') + '</div>'
+    ).join('') || '<div class="muted">No chain configured.</div>';
+  } catch (e) {
+    document.getElementById('chain').innerHTML = '<div class="muted">Could not load the routing chain.</div>';
+  }
+})();
+
+document.getElementById('ingest').addEventListener('click', async () => {
+  const raw = document.getElementById('secrets').value.trim();
+  const status = document.getElementById('ingest-status');
+  if (!raw) { ARG.toast('Nothing to ingest.'); return; }
+  const secrets = raw.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const i = l.indexOf('=');
+    return { name: l.slice(0, i).trim(), value: l.slice(i + 1).trim() };
+  }).filter(s => s.name && s.value);
+  try {
+    const r = await api('/ingest-secrets', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secrets })
+    });
+    status.textContent = 'Ingested ' + secrets.length + ' secret(s).';
+    document.getElementById('secrets').value = '';
+    ARG.toast('Secrets pushed to the worker.');
+  } catch (e) { status.textContent = 'Failed: ' + e.message; }
+});
+</script>
+</body>
+</html>
