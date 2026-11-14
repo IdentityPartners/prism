@@ -779,9 +779,13 @@ function sendMessage() {
     fetch(WORKER + '/api/chat', {
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(b)
     })
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      var ct = r.headers.get('content-type') || '';
+      if (!ct.includes('json')) return {content: 'Worker error — check bindings', error: true};
+      return r.json();
+    })
     .then(function(d) {
-      var content = d.content || 'No response.';
+      var content = d.content || (d.error ? 'Error: ' + d.error : 'No response — check worker status');
       chatHistory.push({ role: 'assistant', content: content });
       var bubble = div ? div.querySelector('.msg-bubble') : null;
       if (bubble) bubble.innerHTML = renderMarkdown(content);
@@ -980,9 +984,11 @@ function showMultiModelPanel() {
   panel.innerHTML = '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--fg-muted);margin-bottom:10px;">Compare Models</div>' +
     '<div style="font-size:12px;color:var(--fg-muted);margin-bottom:8px;">Select models to query simultaneously:</div>' +
     '<div id="multi-model-checks" style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px;">' +
-    ['mistral:mistral-medium-3.5:Mistral Medium 3.5',
-     'mistral:mistral-large-latest:Mistral Large Latest',
-     'mistral:zai-glm-5-2:GLM 5.3 via Mistral',
+    ['mistral:mistral-large-4:Mistral Large 4',
+     'mistral:zai-glm-5-3:GLM 5.3 via Mistral',
+     'gemini:gemini-flash-latest:Gemini Flash Latest (free)',
+     'openrouter:nvidia/llama-3.1-nemotron-ultra-253b-v1:free:Nemotron Ultra 253B',
+     'cerebras:qwen-3.8-27b:Cerebras Qwen 3.8',
      'gemini:gemma-4-31b-it:Gemma 4 31B',
      'groq:openai/gpt-oss-120b:GPT-OSS 120B Groq',
      'deepseek:deepseek-chat:DeepSeek V4',
