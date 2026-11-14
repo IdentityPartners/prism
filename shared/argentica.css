@@ -286,3 +286,10 @@ button:disabled { opacity: 0.5; cursor: default; }
 /* ── Template gallery buttons ─────────────────────── */
 
 button.tpl.active { background: var(--teal); color: #fff; border-color: var(--teal); }
+
+/* ── Zone tab bar ─────────────────────────────────── */
+
+.zonebar { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+.zonebar a { padding: 8px 18px; border-radius: 8px 8px 0 0; color: var(--ink-soft); font-size: 14px; }
+.zonebar a.active { background: var(--teal); color: #fff; }
+.zonebar a:hover { text-decoration: none; background: var(--ivory); }

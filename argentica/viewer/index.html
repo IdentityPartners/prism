@@ -168,12 +168,27 @@ document.getElementById('archive').addEventListener('click', async () => {
       body: JSON.stringify({ key: 'study/annotated/' + Date.now() + '-' + safeName, content: b64, mimeType: 'application/pdf', fileName: safeName })
     });
 
-    // OneDrive — the permanent archive
+    // OneDrive — the permanent archive, filed to the same Study structure
     let odLine = '';
+    let folder = 'Argentica/Study/Annotated';
+    try {
+      const st = await api('/kv/get?key=study:structure');
+      const raw = st.value || st.result || st.data;
+      const structure = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null;
+      const tags = (doc && doc.tags) || [];
+      const modTag = (tags.find(t => t.startsWith('module:')) || '').replace('module:', '');
+      const secTag = (tags.find(t => t.startsWith('section:')) || 'General').replace('section:', '');
+      if (structure && structure.sections) {
+        for (const s of structure.sections) {
+          const m = (s.modules || []).find(x => x.id === modTag);
+          if (m) { folder = 'Argentica/Study/' + s.name + '/' + m.name + '/' + secTag + '/Annotated'; break; }
+        }
+      }
+    } catch (e) {}
     try {
       const od = await api('/onedrive/upload', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: safeName, content: b64, encoding: 'base64', mimeType: 'application/pdf', folder: 'Argentica/Study Annotated' })
+        body: JSON.stringify({ fileName: safeName, content: b64, encoding: 'base64', mimeType: 'application/pdf', folder })
       });
       odLine = od.success
         ? '<div class="badge green">OneDrive archived</div> <a href="' + esc(od.shareUrl || '#') + '" target="_blank" rel="noopener">open</a>'

@@ -5,68 +5,50 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Argentica — Study</title>
 <link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  .zonebar { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  .zonebar a { padding: 8px 18px; border-radius: 8px 8px 0 0; color: var(--ink-soft); font-size: 14px; }
+  .zonebar a.active { background: var(--teal); color: #fff; }
+  .zonebar a:hover { text-decoration: none; background: var(--ivory); }
+  .tabbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .tabbar button { background: var(--paper); color: var(--teal); border: 1px solid var(--line); }
+  .tabbar button.active { background: var(--teal); color: #fff; }
+  .weekbar { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 16px; }
+  .weekbar button { min-width: 42px; padding: 5px 9px; font-size: 12.5px; }
+  .typecard h3 .count { font-size: 11px; color: var(--ink-soft); font-family: var(--sans); margin-left: 4px; }
+  .crumb { font-size: 12px; color: var(--ink-soft); margin-bottom: 10px; letter-spacing: 0.02em; }
+  .crumb b { color: var(--teal); font-weight: 600; }
+</style>
 </head>
 <body>
 <div class="arg-page" data-key="study">
-  <div class="arg-pagehead">
-    <h1>Study</h1>
-    <div class="sub">Modules, weeks and dissertation sections. Files live in R2 and open in the viewer for stylus annotation.</div>
+  <div class="zonebar">
+    <a href="/argentica/study/" class="active">Study</a>
+    <a href="/argentica/research/">Research</a>
+    <a href="/argentica/social/">Create</a>
+    <a href="/argentica/social/team/">Marketing</a>
   </div>
 
-  <div class="grid two">
-    <div class="card">
-      <h3>Upload to a section</h3>
-      <div class="row" style="margin-bottom:10px;">
-        <select id="up-module" style="flex:1;"></select>
-        <select id="up-section" style="flex:1;"></select>
-      </div>
-      <div id="drop" style="border:1.5px dashed var(--grey); border-radius:10px; padding:22px; text-align:center; cursor:pointer;">
-        <div style="font-family:var(--serif); font-size:16px; color:var(--teal);">Drop a PDF, DOCX or image here</div>
-        <div class="muted mt">or tap to choose a file</div>
-        <input type="file" id="file" accept=".pdf,.docx,.pptx,image/*,audio/*" hidden>
-      </div>
-      <div id="upload-status" class="muted mt"></div>
-    </div>
-
-    <div class="card">
-      <h3>Find</h3>
-      <div class="row">
-        <input type="text" id="study-search" placeholder="Search across all resources and notes…">
-        <button id="study-search-btn">Search</button>
-      </div>
-      <div id="search-results" class="mt"></div>
-      <div class="mt" style="border-top:1px solid var(--line); padding-top:12px;">
-        <h3 style="font-size:14px;">New note in this section</h3>
-        <input type="text" id="note-title" placeholder="Title" style="margin-bottom:8px;">
-        <textarea id="note-body" style="min-height:60px;" placeholder="Write a note…"></textarea>
-        <button class="small mt" id="note-save">Save note</button>
-      </div>
+  <div class="arg-pagehead spread">
+    <div>
+      <h1>Study</h1>
+      <div class="crumb" id="crumb"></div>
     </div>
   </div>
 
-  <div class="card mt">
-    <div class="spread">
-      <h3>Structure</h3>
-      <div class="row" style="gap:6px;" id="type-tabs">
-        <button class="ghost small ttab active" data-t="all">All</button>
-        <button class="ghost small ttab" data-t="reading">Readings</button>
-        <button class="ghost small ttab" data-t="note">Notes</button>
-        <button class="ghost small ttab" data-t="reference">References</button>
-        <button class="ghost small ttab" data-t="brief">Watching briefs</button>
-      </div>
+  <div class="card" style="margin-bottom:16px;">
+    <div class="row">
+      <input type="text" id="global-search" placeholder="Search everything — your notes, readings and the literature. e.g. Goffman">
+      <button id="global-search-btn">Search</button>
     </div>
-    <div id="structure"></div>
+    <div id="global-results" class="mt" style="display:none;"></div>
   </div>
 
-  <div class="card mt">
-    <h3>Watching briefs</h3>
-    <div class="muted" style="margin-bottom:8px;">Keywords the pipeline watches for in the news. When something relevant breaks, you hear about it.</div>
-    <textarea id="watch-kw" style="min-height:60px;" placeholder="One keyword or phrase per line…"></textarea>
-    <div class="row mt" style="justify-content:space-between;">
-      <span class="muted" id="watch-status"></span>
-      <button id="watch-save">Save briefs</button>
-    </div>
-  </div>
+  <div class="tabbar" id="section-tabs"></div>
+  <div class="tabbar" id="module-tabs" style="display:none;"></div>
+  <div class="weekbar" id="week-bar"></div>
+
+  <div class="grid" id="dashboard" style="grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); align-items:start;"></div>
 </div>
 
 <script src="/shared/argentica.js"></script>
@@ -75,133 +57,262 @@ ARG.buildShell('study');
 const { api, esc } = ARG;
 
 const DEFAULT_STRUCTURE = {
-  modules: [
-    { id: 'quant', name: 'Quant Research Methods', kind: 'weeks', weeks: 12 },
-    { id: 'methodology', name: 'Methodology Now', kind: 'weeks', weeks: 12 },
-    { id: 'dissertation', name: 'Dissertation', kind: 'sections', sections: ['Literature Review', 'Elena Sources', 'Disability & Deservingness'] },
-    { id: 'phd', name: 'PhD Material', kind: 'free' },
-    { id: 'concepts', name: 'Concepts & Thinkers', kind: 'free' }
+  sections: [
+    { id: 'taught', name: 'Taught', modules: [
+      { id: 'quant', name: 'Quant Research Methods', kind: 'weeks', weeks: 12 },
+      { id: 'methodology', name: 'Methodology Now', kind: 'weeks', weeks: 12 }
+    ]},
+    { id: 'dissertation', name: 'Dissertation', modules: [
+      { id: 'dissertation', name: 'Dissertation', kind: 'sections', sections: ['Literature Review', 'Elena Sources', 'Disability & Deservingness'] }
+    ]},
+    { id: 'phd', name: 'PhD Material', modules: [ { id: 'phd', name: 'PhD Material', kind: 'free' } ]},
+    { id: 'concepts', name: 'Concepts & Thinkers', modules: [ { id: 'concepts', name: 'Concepts & Thinkers', kind: 'free' } ]}
   ]
 };
 
 let structure = null;
 let allDocs = [];
+let curSection = 'taught', curModule = 'quant', curWeek = 'Week 1';
 
-// ── Structure load/save ──────────────────────────────
+const TYPE_GROUPS = [
+  { id: 'assigned', label: 'Assigned Readings', match: d => ['pdf', 'file'].includes(d.type) && (d.tags || []).includes('kind:assigned') },
+  { id: 'lecture', label: 'Lecture Notes', match: d => (d.tags || []).includes('kind:lecture') },
+  { id: 'slides', label: 'Slides', match: d => /\.pptx/i.test(d.title || '') || (d.tags || []).includes('kind:slides') },
+  { id: 'notes', label: 'Own Notes', match: d => d.type === 'note' },
+  { id: 'refs', label: 'References', match: d => d.type === 'reference' },
+  { id: 'other', label: 'Other Files', match: d => ['pdf', 'file'].includes(d.type) && !(d.tags || []).some(t => t.startsWith('kind:')) }
+];
+
+// ── Structure ──────────────────────────────────────────
 async function loadStructure() {
   try {
     const d = await api('/kv/get?key=study:structure');
     const raw = d.value || d.result || d.data;
     structure = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null;
   } catch (e) {}
-  if (!structure || !structure.modules) {
-    structure = DEFAULT_STRUCTURE;
+  if (!structure || !structure.sections) {
+    // migrate the older flat shape if present
+    if (structure && structure.modules) {
+      structure = { sections: [{ id: 'taught', name: 'Taught', modules: structure.modules.filter(m => m.kind === 'weeks') }] };
+      const other = structure.modules.filter(m => m.kind !== 'weeks');
+      if (other.length) structure.sections.push({ id: 'other', name: 'Other', modules: other });
+    } else {
+      structure = DEFAULT_STRUCTURE;
+    }
     saveStructure();
   }
-  renderModuleSelects();
-  renderStructure();
+  renderTabs();
 }
 
 async function saveStructure() {
   try {
-    await api('/kv/set', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: 'study:structure', value: JSON.stringify(structure) })
-    });
+    await api('/kv/set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'study:structure', value: JSON.stringify(structure) }) });
   } catch (e) {}
 }
 
-function sectionList(mod) {
-  if (mod.kind === 'weeks') return Array.from({ length: mod.weeks }, (_, i) => 'Week ' + (i + 1));
-  if (mod.kind === 'sections') return mod.sections;
+function section() { return structure.sections.find(s => s.id === curSection) || structure.sections[0]; }
+function module_() { return section().modules.find(m => m.id === curModule) || section().modules[0]; }
+function unitList() {
+  const m = module_();
+  if (m.kind === 'weeks') return Array.from({ length: m.weeks }, (_, i) => 'Week ' + (i + 1));
+  if (m.kind === 'sections') return m.sections;
   return ['General'];
 }
 
-function renderModuleSelects() {
-  const sel = document.getElementById('up-module');
-  sel.innerHTML = structure.modules.map(m => '<option value="' + esc(m.id) + '">' + esc(m.name) + '</option>').join('');
-  sel.onchange = renderSectionSelect;
-  renderSectionSelect();
+function renderTabs() {
+  const st = document.getElementById('section-tabs');
+  st.innerHTML = structure.sections.map(s => '<button data-id="' + esc(s.id) + '"' + (s.id === curSection ? ' class="active"' : '') + '>' + esc(s.name) + '</button>').join('');
+  st.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    curSection = b.dataset.id;
+    curModule = section().modules[0].id;
+    curWeek = unitList()[0];
+    renderTabs();
+  }));
+
+  const mt = document.getElementById('module-tabs');
+  if (section().modules.length > 1) {
+    mt.style.display = 'flex';
+    mt.innerHTML = section().modules.map(m => '<button data-id="' + esc(m.id) + '"' + (m.id === curModule ? ' class="active"' : '') + '>' + esc(m.name) + '</button>').join('');
+    mt.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      curModule = b.dataset.id;
+      curWeek = unitList()[0];
+      renderTabs();
+    }));
+  } else {
+    mt.style.display = 'none';
+  }
+
+  const wb = document.getElementById('week-bar');
+  wb.innerHTML = unitList().map(u => '<button class="ghost small"' + (u === curWeek ? ' style="background:var(--rose); color:#fff; border-color:var(--rose);"' : '') + ' data-u="' + esc(u) + '">' + esc(u.replace('Week ', 'W')) + '</button>').join('');
+  wb.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    curWeek = b.dataset.u === 'General' ? 'General' : (b.dataset.u.startsWith('W') && !b.dataset.u.startsWith('Week') ? 'Week ' + b.dataset.u.slice(1) : b.dataset.u);
+    renderTabs();
+  }));
+
+  renderCrumb();
+  renderDashboard();
 }
 
-function renderSectionSelect() {
-  const mod = structure.modules.find(m => m.id === document.getElementById('up-module').value) || structure.modules[0];
-  document.getElementById('up-section').innerHTML = sectionList(mod).map(s => '<option>' + esc(s) + '</option>').join('');
+function renderCrumb() {
+  document.getElementById('crumb').innerHTML =
+    '<b>Study</b> / ' + esc(section().name) + ' / ' + esc(module_().name) + ' / <b>' + esc(curWeek) + '</b>';
 }
 
-function docsFor(modId, section) {
+function docsHere() {
   return allDocs.filter(d => {
     const tags = d.tags || [];
-    const inMod = tags.includes('module:' + modId);
-    if (!inMod) return false;
-    if (section === undefined) return true;
-    return tags.includes('section:' + section) || (!tags.some(t => t.startsWith('section:')) && section === 'General');
+    return tags.includes('module:' + curModule) &&
+      (tags.includes('section:' + curWeek) || (!tags.some(t => t.startsWith('section:')) && curWeek === 'General'));
   });
 }
 
-let currentType = 'all';
-function typeMatch(d) {
-  if (currentType === 'all') return true;
-  if (currentType === 'reading') return ['pdf', 'file'].includes(d.type);
-  if (currentType === 'brief') return (d.tags || []).includes('watching-brief');
-  return d.type === currentType;
+function onedrivePath(fileName) {
+  return 'Argentica/Study/' + section().name + '/' + module_().name + '/' + curWeek;
 }
 
-document.querySelectorAll('#type-tabs .ttab').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('#type-tabs .ttab').forEach(x => x.classList.remove('active'));
-  b.classList.add('active');
-  currentType = b.dataset.t;
-  renderStructure();
-  document.querySelectorAll('.section-docs[style*="block"]').forEach(p => p.style.display = 'none');
-}));
-
-function docRow(d) {
+function docItem(d) {
   return '<div class="item">' +
-    '<div><div>' + esc(d.title) + ' <span class="badge">' + esc(d.type) + '</span></div>' +
-    '<div class="muted">Added ' + (d.updatedAt ? new Date(d.updatedAt).toLocaleDateString('en-GB') : '—') + '</div></div>' +
+    '<div style="min-width:0;"><div>' + esc(d.title) + '</div>' +
+    '<div class="muted">' + (d.updatedAt ? new Date(d.updatedAt).toLocaleDateString('en-GB') : '') +
+    (d.archivedTo ? ' · <span class="badge green">archived</span>' : '') + '</div></div>' +
     '<div class="row">' +
     '<button class="ghost small" onclick="openDoc(\'' + esc(d.id) + '\')">Open</button>' +
     '<button class="ghost small" onclick="askAbout(\'' + esc(d.id) + '\')">Ask</button>' +
-    '<button class="ghost small" onclick="delDoc(\'' + esc(d.id) + '\')">Delete</button>' +
+    (d.content && String(d.content).includes('r2.dev') ? '<button class="ghost small" onclick="archiveDoc(\'' + esc(d.id) + '\')">Archive</button>' : '') +
     '</div></div>';
 }
 
-function renderStructure() {
-  const el = document.getElementById('structure');
-  el.innerHTML = structure.modules.map(m => {
-    const modDocs = docsFor(m.id).filter(typeMatch);
-    return '<div style="margin-bottom:18px;">' +
-      '<div class="spread"><h4 style="font-size:15px;">' + esc(m.name) + '</h4><span class="badge teal">' + modDocs.length + ' resources</span></div>' +
-      '<div class="row" style="flex-wrap:wrap; gap:6px; margin:8px 0;">' +
-      sectionList(m).map(s => {
-        const n = docsFor(m.id, s).filter(typeMatch).length;
-        return '<button class="ghost small" onclick="toggleSection(this)" data-mod="' + esc(m.id) + '" data-sec="' + esc(s) + '">' + esc(s) + ' <span class="muted">(' + n + ')</span></button>';
-      }).join('') +
-      '</div><div class="section-docs" style="display:none;"></div></div>';
-  }).join('');
+function renderDashboard() {
+  const docs = docsHere();
+  const dash = document.getElementById('dashboard');
+  const kindSelect = '<select id="up-kind" style="max-width:140px; margin-top:8px;">' +
+    '<option value="kind:assigned">Assigned reading</option>' +
+    '<option value="kind:lecture">Lecture notes</option>' +
+    '<option value="kind:slides">Slides</option>' +
+    '<option value="" selected>Unclassified</option></select>';
+
+  dash.innerHTML = TYPE_GROUPS.map(g => {
+    const items = docs.filter(g.match);
+    return '<div class="card typecard">' +
+      '<h3>' + g.label + '<span class="count">' + items.length + '</span></h3>' +
+      (items.length ? '<div class="item-list">' + items.map(docItem).join('') + '</div>' : '<div class="muted">Nothing here yet.</div>') +
+      '</div>';
+  }).join('') +
+
+  '<div class="card">' +
+    '<h3>Add to ' + esc(curWeek) + '</h3>' +
+    '<div id="drop" style="border:1.5px dashed var(--grey); border-radius:10px; padding:16px; text-align:center; cursor:pointer;">' +
+    '<div style="font-family:var(--serif); font-size:15px; color:var(--teal);">Drop a reading here</div>' +
+    '<div class="muted">PDF, DOCX, PPTX, image — filed to OneDrive as ' + esc(onedrivePath()) + '</div>' +
+    '<input type="file" id="file" accept=".pdf,.docx,.pptx,image/*,audio/*" hidden>' +
+    '</div>' + kindSelect +
+    '<input type="text" id="note-title" placeholder="New note title" style="margin-top:10px;">' +
+    '<textarea id="note-body" style="min-height:56px; margin-top:6px;" placeholder="Write a note…"></textarea>' +
+    '<button class="small mt" id="note-save">Save note</button>' +
+    '<div class="muted mt" id="upload-status"></div>' +
+    '</div>' +
+
+  '<div class="card">' +
+    '<h3>Watching briefs</h3>' +
+    '<textarea id="watch-kw" style="min-height:56px;" placeholder="One keyword or phrase per line…"></textarea>' +
+    '<div class="row mt" style="justify-content:space-between;"><span class="muted" id="watch-status"></span><button class="small" id="watch-save">Save</button></div>' +
+    '</div>';
+
+  wireUpload();
+  document.getElementById('note-save').addEventListener('click', saveNote);
+  wireWatch();
 }
 
-window.toggleSection = btn => {
-  const panel = btn.parentElement.nextElementSibling;
-  if (panel.style.display === 'none') {
-    const docs = docsFor(btn.dataset.mod, btn.dataset.sec).filter(typeMatch);
-    panel.innerHTML = docs.length
-      ? '<div class="item-list">' + docs.map(docRow).join('') + '</div>'
-      : '<div class="muted">Nothing here yet. Upload or take a note into this section.</div>';
-    panel.style.display = 'block';
-  } else {
-    panel.style.display = 'none';
-  }
-};
+// ── Upload ────────────────────────────────────────────
+function wireUpload() {
+  const drop = document.getElementById('drop');
+  const fileInput = document.getElementById('file');
+  drop.addEventListener('click', () => fileInput.click());
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.style.borderColor = 'var(--teal)'; });
+  drop.addEventListener('dragleave', () => drop.style.borderColor = 'var(--grey)');
+  drop.addEventListener('drop', e => { e.preventDefault(); drop.style.borderColor = 'var(--grey)'; if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]); });
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) upload(fileInput.files[0]); });
+}
 
-// ── Documents ─────────────────────────────────────────
-async function loadDocs() {
+function kindTag() { return (document.getElementById('up-kind') || {}).value || ''; }
+
+async function upload(file) {
+  const status = document.getElementById('upload-status');
+  status.textContent = 'Uploading "' + file.name + '"…';
   try {
-    const data = await api('/documents');
-    allDocs = data.documents || [];
-    renderStructure();
-  } catch (e) {}
+    const buf = await file.arrayBuffer();
+    let bin = '';
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    const key = 'study/' + curModule + '/' + Date.now() + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const up = await api('/r2/upload', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, content: btoa(bin), mimeType: file.type || 'application/octet-stream', fileName: file.name })
+    });
+    const tags = ['module:' + curModule, 'section:' + curWeek];
+    const kt = kindTag(); if (kt) tags.push(kt);
+    await api('/documents', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: file.name, type: /\.pdf$/i.test(file.name) ? 'pdf' : 'file', content: up.url, tags, moduleSource: curModule })
+    });
+    // File it to OneDrive in the same structure (silently — R2 remains the working copy)
+    try {
+      await api('/onedrive/upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name, content: btoa(bin), encoding: 'base64', mimeType: file.type || 'application/octet-stream', folder: onedrivePath() })
+      });
+      status.textContent = 'Uploaded to R2 and archived to OneDrive at ' + onedrivePath() + '.';
+    } catch (e) {
+      status.textContent = 'Uploaded to R2. OneDrive archive pending: ' + (e.message || '').slice(0, 80);
+    }
+    loadDocs();
+  } catch (e) { status.textContent = 'Upload failed: ' + e.message; }
 }
+
+async function saveNote() {
+  const title = document.getElementById('note-title').value.trim();
+  const body = document.getElementById('note-body').value.trim();
+  if (!title && !body) { ARG.toast('Nothing to save.'); return; }
+  try {
+    await api('/documents', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title || 'Untitled note', type: 'note', content: body, tags: ['module:' + curModule, 'section:' + curWeek], moduleSource: curModule })
+    });
+    // Notes also file to OneDrive as plain text
+    try {
+      await api('/onedrive/upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: (title || 'note') + '.txt', content: (title ? title + '\n\n' : '') + body, folder: onedrivePath() })
+      });
+    } catch (e) {}
+    ARG.toast('Note saved.');
+    loadDocs();
+  } catch (e) { ARG.toast('Could not save the note.'); }
+}
+
+// ── Archive an existing reading to OneDrive ───────────
+window.archiveDoc = async id => {
+  const d = allDocs.find(x => x.id === id);
+  if (!d) return;
+  ARG.toast('Archiving to OneDrive…');
+  try {
+    const resp = await fetch(d.content);
+    const buf = new Uint8Array(await resp.arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+    const tags = d.tags || [];
+    const mod = structure.sections.flatMap(s => s.modules).find(m => tags.includes('module:' + m.id));
+    const sec = tags.find(t => t.startsWith('section:'));
+    const folder = 'Argentica/Study/' + (section().name) + '/' + (mod ? mod.name : 'Unfiled') + '/' + (sec ? sec.replace('section:', '') : 'General');
+    const r = await api('/onedrive/upload', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName: d.title, content: btoa(bin), encoding: 'base64', mimeType: 'application/octet-stream', folder })
+    });
+    await api('/documents/' + encodeURIComponent(id), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ archivedTo: r.shareUrl || folder }) });
+    ARG.toast('Archived to OneDrive.');
+    loadDocs();
+  } catch (e) { ARG.toast('OneDrive: ' + e.message.slice(0, 80)); }
+};
 
 window.openDoc = id => { location.href = '/argentica/viewer/?doc=' + encodeURIComponent(id); };
 window.askAbout = id => {
@@ -209,106 +320,75 @@ window.askAbout = id => {
   sessionStorage.setItem('arg:pending-prompt', 'Summarise "' + d.title + '" and its key arguments.');
   location.href = '/argentica/chat/';
 };
-window.delDoc = async id => {
-  if (!confirm('Delete this resource?')) return;
-  try { await api('/documents/' + encodeURIComponent(id), { method: 'DELETE' }); ARG.toast('Deleted.'); loadDocs(); }
-  catch (e) { ARG.toast('Could not delete.'); }
-};
 
-// ── Upload ────────────────────────────────────────────
-const drop = document.getElementById('drop');
-const fileInput = document.getElementById('file');
-drop.addEventListener('click', () => fileInput.click());
-drop.addEventListener('dragover', e => { e.preventDefault(); drop.style.borderColor = 'var(--teal)'; });
-drop.addEventListener('dragleave', () => drop.style.borderColor = 'var(--grey)');
-drop.addEventListener('drop', e => { e.preventDefault(); drop.style.borderColor = 'var(--grey)'; if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]); });
-fileInput.addEventListener('change', () => { if (fileInput.files[0]) upload(fileInput.files[0]); });
+// ── Global search: own notes + readings, then the literature ──
+document.getElementById('global-search-btn').addEventListener('click', async () => {
+  const q = document.getElementById('global-search').value.trim();
+  const out = document.getElementById('global-results');
+  if (!q) { out.style.display = 'none'; return; }
+  out.style.display = 'block';
+  out.innerHTML = '<div class="muted">Searching your notes and readings…</div>';
 
-async function upload(file) {
-  const status = document.getElementById('upload-status');
-  const modId = document.getElementById('up-module').value;
-  const section = document.getElementById('up-section').value;
-  status.textContent = 'Uploading "' + file.name + '" to ' + section + '…';
+  const mine = [];
+  const ql = q.toLowerCase();
+  // metadata scan (titles, tags)
+  allDocs.forEach(d => {
+    if ((d.title || '').toLowerCase().includes(ql)) mine.push({ title: d.title, url: '/argentica/viewer/?doc=' + encodeURIComponent(d.id), snippet: 'In your library · ' + (d.moduleSource || '') });
+  });
+  // semantic search over indexed documents
   try {
-    const buf = await file.arrayBuffer();
-    let bin = '';
-    const bytes = new Uint8Array(buf);
-    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-    const key = 'study/' + modId + '/' + Date.now() + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const up = await api('/r2/upload', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key, content: btoa(bin), mimeType: file.type || 'application/octet-stream', fileName: file.name })
+    const sem = await api('/study/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, limit: 8 }) });
+    (sem.results || []).forEach(r => {
+      if (!mine.some(m => m.title === r.title)) mine.push({ title: r.title || 'Indexed passage', url: r.url || '#', snippet: String(r.content || r.snippet || '').slice(0, 160) });
     });
-    await api('/documents', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: file.name,
-        type: file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'file',
-        content: up.url,
-        tags: ['module:' + modId, 'section:' + section],
-        moduleSource: modId
-      })
-    });
-    status.textContent = 'Uploaded to ' + section + '.';
-    ARG.toast('Uploaded to R2.');
-    loadDocs();
-  } catch (e) { status.textContent = 'Upload failed: ' + e.message; }
-}
+  } catch (e) {}
 
-// ── Notes ─────────────────────────────────────────────
-document.getElementById('note-save').addEventListener('click', async () => {
-  const title = document.getElementById('note-title').value.trim();
-  const body = document.getElementById('note-body').value.trim();
-  if (!title && !body) { ARG.toast('Nothing to save.'); return; }
-  const modId = document.getElementById('up-module').value;
-  const section = document.getElementById('up-section').value;
+  let litHtml = '';
   try {
-    await api('/documents', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: title || 'Untitled note', type: 'note', content: body, tags: ['module:' + modId, 'section:' + section], moduleSource: modId })
-    });
-    document.getElementById('note-title').value = '';
-    document.getElementById('note-body').value = '';
-    ARG.toast('Note saved to ' + section + '.');
-    loadDocs();
-  } catch (e) { ARG.toast('Could not save the note.'); }
-});
+    const lit = await api('/research/scholarly', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, sources: ['semantic_scholar', 'openalex', 'crossref'] }) });
+    const all = [];
+    const r = lit.results || lit.sources || [];
+    (Array.isArray(r) ? r : Object.values(r)).forEach(s => (s.items || []).forEach(i => all.push(i)));
+    if (all.length) {
+      const seen = new Set();
+      litHtml = '<h3 style="margin-top:16px;">The literature</h3><div class="item-list">' +
+        all.filter(x => { const k = (x.url || x.title || '').replace(/[#?].*$/, ''); if (seen.has(k)) return false; seen.add(k); return true; })
+           .slice(0, 8).map(x => '<div class="item"><div><a href="' + esc(x.url || '#') + '" target="_blank" rel="noopener">' + esc(x.title) + '</a> <span class="badge teal">' + esc(x.source) + '</span><div class="muted">' + esc([x.authors, x.year].filter(Boolean).join(', ')) + '</div></div></div>').join('') + '</div>';
+    }
+  } catch (e) {}
 
-// ── Search ────────────────────────────────────────────
-document.getElementById('study-search-btn').addEventListener('click', async () => {
-  const q = document.getElementById('study-search').value.trim();
-  const out = document.getElementById('search-results');
-  if (!q) return;
-  out.innerHTML = '<div class="muted">Searching…</div>';
-  try {
-    const data = await api('/rag/search', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: q })
-    });
-    const hits = data.results || data.matches || [];
-    out.innerHTML = hits.length
-      ? '<div class="item-list">' + hits.map(h => '<div class="item"><div><div>' + esc(h.title || h.source || 'Result') + '</div><div class="muted">' + esc(String(h.content || h.snippet || '').slice(0, 160)) + '</div></div></div>').join('') + '</div>'
-      : '<div class="muted">Nothing found in your resources. Try the Research page for the wider literature.</div>';
-  } catch (e) {
-    out.innerHTML = '<div class="muted">Index search unavailable — try again shortly.</div>';
-  }
+  out.innerHTML =
+    '<h3 style="margin-bottom:8px;">Your notes and readings</h3>' +
+    (mine.length ? '<div class="item-list">' + mine.slice(0, 10).map(m =>
+      '<div class="item"><div><a href="' + esc(m.url) + '">' + esc(m.title) + '</a><div class="muted">' + esc(m.snippet) + '</div></div></div>').join('') + '</div>'
+      : '<div class="muted">Nothing of yours mentions "' + esc(q) + '" yet.</div>') + litHtml;
 });
 
 // ── Watching briefs ───────────────────────────────────
-(async function loadWatch() {
+function wireWatch() {
+  (async function () {
+    try {
+      const d = await api('/news/keywords');
+      document.getElementById('watch-kw').value = (d.keywords || []).join('\n');
+    } catch (e) {}
+  })();
+  document.getElementById('watch-save').addEventListener('click', async () => {
+    const kws = document.getElementById('watch-kw').value.split('\n').map(s => s.trim()).filter(Boolean);
+    try {
+      await api('/news/keywords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keywords: kws }) });
+      document.getElementById('watch-status').textContent = 'Saved.';
+      ARG.toast('Watching briefs updated.');
+    } catch (e) { document.getElementById('watch-status').textContent = 'Could not save.'; }
+  });
+}
+
+async function loadDocs() {
   try {
-    const d = await api('/news/keywords');
-    document.getElementById('watch-kw').value = (d.keywords || []).join('\n');
+    const data = await api('/documents');
+    allDocs = data.documents || [];
+    renderDashboard();
   } catch (e) {}
-})();
-document.getElementById('watch-save').addEventListener('click', async () => {
-  const kws = document.getElementById('watch-kw').value.split('\n').map(s => s.trim()).filter(Boolean);
-  try {
-    await api('/news/keywords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keywords: kws }) });
-    document.getElementById('watch-status').textContent = 'Saved ' + kws.length + ' brief' + (kws.length === 1 ? '' : 's') + '.';
-    ARG.toast('Watching briefs updated.');
-  } catch (e) { document.getElementById('watch-status').textContent = 'Could not save.'; }
-});
+}
 
 loadStructure();
 loadDocs();
