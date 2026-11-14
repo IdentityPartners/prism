@@ -277,7 +277,9 @@ window.archiveDoc = async id => {
   if (!d) return;
   ARG.toast('Archiving to Drive…');
   try {
-    const resp = await fetch(d.content);
+    const key = String(d.content || '').replace(/^https:\/\/[^/]+\//, '');
+    const resp = await fetch('/api/r2/file?key=' + encodeURIComponent(key));
+    if (!resp.ok) throw new Error('file not in storage (HTTP ' + resp.status + ')');
     const buf = new Uint8Array(await resp.arrayBuffer());
     let bin = '';
     for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));

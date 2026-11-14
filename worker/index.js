@@ -8320,6 +8320,22 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     const integrationResponse = await handleIntegrationRoutes(path, request, env, origin);
     if (integrationResponse) return integrationResponse;
 
+    if (path === '/api/r2/file' && request.method === 'GET') {
+      try {
+        const key = url.searchParams.get('key') || '';
+        if (!key) return json({ error: 'key required' }, 400, origin);
+        if (!env.PRISM_ASSETS) return json({ error: 'R2 not bound' }, 500, origin);
+        const obj = await env.PRISM_ASSETS.get(key);
+        if (!obj) return json({ error: 'Not found' }, 404, origin);
+        const headers = {
+          'Content-Type': obj.httpMetadata && obj.httpMetadata.contentType || 'application/octet-stream',
+          'Access-Control-Allow-Origin': origin || '*',
+          'Cache-Control': 'public, max-age=3600'
+        };
+        return new Response(obj.body, { headers });
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+
     if (path === '/api/r2/upload' && request.method === 'POST') {
       try {
         const body = await request.json();

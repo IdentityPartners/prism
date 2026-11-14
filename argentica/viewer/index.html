@@ -208,7 +208,11 @@ document.getElementById('ask').addEventListener('click', () => {
     if (doc.annotations && doc.annotations.length) strokes = doc.annotations;
     const url = doc.content || '';
     if (url.includes('r2.dev') || url.endsWith('.pdf')) {
-      const resp = await fetch(url);
+      // fetch same-origin through the worker's R2 route — r2.dev is rate-limited
+      // and CORS-hostile, which broke direct fetches
+      const key = url.replace(/^https:\/\/[^/]+\//, '');
+      const resp = await fetch('/api/r2/file?key=' + encodeURIComponent(key));
+      if (!resp.ok) throw new Error('The file is not in storage (HTTP ' + resp.status + '). Try re-uploading it.');
       pdfBytes = new Uint8Array(await resp.arrayBuffer());
       pdf = await pdfjsLib.getDocument({ data: pdfBytes.slice(0) }).promise;
       renderPage();
