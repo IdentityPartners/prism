@@ -11,12 +11,21 @@
   <div class="arg-pagehead spread">
     <div>
       <h1>Email</h1>
-      <div class="sub">Gmail via Google OAuth — reading and sending as argentica.identitypartners@gmail.com. To send from hello@identitypartners.uk, add it as a "send as" alias in that Gmail account (Settings → Accounts); it will then appear here automatically.</div>
+      <div class="sub" id="account-sub">Gmail via Google OAuth. Switch to Proton when the Nylas grant is connected.</div>
     </div>
-    <button id="refresh">Refresh</button>
+    <div class="row" style="gap:6px;">
+      <button class="ghost small acct active" data-acct="gmail">Gmail</button>
+      <button class="ghost small acct" data-acct="proton">Proton</button>
+      <button class="ghost small" id="refresh">Refresh</button>
+    </div>
   </div>
 
-  <div class="grid two">
+  <div class="card" id="proton-setup" style="display:none;">
+    <h3><span class="dot" id="proton-dot"></span>Proton — identitypartners@pm.me</h3>
+    <div id="proton-status-body" class="muted">Checking…</div>
+  </div>
+
+  <div class="grid two mt">
     <div class="card">
       <h3><span class="dot" id="mail-dot"></span>Inbox</h3>
       <div class="item-list" id="mail-list"><div class="muted">Loading…</div></div>
@@ -40,29 +49,82 @@
 ARG.buildShell('email');
 const { api, esc } = ARG;
 
+let account = 'gmail';
+
+document.querySelectorAll('.acct').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.acct').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  account = b.dataset.acct;
+  loadMail();
+  loadProtonStatus();
+}));
+
+async function loadProtonStatus() {
+  const panel = document.getElementById('proton-setup');
+  const body = document.getElementById('proton-status-body');
+  if (account !== 'proton') { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  try {
+    const s = await api('/nylas/status');
+    if (s.connected) {
+      document.getElementById('proton-dot').classList.add('on');
+      body.innerHTML = '<span class="badge green">Connected</span> as ' + esc(s.email) + '. Inbox and send are live below. Proton needs the Bridge running on your Surface — if it stops, mail pauses until it is back.';
+    } else {
+      body.innerHTML = '<span class="badge rose">Not connected</span> Two steps: start Proton Bridge on your Surface, then <a href="https://prism.identitypartners.uk/comms/nylas/auth?email=identitypartners@pm.me" target="_blank" rel="noopener">connect the Nylas grant</a>. After that this inbox fills from Proton.';
+    }
+  } catch (e) { body.textContent = 'Status unavailable.'; }
+}
+
 async function loadMail() {
   const el = document.getElementById('mail-list');
+  const sub = document.getElementById('account-sub');
   try {
-    const data = await api('/google/gmail?maxResults=20');
-    if (data.status && data.status !== 'ok') {
-      document.getElementById('mail-dot').classList.remove('on');
-      el.innerHTML = '<div class="muted">Gmail is not connected. Reconnect from <a href="https://prism.identitypartners.uk/comms/google/">the Google account page</a>.</div>';
-      return;
+    if (account === 'gmail') {
+      sub.textContent = 'Gmail via Google OAuth — whichever Google account is connected. Reconnect (Commercial → Platforms) and sign in with simonamjohnson94@gmail.com to switch the account for Gmail, Calendar and Drive together.';
+      const data = await api('/google/gmail?maxResults=20');
+      if (data.status && data.status !== 'ok') {
+        document.getElementById('mail-dot').classList.remove('on');
+        el.innerHTML = '<div class="muted">Gmail is not connected. <a href="https://prism.identitypartners.uk/comms/google/">Reconnect Google</a>.</div>';
+        return;
+      }
+      document.getElementById('mail-dot').classList.add('on');
+      const msgs = data.messages || [];
+      if (!msgs.length) { el.innerHTML = '<div class="muted">Inbox is clear.</div>'; return; }
+      el.innerHTML = msgs.map(m => {
+        const from = String(m.from || 'Unknown sender');
+        const name = from.replace(/ <.*>/, '').replace(/["']/g, '');
+        const date = m.date ? new Date(m.date).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+        return '<div class="item"><div style="min-width:0;">' +
+          '<div class="spread"><strong>' + esc(name) + '</strong>' + (m.unread ? '<span class="badge teal">new</span>' : '') + '</div>' +
+          '<div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(m.subject || '(no subject)') + '</div>' +
+          '<div class="muted" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(String(m.snippet || '').slice(0, 120)) + '</div>' +
+          '<div class="muted">' + esc(date) + '</div></div></div>';
+      }).join('');
+    } else {
+      sub.textContent = 'Proton via Nylas and the Bridge on your Surface. Sending is from identitypartners@pm.me.';
+      const data = await api('/nylas/inbox?limit=20');
+      if (data.status === 'not_connected') {
+        document.getElementById('mail-dot').classList.remove('on');
+        el.innerHTML = '<div class="muted">Proton is not connected yet — see the panel above.</div>';
+        return;
+      }
+      if (data.status === 'api_error') {
+        document.getElementById('mail-dot').classList.remove('on');
+        el.innerHTML = '<div class="muted">Proton is unreachable — is the Bridge running on your Surface?</div>';
+        return;
+      }
+      document.getElementById('mail-dot').classList.add('on');
+      const msgs = data.messages || [];
+      if (!msgs.length) { el.innerHTML = '<div class="muted">Inbox is clear.</div>'; return; }
+      el.innerHTML = msgs.map(m => {
+        const from = m.from && m.from[0] ? (m.from[0].name || m.from[0].email) : 'Unknown sender';
+        const date = m.date ? new Date(m.date).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+        return '<div class="item"><div style="min-width:0;">' +
+          '<div class="spread"><strong>' + esc(from) + '</strong>' + (m.unread ? '<span class="badge teal">new</span>' : '') + '</div>' +
+          '<div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(m.subject || '(no subject)') + '</div>' +
+          '<div class="muted">' + esc(date) + '</div></div></div>';
+      }).join('');
     }
-    document.getElementById('mail-dot').classList.add('on');
-    const msgs = data.messages || [];
-    if (!msgs.length) { el.innerHTML = '<div class="muted">Inbox is clear.</div>'; return; }
-    el.innerHTML = msgs.map(m => {
-      const from = String(m.from || 'Unknown sender');
-      const name = from.replace(/ <.*>/, '').replace(/["']/g, '');
-      const email = (from.match(/<([^>]+)>/) || [, ''])[1];
-      const date = m.date ? new Date(m.date).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-      return '<div class="item"><div style="min-width:0;">' +
-        '<div class="spread"><strong>' + esc(name) + '</strong>' + (m.unread ? '<span class="badge teal">new</span>' : '') + '</div>' +
-        '<div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(m.subject || '(no subject)') + '</div>' +
-        '<div class="muted" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(String(m.snippet || '').slice(0, 120)) + '</div>' +
-        '<div class="muted">' + esc(date) + (email ? ' · ' + esc(email) : '') + '</div></div></div>';
-    }).join('');
   } catch (e) { el.innerHTML = '<div class="muted">Could not load the inbox: ' + esc(e.message) + '</div>'; }
 }
 
@@ -74,23 +136,30 @@ document.getElementById('m-send').addEventListener('click', async () => {
   const st = document.getElementById('m-status');
   st.textContent = 'Sending…';
   try {
-    const r = await api('/google/gmail/send', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, subject, body })
-    });
-    if (r.success) {
+    let ok = false;
+    if (account === 'gmail') {
+      const r = await api('/google/gmail/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, subject, body }) });
+      ok = r.success;
+      if (!ok) st.textContent = 'Could not send: ' + (r.error || 'unknown');
+    } else {
+      const r = await api('/nylas/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: [{ email: to }], subject, body }) });
+      ok = r.success;
+      if (!ok) st.textContent = 'Could not send: ' + (r.error || 'is the Bridge running?');
+    }
+    if (ok) {
       st.textContent = 'Sent.';
       document.getElementById('m-body').value = '';
       document.getElementById('m-subject').value = '';
       ARG.toast('Message sent.');
-    } else { st.textContent = 'Could not send: ' + (r.error || 'unknown'); }
+    }
   } catch (e) { st.textContent = 'Could not send: ' + e.message; }
 });
 
-document.getElementById('refresh').addEventListener('click', loadMail);
+document.getElementById('refresh').addEventListener('click', () => { loadMail(); loadProtonStatus(); });
 const to = sessionStorage.getItem('arg:mail-to');
 if (to) { sessionStorage.removeItem('arg:mail-to'); document.getElementById('m-to').value = to; }
 loadMail();
+loadProtonStatus();
 </script>
 </body>
 </html>
