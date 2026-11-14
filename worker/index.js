@@ -360,6 +360,7 @@ async function orchestrate(messages, env, options = {}) {
   // Keys — canonical names from API register (2026-10-27)
   const MISTRAL_KEY = k(env, ['mistral_api_key', 'MISTRAL_API_KEY', 'mistral_p', 'mistral_f']);
   const GEMINI_KEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY', 'gemini_p', 'gemini_f']);
+  const GEMINI_FREE_KEY = k(env, ['gemini_free_key', 'GEMINI_FREE_KEY']) || GEMINI_KEY || ''; // free tier key
   const DEEPSEEK_KEY = k(env, ['deepseek_paid', 'DEEPSEEK_PAID', 'deepseek_p', 'deepseek_f1', 'deepseek_f2']);
   const GROQ_KEY = k(env, ['groq_f1', 'groq_f2', 'groq_f3', 'GROQ_F1', 'groq_free_1', 'GROQ_FREE_1']);
   const OPENROUTER_KEY = k(env, ['openrouter', 'openrouter_api_key', 'OPENROUTER_API_KEY']);
@@ -524,7 +525,23 @@ async function orchestrate(messages, env, options = {}) {
     }
   }
 
-  return {content: null, error: 'All providers unavailable. Log: ' + log.join(' | '), routingLog: log};
+  // Final unconditional fallback: Pollinations
+  try {
+    const pollResp = await fetch('https://text.pollinations.ai/openai', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({model: 'openai', messages, max_tokens: 4096})
+    });
+    if (pollResp.ok) {
+      const pollData = await pollResp.json();
+      const pollContent = pollData.choices?.[0]?.message?.content || '';
+      if (pollContent) {
+        log.push('pollinations/openai: OK (fallback)');
+        return {content: pollContent, provider: 'pollinations', model: 'openai', routingLog: log};
+      }
+    }
+  } catch(pe) { log.push('pollinations: ' + pe.message); }
+  return {content: 'All providers unavailable. Please try again.', error: 'All providers unavailable. Log: ' + log.join(' | '), routingLog: log};
 }
 
 async function callModel(provider, model, key, messages, env) {
