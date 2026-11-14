@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Platforms</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="platforms">
+  <div class="arg-pagehead">
+    <h1>Platforms</h1>
+    <div class="sub">Every connection in one place: what is live, what is expiring, and the Buffer channels that carry Instagram, Facebook and X.</div>
+  </div>
+
+  <div class="card">
+    <div class="spread">
+      <h3>Connections</h3>
+      <div class="row" style="gap:6px;">
+        <button class="ghost small" id="buffer-fetch">Fetch Buffer channels</button>
+        <button class="ghost small" id="refresh">Refresh</button>
+      </div>
+    </div>
+    <div class="item-list mt" id="plat-list"><div class="muted">Loading…</div></div>
+    <div class="muted mt" id="buffer-status"></div>
+  </div>
+
+  <div class="card mt">
+    <h3>Reconnects</h3>
+    <div class="item-list">
+      <div class="item"><div>Google — Gmail, Calendar, Drive</div><a class="badge teal" href="https://prism.identitypartners.uk/comms/google/">Reconnect</a></div>
+      <div class="item"><div>Proton — via Nylas (requires Bridge running on your Surface)</div><span class="badge">Nylas grant needed</span></div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('platforms');
+const { api, esc } = ARG;
+
+const ORDER = ['bluesky', 'linkedin', 'telegram', 'buffer', 'instagram', 'facebook', 'x', 'substack', 'whop'];
+
+async function load() {
+  const el = document.getElementById('plat-list');
+  try {
+    const s = await api('/platform/status');
+    const list = s.platforms || s.channels || s;
+    const entries = Object.entries(list).sort((a, b) => {
+      const ia = ORDER.indexOf(a[0]), ib = ORDER.indexOf(b[0]);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    el.innerHTML = entries.map(([name, p]) => {
+      const ok = p && (p.connected === true || p.connected === 'true');
+      return '<div class="item"><div>' + esc(name.charAt(0).toUpperCase() + name.slice(1)) +
+        (name === 'buffer' ? ' <span class="muted">carries Instagram, Facebook and X</span>' : '') + '</div>' +
+        (ok ? '<span class="badge green">Connected</span>' : '<span class="badge">Not connected</span>') + '</div>';
+    }).join('') || '<div class="muted">No status available.</div>';
+  } catch (e) { el.innerHTML = '<div class="muted">Could not read platform status.</div>'; }
+}
+
+document.getElementById('buffer-fetch').addEventListener('click', async () => {
+  const st = document.getElementById('buffer-status');
+  st.textContent = 'Fetching channels from Buffer…';
+  try {
+    const r = await api('/buffer/fetch-channels');
+    const n = (r.channels || []).length;
+    st.textContent = n ? 'Stored ' + n + ' Buffer channel(s). Instagram, Facebook and X are ready.' : 'No channels came back: ' + (r.error || 'check the Buffer dashboard.');
+  } catch (e) { st.textContent = 'Could not fetch: ' + e.message; }
+});
+
+document.getElementById('refresh').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>

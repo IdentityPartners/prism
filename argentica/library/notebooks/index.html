@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Notebooks</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="notebooks">
+  <div class="arg-pagehead">
+    <h1>Notebooks</h1>
+    <div class="sub">Every note across the library, with an editor and Gerald at your elbow.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>Notes</h3>
+      <div class="item-list" id="note-list"><div class="muted">Loading…</div></div>
+    </div>
+
+    <div class="card">
+      <h3 id="editor-title">Editor</h3>
+      <input type="text" id="n-title" placeholder="Title">
+      <textarea id="n-body" style="min-height:200px; margin-top:8px;" placeholder="Write…"></textarea>
+      <div class="row mt" style="justify-content:space-between;">
+        <button class="ghost small" id="n-ai">Ask Gerald to critique</button>
+        <button id="n-save">Save</button>
+      </div>
+      <div class="muted mt" id="n-status"></div>
+      <div id="n-critique" class="mt"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('notebooks');
+const { api, esc } = ARG;
+
+let notes = [], editing = null;
+
+async function loadNotes() {
+  try {
+    const data = await api('/documents');
+    notes = (data.documents || []).filter(d => d.type === 'note');
+    const el = document.getElementById('note-list');
+    if (!notes.length) { el.innerHTML = '<div class="muted">No notes yet. Write one on the right, or take one into a week in the Study hub.</div>'; return; }
+    el.innerHTML = notes.map(n =>
+      '<div class="item"><div><div>' + esc(n.title) + '</div>' +
+      '<div class="muted">' + (n.moduleSource || '') + ' · ' + (n.updatedAt ? new Date(n.updatedAt).toLocaleDateString('en-GB') : '') + '</div></div>' +
+      '<button class="ghost small" onclick="openNote(\'' + esc(n.id) + '\')">Open</button></div>'
+    ).join('');
+  } catch (e) { document.getElementById('note-list').innerHTML = '<div class="muted">Could not load notes.</div>'; }
+}
+
+window.openNote = async id => {
+  try {
+    const d = await api('/documents/' + encodeURIComponent(id));
+    editing = d.document;
+    document.getElementById('n-title').value = editing.title || '';
+    document.getElementById('n-body').value = editing.content || '';
+    document.getElementById('editor-title').textContent = 'Editing — ' + (editing.title || 'note');
+  } catch (e) { ARG.toast('Could not open the note.'); }
+};
+
+document.getElementById('n-save').addEventListener('click', async () => {
+  const title = document.getElementById('n-title').value.trim() || 'Untitled note';
+  const body = document.getElementById('n-body').value;
+  try {
+    if (editing) {
+      await api('/documents/' + encodeURIComponent(editing.id), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, content: body }) });
+    } else {
+      await api('/documents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, type: 'note', content: body, tags: [], moduleSource: 'notebooks' }) });
+    }
+    document.getElementById('n-status').textContent = 'Saved.';
+    ARG.toast('Note saved.');
+    editing = null;
+    document.getElementById('editor-title').textContent = 'Editor';
+    loadNotes();
+  } catch (e) { document.getElementById('n-status').textContent = 'Could not save: ' + e.message; }
+});
+
+document.getElementById('n-ai').addEventListener('click', async () => {
+  const body = document.getElementById('n-body').value.trim();
+  const out = document.getElementById('n-critique');
+  if (!body) { ARG.toast('Write something first.'); return; }
+  out.innerHTML = '<div class="muted">Gerald is reading…</div>';
+  try {
+    const d = await api('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: 'Critique this note as a PhD supervisor would: what is strong, what is weak, what needs a citation, what is the strongest counter-argument. Be direct, no flattery. British English. Note:\n\n' + body }], profile: 'research' }) });
+    out.innerHTML = '<div class="thinking" style="display:block;">' + ARG.md(d.content || '') + '</div>';
+  } catch (e) { out.innerHTML = '<div class="muted">Critique failed: ' + esc(e.message) + '</div>'; }
+});
+
+loadNotes();
+</script>
+</body>
+</html>

@@ -29,14 +29,6 @@
     </div>
   </div>
 
-  <div class="card" style="margin-bottom:16px;">
-    <div class="row">
-      <input type="text" id="global-search" placeholder="Search everything — your notes, readings and the literature. e.g. Goffman">
-      <button id="global-search-btn">Search</button>
-    </div>
-    <div id="global-results" class="mt" style="display:none;"></div>
-  </div>
-
   <div class="tabbar" id="section-tabs"></div>
   <div class="tabbar" id="module-tabs" style="display:none;"></div>
   <div class="weekbar" id="week-bar"></div>
@@ -205,11 +197,7 @@ function renderDashboard() {
     '<div class="muted mt" id="upload-status"></div>' +
     '</div>' +
 
-  '<div class="card">' +
-    '<h3>Watching briefs</h3>' +
-    '<textarea id="watch-kw" style="min-height:56px;" placeholder="One keyword or phrase per line…"></textarea>' +
-    '<div class="row mt" style="justify-content:space-between;"><span class="muted" id="watch-status"></span><button class="small" id="watch-save">Save</button></div>' +
-    '</div>';
+
 
   wireUpload();
   document.getElementById('note-save').addEventListener('click', saveNote);
@@ -314,48 +302,6 @@ window.askAbout = id => {
   location.href = '/argentica/chat/';
 };
 
-// ── Global search: own notes + readings, then the literature ──
-document.getElementById('global-search-btn').addEventListener('click', async () => {
-  const q = document.getElementById('global-search').value.trim();
-  const out = document.getElementById('global-results');
-  if (!q) { out.style.display = 'none'; return; }
-  out.style.display = 'block';
-  out.innerHTML = '<div class="muted">Searching your notes and readings…</div>';
-
-  const mine = [];
-  const ql = q.toLowerCase();
-  // metadata scan (titles, tags)
-  allDocs.forEach(d => {
-    if ((d.title || '').toLowerCase().includes(ql)) mine.push({ title: d.title, url: '/argentica/viewer/?doc=' + encodeURIComponent(d.id), snippet: 'In your library · ' + (d.moduleSource || '') });
-  });
-  // semantic search over indexed documents
-  try {
-    const sem = await api('/study/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, limit: 8 }) });
-    (sem.results || []).forEach(r => {
-      if (!mine.some(m => m.title === r.title)) mine.push({ title: r.title || 'Indexed passage', url: r.url || '#', snippet: String(r.content || r.snippet || '').slice(0, 160) });
-    });
-  } catch (e) {}
-
-  let litHtml = '';
-  try {
-    const lit = await api('/research/scholarly', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, sources: ['semantic_scholar', 'openalex', 'crossref'] }) });
-    const all = [];
-    const r = lit.results || lit.sources || [];
-    (Array.isArray(r) ? r : Object.values(r)).forEach(s => (s.items || []).forEach(i => all.push(i)));
-    if (all.length) {
-      const seen = new Set();
-      litHtml = '<h3 style="margin-top:16px;">The literature</h3><div class="item-list">' +
-        all.filter(x => { const k = (x.url || x.title || '').replace(/[#?].*$/, ''); if (seen.has(k)) return false; seen.add(k); return true; })
-           .slice(0, 8).map(x => '<div class="item"><div><a href="' + esc(x.url || '#') + '" target="_blank" rel="noopener">' + esc(x.title) + '</a> <span class="badge teal">' + esc(x.source) + '</span><div class="muted">' + esc([x.authors, x.year].filter(Boolean).join(', ')) + '</div></div></div>').join('') + '</div>';
-    }
-  } catch (e) {}
-
-  out.innerHTML =
-    '<h3 style="margin-bottom:8px;">Your notes and readings</h3>' +
-    (mine.length ? '<div class="item-list">' + mine.slice(0, 10).map(m =>
-      '<div class="item"><div><a href="' + esc(m.url) + '">' + esc(m.title) + '</a><div class="muted">' + esc(m.snippet) + '</div></div></div>').join('') + '</div>'
-      : '<div class="muted">Nothing of yours mentions "' + esc(q) + '" yet.</div>') + litHtml;
-});
 
 // ── Watching briefs ───────────────────────────────────
 function wireWatch() {

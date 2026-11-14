@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Debate society</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="debate">
+  <div class="arg-pagehead">
+    <h1>Debate society</h1>
+    <div class="sub">State a position. The system constructs the strongest possible counter-argument from approved academic sources, then your rebuttal.</div>
+  </div>
+
+  <div class="card">
+    <h3>Your position</h3>
+    <textarea id="position" style="min-height:80px;" placeholder="e.g. The UK benefits system produces disability through administrative design rather than merely responding to it"></textarea>
+    <div class="row mt" style="flex-wrap:wrap; gap:8px;">
+      <button id="debate-run">Steel-man the opposition</button>
+      <button class="ghost" id="debate-round2" style="display:none;">Now give me the rebuttal</button>
+    </div>
+  </div>
+
+  <div class="card mt" id="debate-out" style="display:none;">
+    <h3 id="debate-title">Counter-arguments</h3>
+    <div id="debate-body"></div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('debate');
+const { api, esc } = ARG;
+
+let lastPosition = '';
+
+document.getElementById('debate-run').addEventListener('click', async () => {
+  const pos = document.getElementById('position').value.trim();
+  if (!pos) { ARG.toast('State the position first.'); return; }
+  lastPosition = pos;
+  const out = document.getElementById('debate-out');
+  const body = document.getElementById('debate-body');
+  out.style.display = 'block';
+  document.getElementById('debate-title').textContent = 'Counter-arguments';
+  body.innerHTML = '<div class="muted">Constructing the strongest opposition…</div>';
+  try {
+    const d = await api('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      messages: [{ role: 'user', content: 'I hold this position: "' + pos + '". Construct the strongest possible steel-man case AGAINST it, drawing on the traditions of zemiology, disability studies, sociology of addiction and quantitative social science where relevant. Give three numbered counter-arguments, each with the strongest evidence base behind it, and name the key thinkers. British English. Direct, no hedging, no flattery.' }],
+      profile: 'research'
+    }) });
+    body.innerHTML = ARG.md(d.content || '');
+    document.getElementById('debate-round2').style.display = 'inline-block';
+  } catch (e) { body.innerHTML = '<div class="muted">Failed: ' + esc(e.message) + '</div>'; }
+});
+
+document.getElementById('debate-round2').addEventListener('click', async () => {
+  const counters = document.getElementById('debate-body').innerText;
+  const body = document.getElementById('debate-body');
+  body.innerHTML = '<div class="muted">Building your rebuttal…</div>';
+  try {
+    const d = await api('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      messages: [{ role: 'user', content: 'My position: "' + lastPosition + '". The opposition argues:\n\n' + counters.slice(0, 3000) + '\n\nNow write my rebuttal: answer each counter-argument in turn, concede what must be conceded, and end with the strengthened version of my position. British English. Direct.' }],
+      profile: 'research'
+    }) });
+    body.innerHTML = '<h4 style="margin-bottom:8px;">Counter-arguments</h4><div class="muted">See above for the original opposition.</div><h4 style="margin:16px 0 8px;">Your rebuttal</h4>' + ARG.md(d.content || '');
+    document.getElementById('debate-title').textContent = 'The exchange';
+  } catch (e) { body.innerHTML = '<div class="muted">Failed: ' + esc(e.message) + '</div>'; }
+});
+</script>
+</body>
+</html>

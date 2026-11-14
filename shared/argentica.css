@@ -293,3 +293,10 @@ button.tpl.active { background: var(--teal); color: #fff; border-color: var(--te
 .zonebar a { padding: 8px 18px; border-radius: 8px 8px 0 0; color: var(--ink-soft); font-size: 14px; }
 .zonebar a.active { background: var(--teal); color: #fff; }
 .zonebar a:hover { text-decoration: none; background: var(--ivory); }
+
+/* ── Workspace subsection tabs ────────────────────── */
+
+.arg-tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.arg-tabs a { padding: 7px 16px; border-radius: 8px 8px 0 0; color: var(--ink-soft); font-size: 13.5px; }
+.arg-tabs a.active { background: var(--teal); color: #fff; }
+.arg-tabs a:hover { text-decoration: none; background: var(--ivory); }

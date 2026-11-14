@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Watching briefs</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="watching">
+  <div class="arg-pagehead">
+    <h1>Watching briefs</h1>
+    <div class="sub">The keywords the pipeline watches across approved news sources. When something relevant breaks, you hear about it.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>Keywords</h3>
+      <textarea id="watch-kw" style="min-height:140px;" placeholder="One keyword or phrase per line…&#10;e.g. benefits reassessment&#10;alcohol deaths&#10;recovery capital"></textarea>
+      <button class="mt" id="watch-save">Save briefs</button>
+      <div class="muted mt" id="watch-status"></div>
+    </div>
+
+    <div class="card">
+      <h3>Today's matches</h3>
+      <div class="item-list" id="watch-hits"><div class="muted">Load today's matches below.</div></div>
+      <button class="ghost small mt" id="watch-run">Scan now</button>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('watching');
+const { api, esc } = ARG;
+
+(async function load() {
+  try {
+    const d = await api('/news/keywords');
+    document.getElementById('watch-kw').value = (d.keywords || []).join('\n');
+  } catch (e) {}
+})();
+
+document.getElementById('watch-save').addEventListener('click', async () => {
+  const kws = document.getElementById('watch-kw').value.split('\n').map(s => s.trim()).filter(Boolean);
+  try {
+    await api('/news/keywords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keywords: kws }) });
+    document.getElementById('watch-status').textContent = 'Saved ' + kws.length + ' brief' + (kws.length === 1 ? '' : 's') + '.';
+    ARG.toast('Watching briefs updated.');
+  } catch (e) { document.getElementById('watch-status').textContent = 'Could not save.'; }
+});
+
+document.getElementById('watch-run').addEventListener('click', async () => {
+  const kws = document.getElementById('watch-kw').value.split('\n').map(s => s.trim()).filter(Boolean).map(s => s.toLowerCase());
+  const el = document.getElementById('watch-hits');
+  if (!kws.length) { ARG.toast('Add some keywords first.'); return; }
+  el.innerHTML = '<div class="muted">Scanning…</div>';
+  const feeds = [
+    ['Guardian', 'https://www.theguardian.com/uk/society/rss'],
+    ['BBC Health', 'https://feeds.bbci.co.uk/news/health/rss.xml'],
+    ['New Statesman', 'https://www.newstatesman.com/feed']
+  ];
+  const hits = [];
+  await Promise.all(feeds.map(async ([name, url]) => {
+    try {
+      const text = await (await fetch('/api/rss?url=' + encodeURIComponent(url))).text();
+      const doc = new DOMParser().parseFromString(text, 'text/xml');
+      doc.querySelectorAll('item').forEach(it => {
+        const title = (it.querySelector('title') || {}).textContent || '';
+        const link = (it.querySelector('link') || {}).textContent || '';
+        const desc = ((it.querySelector('description') || {}).textContent || '').replace(/<[^>]*>/g, '').slice(0, 140);
+        if (kws.some(k => (title + ' ' + desc).toLowerCase().includes(k))) hits.push({ name, title, link, desc });
+      });
+    } catch (e) {}
+  }));
+  el.innerHTML = hits.length
+    ? hits.slice(0, 12).map(h => '<div class="item"><div><a href="' + esc(h.link) + '" target="_blank" rel="noopener">' + esc(h.title) + '</a> <span class="badge">' + esc(h.name) + '</span><div class="muted">' + esc(h.desc) + '</div></div></div>').join('')
+    : '<div class="muted">No matches in today\'s feeds.</div>';
+});
+</script>
+</body>
+</html>
