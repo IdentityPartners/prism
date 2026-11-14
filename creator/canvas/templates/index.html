@@ -207,26 +207,23 @@ var TEMPLATES = [
   ]},
 ];
 
-document.addEventListener('DOMContentLoaded', function() {
-  // prism.js auto-builds sidebar — only build here if it hasn't run yet
-  if (!document.querySelector('.sidebar')) {
-    var mount = document.getElementById('sidebar-mount');
-    if (mount && typeof buildSidebar === 'function') {
-      try {
-        var sb = buildSidebar('/creator/canvas/templates/');
-        if (sb && mount.parentNode) {
-          mount.parentNode.insertBefore(sb, mount);
-          mount.parentNode.removeChild(mount);
-        }
-      } catch(e) {}
-    }
-  }
-  try { renderTemplates(); } catch(e) { console.error('renderTemplates error:', e); }
-});
+// Run renderTemplates as soon as possible, retry if needed
+function tryRenderTemplates() {
+  var container = document.getElementById('template-groups');
+  if (!container) { setTimeout(tryRenderTemplates, 100); return; }
+  try { renderTemplates(); } catch(e) { setTimeout(tryRenderTemplates, 200); }
+}
+// Run immediately if DOM ready, otherwise wait
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', tryRenderTemplates);
+} else {
+  tryRenderTemplates();
+}
 
 function renderTemplates() {
   var container = document.getElementById('template-groups');
   if (!container) { setTimeout(renderTemplates, 200); return; }
+  if (container.children.length > 0) return; // already rendered
   container.innerHTML = '';
   TEMPLATES.forEach(function(group) {
     var section = document.createElement('div');
@@ -243,16 +240,16 @@ function renderTemplates() {
       card.onclick = function() { previewTemplate(t); };
       var preview = document.createElement('div');
       preview.className = 'template-preview';
-      // Show photographic background if available, otherwise colour block
       if (t.bgFallback) {
-        preview.style.backgroundImage = 'url(' + t.bgFallback + ')';
-        preview.style.backgroundSize = 'cover';
-        preview.style.backgroundPosition = 'center';
-        preview.style.background = t.bg; // fallback colour
+        preview.style.cssText = 'height:120px;display:flex;align-items:center;justify-content:center;font-size:32px;position:relative;overflow:hidden;background-image:url('+t.bgFallback+');background-size:cover;background-position:center;';
+        // Overlay for text legibility
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:absolute;inset:0;background:rgba(0,0,0,0.35);';
+        preview.appendChild(overlay);
       } else {
         preview.style.background = t.bg;
       }
-      preview.innerHTML = '<div style="font-family:Georgia,serif;font-size:11px;font-style:italic;color:'+t.fg+';text-align:center;padding:10px;opacity:0.9;">Identity<br>Partners</div>';
+      preview.innerHTML += '<div style="font-family:Georgia,serif;font-size:11px;font-style:italic;color:'+t.fg+';text-align:center;padding:10px;opacity:0.9;">Identity<br>Partners</div>';
       var info = document.createElement('div');
       info.className = 'template-info';
       var name = document.createElement('div');
