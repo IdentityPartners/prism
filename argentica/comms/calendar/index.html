@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Calendar</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="calendar">
+  <div class="arg-pagehead">
+    <h1>Calendar</h1>
+    <div class="sub">Google Calendar for the next fortnight, with the social pipeline overlaid.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3><span class="dot" id="cal-dot"></span>Diary</h3>
+      <div class="item-list" id="cal-list"><div class="muted">Loading…</div></div>
+    </div>
+
+    <div class="card">
+      <h3>Social pipeline</h3>
+      <div class="muted" style="margin-bottom:8px;">Posts made (green), queued for approval (teal), scheduled (rose).</div>
+      <div class="item-list" id="social-cal"><div class="muted">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('calendar');
+const { api, esc } = ARG;
+
+(async function () {
+  try {
+    const cal = await api('/google/calendar');
+    const el = document.getElementById('cal-list');
+    if (cal.status !== 'ok') {
+      el.innerHTML = '<div class="muted">Google Calendar is not connected. Reconnect from <a href="https://prism.identitypartners.uk/comms/google/">the Google account page</a>.</div>';
+      return;
+    }
+    document.getElementById('cal-dot').classList.add('on');
+    const evs = (cal.today || []).concat(cal.week || []);
+    if (!evs.length) { el.innerHTML = '<div class="muted">Nothing in the diary for the next fortnight.</div>'; return; }
+    const fmt = t => new Date(t).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    el.innerHTML = evs.map(e =>
+      '<div class="item"><div><div><strong>' + esc(e.title) + '</strong></div>' +
+      '<div class="muted">' + fmt(e.starts_at) + (e.location ? ' · ' + esc(e.location) : '') + '</div></div></div>'
+    ).join('');
+  } catch (e) { document.getElementById('cal-list').innerHTML = '<div class="muted">Calendar unavailable.</div>'; }
+})();
+
+(async function () {
+  try {
+    const data = await api('/mm/queue');
+    const q = (data.queue || []).filter(i => ['pending', 'scheduled', 'posted'].includes(i.status || 'pending')).slice(0, 20);
+    const el = document.getElementById('social-cal');
+    if (!q.length) { el.innerHTML = '<div class="muted">No social activity yet.</div>'; return; }
+    const badge = s => s === 'posted' ? '<span class="badge green">posted</span>' : s === 'scheduled' ? '<span class="badge rose">scheduled</span>' : '<span class="badge teal">queued</span>';
+    el.innerHTML = q.map(i =>
+      '<div class="item"><div style="min-width:0;">' +
+      '<div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(String(i.text || '').split('\n')[0].slice(0, 80)) + '</div>' +
+      '<div class="muted">' + esc((i.platforms || []).join(', ')) + ' · ' + new Date(i.createdAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + '</div>' +
+      '</div>' + badge(i.status) + '</div>'
+    ).join('');
+  } catch (e) { document.getElementById('social-cal').innerHTML = '<div class="muted">Queue unavailable.</div>'; }
+})();
+</script>
+</body>
+</html>

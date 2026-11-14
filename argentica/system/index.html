@@ -35,6 +35,14 @@
 
   <div class="grid two mt">
     <div class="card">
+      <h3>What the system remembers</h3>
+      <div class="item-list" id="memory-list"><div class="muted">Loading…</div></div>
+      <div class="row mt">
+        <input type="text" id="mem-new" placeholder="Tell it something to remember…">
+        <button class="small" id="mem-add">Remember</button>
+      </div>
+    </div>
+    <div class="card">
       <h3>Routing chain</h3>
       <div class="muted" style="margin-bottom:8px;">Balanced profile, in order. Each model fails independently — a broken key is skipped silently.</div>
       <div id="chain" class="item-list"><div class="muted">Loading…</div></div>
@@ -117,6 +125,31 @@ document.getElementById('buffer-fetch').addEventListener('click', async () => {
       : 'No channels came back: ' + (r.error || 'check the Buffer connection in the Buffer dashboard.');
   } catch (e) { st.textContent = 'Could not fetch: ' + e.message; }
 });
+
+// Memory
+async function loadMemory() {
+  try {
+    const d = await api('/memory/about-me');
+    const mems = d.memories || d.facts || [];
+    const el = document.getElementById('memory-list');
+    if (!mems.length) { el.innerHTML = '<div class="muted">Nothing stored yet.</div>'; return; }
+    el.innerHTML = mems.slice().reverse().map(m =>
+      '<div class="item"><div style="min-width:0;">' + esc(m.fact || m.note || '') +
+      '<div class="muted">' + (m.added ? new Date(m.added).toLocaleDateString('en-GB') : '') + '</div></div></div>'
+    ).join('');
+  } catch (e) { document.getElementById('memory-list').innerHTML = '<div class="muted">Could not load memory.</div>'; }
+}
+document.getElementById('mem-add').addEventListener('click', async () => {
+  const fact = document.getElementById('mem-new').value.trim();
+  if (!fact) { ARG.toast('Say what to remember.'); return; }
+  try {
+    await api('/memory/about-me', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fact }) });
+    document.getElementById('mem-new').value = '';
+    ARG.toast('Remembered.');
+    loadMemory();
+  } catch (e) { ARG.toast('Could not store that.'); }
+});
+loadMemory();
 
 document.getElementById('ingest').addEventListener('click', async () => {
   const raw = document.getElementById('secrets').value.trim();

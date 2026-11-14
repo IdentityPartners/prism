@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — CRM</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="crm">
+  <div class="arg-pagehead">
+    <h1>CRM</h1>
+    <div class="sub">Identity Partners contacts and client relationships, backed by D1.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>New contact</h3>
+      <div class="grid" style="gap:8px;">
+        <input type="text" id="c-name" placeholder="Name">
+        <input type="text" id="c-email" placeholder="Email">
+        <input type="text" id="c-phone" placeholder="Phone">
+        <input type="text" id="c-company" placeholder="Company / organisation">
+        <input type="text" id="c-role" placeholder="Role">
+        <input type="text" id="c-tags" placeholder="Tags, comma separated (e.g. client, follow-up)">
+      </div>
+      <button class="mt" id="c-add">Add contact</button>
+      <div class="muted mt" id="c-status"></div>
+    </div>
+
+    <div class="card">
+      <h3>Find a contact</h3>
+      <div class="row">
+        <input type="text" id="c-search" placeholder="Search by name, email, company or tag…">
+        <button id="c-search-btn">Search</button>
+      </div>
+      <div class="muted mt" id="c-count"></div>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <h3>Contacts</h3>
+    <div class="item-list" id="c-list"><div class="muted">Loading…</div></div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('crm');
+const { api, esc } = ARG;
+
+async function loadContacts(q) {
+  const el = document.getElementById('c-list');
+  try {
+    const data = await api('/crm/contacts' + (q ? '?q=' + encodeURIComponent(q) : ''));
+    const contacts = data.contacts || [];
+    document.getElementById('c-count').textContent = contacts.length + ' contact' + (contacts.length === 1 ? '' : 's') + (data.note ? ' — ' + data.note : '');
+    if (!contacts.length) { el.innerHTML = '<div class="muted">No contacts yet. Add your first client or colleague on the left.</div>'; return; }
+    el.innerHTML = contacts.map(c =>
+      '<div class="item"><div>' +
+      '<div><strong>' + esc(c.name || 'Unnamed') + '</strong>' +
+      (c.role || c.company ? ' <span class="muted">' + esc([c.role, c.company].filter(Boolean).join(', ')) + '</span>' : '') + '</div>' +
+      '<div class="muted">' + esc(c.email || '') + (c.phone ? ' · ' + esc(c.phone) : '') + '</div>' +
+      ((JSON.parse(c.tags || '[]')).length ? '<div class="mt" style="margin-top:4px;">' + JSON.parse(c.tags || '[]').map(t => '<span class="badge teal">' + esc(t) + '</span>').join(' ') + '</div>' : '') +
+      '</div>' +
+      '<button class="ghost small" onclick="mailTo(\'' + esc(c.email || '') + '\')">Email</button>' +
+      '</div>'
+    ).join('');
+  } catch (e) { el.innerHTML = '<div class="muted">Could not load contacts: ' + esc(e.message) + '</div>'; }
+}
+
+window.mailTo = email => {
+  sessionStorage.setItem('arg:mail-to', email);
+  location.href = '/argentica/comms/email/';
+};
+
+document.getElementById('c-add').addEventListener('click', async () => {
+  const name = document.getElementById('c-name').value.trim();
+  if (!name) { ARG.toast('A name at least, please.'); return; }
+  try {
+    await api('/crm/contacts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        email: document.getElementById('c-email').value.trim(),
+        phone: document.getElementById('c-phone').value.trim(),
+        company: document.getElementById('c-company').value.trim(),
+        role: document.getElementById('c-role').value.trim(),
+        tags: document.getElementById('c-tags').value.split(',').map(t => t.trim()).filter(Boolean)
+      })
+    });
+    ['c-name', 'c-email', 'c-phone', 'c-company', 'c-role', 'c-tags'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('c-status').textContent = 'Added.';
+    ARG.toast('Contact saved.');
+    loadContacts();
+  } catch (e) { document.getElementById('c-status').textContent = 'Could not save: ' + e.message; }
+});
+
+document.getElementById('c-search-btn').addEventListener('click', () => loadContacts(document.getElementById('c-search').value.trim()));
+loadContacts();
+</script>
+</body>
+</html>

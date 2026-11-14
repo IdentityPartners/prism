@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Email</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="email">
+  <div class="arg-pagehead spread">
+    <div>
+      <h1>Email</h1>
+      <div class="sub">Gmail via Google OAuth — argentica.identitypartners@gmail.com. Reconnect from System if this shows disconnected.</div>
+    </div>
+    <button id="refresh">Refresh</button>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3><span class="dot" id="mail-dot"></span>Inbox</h3>
+      <div class="item-list" id="mail-list"><div class="muted">Loading…</div></div>
+    </div>
+
+    <div class="card">
+      <h3>Compose</h3>
+      <div class="grid" style="gap:8px;">
+        <input type="text" id="m-to" placeholder="To">
+        <input type="text" id="m-subject" placeholder="Subject">
+        <textarea id="m-body" style="min-height:140px;" placeholder="Write your message…"></textarea>
+      </div>
+      <button class="mt" id="m-send">Send</button>
+      <div class="muted mt" id="m-status"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('email');
+const { api, esc } = ARG;
+
+async function loadMail() {
+  const el = document.getElementById('mail-list');
+  try {
+    const data = await api('/google/gmail?maxResults=20');
+    if (data.status && data.status !== 'ok') {
+      document.getElementById('mail-dot').classList.remove('on');
+      el.innerHTML = '<div class="muted">Gmail is not connected. Reconnect from <a href="https://prism.identitypartners.uk/comms/google/">the Google account page</a>.</div>';
+      return;
+    }
+    document.getElementById('mail-dot').classList.add('on');
+    const msgs = data.messages || [];
+    if (!msgs.length) { el.innerHTML = '<div class="muted">Inbox is clear.</div>'; return; }
+    el.innerHTML = msgs.map(m => {
+      const h = m.headers || {};
+      return '<div class="item"><div style="min-width:0;">' +
+        '<div><strong>' + esc(h.From || 'Unknown sender').replace(/ <.*>/, '') + '</strong></div>' +
+        '<div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(h.Subject || '(no subject)') + '</div>' +
+        '<div class="muted">' + esc(h.Date || '') + '</div></div></div>';
+    }).join('');
+  } catch (e) { el.innerHTML = '<div class="muted">Could not load the inbox: ' + esc(e.message) + '</div>'; }
+}
+
+document.getElementById('m-send').addEventListener('click', async () => {
+  const to = document.getElementById('m-to').value.trim();
+  const subject = document.getElementById('m-subject').value.trim();
+  const body = document.getElementById('m-body').value;
+  if (!to) { ARG.toast('Who is it to?'); return; }
+  const st = document.getElementById('m-status');
+  st.textContent = 'Sending…';
+  try {
+    const r = await api('/google/gmail/send', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, subject, body })
+    });
+    if (r.success) {
+      st.textContent = 'Sent.';
+      document.getElementById('m-body').value = '';
+      document.getElementById('m-subject').value = '';
+      ARG.toast('Message sent.');
+    } else { st.textContent = 'Could not send: ' + (r.error || 'unknown'); }
+  } catch (e) { st.textContent = 'Could not send: ' + e.message; }
+});
+
+document.getElementById('refresh').addEventListener('click', loadMail);
+const to = sessionStorage.getItem('arg:mail-to');
+if (to) { sessionStorage.removeItem('arg:mail-to'); document.getElementById('m-to').value = to; }
+loadMail();
+</script>
+</body>
+</html>

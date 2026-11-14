@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Podcast &amp; audio</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="podcast">
+  <div class="arg-pagehead">
+    <h1>Podcast &amp; audio</h1>
+    <div class="sub">Read anything aloud in a British voice, or draft and generate an episode.</div>
+  </div>
+
+  <div class="card">
+    <h3>Read aloud</h3>
+    <textarea id="tts-text" style="min-height:130px;" placeholder="Paste any text — a study resource, an article, a script…"></textarea>
+    <div class="row mt" style="flex-wrap:wrap; gap:8px;">
+      <select id="tts-voice" style="max-width:230px;">
+        <option value="aura-arcas-en">Deepgram Aura · Arcas (British male)</option>
+        <option value="aura-asteria-en">Deepgram Aura · Asteria (British female)</option>
+        <option value="aura-orion-en">Deepgram Aura · Orion (British male)</option>
+      </select>
+      <button id="tts-play">Generate &amp; play</button>
+      <span class="muted" id="tts-status"></span>
+    </div>
+    <audio id="tts-audio" controls style="width:100%; margin-top:12px; display:none;"></audio>
+  </div>
+
+  <div class="card mt">
+    <h3>Draft an episode with Gerald</h3>
+    <div class="row">
+      <input type="text" id="ep-topic" placeholder="Episode topic — e.g. recovery capital and long-term outcomes">
+      <button id="ep-draft">Draft script</button>
+    </div>
+    <div class="muted mt" id="ep-status"></div>
+    <textarea id="ep-script" style="min-height:180px; margin-top:10px; display:none;" placeholder="The script will appear here for editing before generation…"></textarea>
+    <div class="row mt" id="ep-actions" style="display:none;">
+      <button id="ep-generate">Generate audio from script</button>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('podcast');
+const { api, esc } = ARG;
+
+async function speak(text, voice) {
+  const st = document.getElementById('tts-status');
+  st.textContent = 'Generating audio…';
+  try {
+    const res = await fetch('/api/tts/speak', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, voice, provider: 'deepgram' })
+    });
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('audio/')) {
+      const blob = await res.blob();
+      const audio = document.getElementById('tts-audio');
+      audio.src = URL.createObjectURL(blob);
+      audio.style.display = 'block';
+      audio.play();
+      st.textContent = 'Playing.';
+    } else {
+      const d = await res.json();
+      st.textContent = 'Could not generate: ' + (d.error || 'unknown');
+    }
+  } catch (e) { st.textContent = 'Could not generate: ' + e.message; }
+}
+
+document.getElementById('tts-play').addEventListener('click', () => {
+  const text = document.getElementById('tts-text').value.trim();
+  if (!text) { ARG.toast('Paste some text first.'); return; }
+  speak(text, document.getElementById('tts-voice').value);
+});
+
+document.getElementById('ep-draft').addEventListener('click', async () => {
+  const topic = document.getElementById('ep-topic').value.trim();
+  if (!topic) { ARG.toast('Give the episode a topic.'); return; }
+  const st = document.getElementById('ep-status');
+  st.textContent = 'Gerald is drafting…';
+  try {
+    const d = await api('/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Write a short podcast script (600 to 800 words) for Identity Partners on the topic: ' + topic + '. You write as Simon Johnson: intelligent, direct, humane, intellectually curious British professional prose. British English. No em dashes. Never use the words multifaceted, nuanced, profound, tapestry, landscape, intersection, delve, ever-evolving. Open with a warm hook, develop two or three substantive points, close with a reflection. Do not add hashtags or contact details.' }],
+        profile: 'balanced'
+      })
+    });
+    const content = d.content || '';
+    document.getElementById('ep-script').value = content;
+    document.getElementById('ep-script').style.display = 'block';
+    document.getElementById('ep-actions').style.display = 'flex';
+    st.textContent = 'Draft ready — edit it as you like, then generate.';
+  } catch (e) { st.textContent = 'Draft failed: ' + e.message; }
+});
+
+document.getElementById('ep-generate').addEventListener('click', () => {
+  const script = document.getElementById('ep-script').value.trim();
+  if (!script) { ARG.toast('The script is empty.'); return; }
+  document.getElementById('tts-text').value = script;
+  speak(script, document.getElementById('tts-voice').value);
+});
+</script>
+</body>
+</html>

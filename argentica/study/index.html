@@ -36,7 +36,42 @@
 
   <div class="card mt">
     <h3>Resources</h3>
+    <div class="row" style="flex-wrap:wrap; gap:6px; margin-bottom:12px;" id="module-tabs">
+      <button class="ghost small tab active" data-m="all">All</button>
+      <button class="ghost small tab" data-m="study">Study</button>
+      <button class="ghost small tab" data-m="phd">PhD material</button>
+      <button class="ghost small tab" data-m="dissertation">Dissertation</button>
+      <button class="ghost small tab" data-m="concepts">Concepts &amp; thinkers</button>
+      <button class="ghost small tab" data-m="reference">References</button>
+    </div>
     <div class="item-list" id="doc-list"><div class="muted">Loading…</div></div>
+  </div>
+
+  <div class="grid two mt">
+    <div class="card">
+      <h3>New note</h3>
+      <input type="text" id="note-title" placeholder="Title" style="margin-bottom:8px;">
+      <textarea id="note-body" style="min-height:90px;" placeholder="Write a note — it is searchable and can be opened in the viewer…"></textarea>
+      <div class="row mt" style="justify-content:space-between;">
+        <select id="note-module" style="max-width:200px;">
+          <option value="study">Study</option>
+          <option value="phd">PhD material</option>
+          <option value="dissertation">Dissertation</option>
+          <option value="concepts">Concepts &amp; thinkers</option>
+        </select>
+        <button id="note-save">Save note</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Watching briefs</h3>
+      <div class="muted" style="margin-bottom:8px;">Keywords the pipeline watches for in the news. When something relevant breaks, you hear about it.</div>
+      <textarea id="watch-kw" style="min-height:60px;" placeholder="One keyword or phrase per line…"></textarea>
+      <div class="row mt" style="justify-content:space-between;">
+        <span class="muted" id="watch-status"></span>
+        <button id="watch-save">Save briefs</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -131,6 +166,75 @@ document.getElementById('study-search-btn').addEventListener('click', async () =
   } catch (e) {
     out.innerHTML = '<div class="muted">Index search unavailable — try again shortly.</div>';
   }
+});
+
+// Module tabs
+let currentModule = 'all';
+document.querySelectorAll('#module-tabs .tab').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#module-tabs .tab').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  currentModule = b.dataset.m;
+  renderDocs();
+}));
+
+function renderDocs() {
+  const docs = (window._allDocs || []).filter(d => currentModule === 'all' || d.moduleSource === currentModule || (currentModule === 'reference' && d.type === 'reference'));
+  const el = document.getElementById('doc-list');
+  if (!docs.length) { el.innerHTML = '<div class="muted">Nothing in this section yet.</div>'; return; }
+  el.innerHTML = docs.map(d =>
+    '<div class="item">' +
+    '<div><div>' + esc(d.title) + ' <span class="badge">' + esc(d.type) + '</span>' + (d.moduleSource && d.moduleSource !== 'study' ? ' <span class="badge teal">' + esc(d.moduleSource) + '</span>' : '') + '</div>' +
+    '<div class="muted">Added ' + (d.updatedAt ? new Date(d.updatedAt).toLocaleDateString('en-GB') : '—') + '</div></div>' +
+    '<div class="row">' +
+    '<button class="ghost small" onclick="openDoc(\'' + esc(d.id) + '\')">Open</button>' +
+    '<button class="ghost small" onclick="askAbout(\'' + esc(d.id) + '\')">Ask</button>' +
+    '<button class="ghost small" onclick="delDoc(\'' + esc(d.id) + '\')">Delete</button>' +
+    '</div></div>'
+  ).join('');
+  window._docs = docs;
+}
+
+async function loadDocs() {
+  try {
+    const data = await api('/documents');
+    window._allDocs = data.documents || [];
+    renderDocs();
+  } catch (e) {
+    document.getElementById('doc-list').innerHTML = '<div class="muted">Could not load resources.</div>';
+  }
+}
+
+// Notes
+document.getElementById('note-save').addEventListener('click', async () => {
+  const title = document.getElementById('note-title').value.trim();
+  const body = document.getElementById('note-body').value.trim();
+  if (!title && !body) { ARG.toast('Nothing to save.'); return; }
+  try {
+    await api('/documents', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title || 'Untitled note', type: 'note', content: body, tags: [], moduleSource: document.getElementById('note-module').value })
+    });
+    document.getElementById('note-title').value = '';
+    document.getElementById('note-body').value = '';
+    ARG.toast('Note saved.');
+    loadDocs();
+  } catch (e) { ARG.toast('Could not save the note.'); }
+});
+
+// Watching briefs
+(async function loadWatch() {
+  try {
+    const d = await api('/news/keywords');
+    document.getElementById('watch-kw').value = (d.keywords || []).join('\n');
+  } catch (e) {}
+})();
+document.getElementById('watch-save').addEventListener('click', async () => {
+  const kws = document.getElementById('watch-kw').value.split('\n').map(s => s.trim()).filter(Boolean);
+  try {
+    await api('/news/keywords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keywords: kws }) });
+    document.getElementById('watch-status').textContent = 'Saved ' + kws.length + ' brief' + (kws.length === 1 ? '' : 's') + '.';
+    ARG.toast('Watching briefs updated.');
+  } catch (e) { document.getElementById('watch-status').textContent = 'Could not save.'; }
 });
 
 loadDocs();

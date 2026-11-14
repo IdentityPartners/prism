@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Marketing team</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="team">
+  <div class="arg-pagehead">
+    <h1>Marketing team</h1>
+    <div class="sub">Six persistent collaborators. Assign a task to one, or brief the whole team at once.</div>
+  </div>
+
+  <div class="card">
+    <h3>Brief the team</h3>
+    <textarea id="assign-input" placeholder="e.g. All agents: prepare for World Mental Health Day on 10 October"></textarea>
+    <div class="row mt" style="flex-wrap:wrap; gap:8px;">
+      <input type="date" id="assign-deadline" style="max-width:180px;">
+      <select id="assign-priority" style="max-width:150px;">
+        <option value="1">Priority 1</option>
+        <option value="2">Priority 2</option>
+        <option value="3" selected>Priority 3</option>
+        <option value="4">Priority 4</option>
+        <option value="5">Priority 5</option>
+      </select>
+      <button id="assign-all">Assign to all six</button>
+    </div>
+    <div class="muted mt" id="assign-status"></div>
+  </div>
+
+  <div class="grid two mt" id="team-grid"><div class="muted">Loading the team…</div></div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('team');
+const { api, esc } = ARG;
+
+async function loadTeam() {
+  const grid = document.getElementById('team-grid');
+  try {
+    const data = await api('/agents');
+    const agents = data.agents || [];
+    if (!agents.length) { grid.innerHTML = '<div class="muted">No agents found.</div>'; return; }
+    grid.innerHTML = agents.map(a =>
+      '<div class="card">' +
+      '<h3>' + esc(a.name || a.role || 'Agent') + '</h3>' +
+      '<div class="muted" style="margin-bottom:8px;">' + esc(a.model || '') + '</div>' +
+      '<div style="font-size:13px;">' + esc(String(a.persona || '').slice(0, 180)) + '…</div>' +
+      '<div class="mt" style="margin-top:10px;">' + (a.tools || []).slice(0, 4).map(t => '<span class="badge">' + esc(t) + '</span>').join(' ') + '</div>' +
+      '<div class="row mt" style="margin-top:12px;">' +
+      '<input type="text" placeholder="Task for this agent…" data-agent="' + esc(a.id) + '" class="agent-task">' +
+      '<button class="small" onclick="assignOne(this)" data-id="' + esc(a.id) + '">Assign</button>' +
+      '</div></div>'
+    ).join('');
+    grid.querySelectorAll('.agent-task').forEach(inp => inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') assignOne(grid.querySelector('[data-id="' + inp.dataset.agent + '"]'));
+    }));
+  } catch (e) { grid.innerHTML = '<div class="muted">Could not load the team: ' + esc(e.message) + '</div>'; }
+}
+
+window.assignOne = async btn => {
+  const id = btn.dataset.id;
+  const inp = document.querySelector('.agent-task[data-agent="' + id + '"]');
+  const task = inp.value.trim();
+  if (!task) { ARG.toast('Write the task first.'); return; }
+  try {
+    await api('/marketing/assign', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId: id, task, deadline: document.getElementById('assign-deadline').value || null, priority: document.getElementById('assign-priority').value })
+    });
+    inp.value = '';
+    ARG.toast('Assigned.');
+  } catch (e) { ARG.toast('Could not assign: ' + e.message); }
+};
+
+document.getElementById('assign-all').addEventListener('click', async () => {
+  const task = document.getElementById('assign-input').value.trim();
+  if (!task) { ARG.toast('Write the brief first.'); return; }
+  const st = document.getElementById('assign-status');
+  st.textContent = 'Briefing all six agents…';
+  try {
+    const r = await api('/marketing/assign-all', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task, deadline: document.getElementById('assign-deadline').value || null, priority: document.getElementById('assign-priority').value })
+    });
+    st.textContent = 'All agents briefed.';
+    document.getElementById('assign-input').value = '';
+    ARG.toast('The team has its brief.');
+  } catch (e) { st.textContent = 'Could not assign: ' + e.message; }
+});
+
+loadTeam();
+</script>
+</body>
+</html>

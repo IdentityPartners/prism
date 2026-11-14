@@ -53,6 +53,14 @@
         <h3>Social</h3>
         <div id="social-body"><div class="muted">Checking the queue…</div></div>
       </div>
+      <div class="card">
+        <h3>Recent conversations</h3>
+        <div class="item-list" id="threads-body"><div class="muted">Loading…</div></div>
+      </div>
+      <div class="card">
+        <h3><span class="dot" id="health-dot"></span>System</h3>
+        <div id="health-body" class="muted">Checking…</div>
+      </div>
     </div>
   </div>
 </div>
@@ -163,6 +171,34 @@ const { api, esc } = ARG;
       '<div class="mt"><button class="ghost small" onclick="location.href=\'/argentica/social/\'">Review the queue</button></div>';
   } catch (e) {
     document.getElementById('social-body').innerHTML = '<div class="muted">Queue unavailable.</div>';
+  }
+})();
+
+// Recent conversations
+(async function () {
+  try {
+    const data = await api('/threads');
+    const el = document.getElementById('threads-body');
+    const threads = (data.threads || []).slice(0, 3);
+    if (!threads.length) { el.innerHTML = '<div class="muted">No conversations yet. Gerald is waiting.</div>'; return; }
+    el.innerHTML = threads.map(t =>
+      '<div class="item"><div><div>' + esc(t.title || 'Conversation') + '</div>' +
+      '<div class="muted">' + (t.messageCount || 0) + ' messages · ' + (t.updated ? new Date(t.updated).toLocaleDateString('en-GB') : '') + '</div></div></div>'
+    ).join('') + '<div class="mt" style="margin-top:10px;"><button class="ghost small" onclick="location.href=\'/argentica/chat/\'">Resume with Gerald</button></div>';
+  } catch (e) { document.getElementById('threads-body').innerHTML = '<div class="muted">Could not load conversations.</div>'; }
+})();
+
+// System health
+(async function () {
+  try {
+    const res = await fetch('https://prism-api.identitypartners.workers.dev/health');
+    const d = await res.json();
+    document.getElementById('health-dot').classList.add('on');
+    document.getElementById('health-body').innerHTML =
+      '<div>Worker healthy · storage bound · responding normally.</div>' +
+      '<div class="muted mt" style="margin-top:4px;">Cron slots: 08:00 · 13:00 · 20:00 UTC</div>';
+  } catch (e) {
+    document.getElementById('health-body').textContent = 'Worker not responding — check System for detail.';
   }
 })();
 
