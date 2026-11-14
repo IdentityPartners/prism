@@ -61,6 +61,27 @@
   </div>
 
   <div class="card mt">
+    <h3>Refract — one article, many assets</h3>
+    <div class="muted" style="margin-bottom:8px;">Paste an article, a finding or a thought. Gerald produces every platform version in your voice; queue the ones you want.</div>
+    <textarea id="refract-input" style="min-height:90px;" placeholder="Paste the article or idea here…"></textarea>
+    <div class="row mt" style="flex-wrap:wrap; gap:8px;">
+      <button id="refract-run">Refract</button>
+      <span class="muted" id="refract-status"></span>
+    </div>
+    <div class="mt" id="refract-out"></div>
+  </div>
+
+  <div class="card mt">
+    <h3>Posting rhythm</h3>
+    <div class="item-list">
+      <div class="item"><div>Instagram · Facebook · X <span class="muted">(short form, via Buffer)</span></div><span class="badge teal">up to 3 a day</span></div>
+      <div class="item"><div>Bluesky · Telegram <span class="muted">(direct)</span></div><span class="badge teal">1–2 a day</span></div>
+      <div class="item"><div>LinkedIn <span class="muted">(long form, professional)</span></div><span class="badge rose">1 a day, weekdays</span></div>
+      <div class="item"><div>Substack <span class="muted">(long form, editorial)</span></div><span class="badge rose">1 a week</span></div>
+    </div>
+  </div>
+
+  <div class="card mt">
     <h3>Awaiting your approval</h3>
     <div class="item-list" id="queue-list"><div class="muted">Loading…</div></div>
   </div>
@@ -157,6 +178,77 @@ window.reject = async id => {
     await api('/mm/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId: id, action: 'reject' }) });
     ARG.toast('Rejected.'); loadQueue();
   } catch (e) { ARG.toast('Could not reject.'); }
+};
+
+// ── Refract: one input → platform-specific outputs ──────────────
+const REACT_TARGETS = [
+  { key: 'LINKEDIN', label: 'LinkedIn', platforms: ['linkedin'], hint: '150–300 words, professional' },
+  { key: 'BLUESKY', label: 'Bluesky', platforms: ['bluesky'], hint: 'max 300 characters' },
+  { key: 'X', label: 'X', platforms: ['x'], hint: 'max 280 characters' },
+  { key: 'INSTAGRAM', label: 'Instagram', platforms: ['instagram'], hint: 'caption + line breaks' },
+  { key: 'TELEGRAM', label: 'Telegram', platforms: ['telegram'], hint: 'broadcast style' },
+  { key: 'SUBSTACK', label: 'Substack', platforms: ['substack'], hint: 'intro paragraph, editorial' }
+];
+
+const REFRACT_PROMPT = 'You write as Simon Johnson of Identity Partners: intelligent, direct, humane, intellectually curious British professional prose. British English only. Never use the words multifaceted, nuanced, profound, tapestry, landscape, intersection, delve, ever-evolving. Never use em dashes. No corporate hedging. Write for the reader directly, plainly, with warmth.\n\nRefract the following input into six platform versions. Use exactly these section headers, each on its own line, in this order: LINKEDIN, BLUESKY, X, INSTAGRAM, TELEGRAM, SUBSTACK. After each header give only the copy for that platform, nothing else. LINKEDIN: 150 to 300 words. BLUESKY: maximum 300 characters. X: maximum 280 characters. INSTAGRAM: a caption with line breaks. TELEGRAM: a broadcast message. SUBSTACK: an introductory paragraph for a longer piece. Do not add hashtags, contact details or sign-offs; those are appended automatically.\n\nInput:\n';
+
+function parseRefract(text) {
+  const out = {};
+  let cur = null;
+  for (const line of String(text || '').split('\n')) {
+    const m = line.trim().match(/^(LINKEDIN|BLUESKY|X|INSTAGRAM|TELEGRAM|SUBSTACK)\b[:.]?$/i);
+    if (m) { cur = m[1].toUpperCase(); out[cur] = ''; continue; }
+    if (cur) out[cur] += (out[cur] ? '\n' : '') + line;
+  }
+  return out;
+}
+
+document.getElementById('refract-run').addEventListener('click', async () => {
+  const input = document.getElementById('refract-input').value.trim();
+  const status = document.getElementById('refract-status');
+  const outEl = document.getElementById('refract-out');
+  if (!input) { ARG.toast('Paste something to refract first.'); return; }
+  const btn = document.getElementById('refract-run');
+  btn.disabled = true;
+  status.textContent = 'Gerald is refracting…';
+  outEl.innerHTML = '';
+  try {
+    const data = await ARG.api('/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: REFRACT_PROMPT + input }], profile: 'balanced' })
+    });
+    const content = data.content || (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    const parts = parseRefract(content);
+    status.textContent = '';
+    if (!Object.keys(parts).length) {
+      outEl.innerHTML = '<div class="muted">The response did not come back in sections — here it is raw:</div><div class="mt" style="white-space:pre-wrap;">' + esc(content) + '</div>';
+      return;
+    }
+    outEl.innerHTML = REACT_TARGETS.filter(t => parts[t.key]).map(t =>
+      '<div class="card mt" style="padding:12px 14px;">' +
+      '<div class="spread"><strong>' + t.label + '</strong><span class="muted">' + t.hint + '</span></div>' +
+      '<div class="mt" style="white-space:pre-wrap; font-size:13.5px;">' + esc(parts[t.key].trim()) + '</div>' +
+      '<button class="ghost small mt" onclick="queueRefracted(\'' + t.key + '\')">Queue for ' + t.label + '</button></div>'
+    ).join('');
+    window._refracted = parts;
+  } catch (e) {
+    status.textContent = 'Refract failed: ' + e.message;
+  }
+  btn.disabled = false;
+});
+
+window.queueRefracted = async key => {
+  const t = REACT_TARGETS.find(x => x.key === key);
+  const text = (window._refracted[key] || '').trim();
+  if (!text) return;
+  try {
+    await ARG.api('/mm/queue', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text + TAGS, platforms: t.platforms, source: 'refract' })
+    });
+    ARG.toast('Queued for ' + t.label + '.');
+    loadQueue();
+  } catch (e) { ARG.toast('Could not queue: ' + e.message); }
 };
 
 loadQueue();
