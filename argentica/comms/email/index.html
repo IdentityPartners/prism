@@ -68,9 +68,9 @@ async function loadProtonStatus() {
     const s = await api('/nylas/status');
     if (s.connected) {
       document.getElementById('proton-dot').classList.add('on');
-      body.innerHTML = '<span class="badge green">Connected</span> as ' + esc(s.email) + '. Inbox and send are live below. Proton needs the Bridge running on your Surface — if it stops, mail pauses until it is back.';
+      body.innerHTML = '<span class="badge green">Connected</span> as ' + esc(s.email) + '. Inbox and send are live below.';
     } else {
-      body.innerHTML = '<span class="badge rose">Not connected</span> Two steps: start Proton Bridge on your Surface, then <a href="https://prism.identitypartners.uk/comms/nylas/auth?email=identitypartners@pm.me" target="_blank" rel="noopener">connect the Nylas grant</a>. After that this inbox fills from Proton.';
+      body.innerHTML = '<span class="badge rose">Not reachable from the cloud</span> Proton\'s only external interface is the Bridge, which runs on your Surface and speaks IMAP/SMTP on 127.0.0.1 — reachable from that machine only. Nylas is a cloud service, so it can never reach the Bridge no matter what host is entered. Until Proton ships a public API, Argentica cannot read Proton directly. The practical setup: connect Google (simonamjohnson94) here, and auto-forward Proton to it — or keep Proton for correspondence and use Argentica\'s Gmail for everything else.';
     }
   } catch (e) { body.textContent = 'Status unavailable.'; }
 }
