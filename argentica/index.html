@@ -71,25 +71,27 @@ const { api, esc } = ARG;
     new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 })();
 
-// Photographic header — Pexels via worker, one query per weekday, never repeats within a week
+// Photographic header — Pexels, Unsplash, Pixabay, Openverse and Wikimedia via worker,
+// one query per weekday, never repeats within a week
 (async function () {
   const queries = ['calm seascape dawn', 'scottish highlands mist', 'english coastline morning',
     'quiet forest canopy', 'lake district hills', 'open sky clouds', 'autumn woodland path'];
   const q = queries[new Date().getDay() % queries.length];
   try {
-    const data = await api('/image-search', {
+    const data = await api('/image-search/multi', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: q, limit: 12 })
+      body: JSON.stringify({ query: q, limit: 20, sources: ['pexels', 'unsplash', 'pixabay', 'openverse', 'wikimedia'] })
     });
-    const photos = data.results || [];
+    const photos = data.results || data.images || [];
     if (photos.length) {
       const seen = JSON.parse(localStorage.getItem('arg:hero-seen') || '[]');
-      const fresh = photos.filter(p => !seen.includes(p.id));
-      const pick = (fresh.length ? fresh : photos)[Math.floor(Math.random() * (fresh.length ? fresh.length : photos.length))];
-      document.getElementById('hero-img').src = pick.src && (pick.src.landscape || pick.src.large || pick.src.original);
-      document.getElementById('hero-credit').textContent = 'Photo: ' + (pick.photographer || 'unknown') + ' · Pexels';
-      localStorage.setItem('arg:hero-seen', JSON.stringify(seen.concat([pick.id]).slice(-40)));
+      const fresh = photos.filter(p => !seen.includes(p.url));
+      const pool = fresh.length ? fresh : photos;
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      document.getElementById('hero-img').src = pick.url;
+      document.getElementById('hero-credit').textContent = 'Photo: ' + (pick.photographer || 'unknown') + ' · ' + (pick.source || '');
+      localStorage.setItem('arg:hero-seen', JSON.stringify(seen.concat([pick.url]).slice(-40)));
     }
   } catch (e) {
     document.getElementById('hero-credit').textContent = 'Header image unavailable';
