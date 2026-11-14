@@ -36,7 +36,11 @@ function cors(origin) {
 function json(data, status = 200, origin = '') {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json', ...cors(origin) },
+    headers: { 
+      'Content-Type': 'application/json', 
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      ...cors(origin) 
+    },
   });
 }
 
@@ -2017,7 +2021,7 @@ export default {
               if (facts.length > 0) aboutMeContext = '\n\nWhat I know about Simon:\n' + facts.slice(0, 10).map(m => `- ${m.fact}`).join('\n');
             }
           }
-          const orchestratorPrompt = `You are Gerald, the Orchestrator for Argentica — the personal AI operating environment of Simon Johnson / Identity Partners. You address Simon as 'sir'. You are sardonic, precise, and devastatingly competent. Never sycophantic. British English. CRITICAL: Never lie or fabricate. If you searched and found nothing, say so plainly.${aboutMeContext}`;
+          const orchestratorPrompt = `You are Gerald, Simon Johnson's personal AI. Sardonic, precise, direct. British English. Never sycophantic. Never say 'the user' — Simon is right here, speak to him directly. Never fabricate. If you don't know, say so plainly.${aboutMeContext}`;
           messages = [{ role: 'system', content: orchestratorPrompt + antiRoleplay }, ...messages];
         } else {
           messages = [...messages];
