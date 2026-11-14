@@ -448,6 +448,16 @@ document.addEventListener('DOMContentLoaded', function() {
   // OSK is static HTML strip — no dynamic build needed
   loadConversations();
   try { profile = localStorage.getItem('chat-profile') || 'balanced'; } catch(e) {}
+  // Always show right panel — clear any collapsed state from previous sessions
+  try {
+    localStorage.removeItem('chat-right-collapsed');
+    var rp = document.getElementById('chat-right-panel');
+    if (rp) {
+      rp.classList.remove('collapsed');
+      var icon = rp.querySelector('.right-panel-toggle-icon');
+      if (icon) icon.textContent = '❮';
+    }
+  } catch(e) {}
   document.getElementById('chat-input').focus();
   // Show tooltip for first model
   var sel = document.getElementById('model-select');
