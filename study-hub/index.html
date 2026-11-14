@@ -446,7 +446,8 @@ function renderResources(body) {
 function openResource(r) {
   if (r.url) {
     var params = new URLSearchParams({id: r.id, name: r.title, type: r.type, url: r.url});
-    window.open('/doc-viewer/?' + params.toString(), '_blank');
+    // Open in same tab — keeps user in Argentica
+    window.location.href = '/doc-viewer/?' + params.toString();
   } else if (r.content && r.content.length > 0) {
     var ext = (r.title || '').split('.').pop().toLowerCase();
     var mimeTypes = {pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',doc:'application/msword',txt:'text/plain',md:'text/markdown'};
