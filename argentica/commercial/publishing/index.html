@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Social</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="publishing">
+  <div class="zonebar">
+    <a href="/argentica/library/">Study</a>
+    <a href="/argentica/research/">Research</a>
+    <a href="/argentica/commercial/publishing/" class="active">Create</a>
+    <a href="/argentica/commercial/team/">Marketing</a>
+  </div>
+  <div class="arg-pagehead">
+    <h1>Social</h1>
+    <div class="sub">Generate a branded canvas, review the queue, approve and post. Every post carries the tags and footer automatically.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>Compose &amp; queue</h3>
+      <div id="attached-canvas"></div>
+      <label class="muted">Caption (Simon's voice — tags and footer are appended on posting)</label>
+      <textarea id="caption" style="margin:4px 0 10px; min-height:80px;" placeholder="Write the post text…"></textarea>
+      <label class="muted">Platforms</label>
+      <div class="row mt" style="flex-wrap:wrap; gap:12px; margin:4px 0 12px;">
+        <label><input type="checkbox" class="plat" value="bluesky" checked> Bluesky</label>
+        <label><input type="checkbox" class="plat" value="linkedin" checked> LinkedIn</label>
+        <label><input type="checkbox" class="plat" value="telegram" checked> Telegram</label>
+        <label><input type="checkbox" class="plat" value="instagram" checked> Instagram (Buffer)</label>
+        <label><input type="checkbox" class="plat" value="facebook" checked> Facebook (Buffer)</label>
+        <label><input type="checkbox" class="plat" value="x" checked> X (Buffer)</label>
+        <label><input type="checkbox" class="plat" value="substack"> Substack</label>
+      </div>
+      <div class="muted" style="margin-bottom:10px;">Instagram, Facebook and X post through your Buffer channels. If a Buffer post fails, fetch the channel IDs from System → Status.</div>
+      <button id="queue-btn">Queue for approval</button>
+      <div class="muted mt">Mandatory on every post: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing · hello@identitypartners.uk | www.identitypartners.uk/contact</div>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <h3>Posting rhythm</h3>
+    <div class="item-list">
+      <div class="item"><div>Instagram · Facebook · X <span class="muted">(short form, via Buffer)</span></div><span class="badge teal">up to 3 a day</span></div>
+      <div class="item"><div>Bluesky · Telegram <span class="muted">(direct)</span></div><span class="badge teal">1–2 a day</span></div>
+      <div class="item"><div>LinkedIn <span class="muted">(long form, professional)</span></div><span class="badge rose">1 a day, weekdays</span></div>
+      <div class="item"><div>Substack <span class="muted">(long form, editorial)</span></div><span class="badge rose">1 a week</span></div>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <h3>Awaiting your approval</h3>
+    <div class="item-list" id="queue-list"><div class="muted">Loading…</div></div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('publishing');
+const { api, esc } = ARG;
+
+const TAGS = '\n\n#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nhello@identitypartners.uk | www.identitypartners.uk/contact';
+
+document.getElementById('queue-btn').addEventListener('click', async () => {
+  const text = document.getElementById('caption').value.trim();
+  const platforms = [...document.querySelectorAll('.plat:checked')].map(c => c.value);
+  if (!text) { ARG.toast('Write the caption first.'); return; }
+  if (!platforms.length) { ARG.toast('Choose at least one platform.'); return; }
+  try {
+    await api('/mm/queue', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text + TAGS, platforms, imageUrl: window._canvasUrl || null, source: 'compose' })
+    });
+    document.getElementById('caption').value = '';
+    ARG.toast('Queued for approval.');
+    const attached = sessionStorage.getItem('arg:canvas-url');
+if (attached) {
+  sessionStorage.removeItem('arg:canvas-url');
+  window._canvasUrl = attached;
+  document.getElementById('attached-canvas').innerHTML =
+    '<div class="row" style="margin-bottom:10px;"><img src="' + esc(attached) + '" style="width:90px; border-radius:6px;"><div class="muted">Canvas attached from Create — it will go out with the post.</div></div>';
+}
+
+loadQueue();
+  } catch (e) { ARG.toast('Could not queue: ' + e.message); }
+});
+
+async function loadQueue() {
+  const el = document.getElementById('queue-list');
+  try {
+    const data = await api('/mm/queue');
+    const q = (data.queue || []).filter(i => i.status === 'pending' || i.status === 'scheduled');
+    if (!q.length) { el.innerHTML = '<div class="muted">Nothing waiting. Generate a canvas or compose a post.</div>'; return; }
+    el.innerHTML = q.map(i =>
+      '<div class="item">' +
+      '<div style="min-width:0;">' +
+      (i.imageUrl ? '<img src="/api/r2/file?key=' + encodeURIComponent(String(i.imageUrl).replace(/^https:\/\/[^/]+\//, '')) + '" style="max-width:90px; border-radius:6px; float:left; margin-right:12px;" onerror="this.remove()">' : '') +
+      '<div>' + esc(String(i.text || '').split('\n')[0].slice(0, 140)) + '</div>' +
+      '<div class="muted">' + esc((i.platforms || []).join(', ')) + ' · ' + (i.status === 'scheduled' ? 'scheduled' : 'pending') + '</div></div>' +
+      '<div class="row">' +
+      (i.status === 'pending' ? '<button class="small" onclick="approve(\'' + esc(i.id) + '\')">Post now</button>' : '') +
+      '<button class="ghost small" onclick="reject(\'' + esc(i.id) + '\')">Reject</button>' +
+      '</div></div>'
+    ).join('');
+  } catch (e) { el.innerHTML = '<div class="muted">Could not load the queue.</div>'; }
+}
+
+window.approve = async id => {
+  try {
+    const r = await api('/mm/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId: id }) });
+    ARG.toast('Posted.' + (r.errors && Object.keys(r.errors).length ? ' Some platforms reported problems.' : ''));
+    loadQueue();
+  } catch (e) { ARG.toast('Posting failed: ' + e.message); }
+};
+window.reject = async id => {
+  try {
+    await api('/mm/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId: id, action: 'reject' }) });
+    ARG.toast('Rejected.'); loadQueue();
+  } catch (e) { ARG.toast('Could not reject.'); }
+};
+
+
+loadQueue();
+</script>
+</body>
+</html>

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Viewer</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+</head>
+<body>
+<div class="arg-page" data-key="study">
+  <div class="arg-pagehead spread">
+    <div>
+      <h1 id="doc-title" style="font-size:20px;">Document</h1>
+      <div class="sub" id="doc-sub"></div>
+    </div>
+    <div class="row" style="flex-wrap:wrap;">
+      <button class="ghost small" id="zoom-out">−</button>
+      <button class="ghost small" id="zoom-in">+</button>
+      <button class="ghost small" id="tool-pen">Pen</button>
+      <button class="ghost small" id="tool-hl">Highlighter</button>
+      <button class="ghost small" id="tool-erase">Eraser</button>
+      <button class="ghost small" id="save">Save ink layer</button>
+      <button class="small" id="archive">Flatten &amp; archive</button>
+      <button class="ghost small" id="ask">Ask Gerald</button>
+      <button class="ghost small" onclick="location.href='/argentica/library/'">Close</button>
+    </div>
+  </div>
+
+  <div class="viewer-stage" id="stage">
+    <canvas id="pdf-canvas"></canvas>
+    <canvas id="ink-canvas" style="position:absolute; left:0; top:0;"></canvas>
+  </div>
+  <div class="muted mt" id="viewer-status"></div>
+  <div class="mt" id="archive-result"></div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('study');
+const { api, esc } = ARG;
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const params = new URLSearchParams(location.search);
+const docId = params.get('doc');
+let doc = null, pdf = null, pdfBytes = null, pageNum = 1, scale = 1.3;
+let tool = 'pen', strokes = [];
+const pdfCanvas = document.getElementById('pdf-canvas');
+const inkCanvas = document.getElementById('ink-canvas');
+const ctx = inkCanvas.getContext('2d');
+const status = document.getElementById('viewer-status');
+
+function redrawInk() {
+  ctx.clearRect(0, 0, inkCanvas.width, inkCanvas.height);
+  for (const s of strokes) {
+    if (s.page !== pageNum) continue;
+    ctx.strokeStyle = s.tool === 'hl' ? 'rgba(240, 200, 80, 0.4)' : '#0f3b3a';
+    ctx.lineWidth = s.tool === 'hl' ? 14 : 2.2;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    s.pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+    ctx.stroke();
+  }
+}
+
+function resizeInk() {
+  const r = pdfCanvas.getBoundingClientRect();
+  inkCanvas.width = r.width; inkCanvas.height = r.height;
+  inkCanvas.style.width = r.width + 'px'; inkCanvas.style.height = r.height + 'px';
+  redrawInk();
+}
+
+async function renderPage() {
+  if (!pdf) return;
+  const page = await pdf.getPage(pageNum);
+  const viewport = page.getViewport({ scale });
+  pdfCanvas.width = viewport.width; pdfCanvas.height = viewport.height;
+  await page.render({ canvasContext: pdfCanvas.getContext('2d'), viewport }).promise;
+  resizeInk();
+  status.textContent = 'Page ' + pageNum + ' of ' + pdf.numPages + '. Ink saves with the document; Flatten & archive burns it into the PDF and files it to OneDrive.';
+}
+
+inkCanvas.addEventListener('pointerdown', e => {
+  if (!pdf) return;
+  inkCanvas.setPointerCapture(e.pointerId);
+  const r = inkCanvas.getBoundingClientRect();
+  const p = { x: e.clientX - r.left, y: e.clientY - r.top };
+  const stroke = { page: pageNum, tool, pts: [p] };
+  strokes.push(stroke);
+  const move = ev => {
+    const rr = inkCanvas.getBoundingClientRect();
+    stroke.pts.push({ x: ev.clientX - rr.left, y: ev.clientY - rr.top });
+    redrawInk();
+  };
+  const up = () => { inkCanvas.removeEventListener('pointermove', move); inkCanvas.removeEventListener('pointerup', up); };
+  inkCanvas.addEventListener('pointermove', move);
+  inkCanvas.addEventListener('pointerup', up);
+});
+
+document.getElementById('tool-pen').addEventListener('click', () => tool = 'pen');
+document.getElementById('tool-hl').addEventListener('click', () => tool = 'hl');
+document.getElementById('tool-erase').addEventListener('click', () => {
+  tool = 'erase';
+  ARG.toast('Tap a stroke to erase it.');
+  inkCanvas.addEventListener('pointerdown', function eraseOnce(ev) {
+    const r = inkCanvas.getBoundingClientRect();
+    const x = ev.clientX - r.left, y = ev.clientY - r.top;
+    strokes = strokes.filter(s => !(s.page === pageNum && s.pts.some(p => Math.hypot(p.x - x, p.y - y) < 24)));
+    redrawInk();
+  }, { once: true });
+});
+document.getElementById('zoom-in').addEventListener('click', () => { scale = Math.min(3, scale + 0.2); renderPage(); });
+document.getElementById('zoom-out').addEventListener('click', () => { scale = Math.max(0.6, scale - 0.2); renderPage(); });
+
+document.getElementById('save').addEventListener('click', async () => {
+  if (!docId) { ARG.toast('Nothing to save against.'); return; }
+  try {
+    await api('/documents/' + encodeURIComponent(docId), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ annotations: strokes })
+    });
+    ARG.toast('Ink layer saved.');
+  } catch (e) { ARG.toast('Could not save annotations: ' + e.message); }
+});
+
+// Flatten the ink into the PDF itself and archive it: R2 (ephemeral) + OneDrive (permanent)
+document.getElementById('archive').addEventListener('click', async () => {
+  const btn = document.getElementById('archive');
+  const out = document.getElementById('archive-result');
+  if (!pdfBytes) { ARG.toast('Only PDFs can be flattened.'); return; }
+  if (!strokes.length) { ARG.toast('Nothing drawn yet.'); return; }
+  btn.disabled = true;
+  out.innerHTML = '<div class="muted">Burning ink into the PDF and archiving…</div>';
+  try {
+    const { PDFDocument, rgb } = PDFLib;
+    const flat = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+    const pages = flat.getPages();
+    // Group strokes by page, scale canvas coords → PDF points using each page's rendered width
+    for (let pi = 0; pi < pages.length; pi++) {
+      const pageNo = pi + 1;
+      const pageStrokes = strokes.filter(s => s.page === pageNo);
+      if (!pageStrokes.length) continue;
+      const { width, height } = pages[pi].getSize();
+      const canvasW = pdfCanvas.width; // rendered at current scale for the open page; approximate others at same scale relative to page 1
+      const page = await pdf.getPage(pageNo);
+      const vp = page.getViewport({ scale });
+      const kx = width / vp.width, ky = height / vp.height;
+      for (const s of pageStrokes) {
+        const color = s.tool === 'hl' ? rgb(0.94, 0.78, 0.31) : rgb(0.06, 0.23, 0.23);
+        const thickness = (s.tool === 'hl' ? 14 : 2.2) * kx;
+        for (let i = 1; i < s.pts.length; i++) {
+          pages[pi].drawLine({
+            start: { x: s.pts[i - 1].x * kx, y: height - s.pts[i - 1].y * ky },
+            end: { x: s.pts[i].x * kx, y: height - s.pts[i].y * ky },
+            thickness, color, opacity: s.tool === 'hl' ? 0.4 : 1
+          });
+        }
+      }
+    }
+    const flatBytes = await flat.save();
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(flatBytes)));
+    const safeName = ((doc && doc.title) || 'document').replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.pdf$/i, '') + '-annotated-' + new Date().toISOString().slice(0, 10) + '.pdf';
+
+    // R2 — ephemeral working copy, directly viewable
+    const r2 = await api('/r2/upload', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'study/annotated/' + Date.now() + '-' + safeName, content: b64, mimeType: 'application/pdf', fileName: safeName })
+    });
+
+    // Google Drive — the permanent archive (auto-refreshing OAuth)
+    let odLine = '';
+    const driveName = 'Library/' + (doc && doc.moduleSource ? doc.moduleSource + '/' : '') + safeName;
+    try {
+      const od = await api('/gdrive/upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: driveName, content: b64, mimeType: 'application/pdf' })
+      });
+      odLine = od.success
+        ? '<div class="badge green">Drive archived</div> <a href="' + esc(od.webViewLink || '#') + '" target="_blank" rel="noopener">open</a>'
+        : '<div class="badge rose">Drive: ' + esc(od.error || 'failed') + '</div>';
+    } catch (e) { odLine = '<div class="badge rose">Drive: ' + esc(e.message) + '</div>'; }
+
+    out.innerHTML =
+      '<div class="spread"><div><strong>' + esc(safeName) + '</strong></div></div>' +
+      '<div class="row mt" style="flex-wrap:wrap; gap:8px;">' +
+      '<div class="badge teal">R2 saved</div> <a href="' + esc(r2.url) + '" target="_blank" rel="noopener">view in R2</a> ' + odLine +
+      '</div>';
+    ARG.toast('Flattened and archived.');
+  } catch (e) {
+    out.innerHTML = '<div class="badge rose">Flattening failed: ' + esc(e.message) + '</div>';
+  }
+  btn.disabled = false;
+});
+
+document.getElementById('ask').addEventListener('click', () => {
+  sessionStorage.setItem('arg:pending-prompt', 'Regarding "' + (doc ? doc.title : 'this document') + '" — what are its central claims and how do they bear on my work?');
+  location.href = '/argentica/chat/';
+});
+
+(async function init() {
+  if (!docId) { status.textContent = 'No document specified.'; return; }
+  try {
+    const data = await api('/documents/' + encodeURIComponent(docId));
+    doc = data.document;
+    document.getElementById('doc-title').textContent = doc.title;
+    document.getElementById('doc-sub').textContent = (doc.annotations || []).length + ' saved annotations';
+    if (doc.annotations && doc.annotations.length) strokes = doc.annotations;
+    const url = doc.content || '';
+    if (url.includes('r2.dev') || url.endsWith('.pdf')) {
+      // fetch same-origin through the worker's R2 route — r2.dev is rate-limited
+      // and CORS-hostile, which broke direct fetches
+      const key = url.replace(/^https:\/\/[^/]+\//, '');
+      const resp = await fetch('/api/r2/file?key=' + encodeURIComponent(key));
+      if (!resp.ok) throw new Error('The file is not in storage (HTTP ' + resp.status + '). Try re-uploading it.');
+      pdfBytes = new Uint8Array(await resp.arrayBuffer());
+      pdf = await pdfjsLib.getDocument({ data: pdfBytes.slice(0) }).promise;
+      renderPage();
+    } else if (url) {
+      status.innerHTML = 'This file is not a PDF — <a href="' + esc(url) + '" target="_blank" rel="noopener">open it directly</a>.';
+    } else {
+      status.textContent = 'No file attached to this record.';
+    }
+  } catch (e) {
+    status.textContent = 'Could not open the document: ' + e.message;
+  }
+})();
+</script>
+</body>
+</html>

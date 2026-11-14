@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Gerald</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  .mm-grid { display: flex; gap: 12px; align-items: stretch; }
+  .mm-col { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--paper); }
+  .mm-col .who { font-size: 11px; color: var(--ink-soft); margin-bottom: 6px; letter-spacing: 0.04em; }
+  #hw-overlay { position: fixed; inset: 0; background: rgba(43,43,38,0.55); z-index: 500; display: none; align-items: center; justify-content: center; }
+  #hw-panel { background: var(--paper); border-radius: 12px; padding: 18px; width: min(760px, 92vw); }
+  #hw-canvas { background: #fff; border: 1px solid var(--line); border-radius: 8px; touch-action: none; width: 100%; cursor: crosshair; }
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="chat" style="max-width:none; padding:20px 24px 0;">
+  <div class="chat-wrap">
+
+    <div class="chat-left card" style="padding:12px;">
+      <div class="spread" style="margin-bottom:8px;">
+        <h3 style="margin:0; font-size:14px;">Threads</h3>
+        <button class="ghost small" id="new-thread">+ New</button>
+      </div>
+      <div id="thread-list" style="overflow-y:auto; flex:1;"><div class="muted">Loading…</div></div>
+    </div>
+
+    <div class="chat-centre">
+      <div class="arg-pagehead" style="margin-bottom:10px;">
+        <h1 style="font-size:20px;">Gerald</h1>
+        <div class="sub">Sardonic, precise, direct. Type, dictate or handwrite into the same field. Tick two or more models to compare them side by side.</div>
+      </div>
+      <div class="chat-scroll" id="chat-scroll"></div>
+
+      <div class="chat-inputbar" style="flex-direction:column; align-items:stretch; gap:6px;">
+        <textarea id="chat-input" style="min-height:64px; font-size:15px;" placeholder="Type here, or handwrite below…"></textarea>
+        <div class="row" style="justify-content:space-between; margin-bottom:4px;">
+          <div class="osk-strip" id="osk"></div>
+          <div class="row" style="gap:6px;">
+            <button class="ghost small" id="osk-toggle">⌨ Compact keyboard</button>
+            <button class="ghost small" id="hw-open">✎ Handwrite</button>
+            <button id="send">Send</button>
+          </div>
+        </div>
+        <div id="osk-full" style="display:none; background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:6px; gap:3px; flex-direction:column;"></div>
+      </div>
+    </div>
+
+    <div class="chat-right" style="display:flex; flex-direction:column; gap:16px;">
+      <div class="card" style="padding:14px 16px;">
+        <h3 style="font-size:14px; margin-bottom:8px;">Models</h3>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <label class="row"><input type="checkbox" class="mm" value="glm" checked> GLM 5.3 (Mistral sub)</label>
+          <label class="row"><input type="checkbox" class="mm" value="mistral"> Mistral Large 4</label>
+          <label class="row"><input type="checkbox" class="mm" value="gemini"> Gemini Flash (free)</label>
+          <label class="row"><input type="checkbox" class="mm" value="nemotron"> Nemotron Ultra 253B</label>
+          <label class="row"><input type="checkbox" class="mm" value="cerebras"> Cerebras GPT-OSS 120B</label>
+          <label class="row"><input type="checkbox" class="mm" value="groq"> Groq GPT-OSS 120B</label>
+        </div>
+        <label class="muted" for="profile" style="margin-top:12px;">Profile</label>
+        <select id="profile" style="margin:4px 0 10px;">
+          <option value="balanced">Balanced</option>
+          <option value="fast">Fast</option>
+          <option value="research">Research</option>
+          <option value="coding">Coding</option>
+          <option value="vision">Vision</option>
+        </select>
+        <div class="muted">Routing log</div>
+        <div id="route-log" style="font-size:12px; margin-top:4px; color:var(--ink-soft);">Nothing yet this session.</div>
+      </div>
+      <div class="card" style="padding:14px 16px;">
+        <h3 style="font-size:14px; margin-bottom:8px;">Actions</h3>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <button class="ghost small" id="act-save">Save last to memory</button>
+          <button class="ghost small" onclick="location.href='/argentica/research/'">Open research</button>
+          <button class="ghost small" onclick="location.href='/argentica/commercial/publishing/'">Refract to publishing</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="hw-overlay">
+  <div id="hw-panel">
+    <div class="spread" style="margin-bottom:10px;">
+      <h3 style="margin:0;">Handwrite</h3>
+      <button class="ghost small" id="hw-clear">Clear</button>
+    </div>
+    <canvas id="hw-canvas" width="720" height="260"></canvas>
+    <div class="row mt" style="justify-content:flex-end; gap:8px;">
+      <button class="ghost" id="hw-cancel">Cancel</button>
+      <button id="hw-insert">Convert &amp; insert</button>
+    </div>
+    <div class="muted mt" id="hw-status"></div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('chat');
+const { api, esc, md } = ARG;
+
+let threadId = null;
+let messages = [];
+
+const scroll = document.getElementById('chat-scroll');
+const input = document.getElementById('chat-input');
+const MODELS = {
+  glm: { label: 'GLM 5.3', provider: 'mistral', model: 'zai-glm-5-3' },
+  mistral: { label: 'Mistral Large 4', provider: 'mistral', model: 'mistral-large-4' },
+  gemini: { label: 'Gemini Flash', provider: 'gemini', model: 'gemini-flash-latest' },
+  nemotron: { label: 'Nemotron 253B', provider: 'openrouter', model: 'nvidia/llama-3.1-nemotron-ultra-253b-v1:free' },
+  cerebras: { label: 'Cerebras GPT-OSS', provider: 'cerebras', model: 'gpt-oss-120b' },
+  groq: { label: 'Groq GPT-OSS', provider: 'groq', model: 'openai/gpt-oss-120b' }
+};
+
+function renderMsg(role, content) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + (role === 'user' ? 'user' : 'gerald');
+  div.innerHTML = '<div class="who">' + (role === 'user' ? 'Simon' : 'Gerald') + '</div><div class="bubble">' + md(content) + '</div>';
+  scroll.appendChild(div);
+  scroll.scrollTop = scroll.scrollHeight;
+  return div.querySelector('.bubble');
+}
+
+// ── OSK — permanent, compact, stylus-friendly ─────────
+const osk = document.getElementById('osk');
+['⌫', '⏎', '.', ',', '?', '!', "'", '-', ' '].forEach(ch => {
+  const b = document.createElement('button');
+  b.textContent = ch === ' ' ? '␣' : ch;
+  b.className = 'osk-strip-key';
+  b.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    let s = input.selectionStart, en = input.selectionEnd;
+    if (ch === '⌫') {
+      if (s > 0) { input.value = input.value.slice(0, s - 1) + input.value.slice(en); s -= 1; }
+    } else {
+      const ins = ch === '⏎' ? '\n' : ch === '␣' ? ' ' : ch;
+      input.value = input.value.slice(0, s) + ins + input.value.slice(en);
+      s += ins.length;
+    }
+    input.selectionStart = input.selectionEnd = s;
+    input.focus();
+  });
+  osk.appendChild(b);
+});
+
+// ── Full compact OSK (QWERTY) ─────────────────────────
+const oskFull = document.getElementById('osk-full');
+const OSK_ROWS = [
+  ['q','w','e','r','t','y','u','i','o','p'],
+  ['a','s','d','f','g','h','j','k','l'],
+  ['⇧','z','x','c','v','b','n','m','⌫'],
+  ['123','␣','.',',','⏎']
+];
+let oskShift = false;
+const OSK_NUM = ['1','2','3','4','5','6','7','8','9','0','-','/'];
+function oskKey(k) {
+  let s = input.selectionStart, en = input.selectionEnd;
+  if (k === '⌫') { if (s > 0) { input.value = input.value.slice(0, s - 1) + input.value.slice(en); s -= 1; } }
+  else { const ins = k === '⏎' ? '\n' : k === '␣' ? ' ' : k; input.value = input.value.slice(0, s) + ins + input.value.slice(en); s += ins.length; }
+  input.selectionStart = input.selectionEnd = s;
+  input.focus();
+}
+function buildOskFull() {
+  oskFull.innerHTML = '';
+  OSK_ROWS.forEach(row => {
+    const r = document.createElement('div');
+    r.style.display = 'flex'; r.style.gap = '3px'; r.style.justifyContent = 'center';
+    row.forEach(k => {
+      const b = document.createElement('button');
+      b.className = 'ghost small';
+      b.style.minWidth = k === '␣' ? '120px' : k.length > 1 ? '44px' : '28px';
+      b.style.padding = '4px 0';
+      b.style.fontSize = '13px';
+      b.textContent = k === '⇧' ? (oskShift ? '⇧ ✓' : '⇧') : k === '⏎' ? '⏎' : k === '␣' ? 'space' : k;
+      b.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        if (k === '⇧') { oskShift = !oskShift; buildOskFull(); return; }
+        if (k === '123') { toggleNumRow(); return; }
+        oskKey(oskShift && k.length === 1 ? k.toUpperCase() : k);
+        if (oskShift) { oskShift = false; buildOskFull(); }
+      });
+      r.appendChild(b);
+    });
+    oskFull.appendChild(r);
+  });
+}
+function toggleNumRow() {
+  const r = document.createElement('div');
+  r.style.display = 'flex'; r.style.gap = '3px'; r.style.justifyContent = 'center';
+  OSK_NUM.forEach(k => {
+    const b = document.createElement('button');
+    b.className = 'ghost small';
+    b.style.minWidth = '28px'; b.style.padding = '4px 0';
+    b.textContent = k;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); oskKey(k); });
+    r.appendChild(b);
+  });
+  if (oskFull.dataset.num === '1') { oskFull.removeChild(oskFull.firstChild); oskFull.dataset.num = '0'; }
+  else { oskFull.prepend(r); oskFull.dataset.num = '1'; }
+}
+buildOskFull();
+document.getElementById('osk-toggle').addEventListener('click', () => {
+  oskFull.style.display = oskFull.style.display === 'none' ? 'flex' : 'none';
+});
+
+// ── Handwriting overlay ────────────────────────────────
+const hwOverlay = document.getElementById('hw-overlay');
+const hwCanvas = document.getElementById('hw-canvas');
+const hwCtx = hwCanvas.getContext('2d');
+hwCtx.lineWidth = 2.4; hwCtx.lineCap = 'round'; hwCtx.lineJoin = 'round'; hwCtx.strokeStyle = '#0f3b3a';
+let hwDrawing = false;
+
+function hwPos(e) {
+  const r = hwCanvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * (hwCanvas.width / r.width), y: (e.clientY - r.top) * (hwCanvas.height / r.height) };
+}
+hwCanvas.addEventListener('pointerdown', e => { hwDrawing = true; hwCanvas.setPointerCapture(e.pointerId); const p = hwPos(e); hwCtx.beginPath(); hwCtx.moveTo(p.x, p.y); });
+hwCanvas.addEventListener('pointermove', e => { if (!hwDrawing) return; const p = hwPos(e); hwCtx.lineTo(p.x, p.y); hwCtx.stroke(); });
+hwCanvas.addEventListener('pointerup', () => hwDrawing = false);
+document.getElementById('hw-clear').addEventListener('click', () => hwCtx.clearRect(0, 0, hwCanvas.width, hwCanvas.height));
+document.getElementById('hw-open').addEventListener('click', () => { hwOverlay.style.display = 'flex'; });
+document.getElementById('hw-cancel').addEventListener('click', () => hwOverlay.style.display = 'none');
+document.getElementById('hw-insert').addEventListener('click', async () => {
+  const st = document.getElementById('hw-status');
+  st.textContent = 'Reading your hand…';
+  const dataUrl = hwCanvas.toDataURL('image/png');
+  const b64 = dataUrl.split(',')[1];
+  try {
+    const r = await api('/ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: b64, mime_type: 'image/png' }) });
+    if (r.text) {
+      input.value = (input.value ? input.value + ' ' : '') + r.text.trim();
+      hwCtx.clearRect(0, 0, hwCanvas.width, hwCanvas.height);
+      hwOverlay.style.display = 'none';
+      st.textContent = '';
+      input.focus();
+      ARG.toast('Inserted.');
+    } else { st.textContent = 'Could not read that — try again, larger.'; }
+  } catch (e) { st.textContent = 'OCR failed: ' + e.message; }
+});
+
+// ── Threads ────────────────────────────────────────────
+async function loadThreads() {
+  try {
+    const data = await api('/threads');
+    const list = document.getElementById('thread-list');
+    list.innerHTML = (data.threads || []).map(t =>
+      '<div class="thread-item' + (t.id === threadId ? ' active' : '') + '" data-id="' + esc(t.id) + '">' + esc(t.title || 'Conversation') + '</div>'
+    ).join('') || '<div class="muted">No conversations yet.</div>';
+    list.querySelectorAll('.thread-item').forEach(el => el.addEventListener('click', () => openThread(el.dataset.id)));
+  } catch (e) {}
+}
+
+async function openThread(id) {
+  try {
+    const t = await api('/threads/' + encodeURIComponent(id));
+    threadId = t.id;
+    messages = (t.messages || []).filter(m => m.role === 'user' || m.role === 'assistant');
+    scroll.innerHTML = '';
+    messages.forEach(m => renderMsg(m.role, m.content));
+    loadThreads();
+  } catch (e) { ARG.toast('Could not open that conversation.'); }
+}
+
+document.getElementById('new-thread').addEventListener('click', () => {
+  threadId = null; messages = []; scroll.innerHTML = '';
+  loadThreads(); input.focus();
+});
+
+// ── Send: one model streams, several compare side by side ──
+async function streamOnce(override, bubble, log) {
+  let acc = '';
+  const res = await fetch('/api/chat/stream', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages, profile: document.getElementById('profile').value, threadId, ...(override || {}) })
+  });
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf('\n\n')) >= 0) {
+      const frame = buf.slice(0, idx); buf = buf.slice(idx + 2);
+      const evM = frame.match(/^event: (.+)$/m);
+      const dtM = frame.match(/^data: (.+)$/m);
+      if (!evM || !dtM) continue;
+      const ev = evM[1], data = JSON.parse(dtM[1]);
+      if (ev === 'token') { acc += data.text; bubble.innerHTML = md(acc); scroll.scrollTop = scroll.scrollHeight; }
+      if (ev === 'done') { acc = data.content || acc; bubble.innerHTML = md(acc); log.textContent = 'via ' + (data.provider || '?') + ' · ' + (data.model || '?'); threadId = data.threadId || threadId; }
+      if (ev === 'error') { bubble.innerHTML = '<span class="muted">' + esc(data.error || 'No response.') + '</span>'; }
+    }
+  }
+  return acc;
+}
+
+async function send() {
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  renderMsg('user', text);
+  messages.push({ role: 'user', content: text });
+
+  const log = document.getElementById('route-log');
+  log.textContent = 'Connecting…';
+
+  const picked = [...document.querySelectorAll('.mm:checked')].map(c => MODELS[c.value]).filter(Boolean);
+  const overrides = picked.map(m => m.provider && m.model ? { providerOverride: m.provider, modelOverride: m.model } : null);
+
+  if (picked.length <= 1) {
+    const bubble = renderMsg('assistant', '…');
+    try {
+      const acc = await streamOnce(overrides[0] || null, bubble, log);
+      messages.push({ role: 'assistant', content: acc });
+      loadThreads();
+    } catch (e) { bubble.innerHTML = '<span class="muted">No response — the connection dropped. Try again.</span>'; log.textContent = 'Connection failed.'; }
+  } else {
+    const wrap = document.createElement('div');
+    wrap.style.marginBottom = '16px';
+    wrap.innerHTML = '<div class="mm-grid">' + picked.map(m =>
+      '<div class="mm-col"><div class="who">' + esc(m.label) + '</div><div class="bubble" style="border:none; padding:0; background:none;">…</div></div>'
+    ).join('') + '</div>';
+    scroll.appendChild(wrap);
+    scroll.scrollTop = scroll.scrollHeight;
+    const bubbles = [...wrap.querySelectorAll('.bubble')];
+    const results = await Promise.all(picked.map((m, i) =>
+      streamOnce(overrides[i], bubbles[i], { textContent: '' }).catch(() => { bubbles[i].innerHTML = '<span class="muted">No response.</span>'; return ''; })
+    ));
+    log.textContent = picked.map((m, i) => m.label + (results[i] ? ' ✓' : ' ✗')).join(' · ');
+    messages.push({ role: 'assistant', content: results.map((r, i) => '[' + picked[i].label + ']\n' + r).join('\n\n') });
+    loadThreads();
+  }
+}
+
+document.getElementById('send').addEventListener('click', send);
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+document.getElementById('act-save').addEventListener('click', async () => {
+  const last = [...messages].reverse().find(m => m.role === 'assistant');
+  if (!last) { ARG.toast('Nothing to save yet.'); return; }
+  try {
+    await api('/memory/about-me', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fact: last.content.slice(0, 1000) }) });
+    ARG.toast('Saved to memory.');
+  } catch (e) { ARG.toast('Could not save to memory.'); }
+});
+
+const pending = sessionStorage.getItem('arg:pending-prompt');
+if (pending) {
+  sessionStorage.removeItem('arg:pending-prompt');
+  input.value = pending;
+  send();
+} else {
+  loadThreads();
+}
+</script>
+</body>
+</html>

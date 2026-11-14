@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Media</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="media">
+  <div class="arg-pagehead">
+    <h1>Media</h1>
+    <div class="sub">Search five image libraries at once, save to your R2 library, or generate something new.</div>
+  </div>
+
+  <div class="card">
+    <h3>Image search</h3>
+    <div class="row">
+      <input type="text" id="img-q" placeholder="e.g. calm seascape, forest path, london skyline…">
+      <button id="img-run">Search</button>
+    </div>
+    <div class="muted mt" id="img-note" style="margin-bottom:10px;">Pexels · Unsplash · Pixabay · Openverse · Wikimedia — searched simultaneously.</div>
+    <div id="img-grid" class="grid" style="grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:10px;"></div>
+  </div>
+
+  <div class="card mt">
+    <h3>Generate an image</h3>
+    <div class="row">
+      <input type="text" id="gen-q" placeholder="Describe the image you want…">
+      <button id="gen-run">Generate</button>
+    </div>
+    <div class="muted mt" id="gen-status" style="margin-bottom:10px;">Uses the free Gemini key first; falls back through the routing chain.</div>
+    <div id="gen-out"></div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('media');
+const { api, esc } = ARG;
+
+async function saveToR2(url, name) {
+  try {
+    const r = await fetch(url);
+    const blob = await r.blob();
+    const b64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
+    await api('/r2/upload', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'media/' + Date.now() + '-' + name, content: b64, mimeType: blob.type, fileName: name })
+    });
+    ARG.toast('Saved to your R2 library.');
+  } catch (e) { ARG.toast('Could not save: ' + e.message); }
+}
+
+document.getElementById('img-run').addEventListener('click', async () => {
+  const q = document.getElementById('img-q').value.trim();
+  const grid = document.getElementById('img-grid');
+  if (!q) { ARG.toast('What are we looking for?'); return; }
+  grid.innerHTML = '<div class="muted">Searching…</div>';
+  try {
+    const data = await api('/image-search/multi', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, limit: 6, sources: ['pexels', 'unsplash', 'pixabay', 'openverse', 'wikimedia'] })
+    });
+    const results = data.results || data.images || [];
+    document.getElementById('img-note').textContent = results.length + ' results from ' + [...new Set(results.map(r => r.source))].join(', ');
+    grid.innerHTML = results.map((r, i) =>
+      '<div style="border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff;">' +
+      '<img src="' + esc(r.thumbnail || r.url) + '" style="width:100%; height:120px; object-fit:cover; cursor:pointer;" onclick="window._src[' + i + ']()" alt="">' +
+      '<div style="padding:6px 8px; font-size:11px;" class="muted">' + esc(r.source) + (r.photographer ? ' · ' + esc(r.photographer) : '') + '</div></div>'
+    ).join('');
+    window._src = results.map(r => () => saveToR2(r.url, (r.source || 'img') + '-' + Date.now() + '.jpg'));
+  } catch (e) { grid.innerHTML = '<div class="muted">Search failed: ' + esc(e.message) + '</div>'; }
+});
+
+document.getElementById('gen-run').addEventListener('click', async () => {
+  const q = document.getElementById('gen-q').value.trim();
+  const out = document.getElementById('gen-out');
+  const st = document.getElementById('gen-status');
+  if (!q) { ARG.toast('Describe the image first.'); return; }
+  st.textContent = 'Generating… this can take a moment.';
+  out.innerHTML = '';
+  try {
+    const data = await api('/image/gemini', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: q })
+    });
+    const url = data.url || data.imageUrl || (data.data && ('data:image/png;base64,' + data.data));
+    if (url) {
+      out.innerHTML = '<img src="' + esc(url) + '" style="max-width:100%; border-radius:8px; border:1px solid var(--line);">';
+      st.textContent = 'Done.';
+    } else {
+      st.textContent = 'Nothing came back: ' + esc(data.error || 'try a different prompt.');
+    }
+  } catch (e) { st.textContent = 'Generation failed: ' + esc(e.message); }
+});
+</script>
+</body>
+</html>

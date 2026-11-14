@@ -21,6 +21,7 @@
 function cors(origin) {
   const allowed = [
     'https://prism.identitypartners.uk',
+    'https://arch.identitypartners.uk',
     'https://argentica.identitypartners.uk',
     'https://www.identitypartners.uk',
   ];
@@ -1664,30 +1665,45 @@ async function storePlatformChannel(platform, channelId, env) {
   }
 }
 
-async function fetchBufferChannels(env) {
+async function bufferGql(query, variables, env) {
   const bufferKey = k(env, ['buffer_api_key','BUFFER_API_KEY']) || '';
   if (!bufferKey) return { error: 'No Buffer API key' };
   try {
-    const resp = await fetch('https://api.bufferapp.com/1/profiles.json', {
-      headers: { Authorization: `Bearer ${bufferKey}` }
+    const resp = await fetch('https://api.buffer.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + bufferKey },
+      body: JSON.stringify({ query, variables: variables || {} })
     });
-    if (!resp.ok) return { error: `Buffer API ${resp.status}` };
-    const profiles = await resp.json();
-    const channels = {};
-    for (const p of profiles) {
-      const platform = p.service || p.formatted_service || 'unknown';
-      channels[platform.toLowerCase()] = {
-        id:       p.id,
-        name:     p.formatted_username || p.username || '',
-        service:  platform,
-        avatar:   p.avatar_https || p.avatar || '',
-        updated:  new Date().toISOString(),
-      };
-      // Auto-store
-      await storePlatformChannel(platform.toLowerCase(), p.id, env);
-    }
-    return { channels, count: Object.keys(channels).length };
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) return { error: 'Buffer API ' + resp.status + (data.errors && data.errors[0] && data.errors[0].message ? ': ' + data.errors[0].message : '') };
+    if (data.errors && data.errors.length) return { error: 'Buffer: ' + data.errors[0].message };
+    return data;
   } catch(e) { return { error: e.message }; }
+}
+
+async function fetchBufferChannels(env) {
+  // Buffer's current API is GraphQL at api.buffer.com with Bearer auth.
+  // The legacy REST API (api.bufferapp.com/1) is deprecated and rejects
+  // newly issued personal keys with 401.
+  const orgRes = await bufferGql('query { account { organizations { id } } }', null, env);
+  if (orgRes.error) return { error: orgRes.error };
+  const orgs = (orgRes.data && orgRes.data.account && orgRes.data.account.organizations) || [];
+  if (!orgs.length) return { error: 'No Buffer organizations found for this key' };
+  const channels = {};
+  const debug = { organizations: orgs.length, perOrg: [] };
+  for (const org of orgs) {
+    const chRes = await bufferGql('query($id: OrganizationId!) { channels(input: { organizationId: $id }) { id name service } }', { id: org.id }, env);
+    debug.perOrg.push(chRes.error ? { error: chRes.error } : { found: ((chRes.data && chRes.data.channels) || []).length });
+    if (chRes.error) continue;
+    for (const c of ((chRes.data && chRes.data.channels) || [])) {
+      let platform = String(c.service || 'unknown').toLowerCase();
+      if (platform === 'twitter') platform = 'x'; // Buffer still calls X "twitter"
+      channels[platform] = { id: c.id, name: c.name || '', service: c.service, updated: new Date().toISOString() };
+      await storePlatformChannel(platform, c.id, env);
+    }
+  }
+  if (!Object.keys(channels).length) return { error: 'No channels found — check that Instagram, Facebook and X are connected in the Buffer account this key belongs to', debug };
+  return { channels, count: Object.keys(channels).length };
 }
 
 async function getPlatformStatus(env) {
@@ -3667,6 +3683,9 @@ export default {
         const tenantId = env.msgraph_tenant || env.MSGRAPH_TENANT || '';
         const clientId = env.msgraph_client || env.MSGRAPH_CLIENT || '';
         const clientSecret = env.msgraph_secret || env.MSGRAPH_SECRET || '';
+        // Client-credentials flow cannot use /me — it needs the target user's UPN/email.
+        const driveUser = k(env, ['msgraph_user_email','msgraph_user','onedrive_email','MSGRAPH_USER_EMAIL','MSGRAPH_USER']) || '';
+        if (!driveUser) return json({error:'OneDrive user email not configured. Add msgraph_user_email=your Microsoft account email as a secret.'}, 400, origin);
 
         // Get access token
         const tokenResp = await fetch(
@@ -3686,14 +3705,16 @@ export default {
         const accessToken = tokenData.access_token;
         if (!accessToken) return json({error: 'Could not get MSGraph token: '+JSON.stringify(tokenData).substring(0,100)}, 500, origin);
 
-        // Upload file to OneDrive
-        const fileContent = typeof content === 'string' ? new TextEncoder().encode(content) : content;
+        // Upload file to OneDrive — application permissions require /users/{email}/drive
+        const fileBytes = body.encoding === 'base64' || body.base64
+          ? Uint8Array.from(atob(content), c => c.charCodeAt(0))
+          : (typeof content === 'string' ? new TextEncoder().encode(content) : content);
         const uploadResp = await fetch(
-          `https://graph.microsoft.com/v1.0/me/drive/root:/${folder}/${encodeURIComponent(fileName)}:/content`,
+          `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(driveUser)}/drive/root:/${folder}/${encodeURIComponent(fileName)}:/content`,
           {
             method: 'PUT',
-            headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': 'text/plain'},
-            body: fileContent
+            headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': body.mimeType || 'application/octet-stream'},
+            body: fileBytes
           }
         );
         const uploadData = await uploadResp.json();
@@ -3701,7 +3722,7 @@ export default {
 
         // Create sharing link
         const shareResp = await fetch(
-          `https://graph.microsoft.com/v1.0/me/drive/items/${uploadData.id}/createLink`,
+          `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(driveUser)}/drive/items/${uploadData.id}/createLink`,
           {
             method: 'POST',
             headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': 'application/json'},
@@ -6220,9 +6241,12 @@ data: ${JSON.stringify(data)}
     if (path === '/api/ingest-secrets' && request.method === 'POST') {
       try {
         const body = await request.json();
-        const { secrets, cfToken, accountId, workerName } = body;
-        if (!cfToken || !accountId || !workerName) {
-          return json({ error: 'cfToken, accountId, and workerName are required' }, 400, origin);
+        const secrets = body.secrets;
+        const cfToken = body.cfToken || k(env, ['cf_token','CF_TOKEN','cloudflare_api_token','CLOUDFLARE_API_TOKEN']) || '';
+        const accountId = body.accountId || k(env, ['cf_account_id','CF_ACCOUNT_ID']) || 'd741de91f8cfff2306cc0f850a76ee07';
+        const workerName = body.workerName || 'prism-api';
+        if (!cfToken) {
+          return json({ error: 'No Cloudflare token available. Store cf_token as a worker secret once, then ingest normally.' }, 400, origin);
         }
         if (!Array.isArray(secrets) || secrets.length === 0) {
           return json({ error: 'secrets array is required' }, 400, origin);
@@ -6974,14 +6998,24 @@ data: ${JSON.stringify(data)}
             } else if (['instagram','facebook','x'].includes(platform)) {
               const bufferKey = k(env, ['buffer_api_key','BUFFER_API_KEY','buffer']) || '';
               const channelMap = { instagram: k(env,['buffer_ig_channel','BUFFER_IG_CHANNEL']), facebook: k(env,['buffer_fb_channel','BUFFER_FB_CHANNEL']), x: k(env,['buffer_x_channel','BUFFER_X_CHANNEL']) };
-              const channelId = channelMap[platform];
+              let channelId = channelMap[platform];
+              if (!channelId && env.PRISM_KV) {
+                channelId = await env.PRISM_KV.get('platform:channel:' + platform).catch(() => null);
+              }
               if (bufferKey && channelId) {
-                const bufResp = await fetch('https://api.bufferapp.com/1/updates/create.json', {
-                  method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'},
-                  body: new URLSearchParams({ access_token: bufferKey, profile_ids: channelId, text: item.text, now: 'true' }).toString()
-                });
-                results[platform] = { success: bufResp.ok, status: bufResp.status };
-              } else { errors[platform] = bufferKey ? 'Buffer channel ID not configured' : 'Buffer not connected'; }
+                // Buffer's current API: GraphQL createPost with Bearer auth
+                const dueAt = item.scheduledFor || new Date().toISOString();
+                const gqlRes = await bufferGql(
+                  'mutation($text: String!, $channelId: ChannelId!, $dueAt: DateTime!) { createPost(input: { text: $text, channelId: $channelId, schedulingType: automatic, mode: customScheduled, dueAt: $dueAt }) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }',
+                  { text: item.text, channelId, dueAt }, env
+                );
+                if (gqlRes.error) { errors[platform] = gqlRes.error; results[platform] = { success: false }; }
+                else {
+                  const created = gqlRes.data && gqlRes.data.createPost;
+                  const ok = !!(created && created.post && created.post.id);
+                  results[platform] = { success: ok, postId: ok ? created.post.id : undefined, error: created && created.message };
+                }
+              } else { errors[platform] = bufferKey ? 'Buffer channel ID not configured — run Fetch Buffer channels' : 'Buffer not connected'; }
             } else if (platform === 'substack') {
               const substackEmail = k(env, ['substack_email','SUBSTACK_EMAIL']) || 'zemiopat@substack.com';
               // Substack posts via email — log as queued, actual send requires email route
@@ -8311,6 +8345,22 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     // ── Integration layer routes ──────────────────────────────────────────────
     const integrationResponse = await handleIntegrationRoutes(path, request, env, origin);
     if (integrationResponse) return integrationResponse;
+
+    if (path === '/api/r2/file' && request.method === 'GET') {
+      try {
+        const key = url.searchParams.get('key') || '';
+        if (!key) return json({ error: 'key required' }, 400, origin);
+        if (!env.PRISM_ASSETS) return json({ error: 'R2 not bound' }, 500, origin);
+        const obj = await env.PRISM_ASSETS.get(key);
+        if (!obj) return json({ error: 'Not found' }, 404, origin);
+        const headers = {
+          'Content-Type': obj.httpMetadata && obj.httpMetadata.contentType || 'application/octet-stream',
+          'Access-Control-Allow-Origin': origin || '*',
+          'Cache-Control': 'public, max-age=3600'
+        };
+        return new Response(obj.body, { headers });
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
 
     if (path === '/api/r2/upload' && request.method === 'POST') {
       try {

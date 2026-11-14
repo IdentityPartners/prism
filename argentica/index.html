@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Home</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="home">
+
+  <div class="home-hero" id="hero">
+    <img class="bg" id="hero-img" alt="">
+    <div class="veil"></div>
+    <img class="logo" src="/shared/assets/logo-square.png" alt="Identity Partners">
+    <div class="inner">
+      <div class="greet" id="greet">Good morning, Simon.</div>
+      <div class="date" id="hero-date"></div>
+    </div>
+    <div class="credit" id="hero-credit"></div>
+  </div>
+
+  <div class="grid" style="grid-template-columns: 3fr 2fr;">
+    <div style="display:flex; flex-direction:column; gap:16px;">
+
+      <div class="card">
+        <h3><span class="dot on"></span>What are we working on?</h3>
+        <div class="row">
+          <textarea id="quick-chat" placeholder="Ask Gerald anything, or start a task…"></textarea>
+        </div>
+        <div class="row mt" style="justify-content:space-between;">
+          <div class="row" style="gap:8px; flex-wrap:wrap;">
+            <button class="ghost small" onclick="location.href='/argentica/research/'">Research</button>
+            <button class="ghost small" onclick="location.href='/argentica/create/'">New canvas</button>
+            <button class="ghost small" onclick="location.href='/argentica/library/'">Library</button>
+          </div>
+          <button id="quick-send">Speak to Gerald</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>In the press today</h3>
+        <div class="item-list" id="news-list"><div class="muted">Loading approved sources…</div></div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      <div class="card">
+        <h3><span class="dot" id="cal-dot"></span>Calendar</h3>
+        <div id="cal-body"><div class="muted">Checking today's diary…</div></div>
+      </div>
+      <div class="card">
+        <h3>Social</h3>
+        <div id="social-body"><div class="muted">Checking the queue…</div></div>
+      </div>
+      <div class="card">
+        <h3>Recent conversations</h3>
+        <div class="item-list" id="threads-body"><div class="muted">Loading…</div></div>
+      </div>
+      <div class="card">
+        <h3><span class="dot" id="health-dot"></span>System</h3>
+        <div id="health-body" class="muted">Checking…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('home');
+const { api, esc } = ARG;
+
+// Greeting + date
+(function () {
+  const h = new Date().getHours();
+  document.getElementById('greet').textContent =
+    'Good ' + (h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening') + ', Simon.';
+  document.getElementById('hero-date').textContent =
+    new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+})();
+
+// Photographic header — Pexels, Unsplash, Pixabay, Openverse and Wikimedia via worker,
+// one query per weekday, never repeats within a week. The image is preloaded and only
+// shown once it has actually loaded; candidates are tried in turn until one works.
+(async function () {
+  const queries = ['calm seascape dawn', 'scottish highlands mist', 'english coastline morning',
+    'quiet forest canopy', 'lake district hills', 'open sky clouds', 'autumn woodland path'];
+  const q = queries[new Date().getDay() % queries.length];
+  const hero = document.getElementById('hero');
+  const img = document.getElementById('hero-img');
+  const credit = document.getElementById('hero-credit');
+
+  function preload(url) {
+    return new Promise((resolve, reject) => {
+      const probe = new Image();
+      probe.onload = () => resolve(url);
+      probe.onerror = reject;
+      probe.src = url;
+    });
+  }
+
+  async function fetchPool(query) {
+    try {
+      const data = await api('/image-search/multi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, limit: 20, sources: ['pexels', 'unsplash', 'pixabay', 'openverse', 'wikimedia'] })
+      });
+      return data.results || data.images || [];
+    } catch (e) { return []; }
+  }
+
+  const seen = JSON.parse(localStorage.getItem('arg:hero-seen') || '[]');
+  let pool = await fetchPool(q);
+  if (!pool.length) pool = await fetchPool('landscape');
+  const fresh = pool.filter(p => p.url && !seen.includes(p.url));
+  const candidates = (fresh.length ? fresh : pool).filter(p => p.url);
+
+  for (let i = 0; i < Math.min(candidates.length, 6); i++) {
+    try {
+      await preload(candidates[i].url);
+      img.src = candidates[i].url;
+      credit.textContent = 'Photo: ' + (candidates[i].photographer || 'unknown') + ' · ' + (candidates[i].source || '');
+      localStorage.setItem('arg:hero-seen', JSON.stringify(seen.concat([candidates[i].url]).slice(-40)));
+      return;
+    } catch (e) { /* try the next candidate */ }
+  }
+  credit.textContent = 'Photography will return with the next visit.';
+})();
+
+// Calendar — compact month grid + today's events
+(async function () {
+  try {
+    const cal = await api('/google/calendar');
+    const body = document.getElementById('cal-body');
+    if (cal.status !== 'ok') {
+      document.getElementById('cal-dot').classList.remove('on');
+      body.innerHTML = '<div class="muted">Google Calendar not connected. Reconnect from Commercial → Platforms.</div>';
+      return;
+    }
+    document.getElementById('cal-dot').classList.add('on');
+    const evs = (cal.today || []).concat(cal.week || []);
+    const today = new Date();
+    const y = today.getFullYear(), m = today.getMonth();
+    const first = new Date(y, m, 1);
+    const start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));
+    let grid = '<div style="display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:10px;">';
+    for (let i = 0; i < 35; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      const inM = d.getMonth() === m;
+      const isT = d.toDateString() === today.toDateString();
+      const has = evs.some(e => (e.starts_at || '').slice(0, 10) === d.toISOString().slice(0, 10));
+      grid += '<div style="text-align:center; font-size:10.5px; padding:2px 0; border-radius:4px;' +
+        (isT ? 'background:var(--teal); color:#fff;' : has ? 'background:rgba(15,59,58,0.12); color:var(--teal); font-weight:600;' : 'color:' + (inM ? 'var(--ink-soft)' : 'var(--line)')) +
+        '">' + d.getDate() + '</div>';
+    }
+    grid += '</div>';
+    const todayEvs = (cal.today || []);
+    body.innerHTML = grid +
+      (todayEvs.length ? todayEvs.map(e => '<div style="font-size:12.5px; margin-bottom:4px;"><strong>' + esc((e.starts_at || '').slice(11, 16)) + '</strong> ' + esc(e.title) + '</div>').join('') : '<div class="muted">Nothing else today.</div>') +
+      ((cal.week || []).length ? '<div class="muted" style="margin-top:6px;">' + (cal.week || []).length + ' more this fortnight.</div>' : '') +
+      '<div style="margin-top:10px;"><button class="ghost small" onclick="location.href=\'/argentica/comms/calendar/\'">Full calendar</button></div>';
+  } catch (e) {
+    document.getElementById('cal-body').innerHTML = '<div class="muted">Calendar unavailable.</div>';
+  }
+})();
+
+// News — Guardian society + BBC health RSS via worker proxy
+(async function () {
+  const feeds = [
+    'https://www.theguardian.com/uk/society/rss',
+    'https://feeds.bbci.co.uk/news/health/rss.xml'
+  ];
+  const kw = ['mental health', 'addiction', 'recovery', 'nhs', 'trauma', 'drug', 'alcohol', 'therapy', 'wellbeing', 'disability', 'poverty', 'inequality'];
+  const items = [];
+  await Promise.all(feeds.map(async url => {
+    try {
+      const res = await fetch('/api/rss?url=' + encodeURIComponent(url));
+      const text = await res.text();
+      const doc = new DOMParser().parseFromString(text, 'text/xml');
+      doc.querySelectorAll('item, entry').forEach(it => {
+        const title = (it.querySelector('title') || {}).textContent || '';
+        const link = (it.querySelector('link') || {}).textContent || (it.querySelector('link') || {}).getAttribute && (it.querySelector('link') || {}).getAttribute('href') || '';
+        const desc = ((it.querySelector('description') || {}).textContent || '').replace(/<[^>]*>/g, '').slice(0, 160);
+        let img = '';
+        const thumb = it.querySelector('thumbnail, content');
+        if (thumb) img = thumb.getAttribute && (thumb.getAttribute('url') || thumb.getAttribute('href')) || '';
+        if (!img) {
+          const enc = it.querySelector('enclosure');
+          if (enc && /image/.test(enc.getAttribute('type') || '')) img = enc.getAttribute('url');
+        }
+        if (!img) {
+          const m = desc && ((it.querySelector('description') || {}).textContent || '').match(/<img[^>]+src=["']([^"']+)/);
+          if (m) img = m[1];
+        }
+        if (kw.some(k => (title + ' ' + desc).toLowerCase().includes(k))) items.push({ title, link, desc, img });
+      });
+    } catch (e) {}
+  }));
+  const el = document.getElementById('news-list');
+  if (!items.length) { el.innerHTML = '<div class="muted">Nothing relevant from approved sources today.</div>'; return; }
+  el.innerHTML = items.slice(0, 6).map(n =>
+    '<div class="item">' +
+    (n.img ? '<img src="' + esc(n.img) + '" style="width:64px; height:48px; object-fit:cover; border-radius:5px; flex-shrink:0;" onerror="this.remove()">' : '') +
+    '<div style="min-width:0;"><a href="' + esc(n.link) + '" target="_blank" rel="noopener">' + esc(n.title) + '</a><div class="muted">' + esc(n.desc) + '</div></div></div>'
+  ).join('');
+})();
+
+// Social status
+(async function () {
+  try {
+    const data = await api('/mm/queue');
+    const q = data.queue || [];
+    const counts = data.counts || {};
+    const pending = q.filter(i => (i.status || 'pending') === 'pending');
+    const posted = q.filter(i => i.status === 'posted');
+    const last = posted[posted.length - 1];
+    document.getElementById('social-body').innerHTML =
+      '<div class="row" style="gap:6px; flex-wrap:wrap;">' +
+      '<span class="badge teal">' + (counts.pending || pending.length) + ' awaiting approval</span>' +
+      '<span class="badge green">' + (counts.posted || posted.length) + ' posted</span>' +
+      '<span class="badge">' + (counts.scheduled || 0) + ' scheduled</span></div>' +
+      (last ? '<div class="muted mt">Last post: ' + esc((last.platforms || []).join(', ') || '—') + ' · ' + new Date(last.createdAt).toLocaleDateString('en-GB') + '</div>' : '<div class="muted mt">No posts yet.</div>') +
+      '<div class="mt"><button class="ghost small" onclick="location.href=\'/argentica/commercial/publishing/\'">Review the queue</button></div>';
+  } catch (e) {
+    document.getElementById('social-body').innerHTML = '<div class="muted">Queue unavailable.</div>';
+  }
+})();
+
+// Recent conversations
+(async function () {
+  try {
+    const data = await api('/threads');
+    const el = document.getElementById('threads-body');
+    const threads = (data.threads || []).slice(0, 3);
+    if (!threads.length) { el.innerHTML = '<div class="muted">No conversations yet. Gerald is waiting.</div>'; return; }
+    el.innerHTML = threads.map(t =>
+      '<div class="item"><div><div>' + esc(t.title || 'Conversation') + '</div>' +
+      '<div class="muted">' + (t.messageCount || 0) + ' messages · ' + (t.updated ? new Date(t.updated).toLocaleDateString('en-GB') : '') + '</div></div></div>'
+    ).join('') + '<div class="mt" style="margin-top:10px;"><button class="ghost small" onclick="location.href=\'/argentica/chat/\'">Resume with Gerald</button></div>';
+  } catch (e) { document.getElementById('threads-body').innerHTML = '<div class="muted">Could not load conversations.</div>'; }
+})();
+
+// System health
+(async function () {
+  try {
+    const res = await fetch('https://prism-api.identitypartners.workers.dev/health');
+    const d = await res.json();
+    document.getElementById('health-dot').classList.add('on');
+    document.getElementById('health-body').innerHTML =
+      '<div>Worker healthy · storage bound · responding normally.</div>' +
+      '<div class="muted mt" style="margin-top:4px;">Cron slots: 08:00 · 13:00 · 20:00 UTC</div>';
+  } catch (e) {
+    document.getElementById('health-body').textContent = 'Worker not responding — check System for detail.';
+  }
+})();
+
+// Quick chat → hand off to Gerald
+document.getElementById('quick-send').addEventListener('click', () => {
+  const v = document.getElementById('quick-chat').value.trim();
+  if (v) sessionStorage.setItem('arg:pending-prompt', v);
+  location.href = '/argentica/chat/';
+});
+</script>
+</body>
+</html>

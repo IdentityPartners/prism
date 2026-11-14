@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Canvas</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="canvas">
+  <div class="arg-pagehead">
+    <h1>Canvas</h1>
+    <div class="sub">Branded post images: real photographic backgrounds, the IP logo, your text. Seventeen templates.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>New canvas</h3>
+      <label class="muted">Topic or quote</label>
+      <textarea id="topic" style="margin:4px 0 12px;" placeholder="e.g. today's ONS figures on alcohol deaths, or a line about recovery"></textarea>
+      <label class="muted">Template — click a preview to select it</label>
+      <div id="tpl-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:10px; margin:6px 0 12px;"></div>
+      <button id="gen">Generate</button>
+      <div class="muted mt" id="gen-status"></div>
+    </div>
+
+    <div class="card">
+      <h3>Result</h3>
+      <div id="gen-preview" class="muted">Nothing generated yet.</div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('canvas');
+const { api, esc } = ARG;
+
+const TEMPLATES = [
+  { id: 'block-teal', label: 'Quote · Teal', hint: 'text-dominant quote card' },
+  { id: 'block-rose', label: 'Quote · Rose', hint: 'quote card, rose palette' },
+  { id: 'block-ivory', label: 'Quote · Ivory', hint: 'quote card, ivory palette' },
+  { id: 'stat', label: 'Statistic highlight', hint: 'large number, context, source' },
+  { id: 'news-reaction', label: 'News reaction', hint: 'headline + commentary + credit' },
+  { id: 'myth-vs-fact-teal', label: 'Myth vs Fact · Teal', hint: 'two-panel correction' },
+  { id: 'myth-vs-fact-ivory', label: 'Myth vs Fact · Ivory', hint: 'two-panel correction' },
+  { id: 'data-infographic', label: 'Data infographic', hint: 'multiple data points' },
+  { id: 'awareness-day', label: 'Awareness day', hint: 'event name + date + imagery' },
+  { id: 'awareness-day-rose', label: 'Awareness day · Rose', hint: 'rose variant' },
+  { id: 'service-explainer', label: 'Service explainer', hint: 'what you offer, for whom' },
+  { id: 'semantic-teal', label: 'Photographic · Teal', hint: 'real photo background' },
+  { id: 'semantic-rose', label: 'Photographic · Rose', hint: 'real photo background' },
+  { id: 'semantic-dark', label: 'Photographic · Dark', hint: 'real photo background' },
+  { id: 'testimonial-teal', label: 'Testimonial · Teal', hint: 'quote + attribution' },
+  { id: 'dual-partnership', label: 'Side by side', hint: 'image left, text right' },
+  { id: 'img-landscape', label: 'Landscape photo', hint: 'photograph with caption' }
+];
+let activeTemplate = 'block-teal';
+const tplGrid = document.getElementById('tpl-grid');
+tplGrid.innerHTML = TEMPLATES.map(t =>
+  '<button class="tpl" data-id="' + t.id + '" title="' + esc(t.hint) + '" style="border:2px solid var(--line); border-radius:8px; padding:0; background:#fff; cursor:pointer; overflow:hidden; text-align:left;">' +
+  '<div class="tpl-img" data-id="' + t.id + '" style="width:100%; aspect-ratio:1; background:var(--ivory); display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:11px;">loading…</div>' +
+  '<div style="padding:5px 7px; font-size:11.5px; color:var(--teal);">' + t.label + '</div></button>'
+).join('');
+tplGrid.querySelector('.tpl').classList.add('active');
+tplGrid.querySelectorAll('.tpl').forEach(b => b.addEventListener('click', () => {
+  tplGrid.querySelectorAll('.tpl').forEach(x => x.style.borderColor = 'var(--line)');
+  b.style.borderColor = 'var(--teal)';
+  activeTemplate = b.dataset.id;
+}));
+// visual previews — live SVGs from the worker's preview endpoint
+(async function loadPreviews() {
+  for (const t of TEMPLATES) {
+    fetch('/api/canvas/preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'Understand your past. Define your future.', template: t.id })
+    }).then(r => r.text()).then(svg => {
+      const holder = tplGrid.querySelector('.tpl-img[data-id="' + t.id + '"]');
+      if (holder) {
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(blob);
+        img.style.cssText = 'width:100%; height:100%; object-fit:cover;';
+        holder.innerHTML = '';
+        holder.appendChild(img);
+      }
+    }).catch(() => {});
+  }
+})();
+
+document.getElementById('gen').addEventListener('click', async () => {
+  const btn = document.getElementById('gen');
+  const status = document.getElementById('gen-status');
+  const topic = document.getElementById('topic').value.trim();
+  if (!topic) { ARG.toast('Give it a topic or a line first.'); return; }
+  btn.disabled = true;
+  status.textContent = 'Finding a photographic background and rendering…';
+  try {
+    const data = await api('/canvas/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic, text: topic, template: activeTemplate, platform: 'instagram', skipQueue: true })
+    });
+    const urls = data.urls || (data.url ? [data.url] : []);
+    if (urls.length) {
+      window._lastCanvasUrl = urls[0];
+      document.getElementById('gen-preview').innerHTML =
+        urls.map(u => '<img src="' + esc(u) + '" style="max-width:100%; border-radius:8px; border:1px solid var(--line); margin-bottom:8px;">').join('') +
+        '<div class="row mt" style="gap:8px;">' +
+        '<button class="small" onclick="sendToPublishing()">Send to Publishing</button>' +
+        '<button class="ghost small" onclick="window.open(\'' + esc(urls[0]) + '\', \'_blank\')">Open full size</button></div>';
+      status.textContent = 'Canvas ready.';
+    } else {
+      status.textContent = 'No image came back: ' + esc(data.error || 'try again.');
+    }
+  } catch (e) { status.textContent = 'Generation failed: ' + esc(e.message); }
+  btn.disabled = false;
+});
+
+window.sendToPublishing = () => {
+  sessionStorage.setItem('arg:canvas-url', window._lastCanvasUrl || '');
+  location.href = '/argentica/commercial/publishing/';
+};
+</script>
+</body>
+</html>

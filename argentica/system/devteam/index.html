@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Dev Team</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="devteam">
+  <div class="arg-pagehead">
+    <h1>Dev Team</h1>
+    <div class="sub">The maintenance crew. It diagnoses, fixes, pushes to GitHub and deploys the worker — you never touch anything technical.</div>
+  </div>
+
+  <div class="card">
+    <h3>Quick actions</h3>
+    <div class="row" style="flex-wrap:wrap; gap:8px;">
+      <button class="ghost small" onclick="runAction('health')">System health</button>
+      <button class="ghost small" onclick="runAction('test_provider')">Test LLM providers</button>
+      <button class="ghost small" onclick="runAction('deploy_worker')">Redeploy worker (with bindings)</button>
+    </div>
+    <pre id="action-out" style="display:none; background:var(--ivory); border-radius:8px; padding:12px; margin-top:12px; font-size:12px; white-space:pre-wrap; max-height:300px; overflow-y:auto;"></pre>
+  </div>
+
+  <div class="card mt">
+    <h3>Talk to the Dev Team</h3>
+    <div id="dt-scroll" style="max-height:320px; overflow-y:auto; margin-bottom:12px;"></div>
+    <div class="row">
+      <input type="text" id="dt-input" placeholder="e.g. the chat is slow today, diagnose it">
+      <button id="dt-send">Send</button>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('devteam');
+const { api, esc, md } = ARG;
+
+let history = [];
+
+function render(role, text) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + (role === 'user' ? 'user' : 'gerald');
+  div.innerHTML = '<div class="who">' + (role === 'user' ? 'Simon' : 'Dev Team') + '</div><div class="bubble">' + md(text) + '</div>';
+  const sc = document.getElementById('dt-scroll');
+  sc.appendChild(div);
+  sc.scrollTop = sc.scrollHeight;
+}
+
+window.runAction = async action => {
+  const out = document.getElementById('action-out');
+  out.style.display = 'block';
+  out.textContent = 'Running ' + action + '…';
+  try {
+    const r = await api('/devteam/execute', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    });
+    out.textContent = JSON.stringify(r, null, 2);
+  } catch (e) { out.textContent = 'Failed: ' + e.message; }
+};
+
+document.getElementById('dt-send').addEventListener('click', async () => {
+  const input = document.getElementById('dt-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  render('user', text);
+  try {
+    const r = await api('/devteam', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, history })
+    });
+    const reply = r.content || r.reply || 'No response.';
+    history.push({ role: 'user', content: text }, { role: 'assistant', content: reply });
+    render('assistant', reply);
+  } catch (e) { render('assistant', 'Something went wrong: ' + e.message); }
+});
+document.getElementById('dt-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('dt-send').click();
+});
+</script>
+</body>
+</html>

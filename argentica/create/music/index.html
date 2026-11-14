@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Music</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="music">
+  <div class="arg-pagehead">
+    <h1>Music</h1>
+    <div class="sub">Background music via Google Lyria. This uses the paid Gemini key — use it where it earns its keep.</div>
+  </div>
+
+  <div class="card">
+    <h3>Generate</h3>
+    <input type="text" id="m-prompt" placeholder="Describe the music — e.g. calm piano underscore, 60 seconds, reflective">
+    <div class="row mt" style="flex-wrap:wrap; gap:8px;">
+      <input type="number" id="m-secs" value="60" min="10" max="240" style="max-width:110px;" title="Seconds">
+      <button id="m-run">Generate</button>
+      <span class="muted" id="m-status"></span>
+    </div>
+    <audio id="m-audio" controls style="width:100%; margin-top:14px; display:none;"></audio>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('music');
+const { api, esc } = ARG;
+
+document.getElementById('m-run').addEventListener('click', async () => {
+  const prompt = document.getElementById('m-prompt').value.trim();
+  const status = document.getElementById('m-status');
+  if (!prompt) { ARG.toast('Describe the music first.'); return; }
+  status.textContent = 'Composing… this uses the paid key and can take a minute.';
+  try {
+    const res = await fetch('/api/music/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, seconds: parseInt(document.getElementById('m-secs').value || '60') })
+    });
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('audio/')) {
+      const blob = await res.blob();
+      const audio = document.getElementById('m-audio');
+      audio.src = URL.createObjectURL(blob);
+      audio.style.display = 'block';
+      audio.play();
+      status.textContent = 'Playing.';
+    } else {
+      const d = await res.json();
+      status.textContent = 'Could not generate: ' + (d.error || 'Lyria may not be enabled on the account.');
+    }
+  } catch (e) { status.textContent = 'Failed: ' + e.message; }
+});
+</script>
+</body>
+</html>

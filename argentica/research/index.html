@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Research</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="research">
+  <div class="arg-pagehead">
+    <h1>Research</h1>
+    <div class="sub">Thirty scholarly sources and four web engines, fired in parallel — you choose which. Abbreviations are expanded before firing.</div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <input type="text" id="q" placeholder="e.g. disability benefits media framing UK, PTSD treatment outcomes, zemiological harm…">
+      <button id="run">Search</button>
+    </div>
+    <div class="row mt" style="flex-wrap:wrap; gap:8px;">
+      <button class="ghost small mode active" data-mode="scholarly">Scholarly</button>
+      <button class="ghost small mode" data-mode="web">Web &amp; press</button>
+      <button class="ghost small mode" data-mode="news">News feed</button>
+      <span class="muted" id="search-note" style="margin-left:auto;"></span>
+    </div>
+    <div class="row mt" style="flex-wrap:wrap; gap:8px; align-items:center;">
+      <label class="row" style="gap:5px; font-size:13px;"><input type="checkbox" id="f-boolean" checked> Gerald translates to boolean</label>
+      <label class="row" style="gap:5px; font-size:13px;"><input type="checkbox" id="f-oa"> Open access only</label>
+      <span class="muted" style="margin-left:auto;">From</span>
+      <input type="date" id="f-from" style="max-width:150px;">
+      <span class="muted">to</span>
+      <input type="date" id="f-to" style="max-width:150px;">
+    </div>
+    <div class="muted mt" id="boolean-note" style="display:none;"></div>
+  </div>
+
+  <div class="card mt" id="source-card">
+    <div class="spread">
+      <h3>Sources</h3>
+      <div class="row" style="gap:6px;">
+        <button class="ghost small" id="all-on">Select all</button>
+        <button class="ghost small" id="all-off">Clear</button>
+      </div>
+    </div>
+    <div id="source-groups"></div>
+  </div>
+
+  <div class="card mt" id="sort-card" style="display:none;">
+    <div class="spread">
+      <h3 style="margin:0;">Sort</h3>
+      <div class="row" style="gap:6px;">
+        <button class="ghost small sortbtn active" data-sort="relevance">Relevance</button>
+        <button class="ghost small sortbtn" data-sort="date">Date</button>
+        <button class="ghost small sortbtn" data-sort="source">Source</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt" id="results"></div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('research');
+const { api, esc } = ARG;
+
+const SOURCE_GROUPS = {
+  'Journals & papers': [
+    ['semantic_scholar', 'Semantic Scholar'], ['openalex', 'OpenAlex'], ['pubmed', 'PubMed'],
+    ['crossref', 'CrossRef'], ['core', 'CORE'], ['arxiv', 'arXiv'],
+    ['doaj', 'DOAJ'], ['base', 'BASE'], ['lens', 'Lens.org'], ['unpaywall', 'Unpaywall']
+  ],
+  'Preprints & biomedical': [
+    ['biorxiv', 'bioRxiv'], ['medrxiv', 'medRxiv'], ['europe_pmc', 'Europe PMC'], ['pmc', 'PMC'],
+    ['zenodo', 'Zenodo'], ['clinicaltrials', 'ClinicalTrials.gov']
+  ],
+  'Theses & grey literature': [
+    ['ethos', 'EThOS'], ['oatd', 'OATD'], ['ideas_repec', 'IDEAS/RePec'],
+    ['nber', 'NBER'], ['internet_archive', 'Internet Archive'], ['google_scholar', 'Google Scholar (link-out)']
+  ],
+  'Data & statistics': [
+    ['ons', 'ONS'], ['eurostat', 'Eurostat'], ['worldbank', 'World Bank'], ['exa', 'Exa (neural, academic)']
+  ],
+  'Goldsmiths': [
+    ['goldsmiths_library', 'Goldsmiths Library'], ['goldsmiths_ill', 'Goldsmiths ILL'], ['senate_house', 'Senate House']
+  ]
+};
+
+const WEB_SOURCES = [['tavily', 'Tavily (AI answers)'], ['brave', 'Brave'], ['exa', 'Exa (neural)'], ['perplexity', 'Perplexity (synthesis)']];
+
+const NEWS_FEEDS = [
+  ['The Guardian', 'https://www.theguardian.com/uk/society/rss'],
+  ['BBC Health', 'https://feeds.bbci.co.uk/news/health/rss.xml'],
+  ['New Statesman', 'https://www.newstatesman.com/feed'],
+  ['New Scientist', 'https://www.newscientist.com/feed/'],
+  ['The Lancet', 'https://www.thelancet.com/rssfeed/lancet_current.xml']
+];
+
+const ABBR = { PTSD: 'post-traumatic stress disorder', CBT: 'cognitive behavioural therapy', NHS: 'National Health Service',
+  ONS: 'Office for National Statistics', MAT: 'medication assisted treatment', SUD: 'substance use disorder',
+  ACE: 'adverse childhood experiences', DBT: 'dialectical behaviour therapy', GAM: 'gambling' };
+
+let mode = 'scholarly';
+let currentResults = [];
+let currentSort = 'relevance';
+let currentTerms = [];
+
+function expand(q) {
+  return q.split(/\s+/).map(w => ABBR[w.toUpperCase()] ? ABBR[w.toUpperCase()] + ' (' + w + ')' : w).join(' ');
+}
+
+// The search librarian: turns plain typing into a boolean query that maximises recall
+async function translateQuery(raw) {
+  const note = document.getElementById('boolean-note');
+  note.style.display = 'block';
+  note.textContent = 'Gerald is translating your query…';
+  try {
+    const d = await api('/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'You are a research search librarian. Convert the user\'s query into the most effective search strategy for academic databases and the web. Return ONLY minified JSON, no prose, in this shape: {"boolean":"(term1 OR synonym1) AND (term2 OR synonym2) NOT excludeterm","expanded":"a natural-language expansion with synonyms and UK spelling variants","terms":["the","individual","significant","lowercase","keywords"]}. Keep terms lowercase. Include UK and US spellings. Keep it to twelve terms or fewer. User query: ' + raw }],
+        profile: 'fast'
+      })
+    });
+    const text = d.content || '';
+    const m = text.match(/\{[\s\S]*\}/);
+    const parsed = m ? JSON.parse(m[0]) : null;
+    if (parsed && parsed.terms && parsed.terms.length) {
+      currentTerms = parsed.terms.map(t => String(t).toLowerCase());
+      note.innerHTML = 'Boolean: <code>' + esc(parsed.boolean || '') + '</code>';
+      return parsed.expanded || raw;
+    }
+  } catch (e) {}
+  currentTerms = raw.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  note.textContent = 'Plain query (translation unavailable).';
+  return raw;
+}
+
+function scoreResult(r) {
+  if (!currentTerms.length) return 50;
+  const title = String(r.title || '').toLowerCase();
+  const body = String(r.content || '').toLowerCase();
+  let score = 0;
+  for (const t of currentTerms) {
+    if (title.includes(t)) score += 3;
+    if (body.includes(t)) score += 1;
+  }
+  const max = currentTerms.length * 4 || 1;
+  return Math.min(100, Math.round((score / max) * 100));
+}
+
+function resultDate(r) {
+  if (r.published_date) return new Date(r.published_date).getTime() || 0;
+  if (r.year) return new Date(String(r.year) + '-01-01').getTime() || 0;
+  return 0;
+}
+
+function applyFilters(list) {
+  const from = document.getElementById('f-from').value ? new Date(document.getElementById('f-from').value).getTime() : 0;
+  const to = document.getElementById('f-to').value ? new Date(document.getElementById('f-to').value).getTime() + 86400000 : Infinity;
+  const oaOnly = document.getElementById('f-oa').checked;
+  return list.filter(r => {
+    if (oaOnly && !r.is_oa) return false;
+    const t = resultDate(r);
+    if (from && t && t < from) return false;
+    if (to !== Infinity && t && t > to) return false;
+    return true;
+  });
+}
+
+function sortResults(list, sort) {
+  const l = list.slice();
+  if (sort === 'date') l.sort((a, b) => resultDate(b) - resultDate(a));
+  else if (sort === 'source') l.sort((a, b) => String(a.source).localeCompare(String(b.source)) || (b._score || 0) - (a._score || 0));
+  else l.sort((a, b) => (b._score || 0) - (a._score || 0) || resultDate(b) - resultDate(a));
+  return l;
+}
+
+document.querySelectorAll('.sortbtn').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.sortbtn').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  currentSort = b.dataset.sort;
+  renderResults();
+}));
+
+function renderResults() {
+  const out = document.getElementById('results');
+  const filtered = applyFilters(currentResults);
+  const sorted = sortResults(filtered, currentSort);
+  document.getElementById('search-note').textContent = sorted.length + ' shown · ' + filtered.length + ' matched' + (filtered.length !== currentResults.length ? ' of ' + currentResults.length : '');
+  out.innerHTML = sorted.length
+    ? '<div class="card"><h3>Results</h3><div class="item-list">' + sorted.slice(0, 80).map(resultCard).join('') + '</div></div>'
+    : '<div class="card"><div class="muted">Nothing survived the filters. Loosen the dates or clear the open-access filter.</div></div>';
+}
+
+function renderSources() {
+  const el = document.getElementById('source-groups');
+  if (mode === 'scholarly') {
+    el.innerHTML = Object.entries(SOURCE_GROUPS).map(([group, srcs]) =>
+      '<div style="margin-top:12px;"><div class="muted" style="text-transform:uppercase; letter-spacing:0.1em; font-size:10px;">' + esc(group) + '</div>' +
+      '<div class="row" style="flex-wrap:wrap; gap:6px; margin-top:6px;">' +
+      srcs.map(([id, label]) => '<label class="badge teal" style="cursor:pointer;"><input type="checkbox" class="src" value="' + id + '" checked> ' + esc(label) + '</label>').join('') +
+      '</div></div>'
+    ).join('');
+  } else if (mode === 'web') {
+    el.innerHTML = '<div class="row" style="flex-wrap:wrap; gap:6px; margin-top:8px;">' +
+      WEB_SOURCES.map(([id, label]) => '<label class="badge teal" style="cursor:pointer;"><input type="checkbox" class="src" value="' + id + '" checked> ' + esc(label) + '</label>').join('') +
+      '</div>';
+  } else {
+    el.innerHTML = '<div class="muted">The news tab pulls today\'s items from approved outlets, filtered by your query as a keyword.</div>';
+  }
+}
+
+document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.mode').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  mode = b.dataset.mode;
+  renderSources();
+}));
+
+document.getElementById('all-on').addEventListener('click', () => document.querySelectorAll('.src').forEach(c => c.checked = true));
+document.getElementById('all-off').addEventListener('click', () => document.querySelectorAll('.src').forEach(c => c.checked = false));
+
+function resultCard(r) {
+  const badge = r._type === 'academic' ? '<span class="badge teal">' + esc(r.source) + '</span>' : '<span class="badge">' + esc(r.source) + '</span>';
+  const rel = r._score != null ? '<span class="badge ' + (r._score >= 70 ? 'green' : r._score >= 40 ? 'teal' : '') + '">' + r._score + '% relevant</span>' : '';
+  const meta = [r.authors, r.year, r.venue, r.citations != null ? r.citations + ' citations' : null, r.published_date]
+    .filter(Boolean).map(esc).join(' · ');
+  return '<div class="item"><div style="min-width:0;">' +
+    '<div><a href="' + esc(r.url || '#') + '" target="_blank" rel="noopener">' + esc(r.title || 'Untitled') + '</a> ' + badge + ' ' + rel + (r.is_oa ? ' <span class="badge green">open access</span>' : '') + '</div>' +
+    '<div class="muted">' + (meta ? meta + '<br>' : '') + esc(String(r.content || '').slice(0, 220)) + '</div></div>' +
+    '<button class="ghost small" onclick="saveRes(this)" data-title="' + esc(r.title || '') + '" data-url="' + esc(r.url || '') + '">Save</button></div>';
+}
+
+window.saveRes = async btn => {
+  try {
+    await api('/documents', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: btn.dataset.title, type: 'reference', content: btn.dataset.url, tags: ['module:dissertation', 'section:General', 'research'], moduleSource: 'dissertation' })
+    });
+    btn.textContent = 'Saved'; btn.disabled = true;
+    ARG.toast('Saved to Dissertation.');
+  } catch (e) { ARG.toast('Could not save.'); }
+};
+
+async function runNews(q) {
+  const out = document.getElementById('results');
+  out.innerHTML = '<div class="card"><div class="muted">Scanning approved outlets…</div></div>';
+  const kw = q.toLowerCase().split(/\s+/);
+  const items = [];
+  await Promise.all(NEWS_FEEDS.map(async ([name, url]) => {
+    try {
+      const text = await (await fetch('/api/rss?url=' + encodeURIComponent(url))).text();
+      const doc = new DOMParser().parseFromString(text, 'text/xml');
+      doc.querySelectorAll('item').forEach(it => {
+        const title = (it.querySelector('title') || {}).textContent || '';
+        const link = (it.querySelector('link') || {}).textContent || '';
+        const desc = ((it.querySelector('description') || {}).textContent || '').replace(/<[^>]*>/g, '').slice(0, 160);
+        if (!q || kw.some(k => (title + ' ' + desc).toLowerCase().includes(k))) items.push({ source: name, title, url: link, content: desc });
+      });
+    } catch (e) {}
+  }));
+  document.getElementById('search-note').textContent = items.length + ' items.';
+  out.innerHTML = items.length
+    ? '<div class="card"><h3>Today\'s press</h3><div class="item-list">' + items.slice(0, 40).map(resultCard).join('') + '</div></div>'
+    : '<div class="card"><div class="muted">Nothing relevant today.</div></div>';
+}
+
+document.getElementById('run').addEventListener('click', async () => {
+  const raw = document.getElementById('q').value.trim();
+  if (mode === 'news') return runNews(raw);
+  if (!raw) return;
+  const useBoolean = document.getElementById('f-boolean').checked;
+  const q = expand(useBoolean ? (await translateQuery(raw)) : raw);
+  const sources = [...document.querySelectorAll('.src:checked')].map(c => c.value);
+  if (!sources.length) { ARG.toast('Choose at least one source.'); return; }
+  const out = document.getElementById('results');
+  out.innerHTML = '<div class="card"><div class="muted">Searching ' + sources.length + ' sources in parallel…</div></div>';
+  const all = [];
+  const jobs = [];
+  if (mode === 'scholarly') jobs.push(
+    api('/research/scholarly', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, sources }) })
+      .then(d => { const r = d.results || d.sources || []; (Array.isArray(r) ? r : Object.values(r)).forEach(s => (s.items || []).forEach(i => all.push(i))); })
+      .catch(() => {})
+  );
+  if (mode === 'web') jobs.push(
+    api('/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, sources }) })
+      .then(d => { const r = d.results || d.sources || []; (Array.isArray(r) ? r : Object.values(r)).forEach(s => (s.items || []).forEach(i => all.push(i))); })
+      .catch(() => {})
+  );
+  await Promise.all(jobs);
+  const seen = new Set();
+  const uniq = all.filter(r => { const k = (r.url || r.title || '').replace(/[#?].*$/, ''); if (seen.has(k)) return false; seen.add(k); return true; });
+  uniq.forEach(r => { r._score = scoreResult(r); });
+  currentResults = uniq;
+  document.getElementById('sort-card').style.display = 'block';
+  renderResults();
+});
+
+renderSources();
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Messages</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="messages">
+  <div class="arg-pagehead">
+    <h1>Messages</h1>
+    <div class="sub">Telegram broadcast. The agents also notify you here when tasks complete.</div>
+  </div>
+
+  <div class="card">
+    <h3>Send a Telegram message</h3>
+    <textarea id="tg-text" style="min-height:100px;" placeholder="Write the message…"></textarea>
+    <div class="row mt" style="justify-content:space-between;">
+      <span class="muted">Goes to your connected chat.</span>
+      <button id="tg-send">Send</button>
+    </div>
+    <div class="muted mt" id="tg-status"></div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('messages');
+const { api, esc } = ARG;
+
+document.getElementById('tg-send').addEventListener('click', async () => {
+  const text = document.getElementById('tg-text').value.trim();
+  if (!text) { ARG.toast('Write something first.'); return; }
+  const st = document.getElementById('tg-status');
+  st.textContent = 'Sending…';
+  try {
+    const r = await api('/telegram/send', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    if (r.success) { st.textContent = 'Delivered.'; document.getElementById('tg-text').value = ''; ARG.toast('Sent.'); }
+    else st.textContent = 'Could not send: ' + (r.error || 'unknown');
+  } catch (e) { st.textContent = 'Could not send: ' + e.message; }
+});
+</script>
+</body>
+</html>

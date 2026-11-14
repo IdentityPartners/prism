@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Monetisation</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+</head>
+<body>
+<div class="arg-page" data-key="monetisation">
+  <div class="arg-pagehead">
+    <h1>Monetisation</h1>
+    <div class="sub">Your commercial presences: Whop products, Substack, and the profile proliferation pipeline.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>Whop</h3>
+      <button class="ghost small" id="whop-load">Load products</button>
+      <div class="item-list mt" id="whop-out"><div class="muted">Whop API v1 is wired in the worker. Load your products here.</div></div>
+    </div>
+
+    <div class="card">
+      <h3>Substack</h3>
+      <div class="muted" style="margin-bottom:10px;">Posts go out by email to your Substack address. Write the piece, send it as a post.</div>
+      <input type="text" id="ss-title" placeholder="Post title">
+      <textarea id="ss-body" style="min-height:120px; margin-top:8px;" placeholder="The post…"></textarea>
+      <button class="mt" id="ss-send">Send to Substack</button>
+      <div class="muted mt" id="ss-status"></div>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <h3>Platform catalogue</h3>
+    <div class="muted" style="margin-bottom:10px;">Every monetisable platform, grouped. Mark the ones you are on; the profile answers below carry to each new signup.</div>
+    <div id="plat-catalogue"></div>
+  </div>
+
+  <div class="card mt">
+    <h3>Profile proliferation</h3>
+    <div class="muted" style="margin-bottom:10px;">Store the answers once — every platform asks the same questions.</div>
+    <div class="grid" style="grid-template-columns:1fr 1fr; gap:8px;">
+      <input type="text" id="pf-name" placeholder="Display name">
+      <input type="text" id="pf-email" placeholder="Signup email">
+      <input type="text" id="pf-bio" placeholder="Short bio">
+      <input type="text" id="pf-tagline" placeholder="Tagline">
+      <input type="text" id="pf-rates" placeholder="Services & rates">
+      <input type="text" id="pf-links" placeholder="Website / socials">
+    </div>
+    <textarea id="pf-longbio" style="min-height:70px; margin-top:8px;" placeholder="Long bio"></textarea>
+    <div class="row mt" style="justify-content:space-between;">
+      <span class="muted" id="pf-status"></span>
+      <button id="pf-save">Save profile answers</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('monetisation');
+const { api, esc } = ARG;
+
+document.getElementById('whop-load').addEventListener('click', async () => {
+  const out = document.getElementById('whop-out');
+  out.innerHTML = '<div class="muted">Loading…</div>';
+  try {
+    const d = await api('/whop');
+    const items = d.products || d.data || d.items || [];
+    out.innerHTML = items.length
+      ? items.map(p => '<div class="item"><div><div>' + esc(p.title || p.name || 'Product') + '</div><div class="muted">' + esc(String(p.price || p.description || '').slice(0, 80)) + '</div></div></div>').join('')
+      : '<div class="muted">No products came back: ' + esc(d.error || 'check the Whop key in System → Status.') + '</div>';
+  } catch (e) { out.innerHTML = '<div class="muted">Whop unavailable: ' + esc(e.message) + '</div>'; }
+});
+
+document.getElementById('ss-send').addEventListener('click', async () => {
+  const title = document.getElementById('ss-title').value.trim();
+  const body = document.getElementById('ss-body').value.trim();
+  const st = document.getElementById('ss-status');
+  if (!title || !body) { ARG.toast('Title and body, please.'); return; }
+  st.textContent = 'Sending…';
+  try {
+    const r = await api('/monetisation/post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform: 'substack', title, body }) });
+    st.textContent = r.success ? 'Sent to Substack.' : ('Could not send: ' + (r.error || 'unknown'));
+  } catch (e) { st.textContent = 'Could not send: ' + e.message; }
+});
+
+const CATALOGUE = [
+  { group: 'Coaching & directory', items: [['CoachFinder', 'coachfinder.com'], ['Coacherly', 'coacherly.com'], ['Coachli', 'coachli.io'], ['Life Coach Directory', 'lifecoach-directory.org.uk'], ['Approach a Coach', 'approachacoach.com'], ['Bark', 'bark.com']] },
+  { group: 'Marketplaces & services', items: [['Whop', 'whop.com'], ['Fiverr', 'fiverr.com'], ['Buy Me a Coffee', 'buymeacoffee.com'], ['Eventbrite', 'eventbrite.co.uk'], ['Preply', 'preply.com']] },
+  { group: 'Courses & products', items: [['Teachable', 'teachable.com'], ['Kajabi', 'kajabi.com'], ['Skillshare', 'skillshare.com'], ['Gumroad', 'gumroad.com'], ['Patreon', 'patreon.com']] },
+  { group: 'Community & listening', items: [['Circle', 'circle.so'], ['Substack', 'substack.com'], ['ADHD UK Marketplace', 'adhduk.org']] }
+];
+
+(async function loadCatalogue() {
+  let joined = {};
+  try {
+    const d = await api('/monetisation/profiles');
+    joined = d.profiles || {};
+  } catch (e) {}
+  const el = document.getElementById('plat-catalogue');
+  el.innerHTML = CATALOGUE.map(cat =>
+    '<div style="margin-top:12px;"><div class="muted" style="text-transform:uppercase; letter-spacing:0.1em; font-size:10px;">' + esc(cat.group) + '</div>' +
+    '<div class="row" style="flex-wrap:wrap; gap:6px; margin-top:6px;">' +
+    cat.items.map(([name, domain]) => {
+      const p = joined[name.toLowerCase().replace(/\W+/g, '')];
+      return '<span class="badge ' + (p ? 'green' : '') + '" title="' + esc(domain) + '">' + esc(name) + (p ? ' ✓' : '') + '</span>';
+    }).join('') +
+    '</div></div>'
+  ).join('') + '<div class="muted mt" style="margin-top:12px;">Tick a platform when you join it and it will show green. The headless signup runner lives in the old system until it is ported.</div>';
+})();
+
+(async function loadProfile() {
+  try {
+    const d = await api('/kv/get?key=monetisation:profile');
+    const raw = d.value || d.result || d.data;
+    const p = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : null;
+    if (p) {
+      document.getElementById('pf-name').value = p.name || '';
+      document.getElementById('pf-email').value = p.email || '';
+      document.getElementById('pf-bio').value = p.bio || '';
+      document.getElementById('pf-tagline').value = p.tagline || '';
+      document.getElementById('pf-rates').value = p.rates || '';
+      document.getElementById('pf-links').value = p.links || '';
+      document.getElementById('pf-longbio').value = p.longBio || '';
+    }
+  } catch (e) {}
+})();
+
+document.getElementById('pf-save').addEventListener('click', async () => {
+  const p = {
+    name: document.getElementById('pf-name').value.trim(),
+    email: document.getElementById('pf-email').value.trim(),
+    bio: document.getElementById('pf-bio').value.trim(),
+    tagline: document.getElementById('pf-tagline').value.trim(),
+    rates: document.getElementById('pf-rates').value.trim(),
+    links: document.getElementById('pf-links').value.trim(),
+    longBio: document.getElementById('pf-longbio').value.trim()
+  };
+  try {
+    await api('/kv/set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'monetisation:profile', value: JSON.stringify(p) }) });
+    document.getElementById('pf-status').textContent = 'Saved.';
+    ARG.toast('Profile answers stored.');
+  } catch (e) { document.getElementById('pf-status').textContent = 'Could not save.'; }
+});
+</script>
+</body>
+</html>
