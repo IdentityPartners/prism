@@ -44,6 +44,16 @@
     </div>
   </div>
 
+  <div class="card mt">
+    <h3>Choose your own photo <span class="muted" style="font-size:11px;">Pexels · Unsplash · Pixabay · Openverse · Wikimedia</span></h3>
+    <div class="row">
+      <input type="text" id="photo-q" placeholder="Search all five sources — e.g. calm seascape, forest path, London skyline…">
+      <button id="photo-run">Search</button>
+    </div>
+    <div id="photo-grid" class="mt" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:8px;"></div>
+    <div class="muted mt" id="photo-note">A chosen photo is composed client-side with the IP logo, your text, the tags and the footer — fully branded, at your chosen platform size.</div>
+  </div>
+
   <div class="card mt" id="result-card" style="display:none;">
     <h3>Result</h3>
     <div class="row" style="align-items:flex-start; flex-wrap:wrap;">
@@ -166,6 +176,24 @@ document.getElementById('gen').addEventListener('click', async () => {
   btn.disabled = true;
   status.textContent = 'Rendering…';
   try {
+    if (chosenPhoto) {
+      const [name, w, h] = SIZES[activeSize];
+      status.textContent = 'Composing with your photo at ' + w + '×' + h + '…';
+      const canvas = await composeBranded(chosenPhoto.url, topic, w, h);
+      const png64 = canvas.toDataURL('image/png').split(',')[1];
+      const up = await api('/r2/upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'canvas/composed-' + Date.now() + '.png', content: png64, mimeType: 'image/png', fileName: 'canvas.png' })
+      });
+      lastUrl = up.url;
+      lastPngUrl = up.url;
+      document.getElementById('result-img').src = '/api/r2/file?key=' + encodeURIComponent(up.key);
+      document.getElementById('result-card').style.display = 'block';
+      document.getElementById('result-note').textContent = 'Composed with your photo (' + (chosenPhoto.photographer || chosenPhoto.source) + '), branded with logo, tags and footer, at ' + name + ' size.';
+      status.textContent = 'Canvas ready.';
+      btn.disabled = false;
+      return;
+    }
     const photoT = TEMPLATES.find(t => t.id === activeTemplate).kind === 'photo';
     const data = await api('/canvas/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -227,6 +255,80 @@ document.getElementById('send-publish').addEventListener('click', () => {
 document.getElementById('open-full').addEventListener('click', () => {
   if (lastUrl) window.open(lastUrl, '_blank');
 });
+
+// ── Photo picker across all five sources ─────────────────
+let chosenPhoto = null;
+const photoGrid = document.getElementById('photo-grid');
+document.getElementById('photo-run').addEventListener('click', async () => {
+  const q = document.getElementById('photo-q').value.trim();
+  if (!q) { ARG.toast('What are we looking for?'); return; }
+  photoGrid.innerHTML = '<div class="muted">Searching five sources…</div>';
+  try {
+    const d = await api('/image-search/multi', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, limit: 5, sources: ['pexels', 'unsplash', 'pixabay', 'openverse', 'wikimedia'] })
+    });
+    const results = d.results || [];
+    document.getElementById('photo-note').textContent = results.length + ' results from ' + [...new Set(results.map(r => r.source))].join(', ');
+    photoGrid.innerHTML = results.map((r, i) =>
+      '<button class="tpl-btn" data-i="' + i + '"><img src="' + esc(r.thumbnail || r.url) + '" alt=""><span class="lbl">' + esc((r.photographer || r.source || '').slice(0, 20)) + '</span></button>'
+    ).join('') || '<div class="muted">Nothing found — try another phrase.</div>';
+    window._photos = results;
+    photoGrid.querySelectorAll('.tpl-btn').forEach(b => b.addEventListener('click', () => {
+      photoGrid.querySelectorAll('.tpl-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      chosenPhoto = window._photos[+b.dataset.i];
+      ARG.toast('Photo chosen — it will be branded and used for the canvas.');
+    }));
+  } catch (e) { photoGrid.innerHTML = '<div class="muted">Search failed: ' + esc(e.message) + '</div>'; }
+});
+
+// ── Client-side branded composer (used when a photo is chosen) ──
+function wrapText(ctx, text, maxWidth) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let line = '';
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+async function composeBranded(photoUrl, text, w, h) {
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const c = canvas.getContext('2d');
+  // photo, cover-fit
+  const img = await new Promise((res, rej) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = rej; i.src = photoUrl; });
+  const k = Math.max(w / img.width, h / img.height);
+  c.drawImage(img, (w - img.width * k) / 2, (h - img.height * k) / 2, img.width * k, img.height * k);
+  // brand overlay
+  const grad = c.createLinearGradient(0, h * 0.3, 0, h);
+  grad.addColorStop(0, 'rgba(15,59,58,0.25)');
+  grad.addColorStop(1, 'rgba(15,59,58,0.88)');
+  c.fillStyle = grad;
+  c.fillRect(0, 0, w, h);
+  // logo
+  const logo = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = '/shared/assets/logo-square.png'; });
+  c.drawImage(logo, w * 0.05, h * 0.05, w * 0.09, w * 0.09);
+  // text
+  const fs = Math.round(w / 22);
+  c.font = fs + 'px Georgia, serif';
+  c.fillStyle = '#ffffff';
+  c.textAlign = 'center';
+  const lines = wrapText(c, text, w * 0.82).slice(0, 6);
+  lines.forEach((ln, i) => c.fillText(ln, w / 2, h * 0.62 + (i - (lines.length - 1) / 2) * fs * 1.35));
+  // tags
+  c.font = Math.round(fs * 0.42) + 'px sans-serif';
+  c.fillStyle = 'rgba(255,255,255,0.85)';
+  c.fillText('#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing', w / 2, h * 0.9);
+  // footer
+  c.fillText('hello@identitypartners.uk | www.identitypartners.uk/contact', w / 2, h * 0.95);
+  return canvas;
+}
 
 renderControls();
 renderGallery();

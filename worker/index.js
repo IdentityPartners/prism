@@ -4410,29 +4410,44 @@ data: ${JSON.stringify(data)}
       try {
         const body = await request.json();
         const prompt = body.prompt || 'Uplifting piano, warm, professional';
-        const requestedModel = body.model || 'lyria-3.5';
+        const requestedModel = body.model || '';
         const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
         if (!GKEY) return json({error:'Gemini API key required. Music generation (Lyria) is a PAID Gemini feature.'}, 400, origin);
-        const modelsToTry = [requestedModel, 'lyria-3.5', 'lyria-3-pro-preview', 'lyria-3-clip-preview', 'lyria-2'].filter((v,i,a)=>a.indexOf(v)===i);
+        const attempts = [];
+        const lyriaModels = [requestedModel, 'lyria-002', 'lyria-3.5', 'lyria-3-pro-preview'].filter((v,i,a)=>v&&a.indexOf(v)===i);
+        for (const model of lyriaModels) attempts.push({model, endpoint:'predict'});
+        attempts.push({model:'gemini-2.5-flash-preview-tts', endpoint:'generateContent'});
         let lastError = '';
-        for (const model of modelsToTry) {
+        for (const att of attempts) {
           try {
-            const resp = await fetch(
-              'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent',
-              {method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':GKEY},
-               body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Aoede'}}}}})}
-            );
-            if (!resp.ok) { const err = await resp.text(); lastError = model+': '+resp.status+' '+err.substring(0,100); continue; }
-            const d = await resp.json();
-            const audioPart = d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts.find(function(p){return p.inlineData;});
-            if (audioPart) {
-              const buf = Uint8Array.from(atob(audioPart.inlineData.data), function(c){return c.charCodeAt(0);});
-              return new Response(buf.buffer, {headers:{'Content-Type':audioPart.inlineData.mimeType||'audio/mpeg','Access-Control-Allow-Origin':origin,'X-Model-Used':model}});
+            let resp;
+            if (att.endpoint === 'predict') {
+              resp = await fetch(
+                'https://generativelanguage.googleapis.com/v1beta/models/' + att.model + ':predict',
+                {method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':GKEY},
+                 body:JSON.stringify({inputs:{prompt}})}
+              );
+            } else {
+              resp = await fetch(
+                'https://generativelanguage.googleapis.com/v1beta/models/' + att.model + ':generateContent',
+                {method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':GKEY},
+                 body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Aoede'}}}}})}
+              );
             }
-            lastError = model+': no audio — '+JSON.stringify(d).substring(0,100);
-          } catch(me) { lastError = model+': '+me.message; }
+            if (!resp.ok) { const err = await resp.text(); lastError = att.model+':'+att.endpoint+' '+resp.status+' '+err.substring(0,150); continue; }
+            const d = await resp.json();
+            const audioPart = (d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts.find(function(p){return p.inlineData;})) ||
+                             (d.outputs && d.outputs[0] && d.outputs[0].audio);
+            if (audioPart) {
+              const b64 = audioPart.inlineData ? audioPart.inlineData.data : audioPart.data;
+              const mime = audioPart.inlineData ? audioPart.inlineData.mimeType : (audioPart.mimeType || 'audio/wav');
+              const buf = Uint8Array.from(atob(b64), function(c){return c.charCodeAt(0);});
+              return new Response(buf.buffer, {headers:{'Content-Type':mime,'Access-Control-Allow-Origin':origin,'X-Model-Used':att.model,'X-Endpoint':att.endpoint}});
+            }
+            lastError = att.model+': no audio — '+JSON.stringify(d).substring(0,150);
+          } catch(me) { lastError = att.model+': '+me.message; }
         }
-        return json({error:'Music generation failed. All Lyria models returned no audio. Last error: ' + lastError}, 500, origin);
+        return json({error:'Music generation failed. Tried Lyria predict + TTS fallback. Last error: ' + lastError, hint:'Lyria requires a paid Gemini tier (AI Studio key will 403). Try the free ElevenLabs/Suno routes in System > Agents if configured.'}, 502, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
@@ -5216,35 +5231,6 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({error: e.message}, 500, origin); }
     }
 
-    // ── Music generation (Lyria via Gemini) ───────────────────────────────────
-    if (path === '/api/music/generate' && request.method === 'POST') {
-      try {
-        const body = await request.json();
-        const prompt = body.prompt || 'Uplifting piano music';
-        const model = body.model || 'lyria-3.5';
-        const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
-        if (!GKEY) return json({error: 'Gemini key not configured'}, 400, origin);
-        const resp = await fetch(
-          'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent',
-          {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json', 'x-goog-api-key': GKEY},
-            body: JSON.stringify({
-              contents: [{parts: [{text: prompt}]}],
-              generationConfig: {responseModalities: ['AUDIO']}
-            })
-          }
-        );
-        if (!resp.ok) {
-          const errText = await resp.text();
-          return json({error: 'Lyria error: ' + resp.status + ' ' + errText.substring(0, 200)}, 500, origin);
-        }
-        const data = await resp.json();
-        const audioData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-        if (!audioData) return json({error: 'No audio in response', raw: JSON.stringify(data).substring(0, 200)}, 500, origin);
-        const buf = Uint8Array.from(atob(audioData), c => c.charCodeAt(0));
-        return new Response(buf, {headers: {'Content-Type': 'audio/mpeg', 'Access-Control-Allow-Origin': origin}});
-      } catch(e) { return json({error: e.message}, 500, origin); }
     }
 
     // ── PDF to Markdown (Gemini Vision) ───────────────────────────────────────

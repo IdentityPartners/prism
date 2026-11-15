@@ -152,9 +152,16 @@ const OSK_ROWS = [
   ['q','w','e','r','t','y','u','i','o','p'],
   ['a','s','d','f','g','h','j','k','l'],
   ['⇧','z','x','c','v','b','n','m','⌫'],
-  ['123','␣','.',',','⏎']
+  ['?123','␣','.',',','⏎']
+];
+const OSK_SYM_ROWS = [
+  ['1','2','3','4','5','6','7','8','9','0'],
+  ['@','#','$','%','&','*','(',')','_','⌫'],
+  ['-','+','=','/','\\','|',':',';','"','\''],
+  ['abc','␣','!','?','⏎']
 ];
 let oskShift = false;
+let oskSymbols = false;
 const OSK_NUM = ['1','2','3','4','5','6','7','8','9','0','-','/'];
 function oskKey(k) {
   let s = input.selectionStart, en = input.selectionEnd;
@@ -165,7 +172,7 @@ function oskKey(k) {
 }
 function buildOskFull() {
   oskFull.innerHTML = '';
-  OSK_ROWS.forEach(row => {
+  (oskSymbols ? OSK_SYM_ROWS : OSK_ROWS).forEach(row => {
     const r = document.createElement('div');
     r.style.display = 'flex'; r.style.gap = '3px'; r.style.justifyContent = 'center';
     row.forEach(k => {
@@ -178,7 +185,8 @@ function buildOskFull() {
       b.addEventListener('pointerdown', e => {
         e.preventDefault();
         if (k === '⇧') { oskShift = !oskShift; buildOskFull(); return; }
-        if (k === '123') { toggleNumRow(); return; }
+        if (k === '123' || k === '?123') { oskSymbols = !oskSymbols; buildOskFull(); return; }
+        if (k === 'abc') { oskSymbols = false; buildOskFull(); return; }
         oskKey(oskShift && k.length === 1 ? k.toUpperCase() : k);
         if (oskShift) { oskShift = false; buildOskFull(); }
       });
