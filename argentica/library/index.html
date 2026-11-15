@@ -236,6 +236,16 @@ async function upload(file) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: file.name, type: /\.pdf$/i.test(file.name) ? 'pdf' : 'file', content: up.url, tags, moduleSource: curModule })
     });
+    // Auto-index text-extractable files for semantic search (fire-and-forget)
+    if (/\.(txt|md|csv|json|html?)$/i.test(file.name) || (file.type || '').startsWith('text/')) {
+      try {
+        const text = await file.text();
+        fetch('/api/study/index-document', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: text.slice(0, 100000), fileName: file.name, moduleId: curModule, weekId: curWeek })
+        }).catch(() => {});
+        status.textContent += ' Indexed for search.';
+      } catch (e) {}
+    }
     // File it to Google Drive in the same structure (silently — R2 remains the working copy)
     try {
       await api('/gdrive/upload', {
@@ -259,6 +269,12 @@ async function saveNote() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: title || 'Untitled note', type: 'note', content: body, tags: ['module:' + curModule, 'section:' + curWeek], moduleSource: curModule })
     });
+    // Notes are indexed for semantic search too
+    try {
+      fetch('/api/study/index-document', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: (title ? title + '\n\n' : '') + body, fileName: (title || 'note') + '.txt', moduleId: curModule, weekId: curWeek })
+      }).catch(() => {});
+    } catch (e) {}
     // Notes also file to Google Drive as plain text
     try {
       await api('/gdrive/upload', {

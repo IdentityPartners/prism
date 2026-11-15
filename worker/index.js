@@ -4476,6 +4476,148 @@ data: ${JSON.stringify(data)}
 
     // ── Study Hub: auto-index uploaded document ───────────────────────────────
     // ── Notes (WriteHandy cloud sync) ────────────────────────────────────────────────────
+    // ── Personas ───────────────────────────────────────────────────────────────────
+    if (path === '/api/personas' && request.method === 'GET') {
+      try {
+        const list = await env.PRISM_KV.list({ prefix: 'persona:' });
+        const personas = [];
+        for (const k of (list.keys || [])) {
+          const v = await env.PRISM_KV.get(k.name, 'json');
+          if (v) personas.push(v);
+        }
+        return json({ personas }, 200, origin);
+      } catch(e) { return json({ personas: [], error: e.message }, 200, origin); }
+    }
+    if (path === '/api/personas' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('persona-' + Date.now());
+        const rec = { id, name: body.name || 'Unnamed', avatar: body.avatar || '\ud83e\udd16', role: body.role || '',
+                      systemPrompt: body.systemPrompt || '', temperature: body.temperature || 0.7,
+                      updated: new Date().toISOString() };
+        await env.PRISM_KV.put('persona:' + id, JSON.stringify(rec));
+        return json({ success: true, persona: rec }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/personas/') && request.method === 'DELETE') {
+      try {
+        const id = path.replace('/api/personas/', '');
+        await env.PRISM_KV.delete('persona:' + id);
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    // ── Debates ────────────────────────────────────────────────────────────────────
+    if (path === '/api/debate/save' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('debate-' + Date.now());
+        const rec = { id, topic: body.topic || 'Untitled debate', transcript: body.transcript || [],
+                      personas: body.personas || [], created: new Date().toISOString() };
+        await env.PRISM_KV.put('debate:' + id, JSON.stringify(rec));
+        return json({ success: true, id }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path === '/api/debate/list' && request.method === 'GET') {
+      try {
+        const list = await env.PRISM_KV.list({ prefix: 'debate:' });
+        const debates = [];
+        for (const k of (list.keys || [])) {
+          const v = await env.PRISM_KV.get(k.name, 'json');
+          if (v) debates.push({ id: v.id, topic: v.topic, created: v.created, turns: (v.transcript || []).length });
+        }
+        debates.sort(function(a,b){ return (b.created||'').localeCompare(a.created||''); });
+        return json({ debates }, 200, origin);
+      } catch(e) { return json({ debates: [], error: e.message }, 200, origin); }
+    }
+
+    // ── Memory ──────────────────────────────────────────────────────────────────────
+    if (path === '/api/memory' && request.method === 'GET') {
+      try {
+        const list = await env.PRISM_KV.list({ prefix: 'memory:' });
+        const memories = [];
+        for (const k of (list.keys || []).slice(0, 200)) {
+          const v = await env.PRISM_KV.get(k.name, 'json');
+          if (v) memories.push(v);
+        }
+        memories.sort(function(a,b){ return (b.created||'').localeCompare(a.created||''); });
+        return json({ memories }, 200, origin);
+      } catch(e) { return json({ memories: [], error: e.message }, 200, origin); }
+    }
+    if (path === '/api/memory' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('mem-' + Date.now());
+        const rec = { id, content: body.content || '', category: body.category || 'general',
+                      source: body.source || 'manual', created: body.created || new Date().toISOString() };
+        await env.PRISM_KV.put('memory:' + id, JSON.stringify(rec));
+        return json({ success: true, memory: rec }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/memory/') && request.method === 'DELETE') {
+      try {
+        const id = path.replace('/api/memory/', '');
+        await env.PRISM_KV.delete('memory:' + id);
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    // ── Research: saved queries (planned runs) ───────────────────────────────────────────────
+    if (path === '/api/research/keywords' && request.method === 'GET') {
+      try {
+        const list = await env.PRISM_KV.list({ prefix: 'research:query:' });
+        const queries = [];
+        for (const k of (list.keys || [])) {
+          const v = await env.PRISM_KV.get(k.name, 'json');
+          if (v) queries.push(v);
+        }
+        queries.sort(function(a,b){ return (b.created||'').localeCompare(a.created||''); });
+        return json({ queries }, 200, origin);
+      } catch(e) { return json({ queries: [], error: e.message }, 200, origin); }
+    }
+    if (path === '/api/research/keywords' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('q-' + Date.now());
+        const rec = { id, name: body.name || body.keywords || 'Query', keywords: body.keywords || '',
+                      cadence: body.cadence || 'manual', created: new Date().toISOString(),
+                      lastRun: null, lastResults: 0 };
+        await env.PRISM_KV.put('research:query:' + id, JSON.stringify(rec));
+        return json({ success: true, query: rec }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/research/keywords/') && request.method === 'DELETE') {
+      try {
+        const id = path.replace('/api/research/keywords/', '');
+        await env.PRISM_KV.delete('research:query:' + id);
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path === '/api/research/runs' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.queryId || ('run-' + Date.now());
+        const run = { id, queryId: body.queryId || '', keywords: body.keywords || '',
+                      results: (body.results || []).slice(0, 50), count: (body.results || []).length,
+                      ranAt: new Date().toISOString() };
+        const runs = await env.PRISM_KV.get('research:runs', 'json') || [];
+        runs.unshift(run);
+        await env.PRISM_KV.put('research:runs', JSON.stringify(runs.slice(0, 50)));
+        if (body.queryId) {
+          const q = await env.PRISM_KV.get('research:query:' + body.queryId, 'json');
+          if (q) { q.lastRun = run.ranAt; q.lastResults = run.count; await env.PRISM_KV.put('research:query:' + body.queryId, JSON.stringify(q)); }
+        }
+        return json({ success: true, run }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path === '/api/research/runs' && request.method === 'GET') {
+      try {
+        const runs = await env.PRISM_KV.get('research:runs', 'json') || [];
+        return json({ runs }, 200, origin);
+      } catch(e) { return json({ runs: [], error: e.message }, 200, origin); }
+    }
+
+
     if (path === '/api/notes/save' && request.method === 'POST') {
       try {
         const body = await request.json();

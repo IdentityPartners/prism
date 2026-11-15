@@ -98,7 +98,8 @@
       tabs: [
         { label: 'Status', href: '/argentica/system/', key: 'system' },
         { label: 'Dev Team', href: '/argentica/system/devteam/', key: 'devteam' },
-        { label: 'Agents', href: '/argentica/system/agents/', key: 'agents' }
+        { label: 'Agents', href: '/argentica/system/agents/', key: 'agents' },
+        { label: 'Personas', href: '/argentica/system/personas/', key: 'personas' }
       ]
     }
   };

@@ -57,6 +57,7 @@
           <label class="row"><input type="checkbox" class="mm" value="nemotron"> Nemotron Ultra 253B</label>
           <label class="row"><input type="checkbox" class="mm" value="cerebras"> Cerebras GPT-OSS 120B</label>
           <label class="row"><input type="checkbox" class="mm" value="groq"> Groq GPT-OSS 120B</label>
+          <label class="row"><input type="checkbox" class="mm" value="cohere"> Cohere (free key back)</label>
         </div>
         <label class="muted" for="profile" style="margin-top:12px;">Profile</label>
         <select id="profile" style="margin:4px 0 10px;">
@@ -112,8 +113,20 @@ const MODELS = {
   gemini: { label: 'Gemini Flash', provider: 'gemini', model: 'gemini-flash-latest' },
   nemotron: { label: 'Nemotron 253B', provider: 'openrouter', model: 'nvidia/llama-3.1-nemotron-ultra-253b-v1:free' },
   cerebras: { label: 'Cerebras GPT-OSS', provider: 'cerebras', model: 'gpt-oss-120b' },
-  groq: { label: 'Groq GPT-OSS', provider: 'groq', model: 'openai/gpt-oss-120b' }
+  groq: { label: 'Groq GPT-OSS', provider: 'groq', model: 'openai/gpt-oss-120b' },
+  cohere: { label: 'Cohere', provider: 'cohere', model: 'command-r-plus-08-2024' }
 };
+
+// Active persona (from Personas manager) — injected as a system message
+let activePersona = null;
+try {
+  const pid = new URLSearchParams(location.search).get('persona');
+  const stored = JSON.parse(localStorage.getItem('active-persona') || 'null');
+  if (stored && (!pid || stored.id === pid)) activePersona = stored;
+} catch (e) {}
+if (activePersona) {
+  messages.push({ role: 'system', content: (activePersona.prompt || activePersona.systemPrompt || '') + (activePersona.memory ? '\n\nContext you know about Simon: ' + activePersona.memory : '') });
+}
 
 function renderMsg(role, content) {
   const div = document.createElement('div');
