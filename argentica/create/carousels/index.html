@@ -46,6 +46,37 @@
     </div>
   </div>
 
+  <div class="grid two mt">
+    <div class="card">
+      <h3>Voiceover <span class="muted" style="font-size:11px;">(optional)</span></h3>
+      <div class="muted" style="font-size:12px;">Narration for the carousel — spoken over the slides. Auto-derived from your slide text; edit freely.</div>
+      <textarea id="vo-script" rows="5" style="width:100%; margin-top:8px;" placeholder="Narration text…"></textarea>
+      <div class="row mt" style="flex-wrap:wrap; gap:8px; align-items:center;">
+        <select id="vo-voice">
+          <option value="aura-arcas-en">Arcas (warm)</option>
+          <option value="aura-asteria-en">Asteria (calm)</option>
+          <option value="aura-orion-en">Orion (assured)</option>
+          <option value="aura-orpheus-en">Orpheus (deeper)</option>
+          <option value="aura-helios-en">Helios (bright)</option>
+          <option value="aura-zeus-en">Zeus (authoritative)</option>
+        </select>
+        <button class="ghost small" id="vo-from-slides">From slides</button>
+        <button class="ghost small" id="vo-generate">Generate voiceover</button>
+      </div>
+      <div class="muted mt" id="vo-status" style="font-size:12px;"></div>
+      <audio id="vo-audio" controls style="width:100%; margin-top:10px; display:none;"></audio>
+      <div class="row mt" id="vo-actions" style="display:none; gap:8px;">
+        <button class="ghost small" id="vo-save">Save with carousel</button>
+        <a id="vo-dl" class="ghost small" download="carousel-voiceover.mp3" style="text-decoration:none; padding:6px 14px; border:1px solid #0f3b3a; border-radius:6px;">Download</a>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Music bed <span class="muted" style="font-size:11px;">(optional)</span></h3>
+      <div class="muted" style="font-size:12px;">Generate a short instrumental bed on the Music page, save it to the Library, and it will be offered as a background track when the carousel is posted.</div>
+      <div class="mt" id="music-lib"><div class="muted">No saved tracks yet — <a href="/argentica/create/music/">open Music</a>.</div></div>
+    </div>
+  </div>
+
   <div class="card mt">
     <h3>Frames</h3>
     <div id="car-out" class="muted">Nothing rendered yet.</div>
@@ -202,9 +233,55 @@ document.getElementById('render').addEventListener('click', async () => {
   } catch (e) { st.textContent = 'Render failed: ' + e.message; }
 });
 
+// ── Voiceover via Deepgram TTS ──
+let voBlob = null, voUrl = '', voR2Key = '';
+document.getElementById('vo-from-slides').addEventListener('click', () => {
+  document.getElementById('vo-script').value = slides.map(s => s.trim()).filter(Boolean).join(' ');
+});
+document.getElementById('vo-generate').addEventListener('click', async () => {
+  const text = document.getElementById('vo-script').value.trim();
+  const st = document.getElementById('vo-status');
+  if (!text) { ARG.toast('Write or derive the narration first.'); return; }
+  st.textContent = 'Generating voiceover…';
+  try {
+    const res = await api('/voice/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, voice: document.getElementById('vo-voice').value }) });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); st.textContent = 'Failed: ' + (d.error || 'HTTP ' + res.status); return; }
+    voBlob = await res.blob();
+    if (voUrl) URL.revokeObjectURL(voUrl);
+    voUrl = URL.createObjectURL(voBlob);
+    const a = document.getElementById('vo-audio');
+    a.src = voUrl; a.style.display = 'block';
+    document.getElementById('vo-actions').style.display = 'flex';
+    document.getElementById('vo-dl').href = voUrl;
+    st.textContent = 'Voiceover ready.';
+  } catch (e) { st.textContent = 'Failed: ' + e.message; }
+});
+document.getElementById('vo-save').addEventListener('click', async () => {
+  if (!voBlob) return;
+  const st = document.getElementById('vo-status');
+  st.textContent = 'Uploading…';
+  try {
+    const b64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result.split(',')[1]); fr.readAsDataURL(voBlob); });
+    const up = await api('/r2/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'carousel/voiceover-' + Date.now() + '.mp3', content: b64, mimeType: 'audio/mpeg' }) });
+    voR2Key = up.key || up.url.replace(/^https:\/\/[^/]+\//, '');
+    st.textContent = 'Saved — it will be attached when you send to Publishing.';
+  } catch (e) { st.textContent = 'Save failed: ' + e.message; }
+});
+
+// ── Saved music beds ──
+(function renderMusicLib() {
+  const lib = JSON.parse(localStorage.getItem('arg-music') || '[]');
+  if (!lib.length) return;
+  document.getElementById('music-lib').innerHTML = lib.slice(0, 6).map(t =>
+    '<div class="slide-row"><span class="badge">♪</span><div style="flex:1; min-width:0;"><div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + esc(t.prompt) + '</div></div><audio controls preload="none" src="' + esc(t.url) + '" style="width:170px; height:32px;"></audio></div>').join('');
+})();
+
 window.sendToPublishing = () => {
   sessionStorage.setItem('arg:canvas-url', frameUrls[0] || '');
   sessionStorage.setItem('arg:carousel-urls', JSON.stringify(frameUrls));
+  if (voR2Key) sessionStorage.setItem('arg:carousel-voiceover', '/api/r2/file?key=' + encodeURIComponent(voR2Key));
   location.href = '/argentica/commercial/publishing/';
 };
 
