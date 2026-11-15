@@ -19,7 +19,29 @@
     <div class="sub">Generate a branded canvas, review the queue, approve and post. Every post carries the tags and footer automatically.</div>
   </div>
 
-  <div class="grid two">
+  <div class="card">
+    <h3><span class="dot" id="auto-dot"></span>Autonomous posting</h3>
+    <div class="row" style="flex-wrap:wrap; gap:10px; align-items:center;">
+      <label class="row" style="gap:6px;"><input type="checkbox" id="auto-on"> Autonomous posting is ON</label>
+      <span class="muted">Max</span>
+      <input type="number" id="auto-max" value="3" min="1" max="10" style="max-width:64px;">
+      <span class="muted">posts per day</span>
+      <span class="muted" style="margin-left:auto;" id="auto-today"></span>
+      <button class="small" id="auto-save">Save</button>
+    </div>
+    <div class="muted mt" id="auto-note">When on, the 08:00 / 13:00 / 20:00 slots pick a relevant approved headline, draft in Simon's voice, generate a canvas, post to the ticked platforms, and Telegram-notify you. The daily cap, blocked words and the kill switch here are enforced server-side.</div>
+    <div class="row mt" style="flex-wrap:wrap; gap:10px;">
+      <label class="row" style="gap:4px;"><input type="checkbox" class="auto-plat" value="bluesky" checked> Bluesky</label>
+      <label class="row" style="gap:4px;"><input type="checkbox" class="auto-plat" value="linkedin" checked> LinkedIn</label>
+      <label class="row" style="gap:4px;"><input type="checkbox" class="auto-plat" value="telegram" checked> Telegram</label>
+      <label class="row" style="gap:4px;"><input type="checkbox" class="auto-plat" value="instagram"> Instagram</label>
+      <label class="row" style="gap:4px;"><input type="checkbox" class="auto-plat" value="facebook"> Facebook</label>
+      <label class="row" style="gap:4px;"><input type="checkbox" class="auto-plat" value="x"> X</label>
+    </div>
+    <input type="text" id="auto-block" placeholder="Blocked words, comma separated (autonomous posts containing these are refused)" style="margin-top:10px;">
+  </div>
+
+  <div class="grid two mt">
     <div class="card">
       <h3>Compose &amp; queue</h3>
       <div id="attached-canvas"></div>
@@ -83,6 +105,36 @@ if (attached) {
   document.getElementById('attached-canvas').innerHTML =
     '<div class="row" style="margin-bottom:10px;"><img src="' + esc(attached) + '" style="width:90px; border-radius:6px;"><div class="muted">Canvas attached from Create — it will go out with the post.</div></div>';
 }
+
+// ── Autonomy ──────────────────────────────────────────
+async function loadAutonomy() {
+  try {
+    const d = await api('/social/autonomy');
+    const cfg = d.config || {};
+    document.getElementById('auto-on').checked = !!cfg.enabled;
+    document.getElementById('auto-max').value = cfg.maxPerDay || 3;
+    (cfg.platforms || []).forEach(p => { const c = document.querySelector('.auto-plat[value="' + p + '"]'); if (c) c.checked = true; });
+    document.getElementById('auto-block').value = (cfg.blockWords || []).join(', ');
+    if (cfg.enabled) document.getElementById('auto-dot').classList.add('on');
+    document.getElementById('auto-today').textContent = d.postedToday + ' posted today.';
+  } catch (e) {}
+}
+document.getElementById('auto-save').addEventListener('click', async () => {
+  const cfg = {
+    enabled: document.getElementById('auto-on').checked,
+    maxPerDay: parseInt(document.getElementById('auto-max').value) || 3,
+    platforms: [...document.querySelectorAll('.auto-plat:checked')].map(c => c.value),
+    blockWords: document.getElementById('auto-block').value.split(',').map(x => x.trim()).filter(Boolean)
+  };
+  try {
+    await api('/social/autonomy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) });
+    document.getElementById('auto-dot').classList.toggle('on', cfg.enabled);
+    document.getElementById('auto-today').textContent = 'Saved.';
+    ARG.toast(cfg.enabled ? 'Autonomous posting is on.' : 'Autonomous posting is off.');
+    loadAutonomy();
+  } catch (e) { ARG.toast('Could not save: ' + e.message); }
+});
+loadAutonomy();
 
 loadQueue();
   } catch (e) { ARG.toast('Could not queue: ' + e.message); }

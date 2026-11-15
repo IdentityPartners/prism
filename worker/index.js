@@ -5619,7 +5619,7 @@ data: ${JSON.stringify(data)}
         const assignment = env.PRISM_KV ? await env.PRISM_KV.get('agent-assignment:' + agentId, 'json').catch(() => null) : null;
         const histKey = 'agent-chat:' + agentId + ':history';
         const hist = env.PRISM_KV ? (await env.PRISM_KV.get(histKey, 'json') || []) : [];
-        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({\"text\": \"the post copy with tags and footer\", \"platforms\": [\"bluesky\",\"linkedin\",\"telegram\",\"instagram\",\"facebook\",\"x\"]}) — queues a post for Simon's approval. Always include the tags and footer in the text. Never invent a posting tool: queue_post is the only way content goes out, and Simon approves everything.\nTOOL: create_canvas({\"topic\": \"a line or topic\", \"template\": \"block-teal\"}) — generates a branded canvas and queues it for approval. Valid templates: block-teal, block-rose, block-ivory, stat, news-reaction, myth-vs-fact-teal, myth-vs-fact-ivory, data-infographic, awareness-day, awareness-day-rose, service-explainer, semantic-teal, semantic-rose, semantic-dark, testimonial-teal, dual-partnership, img-landscape.\nTOOL: search_news({\"query\": \"keywords\"}) — scans today's approved outlets (Guardian society, BBC health) and returns matching headlines.\nTOOL: save_note({\"title\": \"...\", \"content\": \"...\"}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
+        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({\"text\": \"the post copy with tags and footer\", \"platforms\": [\"bluesky\",\"linkedin\",\"telegram\",\"instagram\",\"facebook\",\"x\"]}) — queues a post for Simon's approval. Always include the tags and footer in the text.\nTOOL: post_now({\"text\": \"the post copy with tags and footer\", \"platforms\": [...]}) — posts immediately and autonomously, within the daily cap and blocked-word rules Simon has set. Use it when the task says to publish; use queue_post when the task says to prepare or draft. Never post client-identifiable content, clinical claims, outcome testimonials, or responses to people in crisis.\nTOOL: create_canvas({\"topic\": \"a line or topic\", \"template\": \"block-teal\"}) — generates a branded canvas and queues it for approval. Valid templates: block-teal, block-rose, block-ivory, stat, news-reaction, myth-vs-fact-teal, myth-vs-fact-ivory, data-infographic, awareness-day, awareness-day-rose, service-explainer, semantic-teal, semantic-rose, semantic-dark, testimonial-teal, dual-partnership, img-landscape.\nTOOL: search_news({\"query\": \"keywords\"}) — scans today's approved outlets (Guardian society, BBC health) and returns matching headlines.\nTOOL: save_note({\"title\": \"...\", \"content\": \"...\"}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
         const messages = [{ role: 'system', content: systemPrompt }];
         hist.filter(m => m.role !== 'system').slice(-20).forEach(m => messages.push({ role: m.role, content: m.content }));
         messages.push({ role: 'user', content: userMessage });
@@ -5641,7 +5641,50 @@ data: ${JSON.stringify(data)}
           let args = {};
           try { args = JSON.parse((tm[2] || '{}').replace(/\)\s*$/, '')); } catch (e) { toolCalls.push({ tool: toolName, error: 'bad arguments' }); continue; }
           try {
-            if (toolName === 'queue_post') {
+            if (toolName === 'post_now') {
+              // Autonomous posting — governed by the agreed constraints in socialising:autonomy
+              const cfg = env.PRISM_KV ? await env.PRISM_KV.get('socialising:autonomy', 'json') : null;
+              if (!cfg || !cfg.enabled) { toolCalls.push({ tool: toolName, error: 'autonomy is switched off' }); }
+              else {
+                const today = new Date().toISOString().slice(0, 10);
+                const countKey = 'socialising:count:' + today;
+                const count = parseInt((env.PRISM_KV && await env.PRISM_KV.get(countKey)) || '0');
+                if (count >= (cfg.maxPerDay || 3)) { toolCalls.push({ tool: toolName, error: 'daily cap of ' + cfg.maxPerDay + ' reached' }); }
+                else {
+                  let text = String(args.text || '');
+                  const blocked = (cfg.blockWords || []).some(w => w && text.toLowerCase().includes(String(w).toLowerCase()));
+                  if (blocked) { toolCalls.push({ tool: toolName, error: 'content contains a blocked word' }); }
+                  else {
+                    const platforms = (Array.isArray(args.platforms) ? args.platforms : cfg.platforms).filter(p => cfg.platforms.includes(p));
+                    const item = {
+                      id: 'mm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+                      text, platforms,
+                      imageUrl: args.imageUrl || null,
+                      source: 'autonomous:' + agentId,
+                      status: 'pending',
+                      createdAt: new Date().toISOString(),
+                      scheduledFor: null
+                    };
+                    if (env.PRISM_KV) {
+                      const q = await env.PRISM_KV.get('mm:queue', 'json') || [];
+                      q.push(item);
+                      await env.PRISM_KV.put('mm:queue', JSON.stringify(q));
+                    }
+                    const appr = await fetch('https://prism-api.identitypartners.workers.dev/api/mm/approve', {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ itemId: item.id })
+                    }).then(r => r.json()).catch(() => ({}));
+                    if (env.PRISM_KV) {
+                      await env.PRISM_KV.put(countKey, String(count + 1));
+                      const log = await env.PRISM_KV.get('socialising:log', 'json') || [];
+                      log.unshift({ ts: new Date().toISOString(), text: text.slice(0, 120), platforms, results: appr.results || {}, errors: appr.errors || {}, source: 'agent:' + agentId });
+                      await env.PRISM_KV.put('socialising:log', JSON.stringify(log.slice(0, 100)));
+                    }
+                    toolCalls.push({ tool: toolName, result: 'posted', platforms, detail: appr });
+                  }
+                }
+              }
+            } else if (toolName === 'queue_post') {
               const item = {
                 id: 'mm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
                 text: args.text || '',
@@ -7033,6 +7076,27 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success:false,error:e.message},500,origin); }
     }
 
+
+    // ── Autonomy config ─────────────────────────────────────
+    if (path === '/api/social/autonomy' && request.method === 'GET') {
+      const cfg = env.PRISM_KV ? await env.PRISM_KV.get('socialising:autonomy', 'json') : null;
+      const today = new Date().toISOString().slice(0, 10);
+      const count = env.PRISM_KV ? parseInt(await env.PRISM_KV.get('socialising:count:' + today) || '0') : 0;
+      return json({ config: cfg || { enabled: false, maxPerDay: 3, platforms: ['bluesky', 'linkedin', 'telegram', 'instagram', 'facebook', 'x'] }, postedToday: count }, 200, origin);
+    }
+    if (path === '/api/social/autonomy' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const cfg = {
+          enabled: !!body.enabled,
+          maxPerDay: Math.max(1, Math.min(10, parseInt(body.maxPerDay) || 3)),
+          platforms: Array.isArray(body.platforms) && body.platforms.length ? body.platforms : ['bluesky', 'linkedin', 'telegram'],
+          blockWords: Array.isArray(body.blockWords) ? body.blockWords : []
+        };
+        if (env.PRISM_KV) await env.PRISM_KV.put('socialising:autonomy', JSON.stringify(cfg));
+        return json({ success: true, config: cfg }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
 
     if (path === '/api/social/queue' && request.method === 'POST') {
       try {
@@ -8557,7 +8621,84 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       try {
         const hour = new Date().getUTCHours();
         const slot = hour >= 7 && hour < 9 ? 'morning' : hour >= 12 && hour < 14 ? 'lunchtime' : 'evening';
-        if (env.PRISM_KV) await env.PRISM_KV.put('cron:last-run', JSON.stringify({ ts: new Date().toISOString(), slot }), { expirationTtl: 86400 * 7 });
+        if (env.PRISM_KV) await env.PRISM_KV.put('cron:last-run', JSON.stringify({ ts: new Date().toISOString(), slot, autonomous: true }), { expirationTtl: 86400 * 7 });
+
+        // ── The autonomous pipeline ─────────────────────────────
+        const cfg = env.PRISM_KV ? await env.PRISM_KV.get('socialising:autonomy', 'json') : null;
+        if (!cfg || !cfg.enabled) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const countKey = 'socialising:count:' + today;
+        const count = parseInt((env.PRISM_KV && await env.PRISM_KV.get(countKey)) || '0');
+        if (count >= (cfg.maxPerDay || 3)) return;
+
+        // 1. Pick a relevant headline from the approved feeds
+        const kws = (env.PRISM_KV && await env.PRISM_KV.get('news:keywords', 'json')) || ['mental health', 'addiction', 'recovery', 'nhs', 'trauma'];
+        const feeds = ['https://www.theguardian.com/society/rss', 'https://feeds.bbci.co.uk/news/health/rss.xml'];
+        let pick = null;
+        for (const f of feeds) {
+          try {
+            const text = await fetch(f, { headers: { 'User-Agent': 'Argentica/1.0' } }).then(r => r.text());
+            const items = text.match(/<item>[\s\S]*?<\/item>/g) || [];
+            for (const it of items.slice(0, 20)) {
+              const title = ((it.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/) || [])[1] || '').trim();
+              const link = ((it.match(/<link>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/link>/) || [])[1] || '').trim();
+              if (title && kws.some(kw => title.toLowerCase().includes(String(kw).toLowerCase()))) { pick = { title, link }; break; }
+            }
+          } catch (e) {}
+          if (pick) break;
+        }
+        if (!pick) return;
+
+        // 2. Draft in Simon's voice
+        const TAGS = '\n\n#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nhello@identitypartners.uk | www.identitypartners.uk/contact';
+        const draft = await orchestrate([
+          { role: 'system', content: 'You write as Simon Johnson of Identity Partners: intelligent, direct, humane, intellectually curious British professional prose. British English only. No em dashes. Never use multifaceted, nuanced, profound, tapestry, landscape, intersection, delve, ever-evolving. No clinical claims, no testimonials of outcomes, no client-identifiable content, never respond to people in crisis. 60 to 90 words.' },
+          { role: 'user', content: 'Write a short social media post reacting to this headline: "' + pick.title + '". Source credit at the end. No hashtags or contact details; they are appended automatically.' }
+        ], env, { profile: 'balanced' });
+        if (!draft || !draft.content) return;
+
+        // 3. Generate a canvas
+        let imageUrl = null;
+        try {
+          const cv = await fetch('https://prism-api.identitypartners.workers.dev/api/canvas/generate', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ topic: pick.title, text: pick.title, template: 'block-teal', platform: 'instagram', skipQueue: true, skipQA: true })
+          }).then(r => r.json());
+          imageUrl = cv.url || null;
+        } catch (e) {}
+
+        // 4. Post it
+        const text = draft.content.trim() + TAGS + (pick.link ? '\n' + pick.link : '');
+        const platforms = cfg.platforms || ['bluesky', 'linkedin', 'telegram'];
+        const item = { id: 'mm-' + Date.now() + '-auto', text, platforms, imageUrl, source: 'autonomous:cron-' + slot, status: 'pending', createdAt: new Date().toISOString(), scheduledFor: null };
+        if (env.PRISM_KV) {
+          const q = await env.PRISM_KV.get('mm:queue', 'json') || [];
+          q.push(item);
+          await env.PRISM_KV.put('mm:queue', JSON.stringify(q));
+        }
+        const appr = await fetch('https://prism-api.identitypartners.workers.dev/api/mm/approve', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId: item.id })
+        }).then(r => r.json()).catch(() => ({}));
+
+        if (env.PRISM_KV) {
+          await env.PRISM_KV.put(countKey, String(count + 1));
+          const log = await env.PRISM_KV.get('socialising:log', 'json') || [];
+          log.unshift({ ts: new Date().toISOString(), slot, headline: pick.title, text: text.slice(0, 160), platforms, results: appr.results || {}, errors: appr.errors || {}, source: 'cron' });
+          await env.PRISM_KV.put('socialising:log', JSON.stringify(log.slice(0, 100)));
+        }
+
+        // 5. Tell Simon what happened
+        try {
+          const tgToken = k(env, ['telegram_token', 'TELEGRAM_TOKEN']) || '';
+          const chatId = k(env, ['telegram_chat_id', 'TELEGRAM_CHAT_ID']) || '';
+          if (tgToken && chatId) {
+            await fetch('https://api.telegram.org/bot' + tgToken + '/sendMessage', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, text: 'Argentica posted autonomously (' + slot + '): "' + pick.title + '"\n\n' + draft.content.slice(0, 200) })
+            });
+          }
+        } catch (e) {}
       } catch {}
     })());
   },
