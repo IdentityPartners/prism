@@ -4475,6 +4475,39 @@ data: ${JSON.stringify(data)}
     }
 
     // ── Study Hub: auto-index uploaded document ───────────────────────────────
+    // ── Notes (WriteHandy cloud sync) ────────────────────────────────────────────────────
+    if (path === '/api/notes/save' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('note-' + Date.now());
+        const rec = {
+          id, title: body.title || 'Untitled', content: body.content || '',
+          module: body.module || '', week: body.week || '', tags: body.tags || [],
+          inkData: body.inkData || null, updated: body.updated || new Date().toISOString()
+        };
+        if (env.PRISM_KV) await env.PRISM_KV.put('note:' + id, JSON.stringify(rec));
+        return json({success: true, id}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+    if (path === '/api/notes/list' && request.method === 'GET') {
+      try {
+        const module = url.searchParams.get('module') || '';
+        const week = url.searchParams.get('week') || '';
+        const list = await env.PRISM_KV.list({ prefix: 'note:' });
+        const notes = [];
+        for (const k of (list.keys || []).slice(0, 100)) {
+          const v = await env.PRISM_KV.get(k.name, 'json');
+          if (!v) continue;
+          if (module && v.module !== module) continue;
+          if (week && v.week !== week) continue;
+          notes.push({ id: v.id, title: v.title, module: v.module, week: v.week, updated: v.updated });
+        }
+        notes.sort(function(a, b) { return (b.updated || '').localeCompare(a.updated || ''); });
+        return json({notes}, 200, origin);
+      } catch(e) { return json({notes: [], error: e.message}, 200, origin); }
+    }
+
+
     if (path === '/api/study/index-document' && request.method === 'POST') {
       try {
         const body = await request.json();

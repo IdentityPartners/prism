@@ -98,6 +98,9 @@ document.getElementById('queue-btn').addEventListener('click', async () => {
     });
     document.getElementById('caption').value = '';
     ARG.toast('Queued for approval.');
+  } catch (e) { ARG.toast('Could not queue: ' + e.message); }
+});
+
     const attached = sessionStorage.getItem('arg:canvas-url');
 if (attached) {
   sessionStorage.removeItem('arg:canvas-url');
@@ -137,8 +140,6 @@ document.getElementById('auto-save').addEventListener('click', async () => {
 loadAutonomy();
 
 loadQueue();
-  } catch (e) { ARG.toast('Could not queue: ' + e.message); }
-});
 
 async function loadQueue() {
   const el = document.getElementById('queue-list');

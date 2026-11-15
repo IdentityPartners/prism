@@ -55,7 +55,8 @@
       <span style="width:1px;height:22px;background:rgba(15,59,58,.2);"></span>
       <label class="muted" style="font-size:12px;">Pen width <input type="range" id="pen-width" min="1" max="8" value="2.4" style="vertical-align:middle; width:90px;"></label>
       <button class="ghost small" id="undo">Undo</button>
-      <button class="ghost small" id="clear-page">Clear page</button>
+      <button class="ghost small" id="redo">Redo</button>
+      <button class="ghost small" id="clear-page">Clear ink</button>
     </div>
   </div>
 
@@ -80,6 +81,7 @@ const docId = params.get('doc');
 let doc = null, pdf = null, pdfBytes = null, pageNum = 1, scale = 1.3;
 let tool = 'pen';
 let strokes = [];
+let redoStack = [];
 const DPR = Math.min(window.devicePixelRatio || 1, 2.5);
 
 const PEN_COLOURS = [
@@ -130,9 +132,19 @@ document.getElementById('tool-hl').addEventListener('click', () => setTool('hl')
 document.getElementById('tool-erase').addEventListener('click', () => setTool('erase'));
 document.getElementById('undo').addEventListener('click', () => {
   const idx = strokes.map((s, i) => s.page === pageNum ? i : -1).filter(i => i >= 0).pop();
-  if (idx !== undefined && idx > -1) { strokes.splice(idx, 1); redrawInk(); }
+  if (idx !== undefined && idx > -1) {
+    redoStack.push(strokes[idx]);
+    strokes.splice(idx, 1);
+    redrawInk();
+  }
+});
+document.getElementById('redo').addEventListener('click', () => {
+  const s = redoStack.pop();
+  if (s) { strokes.push(s); redrawInk(); }
 });
 document.getElementById('clear-page').addEventListener('click', () => {
+  const pageStrokes = strokes.filter(s => s.page === pageNum);
+  if (pageStrokes.length) redoStack.push(...pageStrokes);
   strokes = strokes.filter(s => s.page !== pageNum);
   redrawInk();
 });
@@ -214,7 +226,9 @@ inkCanvas.addEventListener('pointerdown', e => {
   const r = inkCanvas.getBoundingClientRect();
   const p = { x: e.clientX - r.left, y: e.clientY - r.top };
   if (tool === 'erase') {
+    const before = strokes.length;
     strokes = strokes.filter(s => !(s.page === pageNum && denorm(s.pts).some(q => Math.hypot(q.x - p.x, q.y - p.y) < 26)));
+    if (strokes.length !== before) redoStack = [];
     redrawInk();
     return;
   }

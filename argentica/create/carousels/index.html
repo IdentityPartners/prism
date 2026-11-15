@@ -287,6 +287,17 @@ window.sendToPublishing = () => {
 
 renderSlides();
 renderControls();
+
+// slides handed over from Refract
+(function () {
+  const handed = sessionStorage.getItem('arg:carousel-slides');
+  if (!handed) return;
+  sessionStorage.removeItem('arg:carousel-slides');
+  try {
+    const s = JSON.parse(handed);
+    if (Array.isArray(s) && s.length) { slides = s.slice(0, 10); renderSlides(); }
+  } catch (e) {}
+})();
 </script>
 </body>
 </html>

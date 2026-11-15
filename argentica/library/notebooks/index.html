@@ -1,98 +1,874 @@
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
+<!-- cache-bust-1792933321 -->
+
 <meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Argentica — Notebooks</title>
+<title>WriteHandy — Argentica</title>
 <link rel="stylesheet" href="/shared/argentica.css">
+<style>
+:root {
+  --border: rgba(15,59,58,.18); --bg: #fdfbf6; --fg: #1c1a17;
+  --bg-surface: #fff; --bg-elevated: #fff; --bg-sunken: #f4f0e6;
+  --fg-muted: #6b675f; --accent: #0f3b3a;
+}
+.arg-page.wh-wrap { padding: 0 !important; max-width: none !important; }
+.wh-shell { height: calc(100vh - 60px); }
+</style>
+<link rel="stylesheet" href="/shared/themes.css">
+<script src="https://cdn.jsdelivr.net/npm/@iconify/iconify@3/dist/iconify.min.js" async></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+/* ── Layout ── */
+.wh-shell { display:flex; height:100vh; overflow:hidden; }
+.wh-tree-panel {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+.wh-main { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; }
+
+/* ── Tree panel ── */
+.wh-tree-hdr { padding:10px 12px 8px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.wh-tree-hdr h3 { font-size:13px; font-weight:600; margin:0; }
+.wh-tree-body { flex:1; overflow-y:auto; padding:6px; }
+.wh-nb { margin-bottom:4px; }
+.wh-nb-hdr { display:flex; align-items:center; gap:4px; padding:5px 8px; border-radius:6px; cursor:pointer; font-size:12.5px; font-weight:600; }
+.wh-nb-hdr:hover { background:var(--bg-sunken); }
+.wh-nb-hdr.active { background:var(--accent-light,#e8f0f8); color:var(--accent); }
+.wh-section { padding-left:12px; }
+.wh-sec-hdr { display:flex; align-items:center; gap:4px; padding:3px 8px; border-radius:5px; cursor:pointer; font-size:12px; color:var(--fg-muted); }
+.wh-sec-hdr:hover { background:var(--bg-sunken); }
+.wh-pages { padding-left:10px; }
+.wh-page-item { padding:3px 8px; border-radius:5px; cursor:pointer; font-size:12px; color:var(--fg-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.wh-page-item:hover { background:var(--bg-sunken); }
+.wh-page-item.active { background:var(--accent); color:#fff; }
+
+/* ── Toolbar ── */
+.wh-toolbar {
+  padding:6px 12px;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  background:var(--bg-elevated);
+  flex-shrink:0;
+}
+.wh-tb-btn {
+  padding:5px 10px;
+  border:1px solid var(--border);
+  border-radius:6px;
+  font-size:12px;
+  cursor:pointer;
+  background:var(--bg);
+  color:var(--fg);
+  font-family:inherit;
+  transition:all 0.15s;
+}
+.wh-tb-btn:hover { border-color:var(--accent); color:var(--accent); }
+.wh-tb-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.wh-tb-sep { width:1px; height:20px; background:var(--border); margin:0 2px; }
+.wh-view-btn { padding:4px 10px; border:1px solid var(--border); border-radius:5px; font-size:11px; cursor:pointer; background:var(--bg); color:var(--fg-muted); font-family:inherit; }
+.wh-view-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.wh-size-ctrl { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--fg-muted); }
+.wh-size-ctrl button { padding:2px 7px; border:1px solid var(--border); border-radius:4px; cursor:pointer; background:var(--bg); font-size:11px; font-family:inherit; }
+.wh-size-ctrl span { min-width:24px; text-align:center; }
+
+/* ── Surface ── */
+.wh-surface-wrap { flex:1; overflow:hidden; display:flex; flex-direction:column; }
+.wh-surface { flex:1; overflow:hidden; display:flex; position:relative; }
+
+/* Ink view */
+.wh-ink-view { flex:1; overflow:hidden; position:relative; }
+.wh-ink-view canvas { display:block; touch-action:none; cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='4' cy='20' r='2' fill='%23333'/%3E%3Cline x1='4' y1='20' x2='18' y2='4' stroke='%23333' stroke-width='2'/%3E%3C/svg%3E") 4 20, crosshair; }
+
+/* Dual view */
+.wh-dual { display:flex; flex-direction:row; flex:1; overflow:hidden; }
+.wh-pane { flex:1; min-width:0; display:flex; flex-direction:column; overflow:hidden; border-right:1px solid var(--border); }
+.wh-pane:last-child { border-right:none; }
+.wh-pane-label { padding:4px 10px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.4px; color:var(--fg-muted); background:var(--bg-sunken); border-bottom:1px solid var(--border); flex-shrink:0; }
+.wh-text-editor { flex:1; padding:16px; outline:none; overflow-y:auto; font-size:15px; line-height:1.8; color:var(--fg); background:var(--bg); }
+.wh-text-editor:empty::before { content:attr(data-placeholder); color:var(--fg-muted); pointer-events:none; }
+
+/* Read view */
+.wh-read-view { flex:1; overflow-y:auto; padding:40px 80px; max-width:800px; margin:0 auto; font-size:16px; line-height:1.9; }
+
+/* ── Status bar ── */
+.wh-status { padding:4px 12px; border-top:1px solid var(--border); display:flex; gap:16px; font-size:11px; color:var(--fg-muted); background:var(--bg-elevated); flex-shrink:0; }
+.wh-sync-dot { width:6px; height:6px; border-radius:50%; background:#9ca3af; display:inline-block; margin-right:4px; }
+.wh-sync-dot.synced { background:#16a34a; }
+.wh-sync-dot.syncing { background:#f59e0b; animation:pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* ── OCR result ── */
+.ocr-result {
+  position:fixed; bottom:60px; right:20px; max-width:320px;
+  background:var(--bg-elevated); border:1px solid var(--accent);
+  border-radius:10px; padding:14px; z-index:9000;
+  box-shadow:0 4px 20px rgba(0,0,0,0.15);
+}
+.ocr-result-hdr { font-size:10px; font-weight:700; text-transform:uppercase; color:var(--accent); margin-bottom:8px; }
+.ocr-result-text { font-size:13px; line-height:1.5; margin-bottom:10px; }
+.ocr-result-actions { display:flex; gap:6px; }
+.ocr-btn { padding:4px 12px; font-size:11px; border:1px solid var(--border); border-radius:5px; cursor:pointer; background:var(--bg); font-family:inherit; }
+.ocr-btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+</style>
 </head>
 <body>
-<div class="arg-page" data-key="notebooks">
-  <div class="arg-pagehead">
-    <h1>Notebooks</h1>
-    <div class="sub">Every note across the library, with an editor and Gerald at your elbow.</div>
-  </div>
+<script src="/shared/argentica.js"></script>
+<div class="arg-page wh-wrap" data-key="notebooks">
+<div class="wh-shell">
 
-  <div class="grid two">
-    <div class="card">
-      <h3>Notes</h3>
-      <div class="item-list" id="note-list"><div class="muted">Loading…</div></div>
-    </div>
-
-    <div class="card">
-      <h3 id="editor-title">Editor</h3>
-      <input type="text" id="n-title" placeholder="Title">
-      <textarea id="n-body" style="min-height:200px; margin-top:8px;" placeholder="Write…"></textarea>
-      <div class="row mt" style="justify-content:space-between;">
-        <button class="ghost small" id="n-ai">Ask Gerald to critique</button>
-        <button id="n-save">Save</button>
-      </div>
-      <div class="muted mt" id="n-status"></div>
-      <div id="n-critique" class="mt"></div>
-    </div>
+<!-- Tree panel -->
+<div class="wh-tree-panel">
+  <div class="wh-tree-hdr">
+    <h3>✒ WriteHandy</h3>
+    <button class="wh-tb-btn" onclick="addNotebook()" title="New notebook" style="padding:3px 8px;font-size:11px;">+</button>
   </div>
+  <div class="wh-tree-body" id="wh-tree"></div>
 </div>
 
-<script src="/shared/argentica.js"></script>
+<!-- Main -->
+<div class="wh-main">
+
+  <!-- Toolbar -->
+  <div class="wh-toolbar">
+    <!-- Page title -->
+    <input id="wh-page-title" type="text" placeholder="Page title..." style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:13px;font-weight:600;background:var(--bg);color:var(--fg);width:160px;" onchange="saveCurrentPage()">
+
+    <div class="wh-tb-sep"></div>
+
+    <!-- View modes -->
+    <button class="wh-view-btn active" id="vbtn-ink" onclick="setView('ink')">Ink</button>
+    <button class="wh-view-btn" id="vbtn-dual" onclick="setView('dual')">Dual</button>
+    <button class="wh-view-btn" id="vbtn-read" onclick="setView('read')">Read</button>
+    <button class="wh-view-btn" id="vbtn-excalidraw" onclick="setView('excalidraw')">✏ Whiteboard</button>
+
+    <div class="wh-tb-sep"></div>
+
+    <!-- Ink tools -->
+    <button class="wh-tb-btn active" id="itool-pen" onclick="setTool('pen')" title="Ballpoint pen"><span class="iconify" data-icon="ph:pen-bold" style="font-size:18px;"></span></button>
+    <button class="wh-tb-btn" id="itool-pencil" onclick="setTool('pencil')" title="Pencil"><span class="iconify" data-icon="ph:pencil-simple-bold" style="font-size:18px;"></span></button>
+    <button class="wh-tb-btn" id="itool-marker" onclick="setTool('marker')" title="Marker"><span class="iconify" data-icon="ph:marker-bold" style="font-size:18px;"></span></button>
+    <button class="wh-tb-btn" id="itool-hi" onclick="setTool('hi')" title="Highlighter"><span class="iconify" data-icon="ph:highlighter-bold" style="font-size:18px;color:#f59e0b;"></span></button>
+    <button class="wh-tb-btn" id="itool-erase" onclick="setTool('erase')" title="Eraser"><span class="iconify" data-icon="ph:eraser-bold" style="font-size:18px;"></span></button>
+
+    <!-- Pen size -->
+    <input type="range" id="wh-pen-size" min="1" max="20" value="2" style="width:60px;" oninput="penSize=parseInt(this.value)">
+
+    <!-- Colour swatches + HEX picker -->
+    <div style="display:flex;gap:3px;align-items:center;">
+      <div onclick="setColor('#1a2332')" style="width:18px;height:18px;border-radius:3px;background:#1a2332;cursor:pointer;border:2px solid var(--border);"></div>
+      <div onclick="setColor('#2d6a9f')" style="width:18px;height:18px;border-radius:3px;background:#2d6a9f;cursor:pointer;border:2px solid var(--border);"></div>
+      <div onclick="setColor('#dc2626')" style="width:18px;height:18px;border-radius:3px;background:#dc2626;cursor:pointer;border:2px solid var(--border);"></div>
+      <div onclick="setColor('#16a34a')" style="width:18px;height:18px;border-radius:3px;background:#16a34a;cursor:pointer;border:2px solid var(--border);"></div>
+      <div onclick="setColor('#f59e0b')" style="width:18px;height:18px;border-radius:3px;background:#f59e0b;cursor:pointer;border:2px solid var(--border);"></div>
+      <input type="color" id="hex-color-picker" value="#1a2332" title="Custom colour" style="width:22px;height:22px;border:2px solid var(--border);border-radius:3px;cursor:pointer;padding:0;" onchange="setColor(this.value)">
+    </div>
+
+    <div class="wh-tb-sep"></div>
+
+    <!-- Font/spacing controls -->
+    <div class="wh-size-ctrl">
+      <span>A</span>
+      <button onclick="adjustFont(-1)">-</button>
+      <span id="font-size-lbl">15</span>
+      <button onclick="adjustFont(1)">+</button>
+    </div>
+    <div class="wh-size-ctrl">
+      <span>↕</span>
+      <button onclick="adjustLine(-0.1)">-</button>
+      <span id="line-height-lbl">1.8</span>
+      <button onclick="adjustLine(0.1)">+</button>
+    </div>
+
+    <div class="wh-tb-sep"></div>
+
+    <!-- OCR + actions -->
+    <select id="ocr-provider" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);cursor:pointer;" title="OCR provider">
+      <option value="mistral">Mistral (recommended)</option>
+      <option value="gemini">Gemini</option>
+      <option value="tesseract">Tesseract (offline, no API key)</option>
+    </select>
+    <button class="wh-tb-btn" onclick="runOCR(false)" id="ocr-btn" title="Convert handwriting to text">OCR</button>
+    <button class="wh-tb-btn" onclick="clearInk()" title="Clear ink canvas only"><span class="iconify" data-icon="ph:eraser-bold" style="font-size:15px;"></span> Clear Ink</button>
+    <button class="wh-tb-btn" onclick="clearAll()" title="Clear everything — ink and text" style="color:#dc2626;">🗑 All</button>
+    <button class="wh-tb-btn" onclick="exportPage()" title="Export"><span class="iconify" data-icon="ph:export-bold" style="font-size:15px;"></span> Export</button>
+    <button class="wh-tb-btn" onclick="dictate()" id="dictate-btn" title="Voice dictation"><span class="iconify" data-icon="ph:microphone-bold" style="font-size:16px;"></span></button>
+  </div>
+
+  <!-- Surface -->
+  <div class="wh-surface-wrap">
+    <div class="wh-surface" id="wh-surface">
+    <!-- Required spec IDs — functional elements -->
+    <canvas id="ink-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;touch-action:none;display:none;"></canvas>
+    <div id="text-layer" style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:auto;display:none;"></div>
+  </div>
+  <!-- OSK area — on-screen keyboard panel -->
+  <div id="osk-area" class="wh-osk-area" style="display:none;border-top:1px solid var(--border);background:var(--bg-sunken);padding:6px;"></div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="wh-status">
+    <span><span class="wh-sync-dot" id="sync-dot"></span><span id="sync-label">Not saved</span></span>
+    <span id="word-count">0 words</span>
+    <span id="char-count">0 chars</span>
+    <span id="page-info"></span>
+  </div>
+
+</div>
+</div>
+</div>
+
 <script>
-ARG.buildShell('notebooks');
-const { api, esc } = ARG;
+var WORKER = '';
 
-let notes = [], editing = null;
+// ── State ─────────────────────────────────────────────────────────────────────
+var notebooks = [];
+var currentPage = null;
+var currentView = 'ink';
+var inkStrokes = [];
+var currentStroke = null;
+var isDrawing = false;
+var inkTool = 'pen';
+var inkColor = '#1a2332';
+var penSize = 2;
+var fontSize = 15;
+var lineHeight = 1.8;
+var ocrTimer = null;
+var saveTimer = null;
+var lastOcrText = '';
 
-async function loadNotes() {
-  try {
-    const data = await api('/documents');
-    notes = (data.documents || []).filter(d => d.type === 'note');
-    const el = document.getElementById('note-list');
-    if (!notes.length) { el.innerHTML = '<div class="muted">No notes yet. Write one on the right, or take one into a week in the Study hub.</div>'; return; }
-    el.innerHTML = notes.map(n =>
-      '<div class="item"><div><div>' + esc(n.title) + '</div>' +
-      '<div class="muted">' + (n.moduleSource || '') + ' · ' + (n.updatedAt ? new Date(n.updatedAt).toLocaleDateString('en-GB') : '') + '</div></div>' +
-      '<button class="ghost small" onclick="openNote(\'' + esc(n.id) + '\')">Open</button></div>'
-    ).join('');
-  } catch (e) { document.getElementById('note-list').innerHTML = '<div class="muted">Could not load notes.</div>'; }
-}
-
-window.openNote = async id => {
-  try {
-    const d = await api('/documents/' + encodeURIComponent(id));
-    editing = d.document;
-    document.getElementById('n-title').value = editing.title || '';
-    document.getElementById('n-body').value = editing.content || '';
-    document.getElementById('editor-title').textContent = 'Editing — ' + (editing.title || 'note');
-  } catch (e) { ARG.toast('Could not open the note.'); }
+// Tool properties
+var TOOL_PROPS = {
+  pen:    { width: 2,  alpha: 1.0, cap: 'round', join: 'round' },
+  pencil: { width: 1.5,alpha: 0.7, cap: 'round', join: 'round' },
+  marker: { width: 6,  alpha: 0.9, cap: 'square',join: 'miter' },
+  hi:     { width: 16, alpha: 0.3, cap: 'square',join: 'miter' },
+  erase:  { width: 20, alpha: 1.0, cap: 'round', join: 'round' },
 };
 
-document.getElementById('n-save').addEventListener('click', async () => {
-  const title = document.getElementById('n-title').value.trim() || 'Untitled note';
-  const body = document.getElementById('n-body').value;
-  try {
-    if (editing) {
-      await api('/documents/' + encodeURIComponent(editing.id), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, content: body }) });
-    } else {
-      await api('/documents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, type: 'note', content: body, tags: [], moduleSource: 'notebooks' }) });
+// ── Init ──────────────────────────────────────────────────────────────────────
+// ── Module/week tagging + Gerald contribution ────────────────────────────────────────────────────────────────────────────
+function buildModuleWeekSelectors() {
+  var tb = document.querySelector('.wh-toolbar');
+  if (!tb || document.getElementById('wh-module')) return;
+  var wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;gap:4px;align-items:center;margin-left:auto;';
+  var mod = document.createElement('select');
+  mod.id = 'wh-module';
+  mod.style.cssText = 'padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);';
+  mod.innerHTML = '<option value="">— module —</option>';
+  var wk = document.createElement('select');
+  wk.id = 'wh-week';
+  wk.style.cssText = 'padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg);color:var(--fg);';
+  wk.innerHTML = '<option value="">— week —</option>';
+  for (var w = 1; w <= 12; w++) wk.innerHTML += '<option value="W' + w + '">W' + w + '</option>';
+  var ai = document.createElement('button');
+  ai.id = 'wh-gerald';
+  ai.className = 'wh-tb-btn';
+  ai.textContent = '✦ Gerald';
+  ai.title = 'Ask Gerald to reflect on / extend this page';
+  ai.onclick = geraldContribute;
+  wrap.appendChild(mod); wrap.appendChild(wk); wrap.appendChild(ai);
+  tb.appendChild(wrap);
+  fetch('/api/kv/get?key=' + encodeURIComponent('study:structure')).then(function(r){return r.json();}).then(function(d){
+    var structure = d.value;
+    if (typeof structure === 'string') { try { structure = JSON.parse(structure); } catch(e) { structure = null; } }
+    if (!structure) return;
+    var modules = [];
+    (structure.sections || []).forEach(function(sec){
+      (sec.modules || []).forEach(function(m){ modules.push(m.title || m.name || m.id); });
+    });
+    modules.forEach(function(t){ mod.innerHTML += '<option value="' + t + '">' + t + '</option>'; });
+  }).catch(function(){});
+}
+
+function geraldContribute() {
+  var textEl = document.getElementById('wh-text');
+  if (!textEl) return;
+  var existing = (textEl.innerText || '').trim();
+  if (!existing) { alert('Write or OCR something first — Gerald responds to your notes.'); return; }
+  var btn = document.getElementById('wh-gerald');
+  btn.textContent = '✦ thinking…';
+  fetch('/api/chat', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ messages: [
+      { role: 'system', content: 'You are Gerald, note-taking companion to a PhD student in addiction recovery and mental health research. Given the student\'s notes, add a short, clearly-marked contribution: connections to relevant literature (e.g. Goffman, Bourgois, Maté), a probing question, and one suggestion for where the argument could go next. British English. Be concise — under 150 words. Start with "✦ Gerald:".' },
+      { role: 'user', content: existing.substring(0, 4000) }
+    ], profile: 'balanced' })
+  }).then(function(r){return r.json();}).then(function(d){
+    var contribution = (d.content || '').trim();
+    if (contribution) {
+      textEl.innerHTML += '<div style="margin-top:12px;padding:10px;background:rgba(15,59,58,.06);border-left:3px solid #0f3b3a;border-radius:4px;">' + contribution.replace(/\n/g, '<br>') + '</div>';
+      textEl.dispatchEvent(new Event('input', {bubbles: true}));
     }
-    document.getElementById('n-status').textContent = 'Saved.';
-    ARG.toast('Note saved.');
-    editing = null;
-    document.getElementById('editor-title').textContent = 'Editor';
-    loadNotes();
-  } catch (e) { document.getElementById('n-status').textContent = 'Could not save: ' + e.message; }
-});
+    btn.textContent = '✦ Gerald';
+  }).catch(function(){ btn.textContent = '✦ Gerald'; });
+}
 
-document.getElementById('n-ai').addEventListener('click', async () => {
-  const body = document.getElementById('n-body').value.trim();
-  const out = document.getElementById('n-critique');
-  if (!body) { ARG.toast('Write something first.'); return; }
-  out.innerHTML = '<div class="muted">Gerald is reading…</div>';
+ARG.buildShell('notebooks');
+buildModuleWeekSelectors();
+document.addEventListener('DOMContentLoaded', function() {
+
+  // Load saved preferences
   try {
-    const d = await api('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: 'Critique this note as a PhD supervisor would: what is strong, what is weak, what needs a citation, what is the strongest counter-argument. Be direct, no flattery. British English. Note:\n\n' + body }], profile: 'research' }) });
-    out.innerHTML = '<div class="thinking" style="display:block;">' + ARG.md(d.content || '') + '</div>';
-  } catch (e) { out.innerHTML = '<div class="muted">Critique failed: ' + esc(e.message) + '</div>'; }
+    fontSize = parseFloat(localStorage.getItem('wh-font-size') || '15');
+    lineHeight = parseFloat(localStorage.getItem('wh-line-height') || '1.8');
+    document.getElementById('font-size-lbl').textContent = fontSize;
+    document.getElementById('line-height-lbl').textContent = lineHeight.toFixed(1);
+  } catch(e) {}
+
+  loadNotebooks();
 });
 
-loadNotes();
+// ── Notebooks ─────────────────────────────────────────────────────────────────
+function loadNotebooks() {
+  try {
+    var saved = localStorage.getItem('wh-notebooks');
+    notebooks = saved ? JSON.parse(saved) : [];
+  } catch(e) { notebooks = []; }
+
+  if (!notebooks.length) {
+    notebooks = [
+      { id: 'nb-sociology', name: 'Sociology MSc', icon: '📚', sections: [
+        { id: 'sec-general', name: 'General Notes', pages: [
+          { id: 'pg-intro', name: 'Introduction', content: '', inkData: [], created: new Date().toISOString() }
+        ]},
+        { id: 'sec-research', name: 'Research Methods', pages: [] },
+        { id: 'sec-theory', name: 'Theory', pages: [] },
+      ]},
+      { id: 'nb-ip', name: 'Identity Partners', icon: '💼', sections: [
+        { id: 'sec-ip-general', name: 'General', pages: [] }
+      ]},
+      { id: 'nb-personal', name: 'Personal', icon: '📓', sections: [
+        { id: 'sec-personal-general', name: 'Journal', pages: [] }
+      ]},
+    ];
+    saveNotebooks();
+  }
+
+  renderTree();
+
+  // Open first page
+  if (notebooks[0]?.sections[0]?.pages[0]) {
+    openPage(notebooks[0].sections[0].pages[0]);
+  } else {
+    setView('ink');
+  }
+}
+
+function saveNotebooks() {
+  try { localStorage.setItem('wh-notebooks', JSON.stringify(notebooks)); } catch(e) {}
+}
+
+function renderTree() {
+  var tree = document.getElementById('wh-tree');
+  tree.innerHTML = '';
+  notebooks.forEach(function(nb) {
+    var nbDiv = document.createElement('div');
+    nbDiv.className = 'wh-nb';
+
+    var nbHdr = document.createElement('div');
+    nbHdr.className = 'wh-nb-hdr';
+    nbHdr.innerHTML = '<span>' + (nb.icon||'📓') + '</span><span style="flex:1;">' + nb.name + '</span>';
+    nbHdr.onclick = function() { nbDiv.querySelector('.wh-section').style.display = nbDiv.querySelector('.wh-section').style.display === 'none' ? '' : 'none'; };
+    nbDiv.appendChild(nbHdr);
+
+    (nb.sections || []).forEach(function(sec) {
+      var secDiv = document.createElement('div');
+      secDiv.className = 'wh-section';
+
+      var secHdr = document.createElement('div');
+      secHdr.className = 'wh-sec-hdr';
+      secHdr.innerHTML = '▸ ' + sec.name;
+      secHdr.onclick = function() {
+        var pages = secDiv.querySelector('.wh-pages');
+        pages.style.display = pages.style.display === 'none' ? '' : 'none';
+        secHdr.innerHTML = (pages.style.display === 'none' ? '▸ ' : '▾ ') + sec.name;
+      };
+      secDiv.appendChild(secHdr);
+
+      var pagesDiv = document.createElement('div');
+      pagesDiv.className = 'wh-pages';
+      (sec.pages || []).forEach(function(page) {
+        var pageEl = document.createElement('div');
+        pageEl.className = 'wh-page-item' + (currentPage && currentPage.id === page.id ? ' active' : '');
+        pageEl.id = 'page-' + page.id;
+        pageEl.textContent = page.name || 'Untitled';
+        pageEl.onclick = function() { openPage(page); };
+        pagesDiv.appendChild(pageEl);
+      });
+
+      // Add page button
+      var addPageBtn = document.createElement('div');
+      addPageBtn.style.cssText = 'padding:2px 8px;font-size:11px;color:var(--fg-muted);cursor:pointer;';
+      addPageBtn.textContent = '+ Add page';
+      addPageBtn.onclick = function() { addPage(nb, sec); };
+      pagesDiv.appendChild(addPageBtn);
+
+      secDiv.appendChild(pagesDiv);
+      nbDiv.appendChild(secDiv);
+    });
+
+    tree.appendChild(nbDiv);
+  });
+}
+
+function openPage(page) {
+  if (currentPage) saveCurrentPage();
+  currentPage = page;
+
+  // Update tree
+  document.querySelectorAll('.wh-page-item').forEach(function(el) { el.classList.remove('active'); });
+  var el = document.getElementById('page-' + page.id);
+  if (el) el.classList.add('active');
+
+  // Update title
+  document.getElementById('wh-page-title').value = page.name || '';
+
+  // Load ink
+  inkStrokes = page.inkData || [];
+
+  // Set view and render
+  setView(currentView);
+  updateCounts();
+  document.getElementById('page-info').textContent = page.name || 'Untitled';
+}
+
+function addNotebook() {
+  var name = prompt('Notebook name:');
+  if (!name) return;
+  var nb = { id: 'nb-' + Date.now(), name: name, icon: '📓', sections: [{ id: 'sec-' + Date.now(), name: 'General', pages: [] }] };
+  notebooks.push(nb);
+  saveNotebooks();
+  renderTree();
+}
+
+function addPage(nb, sec) {
+  var name = prompt('Page name:', 'New page');
+  if (!name) return;
+  var page = { id: 'pg-' + Date.now(), name: name, content: '', inkData: [], created: new Date().toISOString() };
+  sec.pages.push(page);
+  saveNotebooks();
+  renderTree();
+  openPage(page);
+}
+
+// ── View ──────────────────────────────────────────────────────────────────────
+function setView(v) {
+  view = v;
+  var inkCanvas = document.getElementById('ink-canvas');
+  var textLayer = document.getElementById('text-layer');
+  var oskArea = document.getElementById('osk-area');
+  // Show/hide functional layers based on view
+  if (inkCanvas) inkCanvas.style.display = (v === 'ink' || v === 'dual') ? 'block' : 'none';
+  if (textLayer) textLayer.style.display = (v === 'read' || v === 'dual') ? 'block' : 'none';
+  // Update view buttons
+  ['ink','dual','read','excalidraw'].forEach(function(m) {
+    var btn = document.getElementById('vbtn-' + m);
+    if (btn) btn.classList.toggle('active', m === v);
+  });
+  renderSurface();
+}
+
+// ── Canvas ────────────────────────────────────────────────────────────────────
+function initCanvas() {
+  requestAnimationFrame(function() { requestAnimationFrame(function() {
+    var canvas = document.getElementById('wh-ink');
+    if (!canvas) return;
+    var dpr = window.devicePixelRatio || 1;
+    var parent = canvas.parentElement;
+    var cssW = parent ? parent.clientWidth : 400;
+    var cssH = Math.max(parent ? parent.clientHeight : 600, 1400);
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+    var ctx = canvas.getContext('2d');
+    if (ctx && dpr !== 1) ctx.scale(dpr, dpr);
+    canvas._dpr = dpr;
+    canvas.style.touchAction = 'none';
+    // Remove old listeners, add new
+    canvas.removeEventListener('pointerdown', startStroke);
+    canvas.removeEventListener('pointermove', continueStroke);
+    canvas.removeEventListener('pointerup', endStroke);
+    canvas.removeEventListener('pointercancel', endStroke);
+    canvas.addEventListener('pointerdown', startStroke);
+    canvas.addEventListener('pointermove', continueStroke);
+    canvas.addEventListener('pointerup', endStroke);
+    canvas.addEventListener('pointercancel', endStroke);
+    redrawInk();
+  }); });
+}
+
+function getPos(e) {
+  var canvas = document.getElementById('wh-ink');
+  if (!canvas) return {x:0,y:0,pressure:0.5};
+  var rect = canvas.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top, pressure: e.pressure || 0.5 };
+}
+
+function startStroke(e) {
+  if (inkTool === 'text') return;
+  e.preventDefault();
+  e.stopPropagation();
+  isDrawing = true;
+  var pos = getPos(e);
+  currentStroke = { tool: inkTool, color: inkColor, size: penSize, points: [pos] };
+}
+
+function continueStroke(e) {
+  if (!isDrawing || !currentStroke) return;
+  e.preventDefault();
+  var pos = getPos(e);
+  currentStroke.points.push(pos);
+  renderStroke(currentStroke, true);
+}
+
+function endStroke(e) {
+  if (!isDrawing || !currentStroke) return;
+  isDrawing = false;
+  if (currentStroke.points.length > 1) {
+    inkStrokes.push(currentStroke);
+    scheduleOCR();
+    scheduleSave();
+  }
+  currentStroke = null;
+}
+
+function renderStroke(stroke, incremental) {
+  var canvas = document.getElementById('wh-ink');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  if (!incremental) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (stroke.points.length < 2) return;
+  var props = TOOL_PROPS[stroke.tool] || TOOL_PROPS.pen;
+  ctx.save();
+  if (stroke.tool === 'erase') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.strokeStyle = 'rgba(0,0,0,1)';
+  } else {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = stroke.color || '#1a2332';
+    ctx.globalAlpha = props.alpha;
+  }
+  ctx.lineWidth = (stroke.size || 2) * (props.width / 2);
+  ctx.lineCap = props.cap;
+  ctx.lineJoin = props.join;
+  ctx.beginPath();
+  ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+  for (var i = 1; i < stroke.points.length; i++) {
+    var p = stroke.points[i];
+    ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawRuledLines(canvas, ctx) {
+  var dpr = canvas._dpr || 1;
+  var w = canvas.width / dpr;
+  var h = canvas.height / dpr;
+  // Use the module-level lineHeight and fontSize variables directly
+  var currentLineHeight = lineHeight || 1.8;
+  var currentFontSize = fontSize || 15;
+  var lineSpacing = Math.round(currentLineHeight * currentFontSize * 1.4);
+  lineSpacing = Math.max(24, Math.min(100, lineSpacing));
+  ctx.save();
+  ctx.strokeStyle = 'rgba(180,200,220,0.4)';
+  ctx.lineWidth = 0.8;
+  // Horizontal ruled lines
+  for (var y = lineSpacing; y < h; y += lineSpacing) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+  // Left margin line
+  ctx.strokeStyle = 'rgba(220,160,160,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(40, 0);
+  ctx.lineTo(40, h);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function redrawInk() {
+  var canvas = document.getElementById('wh-ink');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawRuledLines(canvas, ctx);
+  inkStrokes.forEach(function(s) { renderStroke(s, false); });
+}
+
+function clearInk() {
+  if (!confirm('Clear ink canvas only?')) return;
+  inkStrokes = [];
+  redrawInk();
+  if (currentPage) currentPage.inkData = [];
+  scheduleSave();
+}
+
+function clearAll() {
+  if (!confirm('Clear ALL ink and text on this page? This cannot be undone.')) return;
+  inkStrokes = [];
+  redrawInk();
+  var textEl = document.getElementById('wh-text');
+  if (textEl) {
+    textEl.innerHTML = '';
+    textEl.dispatchEvent(new Event('input', {bubbles: true}));
+  }
+  if (currentPage) {
+    currentPage.content = '';
+    currentPage.inkData = [];
+  }
+  scheduleSave();
+}
+
+// ── Tools ─────────────────────────────────────────────────────────────────────
+function setTool(tool) {
+  inkTool = tool;
+  document.querySelectorAll('[id^="itool-"]').forEach(function(b){b.classList.remove('active');});
+  var btn = document.getElementById('itool-' + tool);
+  if (btn) btn.classList.add('active');
+}
+
+function setColor(color) {
+  inkColor = color;
+}
+
+function adjustFont(delta) {
+  fontSize = Math.max(10, Math.min(32, fontSize + delta));
+  document.getElementById('font-size-lbl').textContent = fontSize;
+  try { localStorage.setItem('wh-font-size', fontSize); } catch(e) {}
+  document.querySelectorAll('#wh-text, .wh-text-editor').forEach(function(el) {
+    el.style.fontSize = fontSize + 'px';
+  });
+}
+
+function adjustLine(delta) {
+  lineHeight = Math.max(1.2, Math.min(3.0, Math.round((lineHeight + delta) * 10) / 10));
+  var lbl = document.getElementById('line-height-lbl');
+  if (lbl) lbl.textContent = lineHeight.toFixed(1);
+  try { localStorage.setItem('wh-line-height', lineHeight); } catch(e) {}
+  // Apply to text editor
+  document.querySelectorAll('#wh-text, .wh-text-editor').forEach(function(el) {
+    el.style.lineHeight = lineHeight;
+    el.style.fontSize = fontSize + 'px';
+  });
+  // Redraw canvas with new line spacing (ruled lines use lineHeight)
+  redrawInk();
+}
+
+// ── Text input ────────────────────────────────────────────────────────────────
+function onTextInput() {
+  updateCounts();
+  scheduleSave();
+}
+
+function updateCounts() {
+  var textEl = document.getElementById('wh-text');
+  var text = textEl ? (textEl.innerText || textEl.textContent || '') : (currentPage ? currentPage.content || '' : '');
+  var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  document.getElementById('word-count').textContent = words + ' words';
+  document.getElementById('char-count').textContent = text.length + ' chars';
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveCurrentPage, 1500);
+  setSyncStatus('syncing');
+}
+
+function saveCurrentPage() {
+  if (!currentPage) return;
+  var textEl = document.getElementById('wh-text');
+  if (textEl) currentPage.content = textEl.innerHTML;
+  currentPage.inkData = inkStrokes;
+  currentPage.name = document.getElementById('wh-page-title').value || currentPage.name;
+  currentPage.updated = new Date().toISOString();
+  saveNotebooks();
+  setSyncStatus('synced');
+
+  // Cloud sync
+  if (typeof WORKER !== 'undefined') {
+    fetch(WORKER + '/api/notes/save', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        id: currentPage.id,
+        title: currentPage.name,
+        content: currentPage.content || '',
+        module: (document.getElementById('wh-module') || {}).value || '',
+        week: (document.getElementById('wh-week') || {}).value || '',
+        inkData: inkStrokes,
+        tags: [],
+        updated: currentPage.updated
+      })
+    }).catch(function(){});
+  }
+}
+
+function setSyncStatus(status) {
+  var dot = document.getElementById('sync-dot');
+  var lbl = document.getElementById('sync-label');
+  if (status === 'synced') { dot.className = 'wh-sync-dot synced'; lbl.textContent = 'Saved'; }
+  else if (status === 'syncing') { dot.className = 'wh-sync-dot syncing'; lbl.textContent = 'Saving...'; }
+  else { dot.className = 'wh-sync-dot'; lbl.textContent = 'Not saved'; }
+}
+
+// ── OCR ───────────────────────────────────────────────────────────────────────
+function scheduleOCR() {
+  clearTimeout(ocrTimer);
+  ocrTimer = setTimeout(function() { runOCR(true); }, 1000);
+}
+
+function runOCR(auto) {
+  var canvas = document.getElementById('wh-ink');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  // Check for ink
+  var dpr = canvas._dpr || 1;
+  var sampleW = Math.min(canvas.width, 400);
+  var sampleH = Math.min(canvas.height, 400);
+  var imgData = ctx.getImageData(0, 0, sampleW, sampleH);
+  var hasInk = false;
+  for (var pi = 3; pi < imgData.data.length; pi += 4) {
+    if (imgData.data[pi] > 10) { hasInk = true; break; }
+  }
+  if (!hasInk) return;
+
+  // Scale down for OCR
+  var ocrCanvas = document.createElement('canvas');
+  ocrCanvas.width = Math.floor(canvas.width / dpr);
+  ocrCanvas.height = Math.floor(canvas.height / dpr);
+  var ocrCtx = ocrCanvas.getContext('2d');
+  ocrCtx.drawImage(canvas, 0, 0, ocrCanvas.width, ocrCanvas.height);
+  var b64 = ocrCanvas.toDataURL('image/png').split(',')[1];
+
+  var btn = document.getElementById('ocr-btn');
+  if (btn && !auto) btn.textContent = 'OCR...';
+
+  var ocrProvider = (document.getElementById('ocr-provider') || {value:'mistral'}).value;
+
+  // Tesseract.js: client-side OCR, no API key needed
+  if (ocrProvider === 'tesseract') {
+    if (typeof Tesseract === 'undefined') {
+      if (btn) btn.textContent = 'OCR';
+      showOCRResult('Tesseract.js not loaded. Check internet connection.');
+      return;
+    }
+    if (btn) btn.textContent = 'OCR...';
+    Tesseract.recognize(ocrCanvas, 'eng', {
+      logger: function(m) { if (m.status === 'recognizing text' && btn) btn.textContent = Math.round(m.progress*100) + '%'; }
+    }).then(function(result) {
+      if (btn) btn.textContent = 'OCR';
+      var text = result.data.text.trim();
+      if (!text || text === lastOcrText) return;
+      lastOcrText = text;
+      var textEl = document.getElementById('wh-text');
+      if (textEl && currentView === 'dual') {
+        textEl.innerHTML = text.replace(/\n/g,'<br>');
+        textEl.dispatchEvent(new Event('input',{bubbles:true}));
+      } else { showOCRResult(text); }
+    }).catch(function(e) {
+      if (btn) btn.textContent = 'OCR';
+      showOCRResult('Tesseract error: ' + e.message);
+    });
+    return;
+  }
+
+  fetch(WORKER + '/api/ocr', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({image: b64, mime_type: 'image/png', provider: ocrProvider})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if (btn) btn.textContent = 'OCR';
+    var text = d.text || d.content || '';
+    if (!text || text === lastOcrText) return;
+    lastOcrText = text;
+
+    // In dual view: put in text editor
+    var textEl = document.getElementById('wh-text');
+    if (textEl && currentView === 'dual') {
+      // Replace with latest OCR result — don't accumulate wrong transcriptions
+      textEl.innerHTML = text.replace(/\n/g,'<br>');
+      textEl.dispatchEvent(new Event('input',{bubbles:true}));
+    } else {
+      showOCRResult(text);
+    }
+  })
+  .catch(function(){if(btn)btn.textContent='OCR';});
+}
+
+function showOCRResult(text) {
+  var existing = document.getElementById('wh-ocr-result');
+  if (existing) existing.remove();
+  var div = document.createElement('div');
+  div.id = 'wh-ocr-result';
+  div.className = 'ocr-result';
+  var hdr = document.createElement('div'); hdr.className = 'ocr-result-hdr'; hdr.textContent = 'OCR Result';
+  var body = document.createElement('div'); body.className = 'ocr-result-text'; body.textContent = text;
+  var acts = document.createElement('div'); acts.className = 'ocr-result-actions';
+  var copyBtn = document.createElement('button'); copyBtn.className = 'ocr-btn'; copyBtn.textContent = 'Copy';
+  copyBtn.onclick = function(){navigator.clipboard.writeText(text);copyBtn.textContent='Copied!';setTimeout(function(){copyBtn.textContent='Copy';},2000);};
+  var addBtn = document.createElement('button'); addBtn.className = 'ocr-btn primary'; addBtn.textContent = 'Add to notes';
+  addBtn.onclick = function(){
+    var textEl = document.getElementById('wh-text');
+    if (textEl){textEl.innerHTML+=(textEl.innerHTML?'<br>':'')+text.replace(/\n/g,'<br>');textEl.dispatchEvent(new Event('input',{bubbles:true}));}
+    div.remove();
+  };
+  var closeBtn = document.createElement('button'); closeBtn.className = 'ocr-btn'; closeBtn.textContent = '✕';
+  closeBtn.onclick = function(){div.remove();};
+  acts.appendChild(copyBtn); acts.appendChild(addBtn); acts.appendChild(closeBtn);
+  div.appendChild(hdr); div.appendChild(body); div.appendChild(acts);
+  document.body.appendChild(div);
+  setTimeout(function(){if(div.parentNode)div.remove();},15000);
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function exportPage() {
+  if (!currentPage) return;
+  var textEl = document.getElementById('wh-text');
+  var text = textEl ? (textEl.innerText || '') : (currentPage.content || '');
+  var blob = new Blob([text], {type:'text/plain'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (currentPage.name || 'note') + '.txt';
+  a.click();
+}
+
+// ── Dictation ─────────────────────────────────────────────────────────────────
+function dictate() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('Speech recognition not supported.'); return; }
+  var rec = new SR();
+  rec.lang = 'en-GB';
+  rec.onresult = function(e) {
+    var text = e.results[0][0].transcript;
+    var textEl = document.getElementById('wh-text');
+    if (textEl) {
+      textEl.innerHTML += (textEl.innerHTML ? ' ' : '') + text;
+      textEl.dispatchEvent(new Event('input',{bubbles:true}));
+    }
+  };
+  rec.start();
+  document.getElementById('dictate-btn').textContent = '🔴';
+  rec.onend = function() { document.getElementById('dictate-btn').textContent = '🎤'; };
+}
 </script>
 </body>
 </html>
