@@ -5231,8 +5231,6 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({error: e.message}, 500, origin); }
     }
 
-    }
-
     // ── PDF to Markdown (Gemini Vision) ───────────────────────────────────────
     if (path === '/api/pdf/to-markdown' && request.method === 'POST') {
       try {
