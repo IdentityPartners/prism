@@ -96,7 +96,7 @@ window.runBrief = async i => {
   const jobs = [];
   if (r.scope === 'news' || r.scope === 'both') {
     jobs.push((async () => {
-      const feeds = ['https://www.theguardian.com/uk/society/rss', 'https://feeds.bbci.co.uk/news/health/rss.xml'];
+      const feeds = ['https://www.theguardian.com/society/rss', 'https://feeds.bbci.co.uk/news/health/rss.xml'];
       await Promise.all(feeds.map(async url => {
         try {
           const text = await (await fetch('/api/rss?url=' + encodeURIComponent(url))).text();

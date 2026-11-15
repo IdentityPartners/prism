@@ -5619,7 +5619,7 @@ data: ${JSON.stringify(data)}
         const assignment = env.PRISM_KV ? await env.PRISM_KV.get('agent-assignment:' + agentId, 'json').catch(() => null) : null;
         const histKey = 'agent-chat:' + agentId + ':history';
         const hist = env.PRISM_KV ? (await env.PRISM_KV.get(histKey, 'json') || []) : [];
-        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact`;
+        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({\"text\": \"the post copy with tags and footer\", \"platforms\": [\"bluesky\",\"linkedin\",\"telegram\",\"instagram\",\"facebook\",\"x\"]}) — queues a post for Simon's approval. Always include the tags and footer in the text. Never invent a posting tool: queue_post is the only way content goes out, and Simon approves everything.\nTOOL: create_canvas({\"topic\": \"a line or topic\", \"template\": \"block-teal\"}) — generates a branded canvas and queues it for approval. Valid templates: block-teal, block-rose, block-ivory, stat, news-reaction, myth-vs-fact-teal, myth-vs-fact-ivory, data-infographic, awareness-day, awareness-day-rose, service-explainer, semantic-teal, semantic-rose, semantic-dark, testimonial-teal, dual-partnership, img-landscape.\nTOOL: search_news({\"query\": \"keywords\"}) — scans today's approved outlets (Guardian society, BBC health) and returns matching headlines.\nTOOL: save_note({\"title\": \"...\", \"content\": \"...\"}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
         const messages = [{ role: 'system', content: systemPrompt }];
         hist.filter(m => m.role !== 'system').slice(-20).forEach(m => messages.push({ role: m.role, content: m.content }));
         messages.push({ role: 'user', content: userMessage });
@@ -5630,7 +5630,77 @@ data: ${JSON.stringify(data)}
         };
         const modelOpts = modelMap[agent.model] || { profile: 'balanced' };
         const result = await orchestrate(messages, env, modelOpts);
-        const reply = result.content || 'No response.';
+        let reply = result.content || 'No response.';
+
+        // ── Tool execution: agents act, Simon approves ──────────────
+        const toolCalls = [];
+        const toolRe = /^TOOL:\s*([a-z_]+)\s*\(([\s\S]*?\})?\)?\s*$/gm;
+        let tm;
+        while ((tm = toolRe.exec(reply)) !== null) {
+          const toolName = tm[1];
+          let args = {};
+          try { args = JSON.parse((tm[2] || '{}').replace(/\)\s*$/, '')); } catch (e) { toolCalls.push({ tool: toolName, error: 'bad arguments' }); continue; }
+          try {
+            if (toolName === 'queue_post') {
+              const item = {
+                id: 'mm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+                text: args.text || '',
+                platforms: Array.isArray(args.platforms) ? args.platforms : ['bluesky'],
+                imageUrl: args.imageUrl || null,
+                source: 'agent:' + agentId,
+                status: 'pending',
+                createdAt: new Date().toISOString(),
+                scheduledFor: args.scheduledFor || null
+              };
+              if (env.PRISM_KV) {
+                const q = await env.PRISM_KV.get('mm:queue', 'json') || [];
+                q.push(item);
+                await env.PRISM_KV.put('mm:queue', JSON.stringify(q));
+              }
+              toolCalls.push({ tool: toolName, result: 'queued for approval', itemId: item.id });
+            } else if (toolName === 'create_canvas') {
+              const self = 'https://prism-api.identitypartners.workers.dev/api/canvas/generate';
+              const r = await fetch(self, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ topic: args.topic || '', text: args.topic || '', template: args.template || 'block-teal', platform: 'instagram', skipQA: true })
+              }).then(x => x.json());
+              toolCalls.push({ tool: toolName, result: r.url || r.error || 'generated', url: r.url });
+            } else if (toolName === 'search_news') {
+              const feeds = ['https://www.theguardian.com/society/rss', 'https://feeds.bbci.co.uk/news/health/rss.xml'];
+              const q = String(args.query || '').toLowerCase().split(/\s+/).filter(w => w.length > 2);
+              const hits = [];
+              for (const f of feeds) {
+                try {
+                  const text = await fetch(f, { headers: { 'User-Agent': 'Argentica/1.0' } }).then(x => x.text());
+                  const items = text.match(/<item>[\s\S]*?<\/item>/g) || [];
+                  for (const it of items.slice(0, 25)) {
+                    const title = ((it.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/) || [])[1] || '').trim();
+                    if (q.some(kw => title.toLowerCase().includes(kw))) hits.push(title);
+                  }
+                } catch (e) {}
+              }
+              toolCalls.push({ tool: toolName, result: hits.length ? hits.slice(0, 8) : 'no matches today' });
+            } else if (toolName === 'save_note') {
+              const id = 'doc-' + Date.now();
+              const doc = { id, title: args.title || 'Agent note', type: 'note', content: args.content || '', tags: ['agent'], moduleSource: 'phd', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+              if (env.PRISM_KV) {
+                const list = await env.PRISM_KV.get('docs:list', 'json') || [];
+                list.push({ id, title: doc.title, type: 'note', tags: doc.tags, moduleSource: 'phd', updatedAt: doc.updatedAt });
+                await env.PRISM_KV.put('docs:list', JSON.stringify(list));
+                await env.PRISM_KV.put('doc:' + id, JSON.stringify(doc));
+              }
+              toolCalls.push({ tool: toolName, result: 'saved to library' });
+            } else {
+              toolCalls.push({ tool: toolName, error: 'unknown tool' });
+            }
+          } catch (e) { toolCalls.push({ tool: toolName, error: e.message }); }
+        }
+        if (toolCalls.length) {
+          reply = reply.replace(toolRe, '').trim();
+          const toolSummary = '\n\n[Tools executed: ' + toolCalls.map(t => t.tool + (t.error ? ' — ' + t.error : ' — ' + (typeof t.result === 'string' ? t.result : 'done'))).join('; ') + ']';
+          reply += toolSummary;
+        }
+
         hist.push({ role: 'user', content: userMessage, ts: new Date().toISOString() });
         hist.push({ role: 'assistant', content: reply, ts: new Date().toISOString() });
         if (env.PRISM_KV) await env.PRISM_KV.put(histKey, JSON.stringify(hist.slice(-200)));
@@ -5639,7 +5709,7 @@ data: ${JSON.stringify(data)}
           assignment.updatedAt = new Date().toISOString();
           if (env.PRISM_KV) await env.PRISM_KV.put('agent-assignment:' + agentId, JSON.stringify(assignment));
         }
-        return json({ success: true, reply, model: result.model || agent.model, provider: result.provider }, 200, origin);
+        return json({ success: true, reply, model: result.model || agent.model, provider: result.provider, toolCalls }, 200, origin);
       } catch(e) { return json({ success: false, reply: 'Error: ' + e.message }, 500, origin); }
     }
 
@@ -6165,7 +6235,7 @@ data: ${JSON.stringify(data)}
         const userMsg = body.message || body.content || '';
         const history = body.history || [];
         const msgs = [
-          {role:'system', content:'You are the Argentica Dev Team agent. Senior full-stack developer and system architect for Simon Johnson (Identity Partners). You have access to the Cloudflare Worker (prism-api.identitypartners.workers.dev), GitHub repo (IdentityPartners/prism), KV storage, D1 database, and all API integrations. You diagnose issues, implement fixes, build features, and maintain the system autonomously. You never ask Simon to do anything technical. British English throughout. No sycophancy. No AI tropes. Be direct and precise. Implement fixes, do not just describe them. Routing chain: DeepSeek -> Kimi -> Mistral -> GLM -> Cohere -> Cerebras -> Groq -> Gemini -> Pollinations.'},
+          {role:'system', content:'You are the Argentica Dev Team agent. Senior full-stack developer and system architect for Simon Johnson (Identity Partners). You have access to the Cloudflare Worker (prism-api.identitypartners.workers.dev), GitHub repo (IdentityPartners/prism), KV storage, D1 database, and all API integrations. You diagnose issues, implement fixes, build features, and maintain the system autonomously. You never ask Simon to do anything technical. British English throughout. No sycophancy. No AI tropes. Be direct and precise. Implement fixes, do not just describe them. Routing chain: DeepSeek -> Kimi -> Mistral -> GLM -> Cohere -> Cerebras -> Groq -> Gemini -> Pollinations.\n\nYou have REAL tools, executed automatically when you write them on their own line in this exact format:\nTOOL: health({}) — full system health check\nTOOL: kv-list({"prefix": ""}) — list KV keys\nTOOL: get_kv({"key": "..."}) — read a KV value\nTOOL: set_kv({"key": "...", "value": "..."}) — write a KV value\nTOOL: update_kv_bulk({"entries": [{"key": "...", "value": "..."}]}) — write many KV values\nTOOL: push_to_github({"path": "file/path.js", "content": "full file content", "message": "commit message", "branch": "main"}) — push a file to the repo; a push to main auto-deploys Pages and the worker\nTOOL: deploy_worker({}) — redeploy the current worker script with all bindings intact\nTOOL: test-provider({"provider": "mistral"}) — test any LLM provider\nWhen a fix requires a code change, use push_to_github with the COMPLETE new file content, never a diff. Then use deploy_worker if the change was to worker/index.js and time matters.'},
           ...history.slice(-10),
           {role:'user', content:userMsg}
         ];
@@ -6173,7 +6243,29 @@ data: ${JSON.stringify(data)}
         const _dtmc = await buildMemoryContext(env, _dtq ? _dtq.content : '');
         if (_dtmc) { const _dtsi = msgs.findIndex(function(m){return m.role==='system';}); if (_dtsi>=0) msgs[_dtsi].content+=('\n\n'+_dtmc); else msgs.unshift({role:'system',content:_dtmc}); }
         const result = await orchestrate(msgs, env, {profile:'balanced'});
-        return json({success:true, content:result.content, provider:result.provider, model:result.model}, 200, origin);
+        let content = result.content || '';
+
+        // ── Execute TOOL: action({params}) lines for real ─────────────
+        const toolCalls = [];
+        const toolRe = /^TOOL:\s*([a-z_-]+)\s*\((\{[\s\S]*?\})\)\s*$/gm;
+        let tm;
+        while ((tm = toolRe.exec(content)) !== null) {
+          const action = tm[1];
+          let params = {};
+          try { params = JSON.parse(tm[2]); } catch (e) { toolCalls.push({ action, error: 'bad arguments' }); continue; }
+          try {
+            const r = await fetch('https://prism-api.identitypartners.workers.dev/api/devteam/execute', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action, ...params })
+            }).then(x => x.json());
+            toolCalls.push({ action, result: r });
+          } catch (e) { toolCalls.push({ action, error: e.message }); }
+        }
+        if (toolCalls.length) {
+          content = content.replace(toolRe, '').trim();
+          content += '\n\n[Tools executed: ' + toolCalls.map(t => t.action).join(', ') + ']';
+        }
+        return json({success:true, content, provider:result.provider, model:result.model, toolCalls}, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
     }
 
@@ -6219,6 +6311,88 @@ data: ${JSON.stringify(data)}
         }
 
         // Test provider
+        // KV read/write — the Dev Team can inspect and fix state directly
+        if (action === 'get_kv') {
+          const kvKey = body.key || '';
+          if (!kvKey) return json({success:false, error:'key required'}, 400, origin);
+          const value = env.PRISM_KV ? await env.PRISM_KV.get(kvKey) : null;
+          return json({success:true, action, key:kvKey, value, found: value !== null}, 200, origin);
+        }
+        if (action === 'set_kv') {
+          const kvKey = body.key || '';
+          const kvVal = body.value !== undefined ? (typeof body.value === 'string' ? body.value : JSON.stringify(body.value)) : '';
+          if (!kvKey) return json({success:false, error:'key required'}, 400, origin);
+          if (!env.PRISM_KV) return json({success:false, error:'KV not bound'}, 500, origin);
+          await env.PRISM_KV.put(kvKey, kvVal);
+          return json({success:true, action, key:kvKey}, 200, origin);
+        }
+        if (action === 'update_kv_bulk') {
+          const entries = body.entries || [];
+          if (!Array.isArray(entries) || !entries.length) return json({success:false, error:'entries array required'}, 400, origin);
+          if (!env.PRISM_KV) return json({success:false, error:'KV not bound'}, 500, origin);
+          let written = 0;
+          for (const e of entries) {
+            if (!e.key) continue;
+            await env.PRISM_KV.put(e.key, e.value !== undefined ? (typeof e.value === 'string' ? e.value : JSON.stringify(e.value)) : '');
+            written++;
+          }
+          return json({success:true, action, written}, 200, origin);
+        }
+
+        // Push any file to the GitHub repo (a push to main auto-deploys Pages + worker)
+        if (action === 'push_to_github') {
+          const ghToken = k(env, ['github_token','GITHUB_TOKEN']) || '';
+          const filePath = body.path || '';
+          const content = body.content || '';
+          const message = body.message || 'Dev Team update';
+          const branch = body.branch || 'main';
+          if (!ghToken) return json({success:false, error:'github_token secret not set'}, 400, origin);
+          if (!filePath || !content) return json({success:false, error:'path and content required'}, 400, origin);
+          try {
+            const head = await fetch('https://api.github.com/repos/IdentityPartners/prism/contents/' + filePath + '?ref=' + branch, {
+              headers: { Authorization: 'Bearer ' + ghToken, Accept: 'application/vnd.github+json' }
+            }).then(r => r.json());
+            const payload = { message, content: btoa(unescape(encodeURIComponent(content))), branch };
+            if (head && head.sha) payload.sha = head.sha;
+            const put = await fetch('https://api.github.com/repos/IdentityPartners/prism/contents/' + filePath, {
+              method: 'PUT',
+              headers: { Authorization: 'Bearer ' + ghToken, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            }).then(r => r.json());
+            return json({success: !!(put.content && put.content.html_url), action, url: put.content && put.content.html_url, error: put.message && !put.content ? put.message : undefined}, 200, origin);
+          } catch(e) { return json({success:false, action, error: e.message}, 200, origin); }
+        }
+
+        // Redeploy the current worker script with all bindings intact
+        if (action === 'deploy_worker') {
+          const cfToken = k(env, ['cf_token','CF_TOKEN']) || '';
+          if (!cfToken) return json({success:false, error:'cf_token secret not set'}, 400, origin);
+          try {
+            const scriptRes = await fetch('https://api.cloudflare.com/client/v4/accounts/d741de91f8cfff2306cc0f850a76ee07/workers/scripts/prism-api', {
+              headers: { Authorization: 'Bearer ' + cfToken }
+            });
+            if (!scriptRes.ok) return json({success:false, action, error: 'Could not fetch current script: HTTP ' + scriptRes.status}, 200, origin);
+            const scriptText = await scriptRes.text();
+            const metadata = {
+              main_module: 'index.js',
+              compatibility_date: '2024-09-01',
+              compatibility_flags: ['nodejs_compat'],
+              bindings: [
+                { type: 'kv_namespace', name: 'PRISM_KV', namespace_id: '8d1a583cc99a482380aacb526d873030' },
+                { type: 'd1', name: 'PRISM_D1', id: 'e953848b-7d62-4629-bb4d-271da0d03fd5' },
+                { type: 'r2_bucket', name: 'PRISM_ASSETS', bucket_name: 'prism-assets' }
+              ]
+            };
+            const fd = new FormData();
+            fd.append('metadata', JSON.stringify(metadata));
+            fd.append('index.js', new File([scriptText], 'index.js', { type: 'application/javascript+module' }));
+            const dep = await fetch('https://api.cloudflare.com/client/v4/accounts/d741de91f8cfff2306cc0f850a76ee07/workers/scripts/prism-api', {
+              method: 'PUT', headers: { Authorization: 'Bearer ' + cfToken }, body: fd
+            }).then(r => r.json());
+            return json({success: !!dep.success, action, error: dep.errors && dep.errors.length ? dep.errors[0].message : undefined}, 200, origin);
+          } catch(e) { return json({success:false, action, error: e.message}, 200, origin); }
+        }
+
         if (action === 'test-provider') {
           const provider = body.provider || 'mistral';
           const testMsgs = [{role:'user', content:'Reply with exactly: OK'}];
