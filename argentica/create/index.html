@@ -5,28 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Argentica — Canvas</title>
 <link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  .tpl-btn { border: 2px solid var(--line); border-radius: 8px; padding: 0; background: #fff; cursor: pointer; overflow: hidden; text-align: left; }
+  .tpl-btn.active { border-color: var(--teal); }
+  .tpl-btn img, .tpl-btn svg { width: 100%; aspect-ratio: 1; display: block; }
+  .tpl-btn .lbl { padding: 5px 7px; font-size: 11.5px; color: var(--teal); display: block; }
+  #size-row button { min-width: 74px; }
+</style>
 </head>
 <body>
 <div class="arg-page" data-key="canvas">
   <div class="arg-pagehead">
     <h1>Canvas</h1>
-    <div class="sub">Branded post images: real photographic backgrounds, the IP logo, your text. Seventeen templates.</div>
+    <div class="sub">Branded post images. Pick a template, a palette, a photo theme and a platform size — then generate.</div>
   </div>
 
   <div class="grid two">
     <div class="card">
-      <h3>New canvas</h3>
-      <label class="muted">Topic or quote</label>
-      <textarea id="topic" style="margin:4px 0 12px;" placeholder="e.g. today's ONS figures on alcohol deaths, or a line about recovery"></textarea>
-      <label class="muted">Template — click a preview to select it</label>
-      <div id="tpl-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:10px; margin:6px 0 12px;"></div>
+      <h3>Content</h3>
+      <textarea id="topic" style="min-height:70px;" placeholder="The line or topic — e.g. today's ONS figures on alcohol deaths, or a quote about recovery"></textarea>
+
+      <label class="muted" style="margin-top:12px;">Palette</label>
+      <div class="row" id="palette-row" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
+
+      <label class="muted">Photo theme <span class="muted" style="font-size:11px;">(for photographic templates)</span></label>
+      <div class="row" id="photo-row" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
+
+      <label class="muted">Platform size</label>
+      <div class="row" id="size-row" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
+
       <button id="gen">Generate</button>
       <div class="muted mt" id="gen-status"></div>
     </div>
 
     <div class="card">
-      <h3>Result</h3>
-      <div id="gen-preview" class="muted">Nothing generated yet.</div>
+      <h3>Templates — click to select</h3>
+      <div id="tpl-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:10px;"></div>
+    </div>
+  </div>
+
+  <div class="card mt" id="result-card" style="display:none;">
+    <h3>Result</h3>
+    <div class="row" style="align-items:flex-start; flex-wrap:wrap;">
+      <img id="result-img" style="max-width:340px; border-radius:8px; border:1px solid var(--line);">
+      <div style="flex:1; min-width:220px;">
+        <div class="muted" id="result-note"></div>
+        <div class="row mt" style="flex-wrap:wrap; gap:8px;">
+          <button class="small" id="export-png">Export PNG at chosen size</button>
+          <button class="ghost small" id="send-publish">Send to Publishing</button>
+          <button class="ghost small" id="open-full">Open full size</button>
+        </div>
+        <div class="muted mt" id="export-status"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -36,90 +66,170 @@
 ARG.buildShell('canvas');
 const { api, esc } = ARG;
 
-const TEMPLATES = [
-  { id: 'block-teal', label: 'Quote · Teal', hint: 'text-dominant quote card' },
-  { id: 'block-rose', label: 'Quote · Rose', hint: 'quote card, rose palette' },
-  { id: 'block-ivory', label: 'Quote · Ivory', hint: 'quote card, ivory palette' },
-  { id: 'stat', label: 'Statistic highlight', hint: 'large number, context, source' },
-  { id: 'news-reaction', label: 'News reaction', hint: 'headline + commentary + credit' },
-  { id: 'myth-vs-fact-teal', label: 'Myth vs Fact · Teal', hint: 'two-panel correction' },
-  { id: 'myth-vs-fact-ivory', label: 'Myth vs Fact · Ivory', hint: 'two-panel correction' },
-  { id: 'data-infographic', label: 'Data infographic', hint: 'multiple data points' },
-  { id: 'awareness-day', label: 'Awareness day', hint: 'event name + date + imagery' },
-  { id: 'awareness-day-rose', label: 'Awareness day · Rose', hint: 'rose variant' },
-  { id: 'service-explainer', label: 'Service explainer', hint: 'what you offer, for whom' },
-  { id: 'semantic-teal', label: 'Photographic · Teal', hint: 'real photo background' },
-  { id: 'semantic-rose', label: 'Photographic · Rose', hint: 'real photo background' },
-  { id: 'semantic-dark', label: 'Photographic · Dark', hint: 'real photo background' },
-  { id: 'testimonial-teal', label: 'Testimonial · Teal', hint: 'quote + attribution' },
-  { id: 'dual-partnership', label: 'Side by side', hint: 'image left, text right' },
-  { id: 'img-landscape', label: 'Landscape photo', hint: 'photograph with caption' }
+const PALETTES = { teal: '#0f3b3a', rose: '#5c2d3f', ivory: '#f7f3e9', dark: '#111111' };
+const ACCENTS = { teal: '#7ecfcd', rose: '#d4899a', ivory: '#5c2d3f', dark: '#ddd0c8' };
+const PHOTO_THEMES = ['calm seascape', 'forest path', 'open sky', 'city skyline', 'still water', 'sunrise'];
+const SIZES = [
+  ['Instagram post', 1080, 1080], ['Instagram portrait', 1080, 1350], ['Instagram story', 1080, 1920],
+  ['Facebook post', 1200, 630], ['X post', 1600, 900], ['LinkedIn', 1200, 627]
 ];
-let activeTemplate = 'block-teal';
-const tplGrid = document.getElementById('tpl-grid');
-tplGrid.innerHTML = TEMPLATES.map(t =>
-  '<button class="tpl" data-id="' + t.id + '" title="' + esc(t.hint) + '" style="border:2px solid var(--line); border-radius:8px; padding:0; background:#fff; cursor:pointer; overflow:hidden; text-align:left;">' +
-  '<div class="tpl-img" data-id="' + t.id + '" style="width:100%; aspect-ratio:1; background:var(--ivory); display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:11px;">loading…</div>' +
-  '<div style="padding:5px 7px; font-size:11.5px; color:var(--teal);">' + t.label + '</div></button>'
-).join('');
-tplGrid.querySelector('.tpl').classList.add('active');
-tplGrid.querySelectorAll('.tpl').forEach(b => b.addEventListener('click', () => {
-  tplGrid.querySelectorAll('.tpl').forEach(x => x.style.borderColor = 'var(--line)');
-  b.style.borderColor = 'var(--teal)';
-  activeTemplate = b.dataset.id;
-}));
-// visual previews — live SVGs from the worker's preview endpoint
-(async function loadPreviews() {
-  for (const t of TEMPLATES) {
-    fetch('/api/canvas/preview', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: 'Understand your past. Define your future.', template: t.id })
-    }).then(r => r.text()).then(svg => {
-      const holder = tplGrid.querySelector('.tpl-img[data-id="' + t.id + '"]');
-      if (holder) {
-        const blob = new Blob([svg], { type: 'image/svg+xml' });
-        const img = document.createElement('img');
-        img.src = URL.createObjectURL(blob);
-        img.style.cssText = 'width:100%; height:100%; object-fit:cover;';
-        holder.innerHTML = '';
-        holder.appendChild(img);
-      }
-    }).catch(() => {});
+
+const TEMPLATES = [
+  { id: 'block', label: 'Quote card', kind: 'quote' },
+  { id: 'stat', label: 'Statistic', kind: 'stat' },
+  { id: 'news-reaction', label: 'News reaction', kind: 'news' },
+  { id: 'myth-vs-fact', label: 'Myth vs fact', kind: 'myth' },
+  { id: 'data-infographic', label: 'Data infographic', kind: 'data' },
+  { id: 'awareness-day', label: 'Awareness day', kind: 'awareness' },
+  { id: 'service-explainer', label: 'Service explainer', kind: 'service' },
+  { id: 'testimonial', label: 'Testimonial', kind: 'quote' },
+  { id: 'semantic', label: 'Photographic', kind: 'photo' },
+  { id: 'dual-partnership', label: 'Side by side', kind: 'dual' },
+  { id: 'img-landscape', label: 'Photo + caption', kind: 'photo' }
+];
+
+let activeTemplate = 'block', activePalette = 'teal', activePhoto = 'calm seascape', activeSize = 0;
+let lastUrl = null, lastPngUrl = null;
+
+// ── previews: a distinct client-side SVG sketch per template kind ──
+function previewSVG(t) {
+  const bg = t.kind === 'photo' ? '#55524a' : PALETTES[activePalette];
+  const fg = activePalette === 'ivory' ? '#1c1a17' : '#ffffff';
+  const ac = ACCENTS[activePalette];
+  const W = 1080, H = 1080;
+  const parts = [`<rect width="${W}" height="${H}" fill="${bg}"/>`];
+  const text = (x, y, w, h, fill, op) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="${fill}" opacity="${op || 0.9}"/>`;
+  const logo = `<circle cx="90" cy="90" r="34" fill="${ac}" opacity="0.9"/><circle cx="130" cy="90" r="34" fill="${fg}" opacity="0.25"/>`;
+  switch (t.kind) {
+    case 'quote': parts.push(logo, text(120, 380, 840, 40, fg, 0.85), text(120, 450, 760, 40, fg, 0.85), text(120, 520, 820, 40, fg, 0.85), text(120, 620, 500, 26, ac, 0.95)); break;
+    case 'stat': parts.push(logo, `<text x="540" y="560" font-family="Georgia" font-size="300" font-weight="bold" fill="${fg}" text-anchor="middle">42%</text>`, text(340, 640, 400, 26, ac, 0.95)); break;
+    case 'news': parts.push(logo, text(120, 300, 840, 34, ac, 0.95), text(120, 380, 840, 46, fg, 0.9), text(120, 460, 700, 46, fg, 0.9), text(120, 620, 400, 22, fg, 0.5)); break;
+    case 'myth': parts.push(`<rect x="90" y="200" width="410" height="680" rx="16" fill="${fg}" opacity="0.12"/><rect x="580" y="200" width="410" height="680" rx="16" fill="${ac}" opacity="0.22"/>`, text(130, 260, 200, 24, fg, 0.7), text(620, 260, 200, 24, fg, 0.7), text(130, 330, 300, 34, fg, 0.5), text(130, 390, 300, 34, fg, 0.5), text(620, 330, 300, 34, fg, 0.5), text(620, 390, 300, 34, fg, 0.5)); break;
+    case 'data': parts.push(logo, text(120, 300, 840, 30, fg, 0.85), [200, 380, 560, 740].map((x, i) => `<rect x="${x}" y="${700 - i * 90}" width="120" height="${i * 90 + 120}" rx="8" fill="${ac}" opacity="${0.5 + i * 0.15}"/>`).join('')); break;
+    case 'awareness': parts.push(logo, `<circle cx="540" cy="430" r="180" fill="${ac}" opacity="0.3"/>`, text(340, 660, 400, 34, fg, 0.9), text(420, 720, 240, 22, ac, 0.95)); break;
+    case 'service': parts.push(logo, text(120, 340, 840, 40, fg, 0.85), text(120, 420, 840, 40, fg, 0.85), [0,1,2].map(i => `<rect x="${120 + i * 290}" y="540" width="240" height="180" rx="12" fill="${fg}" opacity="${0.12 + i * 0.06}"/>`).join('')); break;
+    case 'dual': parts.push(`<rect x="90" y="200" width="420" height="680" rx="16" fill="${fg}" opacity="0.16"/>`, text(580, 340, 400, 34, fg, 0.85), text(580, 410, 400, 34, fg, 0.85), text(580, 500, 300, 22, ac, 0.95)); break;
+    case 'photo': parts.push(`<rect width="${W}" height="${H}" fill="#3d5a5a"/>`, `<circle cx="820" cy="260" r="90" fill="#f7e8c9" opacity="0.8"/>`, `<path d="M0 780 Q270 640 540 780 T1080 780 L1080 1080 L0 1080 Z" fill="#22434a"/>`, `<rect x="90" y="840" width="700" height="60" rx="12" fill="#000" opacity="0.35"/>`, `<text x="120" y="880" font-family="Georgia" font-size="36" fill="#fff">Caption over photo</text>`); break;
   }
-})();
+  return 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}">${parts.join('')}</svg>`);
+}
+
+function templateId() {
+  const p = activePalette === 'dark' ? 'dark' : activePalette;
+  switch (activeTemplate) {
+    case 'block': return 'block-' + (p === 'dark' ? 'teal' : p);
+    case 'stat': return 'stat';
+    case 'testimonial': return 'testimonial-' + (p === 'dark' ? 'teal' : p);
+    case 'myth-vs-fact': return 'myth-vs-fact-' + (p === 'ivory' ? 'ivory' : 'teal');
+    case 'awareness-day': return activePalette === 'rose' ? 'awareness-day-rose' : 'awareness-day';
+    case 'semantic': return 'semantic-' + p;
+    default: return activeTemplate;
+  }
+}
+
+function renderControls() {
+  const pr = document.getElementById('palette-row');
+  pr.innerHTML = Object.entries(PALETTES).map(([k, c]) =>
+    '<button class="ghost small" data-k="' + k + '"' + (k === activePalette ? ' style="background:' + c + '; color:#fff; border-color:' + c + '"' : ' style="border-color:' + c + '"') + '>' + k + '</button>').join('');
+  pr.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { activePalette = b.dataset.k; renderControls(); renderGallery(); }));
+
+  const ph = document.getElementById('photo-row');
+  ph.innerHTML = PHOTO_THEMES.map((t, i) =>
+    '<button class="ghost small" data-i="' + i + '"' + (i === activePhoto ? ' style="background:var(--teal); color:#fff;"' : '') + '>' + esc(t) + '</button>').join('');
+  ph.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { activePhoto = +b.dataset.i; renderControls(); }));
+
+  const sr = document.getElementById('size-row');
+  sr.innerHTML = SIZES.map(([name, w, h], i) =>
+    '<button class="ghost small" data-i="' + i + '"' + (i === activeSize ? ' style="background:var(--teal); color:#fff;"' : '') + ' title="' + w + '×' + h + '">' + esc(name) + '</button>').join('');
+  sr.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { activeSize = +b.dataset.i; renderControls(); }));
+}
+
+function renderGallery() {
+  const grid = document.getElementById('tpl-grid');
+  grid.innerHTML = TEMPLATES.map(t =>
+    '<button class="tpl-btn' + (t.id === activeTemplate ? ' active' : '') + '" data-id="' + t.id + '">' +
+    '<img src="' + previewSVG(t) + '" alt="">' +
+    '<span class="lbl">' + t.label + '</span></button>'
+  ).join('');
+  grid.querySelectorAll('.tpl-btn').forEach(b => b.addEventListener('click', () => {
+    activeTemplate = b.dataset.id;
+    grid.querySelectorAll('.tpl-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+  }));
+}
 
 document.getElementById('gen').addEventListener('click', async () => {
   const btn = document.getElementById('gen');
   const status = document.getElementById('gen-status');
   const topic = document.getElementById('topic').value.trim();
-  if (!topic) { ARG.toast('Give it a topic or a line first.'); return; }
+  if (!topic) { ARG.toast('Give it a line or a topic first.'); return; }
   btn.disabled = true;
-  status.textContent = 'Finding a photographic background and rendering…';
+  status.textContent = 'Rendering…';
   try {
+    const photoT = TEMPLATES.find(t => t.id === activeTemplate).kind === 'photo';
     const data = await api('/canvas/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic, text: topic, template: activeTemplate, platform: 'instagram', skipQueue: true })
+      body: JSON.stringify({
+        topic: photoT ? activePhoto + ' ' + topic : topic,
+        text: topic,
+        template: templateId(),
+        platform: 'instagram', skipQueue: true, skipQA: true
+      })
     });
-    const urls = data.urls || (data.url ? [data.url] : []);
-    if (urls.length) {
-      window._lastCanvasUrl = urls[0];
-      document.getElementById('gen-preview').innerHTML =
-        urls.map(u => '<img src="' + esc(u) + '" style="max-width:100%; border-radius:8px; border:1px solid var(--line); margin-bottom:8px;">').join('') +
-        '<div class="row mt" style="gap:8px;">' +
-        '<button class="small" onclick="sendToPublishing()">Send to Publishing</button>' +
-        '<button class="ghost small" onclick="window.open(\'' + esc(urls[0]) + '\', \'_blank\')">Open full size</button></div>';
+    const url = data.url || (data.urls && data.urls[0]);
+    if (url) {
+      lastUrl = url;
+      lastPngUrl = null;
+      const key = url.replace(/^https:\/\/[^/]+\//, '');
+      document.getElementById('result-img').src = '/api/r2/file?key=' + encodeURIComponent(key);
+      document.getElementById('result-card').style.display = 'block';
+      document.getElementById('result-note').textContent = 'Generated as SVG. Export a PNG at your chosen platform size before publishing — Instagram and Facebook prefer PNG.';
       status.textContent = 'Canvas ready.';
     } else {
-      status.textContent = 'No image came back: ' + esc(data.error || 'try again.');
+      status.textContent = 'Nothing came back: ' + esc(data.error || 'try again.');
     }
   } catch (e) { status.textContent = 'Generation failed: ' + esc(e.message); }
   btn.disabled = false;
 });
 
-window.sendToPublishing = () => {
-  sessionStorage.setItem('arg:canvas-url', window._lastCanvasUrl || '');
+document.getElementById('export-png').addEventListener('click', async () => {
+  const status = document.getElementById('export-status');
+  if (!lastUrl) return;
+  const [name, w, h] = SIZES[activeSize];
+  status.textContent = 'Rasterising at ' + w + '×' + h + '…';
+  try {
+    const key = lastUrl.replace(/^https:\/\/[^/]+\//, '');
+    const svgText = await fetch('/api/r2/file?key=' + encodeURIComponent(key)).then(r => r.text());
+    const blobUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml' }));
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = blobUrl; });
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+    const scale = Math.max(w, h) / Math.max(img.width, img.height);
+    ctx.drawImage(img, (w - img.width * scale) / 2, (h - img.height * scale) / 2, img.width * scale, img.height * scale);
+    const png64 = canvas.toDataURL('image/png').split(',')[1];
+    const up = await api('/r2/upload', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'canvas/png-' + Date.now() + '-' + w + 'x' + h + '.png', content: png64, mimeType: 'image/png', fileName: 'canvas.png' })
+    });
+    lastPngUrl = up.url;
+    status.textContent = 'PNG exported at ' + name + ' (' + w + '×' + h + ') and saved. Publishing will use it.';
+    ARG.toast('PNG ready.');
+  } catch (e) { status.textContent = 'Export failed: ' + esc(e.message); }
+});
+
+document.getElementById('send-publish').addEventListener('click', () => {
+  if (!lastUrl) { ARG.toast('Generate a canvas first.'); return; }
+  sessionStorage.setItem('arg:canvas-url', lastPngUrl || lastUrl);
   location.href = '/argentica/commercial/publishing/';
-};
+});
+document.getElementById('open-full').addEventListener('click', () => {
+  if (lastUrl) window.open(lastUrl, '_blank');
+});
+
+renderControls();
+renderGallery();
 </script>
 </body>
 </html>
