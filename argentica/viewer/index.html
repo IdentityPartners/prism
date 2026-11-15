@@ -36,6 +36,7 @@
       <button class="ghost small" id="save">Save ink</button>
       <button class="small" id="archive">Flatten &amp; archive</button>
       <button class="ghost small" id="ask">Ask Gerald</button>
+      <button class="ghost small" id="download-original" title="Download the untouched PDF — annotate in Edge or elsewhere, then re-upload to Library">Download original</button>
       <button class="ghost small" onclick="location.href='/argentica/library/'">Close</button>
     </div>
   </div>
@@ -341,6 +342,16 @@ function hexToRgb(hex) {
   const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
   return PDFLib.rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
 }
+
+document.getElementById('download-original').addEventListener('click', () => {
+  if (!pdfBytes) { ARG.toast('No PDF loaded.'); return; }
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = ((doc && doc.title) || 'document').replace(/[^a-zA-Z0-9._-]/g, '_') + '.pdf';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
 
 document.getElementById('ask').addEventListener('click', () => {
   sessionStorage.setItem('arg:pending-prompt', 'Regarding "' + (doc ? doc.title : 'this document') + '" — what are its central claims and how do they bear on my work?');

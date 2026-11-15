@@ -68,6 +68,16 @@
     </div>
 
     <div class="card">
+      <h3>Free tracks <span class="muted" style="font-size:11px;">(Openverse — copyright-free, commercial-safe)</span></h3>
+      <div class="row">
+        <input type="text" id="ov-q" placeholder="Search — e.g. calm piano, ambient, podcast intro…">
+        <button id="ov-run">Search</button>
+      </div>
+      <div class="muted mt" style="font-size:11px;">Creative-Commons audio (FMA, Jamendo, ccMixter and more) — cleared for commercial use and modification. Attribution details shown per track.</div>
+      <div id="ov-list" class="mt"></div>
+    </div>
+
+    <div class="card">
       <h3>Library</h3>
       <div class="muted" id="m-lib-empty">Saved generations appear here.</div>
       <div id="m-lib"></div>
@@ -199,6 +209,47 @@ function renderLib() {
   ).join('');
 }
 renderLib();
+
+// ── Openverse free tracks ──
+document.getElementById('ov-run').addEventListener('click', () => ovSearch(1));
+document.getElementById('ov-q').addEventListener('keydown', e => { if (e.key === 'Enter') ovSearch(1); });
+async function ovSearch(page) {
+  const q = document.getElementById('ov-q').value.trim() || 'calm instrumental';
+  const el = document.getElementById('ov-list');
+  el.innerHTML = '<div class="muted">Searching Openverse…</div>';
+  try {
+    const d = await api('/music/openverse?q=' + encodeURIComponent(q) + '&page=' + (page || 1));
+    if (d.error) { el.innerHTML = '<div class="muted">' + esc(d.error) + '</div>'; return; }
+    let saveKey = '';
+    el.innerHTML = (d.tracks || []).map(t =>
+      '<div class="mtrack"><div style="flex:1; min-width:0;">' +
+      '<div style="font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + esc(t.title) + '</div>' +
+      '<div class="muted" style="font-size:11px;">' + esc(t.creator) + ' · ' + esc(t.license.toUpperCase()) + ' · ' + Math.round((t.duration || 0) / 1000) + 's' +
+      (t.foreign ? ' · <a href="' + esc(t.foreign) + '" target="_blank" rel="noopener">source</a>' : '') + '</div></div>' +
+      '<audio controls preload="none" src="' + esc(t.url) + '" style="max-width:200px; height:32px;"></audio>' +
+      '<button class="ghost small" data-save="' + esc(t.url) + '" data-title="' + esc(t.title) + '" data-lic="' + esc(t.creator + ' / ' + t.license + ' via Openverse') + '">Save</button></div>'
+    ).join('') + ((d.total || 0) > 12 * (page || 1) ? '<div class="mt"><button class="ghost small" id="ov-more">More</button></div>' : '');
+    el.querySelectorAll('[data-save]').forEach(b => b.addEventListener('click', async () => {
+      b.disabled = true; b.textContent = 'Saving…';
+      try {
+        const r = await fetch(b.dataset.save);
+        const blob = await r.blob();
+        const b64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
+        const ext = (b.dataset.save.split('.').pop() || 'mp3').split('?')[0].slice(0, 4);
+        saveKey = 'music/openverse-' + Date.now() + '.' + ext;
+        await api('/r2/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: saveKey, content: b64, contentType: blob.type || 'audio/mpeg' }) });
+        const lib = JSON.parse(localStorage.getItem('arg-music') || '[]');
+        lib.unshift({ id: 'mus-' + Date.now(), prompt: b.dataset.title + ' — ' + b.dataset.lic, url: '/api/r2/file?key=' + encodeURIComponent(saveKey), created: new Date().toISOString() });
+        localStorage.setItem('arg-music', JSON.stringify(lib.slice(0, 30)));
+        b.textContent = 'Saved';
+        renderLib();
+      } catch (e) { b.textContent = 'Failed'; }
+    }));
+    const more = document.getElementById('ov-more');
+    if (more) more.addEventListener('click', () => ovSearch((page || 1) + 1));
+  } catch (e) { el.innerHTML = '<div class="muted">Search failed: ' + esc(e.message) + '</div>'; }
+}
 </script>
 </body>
 </html>

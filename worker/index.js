@@ -4405,6 +4405,29 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+    // ── Openverse copyright-free audio search (for carousel/podcast beds) ────────────────────────────────────────
+    if (path === '/api/music/openverse' && request.method === 'GET') {
+      try {
+        const q = url.searchParams.get('q') || 'calm instrumental';
+        const page = parseInt(url.searchParams.get('page') || '1');
+        const resp = await fetch('https://api.openverse.org/v1/audio/?q=' + encodeURIComponent(q) + '&page_size=12&page=' + page + '&license_type=commercial,modification', {
+          headers: {'User-Agent': 'Argentica/1.0 (https://identitypartners.uk)'}
+        });
+        if (!resp.ok) return json({error: 'Openverse error: ' + resp.status, tracks: []}, 200, origin);
+        const d = await resp.json();
+        const tracks = (d.results || []).map(function(t) {
+          return {
+            id: t.id, title: t.title || 'Untitled', creator: t.creator || 'Unknown',
+            license: t.license || '', licenseUrl: t.license_url || '',
+            url: t.url || '', duration: t.duration || 0, source: t.source || 'openverse',
+            foreign: t.foreign_landing_url || ''
+          };
+        }).filter(function(t) { return t.url; });
+        return json({tracks, total: d.result_count || tracks.length}, 200, origin);
+      } catch(e) { return json({error: e.message, tracks: []}, 200, origin); }
+    }
+
+
     // ── Music generation via Lyria ────────────────────────────────────────────
     if (path === '/api/music/generate' && request.method === 'POST') {
       try {
