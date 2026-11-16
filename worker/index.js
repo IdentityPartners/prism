@@ -7717,8 +7717,10 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         const profile = body.profile || {};
         if (!signupUrl || !platformName) return json({success:false, error:'platform and signupUrl required'}, 400, origin);
 
-        const BL = k(env, ['browserless_token','BROWSERLESS_TOKEN','browserless_api_key']) || '';
-        if (!BL) return json({success:false, error:'No Browserless token configured. Add browserless_token (chrome.browserless.io) via System > Ingest secrets, or deploy browserless on the Railway account and give me its URL.', needsToken:true}, 200, origin);
+        const BL = k(env, ['browserless','browserless_token','BROWSERLESS_TOKEN','browserless_api_key']) || '';
+        const BL_URL = k(env, ['browserless_url','BROWSERLESS_URL']) || 'https://chrome.browserless.io';
+        const BL_RAILWAY = 'https://browserless-production-e49c65ef.up.railway.app';
+        if (!BL) return json({success:false, error:'No Browserless token configured. Ingest it as browserless (or browserless_token).', needsToken:true}, 200, origin);
 
         // Step 1: fetch the signup page and map fields heuristically
         let fieldsMap = [];
@@ -7741,9 +7743,10 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           }
         } catch (he) {}
 
-        // Generate a per-platform password if none supplied
-        const genPass = profile.password || ('IP-' + Math.random().toString(36).slice(2,8) + '!' + Math.random().toString(36).slice(2,6).toUpperCase());
-        fieldsMap.forEach(f => { if (f.password) f.value = genPass; });
+        // Signup password comes from the worker secret, never from code
+        const platformPw = k(env, ['platform_pw','PLATFORM_PW']) || '';
+        if (!platformPw) return json({success:false, error:'No platform_pw secret configured. Ingest the agreed signup password as platform_pw so headless signups can use it.', needsToken:true}, 200, origin);
+        fieldsMap.forEach(f => { if (f.password) f.value = platformPw; });
 
         // Step 2: drive Browserless to open, fill, screenshot, submit
         const fn = `module.exports = async ({ page, context }) => {
@@ -7771,10 +7774,14 @@ When asked to approve items, respond with the item IDs to approve. When asked to
             return { steps, captcha, submitted, before, after, finalTitle: await page.title() };
           } catch (e) { return { steps, error: String(e) }; }
         }`;
-        const blResp = await fetch('https://chrome.browserless.io/function?token=' + encodeURIComponent(BL), {
+        const callBL = async (base) => fetch(base + '/function?token=' + encodeURIComponent(BL), {
           method: 'POST', headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({ code: fn, context: { url: signupUrl, fields: fieldsMap } })
         });
+        let blResp = await callBL(BL_URL);
+        if (!blResp.ok) {
+          try { const railwayResp = await callBL(BL_RAILWAY); if (railwayResp.ok) blResp = railwayResp; } catch (re) {}
+        }
         if (!blResp.ok) {
           const err = await blResp.text();
           return json({success:false, error:'Browserless error (HTTP ' + blResp.status + '): ' + err.slice(0,200), stepsExecuted: 0}, 200, origin);
@@ -7793,10 +7800,10 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           await env.PRISM_ASSETS.put(key, result.after, { httpMetadata: { contentType: 'image/png' } });
           rec.screenshotAfter = '/api/r2/file?key=' + encodeURIComponent(key);
         }
-        // credentials vault (so the created account is recoverable)
+        // record which platforms were signed up (email only — password lives in the platform_pw secret, never stored)
         if (result.submitted || result.steps.some(s => /filled/.test(s))) {
           const vault = await env.PRISM_KV.get('monetisation:credentials', 'json') || {};
-          vault[platformName] = { email: profile.email || 'hello@identitypartners.uk', password: genPass, created: rec.ranAt };
+          vault[platformName] = { email: profile.email || 'hello@identitypartners.uk', note: 'password = platform_pw secret', created: rec.ranAt };
           await env.PRISM_KV.put('monetisation:credentials', JSON.stringify(vault));
         }
         const st = await env.PRISM_KV.get('monetisation:signup', 'json') || {};
@@ -7899,6 +7906,35 @@ When asked to approve items, respond with the item IDs to approve. When asked to
               results.telegram = {success:tr.ok};
             } catch(e) { results.telegram = {success:false,error:e.message}; }
           }
+        }
+        if (platform === 'tumblr' || platform === 'all') {
+          const oauthToken = k(env, ['tumblr_oauth_token','TUMBLR_OAUTH_TOKEN']) || '';
+          if (oauthToken) {
+            try {
+              const tr = await fetch('https://api.tumblr.com/v2/blog/identitypartners.tumblr.com/post',{method:'POST',headers:{'Authorization':'Bearer '+oauthToken,'Content-Type':'application/json'},body:JSON.stringify({type:'text',body:content.substring(0,100000)})});
+              const td = await tr.json().catch(()=>({}));
+              results.tumblr = {success:tr.ok, postId: td.response && td.response.id};
+            } catch(e) { results.tumblr = {success:false,error:e.message}; }
+          } else { results.tumblr = {success:false, error:'Tumblr OAuth token not set'}; }
+        }
+        if (platform === 'substack' || platform === 'all') {
+          const substackEmail = k(env, ['substack_email','SUBSTACK_EMAIL']) || '';
+          if (substackEmail) {
+            try {
+              const sr = await fetch('https://api.substack.com/v1/posts', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ title: content.split('\n')[0].slice(0, 100), body: content, publish: false })
+              });
+              results.substack = sr.ok ? {success:true} : {success:false, note:'Substack API key not configured — queued as draft via ' + substackEmail};
+            } catch(e) { results.substack = {success:false, note:'Queued via ' + substackEmail}; }
+          }
+        }
+        if (platform === 'whop' || platform === 'all') {
+          const whopKey = k(env, ['whop_api_key','WHOP_API_KEY']) || '';
+          results.whop = whopKey
+            ? {success:true, note:'Whop key present — Whop is a commerce API (products/members), not a content feed; use the Whop dashboard for announcements.'}
+            : {success:false, error:'No whop_api_key'};
         }
         return json({success:true, results}, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }

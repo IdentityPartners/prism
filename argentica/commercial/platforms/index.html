@@ -379,7 +379,7 @@ function startHeadlessSignup() {
         if (r.success) {
           var steps = r.stepsExecuted || 0;
           var status = r.status || 'attempted';
-          if (status==='form_submitted') { addLog(name + ': \u2713 Form submitted (' + steps + ' steps) — credentials stored in the vault.', 'ok'); platformStatuses[name] = 'created'; }
+          if (status==='form_submitted') { addLog(name + ': \u2713 Form submitted (' + steps + ' steps) — signed up with the platform_pw secret.', 'ok'); platformStatuses[name] = 'created'; }
           else if (status==='captcha_stop') { addLog(name + ': \u26A0 Filled the form, stopped at CAPTCHA — screenshot saved for you to finish manually.', 'info'); platformStatuses[name] = 'needs-verification'; }
           else { addLog(name + ': \u25B6 Attempted (' + steps + ' steps) — ' + (r.note||''), 'info'); platformStatuses[name] = 'attempted'; }
           if (r.screenshot) {
