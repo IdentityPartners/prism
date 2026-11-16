@@ -6,9 +6,17 @@
 <title>Argentica — Gerald</title>
 <link rel="stylesheet" href="/shared/argentica.css">
 <style>
-  .mm-grid { display: flex; gap: 12px; align-items: stretch; }
-  .mm-col { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--paper); }
-  .mm-col .who { font-size: 11px; color: var(--ink-soft); margin-bottom: 6px; letter-spacing: 0.04em; }
+  .mm-card { border: 1px solid var(--line); border-radius: 10px; background: var(--paper); margin-bottom: 10px; overflow: hidden; }
+  .mm-card .mm-hdr { display: flex; gap: 10px; align-items: baseline; padding: 7px 12px; background: rgba(15,59,58,.05); border-bottom: 1px solid var(--line); font-size: 12px; }
+  .mm-card .mm-hdr .mm-name { font-weight: 700; color: var(--ink); }
+  .mm-card .mm-hdr .mm-state { color: var(--ink-soft); margin-left: auto; font-size: 11px; }
+  .mm-card .mm-body { padding: 12px 14px; line-height: 1.65; overflow-wrap: anywhere; }
+  .mm-card pre { background: #f4f0e6; border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow-x: auto; font-size: 12.5px; }
+  .attach-chip { display: inline-block; background: rgba(15,59,58,.08); border-radius: 10px; padding: 1px 9px; font-size: 11px; margin-right: 4px; }
+  .thread-item { display: flex; align-items: center; gap: 6px; }
+  .thread-item .t-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+  .thread-item .t-x { font-size: 13px; color: #b34; cursor: pointer; padding: 0 3px; }
+  .folder-hdr { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); margin: 8px 0 4px; }
   #hw-overlay { position: fixed; inset: 0; background: rgba(43,43,38,0.55); z-index: 500; display: none; align-items: center; justify-content: center; }
   #hw-panel { background: var(--paper); border-radius: 12px; padding: 18px; width: min(760px, 92vw); }
   #hw-canvas { background: #fff; border: 1px solid var(--line); border-radius: 8px; touch-action: none; width: 100%; cursor: crosshair; }
@@ -24,6 +32,10 @@
         <button class="ghost small" id="new-thread">+ New</button>
       </div>
       <div id="thread-list" style="overflow-y:auto; flex:1;"><div class="muted">Loading…</div></div>
+      <div class="row" style="gap:6px; margin-top:8px;">
+        <button class="ghost small" id="thread-folder">Move to folder</button>
+        <button class="ghost small" id="thread-to-library">Save to Library</button>
+      </div>
     </div>
 
     <div class="chat-centre">
@@ -38,10 +50,12 @@
         <div class="row" style="justify-content:space-between; margin-bottom:4px;">
           <div class="osk-strip" id="osk"></div>
           <div class="row" style="gap:6px;">
+            <button class="ghost small" id="attach-btn" title="Attach an image (OCR) or text file">📎 Attach</button>
             <button class="ghost small" id="osk-toggle">⌨ Compact keyboard</button>
             <button class="ghost small" id="hw-open">✎ Handwrite</button>
             <button id="send">Send</button>
           </div>
+          <input type="file" id="attach-file" style="display:none;">
         </div>
         <div id="osk-full" style="display:none; background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:6px; gap:3px; flex-direction:column;"></div>
       </div>
@@ -273,16 +287,60 @@ document.getElementById('hw-insert').addEventListener('click', async () => {
 });
 
 // ── Threads ────────────────────────────────────────────
+let folders = {};
+try { folders = JSON.parse(localStorage.getItem('arg:thread-folders') || '{}'); } catch (e) {}
+
 async function loadThreads() {
   try {
     const data = await api('/threads');
     const list = document.getElementById('thread-list');
-    list.innerHTML = (data.threads || []).map(t =>
-      '<div class="thread-item' + (t.id === threadId ? ' active' : '') + '" data-id="' + esc(t.id) + '">' + esc(t.title || 'Conversation') + '</div>'
-    ).join('') || '<div class="muted">No conversations yet.</div>';
-    list.querySelectorAll('.thread-item').forEach(el => el.addEventListener('click', () => openThread(el.dataset.id)));
+    const threads = data.threads || [];
+    const groups = {};
+    threads.forEach(t => {
+      const f = folders[t.id] || 'Conversations';
+      (groups[f] = groups[f] || []).push(t);
+    });
+    let html = '';
+    Object.keys(groups).sort().forEach(f => {
+      if (f !== 'Conversations') html += '<div class="folder-hdr">' + esc(f) + '</div>';
+      html += groups[f].map(t =>
+        '<div class="thread-item' + (t.id === threadId ? ' active' : '') + '" data-id="' + esc(t.id) + '">' +
+        '<span class="t-title">' + esc(t.title || 'Conversation') + '</span>' +
+        '<span class="t-x" data-del="' + esc(t.id) + '" title="Delete">×</span></div>'
+      ).join('');
+    });
+    list.innerHTML = html || '<div class="muted">No conversations yet.</div>';
+    list.querySelectorAll('.t-title').forEach(el => el.addEventListener('click', () => openThread(el.parentElement.dataset.id)));
+    list.querySelectorAll('.t-x').forEach(el => el.addEventListener('click', async ev => {
+      ev.stopPropagation();
+      const id = el.dataset.del;
+      if (!confirm('Delete this conversation?')) return;
+      try { await api('/threads/' + encodeURIComponent(id), { method: 'DELETE' }); if (threadId === id) { threadId = null; messages = []; scroll.innerHTML = ''; } loadThreads(); } catch (e) { ARG.toast('Could not delete.'); }
+    }));
   } catch (e) {}
 }
+
+document.getElementById('thread-folder').addEventListener('click', () => {
+  if (!threadId) { ARG.toast('Open a conversation first.'); return; }
+  const name = prompt('Folder name (e.g. Dissertation, Modules, Ideas):');
+  if (!name) return;
+  folders[threadId] = name.trim();
+  try { localStorage.setItem('arg:thread-folders', JSON.stringify(folders)); } catch (e) {}
+  loadThreads();
+  ARG.toast('Moved to "' + name.trim() + '".');
+});
+
+document.getElementById('thread-to-library').addEventListener('click', async () => {
+  if (!threadId || !messages.length) { ARG.toast('Open a conversation with content first.'); return; }
+  let title = 'Chat — ' + new Date().toLocaleString('en-GB');
+  try { const t = await api('/threads/' + encodeURIComponent(threadId)); if (t.title) title = 'Chat — ' + t.title; } catch (e) {}
+  const transcript = messages.map(m => (m.role === 'user' ? 'SIMON:\n' : 'GERALD: \n') + m.content).join('\n\n---\n\n');
+  try {
+    await api('/documents', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, type: 'note', content: transcript, tags: ['module:chat', 'section:Chat archive'], moduleSource: 'chat' }) });
+    ARG.toast('Saved to Library — visible in Search and the study hub.');
+  } catch (e) { ARG.toast('Could not save to Library.'); }
+});
 
 async function openThread(id) {
   try {
@@ -301,12 +359,21 @@ document.getElementById('new-thread').addEventListener('click', () => {
 });
 
 // ── Send: one model streams, several compare side by side ──
-async function streamOnce(override, bubble, log) {
+async function streamOnce(override, bubble, log, label) {
   let acc = '';
-  const res = await fetch('/api/chat/stream', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, profile: document.getElementById('profile').value, threadId, ...(override || {}) })
-  });
+  const ctrl = new AbortController();
+  const kill = setTimeout(() => ctrl.abort('timeout'), 150000);
+  let res;
+  try {
+    res = await fetch('/api/chat/stream', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      signal: ctrl.signal,
+      body: JSON.stringify({ messages, profile: document.getElementById('profile').value, threadId, ...(override || {}) })
+    });
+  } catch (e) {
+    clearTimeout(kill);
+    throw new Error((label || 'Model') + ': connection failed — ' + (e.message || 'network error'));
+  }
   const reader = res.body.getReader();
   const dec = new TextDecoder();
   let buf = '';
@@ -321,11 +388,13 @@ async function streamOnce(override, bubble, log) {
       const dtM = frame.match(/^data: (.+)$/m);
       if (!evM || !dtM) continue;
       const ev = evM[1], data = JSON.parse(dtM[1]);
-      if (ev === 'token') { acc += data.text; bubble.innerHTML = md(acc); scroll.scrollTop = scroll.scrollHeight; }
-      if (ev === 'done') { acc = data.content || acc; bubble.innerHTML = md(acc); log.textContent = 'via ' + (data.provider || '?') + ' · ' + (data.model || '?'); threadId = data.threadId || threadId; }
-      if (ev === 'error') { bubble.innerHTML = '<span class="muted">' + esc(data.error || 'No response.') + '</span>'; }
+      if (ev === 'token') { acc += data.text; bubble.innerHTML = md(acc); if (log) log.textContent = 'streaming…'; scroll.scrollTop = scroll.scrollHeight; }
+      if (ev === 'done') { acc = data.content || acc; bubble.innerHTML = md(acc); if (log) log.textContent = 'via ' + (data.provider || '?') + ' · ' + (data.model || '?'); threadId = data.threadId || threadId; }
+      if (ev === 'error') { throw new Error(data.error || 'No response'); }
     }
   }
+  clearTimeout(kill);
+  if (!acc.trim()) throw new Error((label || 'Model') + ' returned an empty response');
   return acc;
 }
 
@@ -345,27 +414,61 @@ async function send() {
   if (picked.length <= 1) {
     const bubble = renderMsg('assistant', '…');
     try {
-      const acc = await streamOnce(overrides[0] || null, bubble, log);
+      const acc = await streamOnce(overrides[0] || null, bubble, log, picked[0] ? picked[0].label : '');
       messages.push({ role: 'assistant', content: acc });
       loadThreads();
-    } catch (e) { bubble.innerHTML = '<span class="muted">No response — the connection dropped. Try again.</span>'; log.textContent = 'Connection failed.'; }
+    } catch (e) { bubble.innerHTML = '<span class="muted">' + esc(e.message || 'No response — the connection dropped. Try again.') + '</span>'; log.textContent = 'Connection failed.'; }
   } else {
     const wrap = document.createElement('div');
     wrap.style.marginBottom = '16px';
-    wrap.innerHTML = '<div class="mm-grid">' + picked.map(m =>
-      '<div class="mm-col"><div class="who">' + esc(m.label) + '</div><div class="bubble" style="border:none; padding:0; background:none;">…</div></div>'
-    ).join('') + '</div>';
+    wrap.innerHTML = picked.map(m =>
+      '<div class="mm-card"><div class="mm-hdr"><span class="mm-name">' + esc(m.label) + '</span><span class="mm-state">thinking…</span></div>' +
+      '<div class="mm-body">…</div></div>'
+    ).join('');
     scroll.appendChild(wrap);
     scroll.scrollTop = scroll.scrollHeight;
-    const bubbles = [...wrap.querySelectorAll('.bubble')];
+    const cards = [...wrap.querySelectorAll('.mm-card')];
     const results = await Promise.all(picked.map((m, i) =>
-      streamOnce(overrides[i], bubbles[i], { textContent: '' }).catch(() => { bubbles[i].innerHTML = '<span class="muted">No response.</span>'; return ''; })
+      streamOnce(overrides[i], cards[i].querySelector('.mm-body'), cards[i].querySelector('.mm-state'), m.label)
+        .then(r => { cards[i].querySelector('.mm-state').textContent = 'done'; return r; })
+        .catch(e => {
+          cards[i].querySelector('.mm-state').textContent = 'failed';
+          cards[i].querySelector('.mm-body').innerHTML = '<span class="muted">' + esc(e.message || 'No response.') + '</span>';
+          return '';
+        })
     ));
     log.textContent = picked.map((m, i) => m.label + (results[i] ? ' ✓' : ' ✗')).join(' · ');
     messages.push({ role: 'assistant', content: results.map((r, i) => '[' + picked[i].label + ']\n' + r).join('\n\n') });
     loadThreads();
   }
 }
+
+// ── Attachments: images via OCR, text files read directly ────────────────
+document.getElementById('attach-btn').addEventListener('click', () => document.getElementById('attach-file').click());
+document.getElementById('attach-file').addEventListener('change', async () => {
+  const file = document.getElementById('attach-file').files[0];
+  if (!file) return;
+  ARG.toast('Reading "' + file.name + '"…');
+  try {
+    let extracted = '';
+    if ((file.type || '').startsWith('image/')) {
+      const buf = await file.arrayBuffer();
+      let bin = '';
+      const bytes = new Uint8Array(buf);
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+      const d = await api('/ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: btoa(bin), mime_type: file.type }) });
+      extracted = d.text || d.content || d.result || '';
+    } else {
+      extracted = await file.text();
+    }
+    if (!extracted || !extracted.trim()) { ARG.toast('Could not extract any text from that file.'); return; }
+    input.value += (input.value ? '\n\n' : '') + '[Attached: ' + file.name + ']\n' + extracted.slice(0, 30000);
+    ARG.toast('Attached "' + file.name + '" — text extracted into the message.');
+    input.focus();
+  } catch (e) { ARG.toast('Attachment failed: ' + e.message); }
+  document.getElementById('attach-file').value = '';
+});
 
 document.getElementById('send').addEventListener('click', send);
 input.addEventListener('keydown', e => {
