@@ -7860,13 +7860,17 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           method: 'POST', headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({ code: fn, context: { url: signupUrl, fields: fieldsMap } })
         });
-        let blResp = await callBL(BL_URL);
+        let blResp = null;
+        let railErr = 'not attempted';
+        try { blResp = await callBL(BL_RAILWAY); if (!blResp.ok) railErr = 'HTTP ' + blResp.status + ': ' + (await blResp.text().catch(() => '')).slice(0, 100); }
+        catch (re) { railErr = re.message; blResp = { ok: false, status: 0, text: async () => railErr }; }
         if (!blResp.ok) {
-          try { const railwayResp = await callBL(BL_RAILWAY); if (railwayResp.ok) blResp = railwayResp; } catch (re) {}
+          try { const cloudResp = await callBL(BL_URL); if (cloudResp.ok) blResp = cloudResp; else blResp = cloudResp; }
+          catch (ce) { blResp = { ok: false, status: 0, text: async () => ce.message }; }
         }
         if (!blResp.ok) {
-          const err = await blResp.text();
-          return json({success:false, error:'Browserless error (HTTP ' + blResp.status + '): ' + err.slice(0,200), stepsExecuted: 0}, 200, origin);
+          const cloudErr = 'HTTP ' + blResp.status + ': ' + (await blResp.text().catch(() => '')).slice(0, 100);
+          return json({success:false, error:'Both Browserless endpoints rejected the token. Railway instance: ' + railErr + ' | chrome.browserless.io: ' + cloudErr + '. The browserless secret must be either your Railway instance token (the TOKEN env var in the Railway deployment) or a chrome.browserless.io token.', stepsExecuted: 0}, 200, origin);
         }
         const result = await blResp.json();
 
