@@ -7707,6 +7707,52 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
     }
 
+    // ── Monetisation: signup status tracker ──────────────────────────────────────────
+    if (path === '/api/monetisation/signup-status' && request.method === 'GET') {
+      try {
+        const st = await env.PRISM_KV.get('monetisation:signup', 'json') || {};
+        return json({ status: st }, 200, origin);
+      } catch(e) { return json({ status: {} }, 200, origin); }
+    }
+    if (path === '/api/monetisation/signup-status' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const st = await env.PRISM_KV.get('monetisation:signup', 'json') || {};
+        st[body.platform] = { state: body.state || 'todo', handle: body.handle || '', notes: body.notes || '', updated: new Date().toISOString() };
+        await env.PRISM_KV.put('monetisation:signup', JSON.stringify(st));
+        return json({ success: true, status: st }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    // ── Monetisation: headless account creation (platforms with open APIs) ───────────────────────────────
+    if (path === '/api/monetisation/create-account' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const platform = body.platform || '';
+        if (platform === 'bluesky') {
+          const handle = (body.handle || '').trim();
+          const email = (body.email || '').trim();
+          const password = body.password || '';
+          if (!handle || !email || !password) return json({success:false, error:'handle, email and password are all required'}, 400, origin);
+          if (!handle.endsWith('.bsky.social')) return json({success:false, error:'handle must end in .bsky.social (a subdomain handle)'}, 400, origin);
+          const r = await fetch('https://bsky.social/xrpc/com.atproto.server.createAccount', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ handle, email, password })
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) return json({success:false, error: (d.message || d.error || 'Bluesky refused the signup') + ' (HTTP ' + r.status + ')'}, 200, origin);
+          if (env.PRISM_KV) {
+            const st = await env.PRISM_KV.get('monetisation:signup', 'json') || {};
+            st['Bluesky'] = { state: 'created', handle: handle, notes: 'created headlessly ' + new Date().toISOString(), updated: new Date().toISOString() };
+            await env.PRISM_KV.put('monetisation:signup', JSON.stringify(st));
+          }
+          return json({success:true, handle: handle, did: d.did}, 200, origin);
+        }
+        return json({success:false, error:'No open signup API for ' + platform + ' — use the signup kit for that platform.'}, 200, origin);
+      } catch(e) { return json({success:false, error: e.message}, 500, origin); }
+    }
+
+
     if (path === '/api/monetisation/profiles' && request.method === 'GET') {
       try {
         const profiles = env.PRISM_KV ? await env.PRISM_KV.get('monetisation:profiles', 'json') : null;
