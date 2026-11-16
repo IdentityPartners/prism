@@ -33,8 +33,9 @@
       </div>
       <div id="thread-list" style="overflow-y:auto; flex:1;"><div class="muted">Loading…</div></div>
       <div class="row" style="gap:6px; margin-top:8px;">
+        <button class="ghost small" id="thread-pin">📌 Pin</button>
         <button class="ghost small" id="thread-folder">Move to folder</button>
-        <button class="ghost small" id="thread-to-library">Save to Library</button>
+        <button class="ghost small" id="thread-to-library">Save to Knowledge Base</button>
       </div>
     </div>
 
@@ -117,7 +118,9 @@
 ARG.buildShell('chat');
 const { api, esc, md } = ARG;
 
-let threadId = null;
+let threadId = 't' + Date.now();
+let pins = {};
+try { pins = JSON.parse(localStorage.getItem('arg:thread-pins') || '{}'); } catch (e) {}
 let messages = [];
 
 const scroll = document.getElementById('chat-scroll');
@@ -291,6 +294,14 @@ document.getElementById('hw-insert').addEventListener('click', async () => {
 let folders = {};
 try { folders = JSON.parse(localStorage.getItem('arg:thread-folders') || '{}'); } catch (e) {}
 
+document.getElementById('thread-pin').addEventListener('click', () => {
+  if (!threadId) { ARG.toast('Open a conversation first.'); return; }
+  if (pins[threadId]) { delete pins[threadId]; ARG.toast('Unpinned.'); }
+  else { pins[threadId] = true; ARG.toast('Pinned — it stays at the top of the list.'); }
+  try { localStorage.setItem('arg:thread-pins', JSON.stringify(pins)); } catch (e) {}
+  loadThreads();
+});
+
 async function loadThreads() {
   try {
     const data = await api('/threads');
@@ -302,6 +313,13 @@ async function loadThreads() {
       (groups[f] = groups[f] || []).push(t);
     });
     let html = '';
+    const pinned = threads.filter(t => pins[t.id]);
+    if (pinned.length) {
+      html += '<div class="folder-hdr">📌 Pinned</div>' + pinned.map(t =>
+        '<div class="thread-item' + (t.id === threadId ? ' active' : '') + '" data-id="' + esc(t.id) + '">' +
+        '<span class="t-title">' + esc(t.title || 'Conversation') + '</span>' +
+        '<span class="t-x" data-del="' + esc(t.id) + '" title="Delete">×</span></div>').join('');
+    }
     Object.keys(groups).sort().forEach(f => {
       if (f !== 'Conversations') html += '<div class="folder-hdr">' + esc(f) + '</div>';
       html += groups[f].map(t =>
@@ -335,12 +353,21 @@ document.getElementById('thread-to-library').addEventListener('click', async () 
   if (!threadId || !messages.length) { ARG.toast('Open a conversation with content first.'); return; }
   let title = 'Chat — ' + new Date().toLocaleString('en-GB');
   try { const t = await api('/threads/' + encodeURIComponent(threadId)); if (t.title) title = 'Chat — ' + t.title; } catch (e) {}
-  const transcript = messages.map(m => (m.role === 'user' ? 'SIMON:\n' : 'GERALD: \n') + m.content).join('\n\n---\n\n');
+  const transcript = messages.map(m => (m.role === 'user' ? 'SIMON:\n' : 'GERALD:\n') + m.content).join('\n\n---\n\n');
+  const htmlContent = '<h1>' + esc(title) + '</h1>' +
+    messages.map(m => '<p><strong>' + (m.role === 'user' ? 'Simon' : 'Gerald') + ':</strong></p><p>' + esc(m.content).replace(/\n/g, '<br>') + '</p>').join('<hr>');
+  let saved = false;
+  try {
+    await api('/kb', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'kb-chat-' + threadId, title, content: htmlContent }) });
+    saved = true;
+  } catch (e) {}
   try {
     await api('/documents', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, type: 'note', content: transcript, tags: ['module:chat', 'section:Chat archive'], moduleSource: 'chat' }) });
-    ARG.toast('Saved to Library — visible in Search and the study hub.');
-  } catch (e) { ARG.toast('Could not save to Library.'); }
+  } catch (e) {}
+  ARG.toast(saved ? 'Saved as a Knowledge Base page — find it in Library → Knowledge base.'
+                  : 'Saved to Library documents — find it via Library → Search.');
 });
 
 async function openThread(id) {
@@ -355,7 +382,7 @@ async function openThread(id) {
 }
 
 document.getElementById('new-thread').addEventListener('click', () => {
-  threadId = null; messages = []; scroll.innerHTML = '';
+  threadId = 't' + Date.now(); messages = []; scroll.innerHTML = '';
   loadThreads(); input.focus();
 });
 

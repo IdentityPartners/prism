@@ -3846,6 +3846,13 @@ data: ${JSON.stringify(data)}
                 thread.messageCount = thread.messages.filter(m => m.role !== 'system').length;
                 if (!thread.title) thread.title = messages.find(m => m.role === 'user')?.content?.substring(0, 60) || 'Conversation';
                 await env.PRISM_KV.put(threadKey, JSON.stringify(thread), { expirationTtl: 86400 * 90 });
+                try {
+                  const idx = JSON.parse(await env.PRISM_KV.get('thread-index:simon').catch(() => '[]') || '[]');
+                  if (!idx.includes(threadId)) {
+                    idx.unshift(threadId);
+                    await env.PRISM_KV.put('thread-index:simon', JSON.stringify(idx.slice(0, 200)));
+                  }
+                } catch (ie) {}
               }
             }
           } catch(e) {
