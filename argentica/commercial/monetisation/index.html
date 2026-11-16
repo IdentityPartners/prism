@@ -25,12 +25,13 @@
   <div class="arg-pagehead spread">
     <div>
       <h1>Monetisation</h1>
-      <div class="sub">One master profile, proliferated across platforms — then created, verified and posted to.</div>
+      <div class="sub">One master profile, proliferated across the 125-platform registry — accounts created, verified and posted to, all from here.</div>
     </div>
     <div class="row" style="gap:6px;">
       <button class="mtab on" data-tab="proliferate">Profiles</button>
       <button class="mtab" data-tab="signup">Signup kit</button>
       <button class="mtab" data-tab="post">Post</button>
+      <button class="mtab" data-tab="registry">Registry</button>
     </div>
   </div>
 
@@ -80,6 +81,12 @@ Monthly Package: £150/month</textarea>
     </div>
   </div>
 
+  <div id="tab-registry" style="display:none;">
+    <div class="card" style="padding:0; height: calc(100vh - 210px); overflow: hidden;">
+      <iframe src="/argentica/commercial/platforms/?embed=1" style="width:100%; height:100%; border: none;"></iframe>
+    </div>
+  </div>
+
   <div id="tab-post" style="display:none;">
     <div class="card">
       <h3>Post to platform profiles</h3>
@@ -124,7 +131,7 @@ const sel = new Set(PLATFORMS.map(p => p.name));
 
 document.querySelectorAll('.mtab').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('.mtab').forEach(x => x.classList.toggle('on', x === b));
-  ['proliferate', 'signup', 'post'].forEach(t => document.getElementById('tab-' + t).style.display = t === b.dataset.tab ? 'block' : 'none');
+  ['proliferate', 'signup', 'post', 'registry'].forEach(t => document.getElementById('tab-' + t).style.display = t === b.dataset.tab ? 'block' : 'none');
 }));
 
 function chips() {

@@ -468,7 +468,15 @@ function refreshStatus() {
   .catch(function(e) { Toast.error('Refresh failed: ' + e.message); });
 }
 
-ARG.buildShell('platforms');
+var PM_EMBED = new URLSearchParams(location.search).get('embed');
+if (PM_EMBED) {
+  document.documentElement.classList.add('pm-embed');
+  var style = document.createElement('style');
+  style.textContent = '.pm-shell{height:100vh;} .arg-page{padding:0 !important;}';
+  document.head.appendChild(style);
+} else {
+  ARG.buildShell('platforms');
+}
 </script>
 </body>
 </html>

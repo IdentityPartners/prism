@@ -51,9 +51,10 @@
           <div class="osk-strip" id="osk"></div>
           <div class="row" style="gap:6px;">
             <button class="ghost small" id="attach-btn" title="Attach an image (OCR) or text file">📎 Attach</button>
+            <button class="ghost small" id="dictate-btn" title="Dictate with your microphone">🎙 Dictate</button>
             <button class="ghost small" id="osk-toggle">⌨ Compact keyboard</button>
             <button class="ghost small" id="hw-open">✎ Handwrite</button>
-            <button id="send">Send</button>
+            <button id="send" title="Ctrl/Cmd+Enter also sends">Send</button>
           </div>
           <input type="file" id="attach-file" style="display:none;">
         </div>
@@ -398,7 +399,7 @@ async function streamOnce(override, bubble, log, label) {
   return acc;
 }
 
-async function send() {
+async function doSend() {
   const text = input.value.trim();
   if (!text) return;
   input.value = '';
@@ -470,9 +471,40 @@ document.getElementById('attach-file').addEventListener('change', async () => {
   document.getElementById('attach-file').value = '';
 });
 
-document.getElementById('send').addEventListener('click', send);
+async function send() {
+  try { await doSend(); }
+  catch (e) { ARG.toast('Send failed: ' + (e.message || e)); console.error(e); }
+}
+
+document.getElementById('send').addEventListener('click', () => { send(); });
+// Enter inserts a line break; Ctrl/Cmd+Enter sends
 input.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); }
+});
+
+// ── Dictation (browser speech recognition) ─────────────────────────────────────────────
+let recog = null, dictating = false;
+document.getElementById('dictate-btn').addEventListener('click', () => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { ARG.toast('Dictation needs Chrome, Edge or Safari.'); return; }
+  if (dictating) { recog.stop(); return; }
+  try {
+    recog = new SR();
+    recog.lang = 'en-GB';
+    recog.continuous = true;
+    recog.interimResults = false;
+    recog.onresult = ev => {
+      let txt = '';
+      for (let i = ev.resultIndex; i < ev.results.length; i++) if (ev.results[i].isFinal) txt += ev.results[i][0].transcript;
+      if (txt) { input.value += (input.value ? ' ' : '') + txt.trim(); input.focus(); }
+    };
+    recog.onend = () => { dictating = false; document.getElementById('dictate-btn').textContent = '🎙 Dictate'; };
+    recog.onerror = ev => { dictating = false; document.getElementById('dictate-btn').textContent = '🎙 Dictate'; ARG.toast('Dictation error: ' + ev.error); };
+    recog.start();
+    dictating = true;
+    document.getElementById('dictate-btn').textContent = '⏹ Stop';
+    ARG.toast('Listening… speak, then press the button again to stop.');
+  } catch (e) { ARG.toast('Could not start dictation: ' + e.message); }
 });
 
 document.getElementById('act-save').addEventListener('click', async () => {
