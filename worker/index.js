@@ -7708,6 +7708,115 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     }
 
     // ── Monetisation: signup status tracker ──────────────────────────────────────────
+    // ── Headless signup engine (Browserless + AI-directed form filling) ──────────────────
+    if (path === '/api/headless/signup' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const platformName = body.platform || '';
+        const signupUrl = body.signupUrl || '';
+        const profile = body.profile || {};
+        if (!signupUrl || !platformName) return json({success:false, error:'platform and signupUrl required'}, 400, origin);
+
+        const BL = k(env, ['browserless_token','BROWSERLESS_TOKEN','browserless_api_key']) || '';
+        if (!BL) return json({success:false, error:'No Browserless token configured. Add browserless_token (chrome.browserless.io) via System > Ingest secrets, or deploy browserless on the Railway account and give me its URL.', needsToken:true}, 200, origin);
+
+        // Step 1: fetch the signup page and map fields heuristically
+        let fieldsMap = [];
+        try {
+          const page = await fetch(signupUrl, {headers:{'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36'}});
+          const html = (await page.text()).slice(0, 300000);
+          const inputs = [...html.matchAll(/<input[^>]*>/gi)].map(m => m[0]);
+          for (const tag of inputs.slice(0, 30)) {
+            const name = (tag.match(/name="([^"]*)"/i)||[])[1] || '';
+            const type = (tag.match(/type="([^"]*)"/i)||[])[1] || 'text';
+            const id = (tag.match(/id="([^"]*)"/i)||[])[1] || '';
+            const ph = (tag.match(/placeholder="([^"]*)"/i)||[])[1] || '';
+            const label = (name + ' ' + id + ' ' + ph).toLowerCase();
+            if (/email/.test(label)) fieldsMap.push({selector: name ? 'input[name="'+name+'"]' : 'input[type=email]', value: profile.email || 'hello@identitypartners.uk'});
+            else if (/pass/.test(label)) fieldsMap.push({selector: 'input[type=password]', value: profile.password || '', password: true});
+            else if (/display|fullname|full.name|first/.test(label)) fieldsMap.push({selector: name ? 'input[name="'+name+'"]' : 'input', value: profile.displayName || profile.name || 'Identity Partners'});
+            else if (/user|handle|nickname/.test(label)) fieldsMap.push({selector: name ? 'input[name="'+name+'"]' : 'input', value: profile.handle || 'identitypartners'});
+            else if (/phone|tel/.test(label)) fieldsMap.push({selector: name ? 'input[name="'+name+'"]' : 'input[type=tel]', value: profile.phone || ''});
+            else if (/url|website|link/.test(label)) fieldsMap.push({selector: name ? 'input[name="'+name+'"]' : 'input[type=url]', value: profile.website || 'https://www.identitypartners.uk'});
+          }
+        } catch (he) {}
+
+        // Generate a per-platform password if none supplied
+        const genPass = profile.password || ('IP-' + Math.random().toString(36).slice(2,8) + '!' + Math.random().toString(36).slice(2,6).toUpperCase());
+        fieldsMap.forEach(f => { if (f.password) f.value = genPass; });
+
+        // Step 2: drive Browserless to open, fill, screenshot, submit
+        const fn = `module.exports = async ({ page, context }) => {
+          const steps = [];
+          try {
+            await page.goto(context.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+            steps.push('opened');
+            for (const f of context.fields) {
+              try {
+                const el = await page.$(f.selector);
+                if (el && f.value) { await el.type(f.value, {delay: 20}); steps.push('filled ' + f.selector); }
+              } catch (e) {}
+            }
+            const before = await page.screenshot({ encoding: 'base64' });
+            // detect captcha before submitting
+            const html = await page.content();
+            const captcha = /captcha|recaptcha|hcaptcha|turnstile|cf-challenge/i.test(html);
+            let submitted = false;
+            if (!captcha) {
+              const btn = await page.$('button[type=submit], input[type=submit], button:not([type])');
+              if (btn) { try { await Promise.race([btn.click(), page.waitForNavigation({timeout: 20000})]); } catch (e) {} submitted = true; steps.push('submitted'); }
+            } else { steps.push('captcha detected - stopped for human'); }
+            const after = await page.screenshot({ encoding: 'base64' });
+            const finalHtml = (await page.content()).slice(0, 20000);
+            return { steps, captcha, submitted, before, after, finalTitle: await page.title() };
+          } catch (e) { return { steps, error: String(e) }; }
+        }`;
+        const blResp = await fetch('https://chrome.browserless.io/function?token=' + encodeURIComponent(BL), {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ code: fn, context: { url: signupUrl, fields: fieldsMap } })
+        });
+        if (!blResp.ok) {
+          const err = await blResp.text();
+          return json({success:false, error:'Browserless error (HTTP ' + blResp.status + '): ' + err.slice(0,200), stepsExecuted: 0}, 200, origin);
+        }
+        const result = await blResp.json();
+
+        // Step 3: store screenshots + record status
+        const rec = { platform: platformName, url: signupUrl, steps: result.steps || [], captcha: !!result.captcha, submitted: !!result.submitted, ranAt: new Date().toISOString() };
+        if (result.before) {
+          const key = 'headless/' + platformName.toLowerCase().replace(/\W/g,'-') + '-' + Date.now() + '-before.png';
+          await env.PRISM_ASSETS.put(key, result.before, { httpMetadata: { contentType: 'image/png' } });
+          rec.screenshotBefore = '/api/r2/file?key=' + encodeURIComponent(key);
+        }
+        if (result.after) {
+          const key = 'headless/' + platformName.toLowerCase().replace(/\W/g,'-') + '-' + Date.now() + '-after.png';
+          await env.PRISM_ASSETS.put(key, result.after, { httpMetadata: { contentType: 'image/png' } });
+          rec.screenshotAfter = '/api/r2/file?key=' + encodeURIComponent(key);
+        }
+        // credentials vault (so the created account is recoverable)
+        if (result.submitted || result.steps.some(s => /filled/.test(s))) {
+          const vault = await env.PRISM_KV.get('monetisation:credentials', 'json') || {};
+          vault[platformName] = { email: profile.email || 'hello@identitypartners.uk', password: genPass, created: rec.ranAt };
+          await env.PRISM_KV.put('monetisation:credentials', JSON.stringify(vault));
+        }
+        const st = await env.PRISM_KV.get('monetisation:signup', 'json') || {};
+        st[platformName] = { state: result.submitted ? 'created' : (result.captcha ? 'needs-verification' : 'attempted'),
+                              notes: (result.steps || []).join('; ').slice(0,200), updated: rec.ranAt };
+        await env.PRISM_KV.put('monetisation:signup', JSON.stringify(st));
+        return json({ success: true, status: result.submitted ? 'form_submitted' : (result.captcha ? 'captcha_stop' : 'attempted'),
+                      stepsExecuted: (result.steps || []).length, note: result.captcha ? 'Stopped at CAPTCHA — open the screenshot and finish manually.' : (result.error || ''),
+                      screenshot: rec.screenshotAfter || rec.screenshotBefore || null, record: rec }, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
+    if (path === '/api/headless/credentials' && request.method === 'GET') {
+      try {
+        const vault = await env.PRISM_KV.get('monetisation:credentials', 'json') || {};
+        return json({ credentials: vault }, 200, origin);
+      } catch(e) { return json({ credentials: {} }, 200, origin); }
+    }
+
+
     if (path === '/api/monetisation/signup-status' && request.method === 'GET') {
       try {
         const st = await env.PRISM_KV.get('monetisation:signup', 'json') || {};
