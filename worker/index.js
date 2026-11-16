@@ -7799,10 +7799,11 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         const profile = body.profile || {};
         if (!signupUrl || !platformName) return json({success:false, error:'platform and signupUrl required'}, 400, origin);
 
-        const BL = k(env, ['browserless','browserless_token','BROWSERLESS_TOKEN','browserless_api_key','BROWSERLESS.IO']) || '';
+        const BL_CLOUD = k(env, ['browserless','browserless_token','BROWSERLESS_TOKEN','browserless_api_key','BROWSERLESS.IO']) || '';
+        const BL_RAILWAY_TOKEN = k(env, ['railway_browserless_token','RAILWAY_BROWSERLESS_TOKEN','browserless_railway_token']) || '';
         const BL_URL = k(env, ['browserless_url','BROWSERLESS_URL']) || 'https://chrome.browserless.io';
-        const BL_RAILWAY = 'https://browserless-production-e49c65ef.up.railway.app';
-        if (!BL) return json({success:false, error:'No Browserless token configured. Ingest it as browserless (or browserless_token).', needsToken:true}, 200, origin);
+        const BL_RAILWAY = k(env, ['browserless_railway_url']) || 'https://browserless-production-e49c65ef.up.railway.app';
+        if (!BL_CLOUD && !BL_RAILWAY_TOKEN) return json({success:false, error:'No Browserless token. Ingest railway_browserless_token (for the Railway instance) and/or browserless (for chrome.browserless.io).', needsToken:true}, 200, origin);
 
         // Step 1: fetch the signup page and map fields heuristically
         let fieldsMap = [];
@@ -7831,7 +7832,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         fieldsMap.forEach(f => { if (f.password) f.value = platformPw; });
 
         // Step 2: drive Browserless to open, fill, screenshot, submit
-        const fn = `module.exports = async ({ page, context }) => {
+        const fn = `export default async ({ page, context }) => {
           const steps = [];
           try {
             await page.goto(context.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
@@ -7853,26 +7854,29 @@ When asked to approve items, respond with the item IDs to approve. When asked to
             } else { steps.push('captcha detected - stopped for human'); }
             const after = await page.screenshot({ encoding: 'base64' });
             const finalHtml = (await page.content()).slice(0, 20000);
-            return { steps, captcha, submitted, before, after, finalTitle: await page.title() };
-          } catch (e) { return { steps, error: String(e) }; }
+            return { data: { steps, captcha, submitted, before, after, finalTitle: await page.title() }, type: 'application/json' };
+          } catch (e) { return { data: { steps, error: String(e) }, type: 'application/json' }; }
         }`;
-        const callBL = async (base) => fetch(base + '/function?token=' + encodeURIComponent(BL), {
+        const callBL = async (base, tok) => fetch(base + '/function?token=' + encodeURIComponent(tok || ''), {
           method: 'POST', headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({ code: fn, context: { url: signupUrl, fields: fieldsMap } })
         });
         let blResp = null;
-        let railErr = 'not attempted';
-        try { blResp = await callBL(BL_RAILWAY); if (!blResp.ok) railErr = 'HTTP ' + blResp.status + ': ' + (await blResp.text().catch(() => '')).slice(0, 100); }
-        catch (re) { railErr = re.message; blResp = { ok: false, status: 0, text: async () => railErr }; }
-        if (!blResp.ok) {
-          try { const cloudResp = await callBL(BL_URL); if (cloudResp.ok) blResp = cloudResp; else blResp = cloudResp; }
-          catch (ce) { blResp = { ok: false, status: 0, text: async () => ce.message }; }
+        let railErr = 'no railway_browserless_token';
+        if (BL_RAILWAY_TOKEN) {
+          try { blResp = await callBL(BL_RAILWAY, BL_RAILWAY_TOKEN); if (!blResp.ok) railErr = 'HTTP ' + blResp.status + ': ' + (await blResp.text().catch(() => '')).slice(0, 100); }
+          catch (re) { railErr = re.message; blResp = { ok: false, status: 0, text: async () => railErr }; }
         }
-        if (!blResp.ok) {
-          const cloudErr = 'HTTP ' + blResp.status + ': ' + (await blResp.text().catch(() => '')).slice(0, 100);
-          return json({success:false, error:'Both Browserless endpoints rejected the token. Railway instance: ' + railErr + ' | chrome.browserless.io: ' + cloudErr + '. The browserless secret must be either your Railway instance token (the TOKEN env var in the Railway deployment) or a chrome.browserless.io token.', stepsExecuted: 0}, 200, origin);
+        if ((!blResp || !blResp.ok) && BL_CLOUD) {
+          try { const cloudResp = await callBL(BL_URL, BL_CLOUD); if (cloudResp.ok) blResp = cloudResp; else if (!blResp || !blResp.ok) blResp = cloudResp; }
+          catch (ce) { if (!blResp || !blResp.ok) blResp = { ok: false, status: 0, text: async () => ce.message }; }
         }
-        const result = await blResp.json();
+        if (!blResp || !blResp.ok) {
+          const cloudErr = blResp ? ('HTTP ' + blResp.status + ': ' + (await blResp.text().catch(() => '')).slice(0, 120)) : 'not attempted (no cloud token)';
+          return json({success:false, error:'Browserless failed. Railway instance: ' + railErr + ' | chrome.browserless.io: ' + cloudErr, stepsExecuted: 0}, 200, origin);
+        }
+        const blJson = await blResp.json();
+        const result = (blJson && blJson.data) ? blJson.data : blJson;
 
         // Step 3: store screenshots + record status
         const rec = { platform: platformName, url: signupUrl, steps: result.steps || [], captcha: !!result.captcha, submitted: !!result.submitted, ranAt: new Date().toISOString() };
