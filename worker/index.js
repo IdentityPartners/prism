@@ -7660,8 +7660,8 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     if (path === '/api/social/tumblr' && request.method === 'POST') {
       try {
         const body = await request.json();
-        const consumerKey = k(env, ['tumblr_key','TUMBLR_KEY']) || '';
-        const consumerSecret = k(env, ['tumblr_secret','TUMBLR_SECRET']) || '';
+        const consumerKey = k(env, ['tumblr_key','TUMBLR_KEY','Tumblr_OAuth_consumer_key']) || '';
+        const consumerSecret = k(env, ['tumblr_secret','TUMBLR_SECRET','Tumblr_OAuth_consumer_secret']) || '';
         if (!consumerKey) return json({success:false,error:'Tumblr keys not configured'},400,origin);
         const blogName = body.blog || 'identitypartners';
         const text = body.text || '';
@@ -7799,7 +7799,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         const profile = body.profile || {};
         if (!signupUrl || !platformName) return json({success:false, error:'platform and signupUrl required'}, 400, origin);
 
-        const BL = k(env, ['browserless','browserless_token','BROWSERLESS_TOKEN','browserless_api_key']) || '';
+        const BL = k(env, ['browserless','browserless_token','BROWSERLESS_TOKEN','browserless_api_key','BROWSERLESS.IO']) || '';
         const BL_URL = k(env, ['browserless_url','BROWSERLESS_URL']) || 'https://chrome.browserless.io';
         const BL_RAILWAY = 'https://browserless-production-e49c65ef.up.railway.app';
         if (!BL) return json({success:false, error:'No Browserless token configured. Ingest it as browserless (or browserless_token).', needsToken:true}, 200, origin);
