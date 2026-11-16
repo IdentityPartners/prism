@@ -7739,10 +7739,15 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     if (path === '/api/postiz/integrations' && request.method === 'GET') {
       try {
         const key = k(env, ['postiz_api_key','POSTIZ_API_KEY']) || '';
-        const base = (k(env, ['postiz_url','POSTIZ_URL']) || 'https://postiz-production-ec050668.up.railway.app') + '/api/public/v1';
+        const host = k(env, ['postiz_url','POSTIZ_URL']) || 'https://postiz-production-ec050668.up.railway.app';
         if (!key) return json({success:false, error:'No postiz_api_key. Copy the API key from your Postiz Settings and ingest it as postiz_api_key.', integrations: []}, 200, origin);
-        const r = await fetch(base + '/integrations', { headers: { 'Authorization': key } });
-        if (!r.ok) return json({success:false, error:'Postiz HTTP ' + r.status + ' (instance asleep or unreachable?)', integrations: []}, 200, origin);
+        let r = await fetch(host + '/api/public/v1/integrations', { headers: { 'Authorization': key } });
+        let usedPath = '/api/public/v1';
+        if (!r.ok || !(r.headers.get('content-type')||'').includes('json')) {
+          r = await fetch(host + '/public/v1/integrations', { headers: { 'Authorization': key } });
+          usedPath = '/public/v1';
+        }
+        if (!r.ok) return json({success:false, error:'Postiz HTTP ' + r.status + ' (backend not exposed through this domain?)', integrations: []}, 200, origin);
         const integrations = await r.json();
         return json({success:true, integrations: Array.isArray(integrations) ? integrations : []}, 200, origin);
       } catch(e) { return json({success:false, error: e.message, integrations: []}, 200, origin); }
@@ -7751,9 +7756,14 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       try {
         const body = await request.json();
         const key = k(env, ['postiz_api_key','POSTIZ_API_KEY']) || '';
-        const base = (k(env, ['postiz_url','POSTIZ_URL']) || 'https://postiz-production-ec050668.up.railway.app') + '/api/public/v1';
+        const host = k(env, ['postiz_url','POSTIZ_URL']) || 'https://postiz-production-ec050668.up.railway.app';
         if (!key) return json({success:false, error:'No postiz_api_key configured'}, 200, origin);
-        const r0 = await fetch(base + '/integrations', { headers: { 'Authorization': key } });
+        let r0 = await fetch(host + '/api/public/v1/integrations', { headers: { 'Authorization': key } });
+        let base = host + '/api/public/v1';
+        if (!r0.ok || !(r0.headers.get('content-type')||'').includes('json')) {
+          r0 = await fetch(host + '/public/v1/integrations', { headers: { 'Authorization': key } });
+          base = host + '/public/v1';
+        }
         if (!r0.ok) return json({success:false, error:'Postiz unreachable (HTTP ' + r0.status + ')'}, 200, origin);
         let integrations = await r0.json();
         if (!Array.isArray(integrations)) integrations = [];
