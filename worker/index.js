@@ -7718,27 +7718,30 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     // ── Headless signup engine (Browserless + AI-directed form filling) ──────────────────
     // ── Postiz (self-hosted on Railway) ───────────────────────────────────────────────
     // ── Railway status (read-only, via railway_token) ─────────────────────────────────────
+
     if (path === '/api/railway/status' && request.method === 'GET') {
       try {
-        const token = k(env, ['railway_token','railway_account_token','RAILWAY_TOKEN','railway_api_token']) || '';
+        const token = k(env, ['railway_account_token','railway_token','RAILWAY_TOKEN','railway_api_token']) || '';
         if (!token) return json({success:false, error:'No railway_token configured'}, 200, origin);
-        const query = `query { me { id name email } projects(first: 20) { edges { node { id name environments(first: 5) { edges { node { id name services(first: 10) { edges { node { id name } } } deployments(first: 3) { edges { node { id status createdAt } } } } } } } } } }`;
-        const r = await fetch('https://backboard.tenant-railway.com/graphql', {
+        const query = `query { me { id email } workspaces: me { workspaces { id name projects(first: 20) { edges { node { id name environments(first: 5) { edges { node { id name serviceInstances(first: 10) { edges { node { id service { id name } } } } } } } } } } } } }`;
+        const r = await fetch('https://backboard.railway.com/graphql/v2', {
           method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
           body: JSON.stringify({ query })
         });
         const d = await r.json().catch(() => ({}));
         if (d.errors) return json({success:false, error: d.errors.map(e => e.message).join('; ')}, 200, origin);
         const me = d.data && d.data.me || null;
-        const projects = (d.data && d.data.projects && d.data.projects.edges || []).map(pe => ({
-          name: pe.node.name,
-          environments: (pe.node.environments && pe.node.environments.edges || []).map(ee => ({
-            name: ee.node.name,
-            services: (ee.node.services && ee.node.services.edges || []).map(se => se.node.name),
-            latestDeployments: (ee.node.deployments && ee.node.deployments.edges || []).map(de => ({ status: de.node.status, createdAt: de.node.createdAt }))
+        const workspaces = (d.data && d.data.workspaces && d.data.workspaces.workspaces || []).map(w => ({
+          id: w.id, name: w.name,
+          projects: (w.projects && w.projects.edges || []).map(pe => ({
+            id: pe.node.id, name: pe.node.name,
+            environments: (pe.node.environments && pe.node.environments.edges || []).map(ee => ({
+              id: ee.node.id, name: ee.node.name,
+              services: (ee.node.serviceInstances && ee.node.serviceInstances.edges || []).map(se => (se.node.service && se.node.service.name) || '(service)')
+            }))
           }))
         }));
-        return json({success:true, me, projects}, 200, origin);
+        return json({success:true, me, workspaces}, 200, origin);
       } catch(e) { return json({success:false, error: e.message}, 200, origin); }
     }
 
