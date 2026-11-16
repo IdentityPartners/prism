@@ -7709,6 +7709,62 @@ When asked to approve items, respond with the item IDs to approve. When asked to
 
     // ── Monetisation: signup status tracker ──────────────────────────────────────────
     // ── Headless signup engine (Browserless + AI-directed form filling) ──────────────────
+    // ── Postiz (self-hosted on Railway) ───────────────────────────────────────────────
+    if (path === '/api/postiz/integrations' && request.method === 'GET') {
+      try {
+        const key = k(env, ['postiz_api_key','POSTIZ_API_KEY']) || '';
+        const base = (k(env, ['postiz_url','POSTIZ_URL']) || 'https://postiz-production-ec050668.up.railway.app') + '/api/public/v1';
+        if (!key) return json({success:false, error:'No postiz_api_key. Copy the API key from your Postiz Settings and ingest it as postiz_api_key.', integrations: []}, 200, origin);
+        const r = await fetch(base + '/integrations', { headers: { 'Authorization': key } });
+        if (!r.ok) return json({success:false, error:'Postiz HTTP ' + r.status + ' (instance asleep or unreachable?)', integrations: []}, 200, origin);
+        const integrations = await r.json();
+        return json({success:true, integrations: Array.isArray(integrations) ? integrations : []}, 200, origin);
+      } catch(e) { return json({success:false, error: e.message, integrations: []}, 200, origin); }
+    }
+    if (path === '/api/postiz/post' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const key = k(env, ['postiz_api_key','POSTIZ_API_KEY']) || '';
+        const base = (k(env, ['postiz_url','POSTIZ_URL']) || 'https://postiz-production-ec050668.up.railway.app') + '/api/public/v1';
+        if (!key) return json({success:false, error:'No postiz_api_key configured'}, 200, origin);
+        const r0 = await fetch(base + '/integrations', { headers: { 'Authorization': key } });
+        if (!r0.ok) return json({success:false, error:'Postiz unreachable (HTTP ' + r0.status + ')'}, 200, origin);
+        let integrations = await r0.json();
+        if (!Array.isArray(integrations)) integrations = [];
+        let targets = integrations;
+        if (Array.isArray(body.integrationIds) && body.integrationIds.length) {
+          targets = integrations.filter(i => body.integrationIds.includes(i.id));
+        }
+        if (!targets.length) return json({success:false, error:'No connected Postiz channels found. Connect channels in the Postiz dashboard first.'}, 200, origin);
+
+        let imageIds = [];
+        if (body.imageUrl) {
+          try {
+            const up = await fetch(base + '/upload-from-url', { method: 'POST', headers: { 'Authorization': key, 'Content-Type': 'application/json' }, body: JSON.stringify({ url: body.imageUrl }) });
+            if (up.ok) { const ud = await up.json(); if (ud && ud.id) imageIds = [ud.id]; }
+          } catch (ue) {}
+        }
+
+        const payload = {
+          type: body.type || 'now',
+          date: body.date || new Date(Date.now() + 60000).toISOString(),
+          shortLink: false,
+          tags: [],
+          posts: targets.map(function(t) {
+            return {
+              integration: { id: t.id },
+              value: [{ content: (body.content || '').substring(0, 5000), image: imageIds }],
+              settings: { __type: t.identifier || 'x' }
+            };
+          })
+        };
+        const pr = await fetch(base + '/posts', { method: 'POST', headers: { 'Authorization': key, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const pd = await pr.json().catch(() => ({}));
+        return json({success: pr.ok, status: pr.status, data: pd, channels: targets.map(t => t.name + ' (' + (t.identifier || '') + ')')}, 200, origin);
+      } catch(e) { return json({success:false, error: e.message}, 500, origin); }
+    }
+
+
     if (path === '/api/headless/signup' && request.method === 'POST') {
       try {
         const body = await request.json();

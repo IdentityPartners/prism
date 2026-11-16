@@ -89,6 +89,7 @@ Monthly Package: £150/month</textarea>
         <button id="post-now">Post now</button>
         <button class="ghost" id="post-queue">Add to queue</button>
       </div>
+      <div class="mt" id="postiz-channels"><span class="muted">Checking Postiz channels…</span></div>
       <div class="mt" id="post-results"></div>
     </div>
   </div>
@@ -232,7 +233,8 @@ const POSTABLE = [
   { id: 'substack', label: 'Substack (draft via API/email)' },
   { id: 'instagram', label: 'Instagram (Buffer)' },
   { id: 'facebook', label: 'Facebook (Buffer)' },
-  { id: 'x', label: 'X (Buffer)' }
+  { id: 'x', label: 'X (Buffer)' },
+  { id: 'postiz', label: 'Postiz (all connected channels)' }
 ];
 document.getElementById('post-platform-selector').innerHTML = POSTABLE.map(p =>
   '<label class="row" style="gap:4px; font-size:13px;"><input type="checkbox" value="' + p.id + '"' + (p.id === 'bluesky' ? ' checked' : '') + '> ' + esc(p.label) + '</label>').join('');
@@ -244,9 +246,17 @@ document.getElementById('post-now').addEventListener('click', async () => {
   if (!content || !platforms.length) { ARG.toast('Content and at least one platform.'); return; }
   out.innerHTML = '<div class="muted">Posting…</div>';
   try {
-    const d = await api('/monetisation/post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform: platforms.length === 1 ? platforms[0] : 'all', content }) });
-    out.innerHTML = '<div class="badge teal">Sent.</div> <span class="muted" style="font-size:12px;">' + esc(JSON.stringify(d.results || {})) + '</span>';
-  } catch (e) { out.innerHTML = '<div class="badge rose">Failed: ' + esc(e.message) + '</div>'; }
+    if (platforms.includes('postiz')) {
+      const pz = await api('/postiz/post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, type: 'now' }) });
+      out.innerHTML = pz.success
+        ? '<div class="badge teal">Postiz:</div> <span class="muted" style="font-size:12px;">' + esc((pz.channels || []).join(', ')) + '</span><br>'
+        : '<div class="badge rose">Postiz:</div> <span class="muted" style="font-size:12px;">' + esc(pz.error || 'failed') + '</span><br>';
+    }
+    const rest = platforms.filter(p => p !== 'postiz');
+    if (!rest.length) return;
+    const d = await api('/monetisation/post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform: rest.length === 1 ? rest[0] : 'all', content }) });
+    out.innerHTML += '<div class="badge teal">Sent.</div> <span class="muted" style="font-size:12px;">' + esc(JSON.stringify(d.results || {})) + '</span>';
+  } catch (e) { out.innerHTML += '<div class="badge rose">Failed: ' + esc(e.message) + '</div>'; }
 });
 document.getElementById('post-queue').addEventListener('click', async () => {
   const content = document.getElementById('post-content').value.trim();
@@ -260,6 +270,18 @@ document.getElementById('post-queue').addEventListener('click', async () => {
 
 loadKit();
 loadSaved();
+
+// Postiz channel status
+(async function loadPostiz() {
+  try {
+    const d = await api('/postiz/integrations');
+    const el = document.getElementById('postiz-channels');
+    if (!el) return;
+    el.innerHTML = d.success
+      ? (d.integrations || []).map(i => '<span class="badge teal">' + esc(i.name) + ' · ' + esc(i.identifier || '') + '</span>').join(' ') || '<span class="muted">No channels connected in Postiz yet.</span>'
+      : '<span class="muted">' + esc(d.error || 'Postiz unreachable') + '</span>';
+  } catch (e) {}
+})();
 </script>
 </body>
 </html>
