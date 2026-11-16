@@ -372,6 +372,26 @@ document.getElementById('ask').addEventListener('click', () => {
   location.href = '/argentica/chat/';
 });
 
+// Extract text from every page and index it for semantic search (fire-and-forget)
+async function indexForSearch() {
+  if (!pdf || !docId) return;
+  try {
+    let text = '';
+    const max = Math.min(pdf.numPages, 60);
+    for (let i = 1; i <= max; i++) {
+      const page = await pdf.getPage(i);
+      const tc = await page.getTextContent();
+      text += tc.items.map(it => it.str).join(' ') + '\n\n';
+      if (text.length > 150000) break;
+    }
+    if (text.trim().length > 40) {
+      fetch('/api/study/index-document', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text, fileName: (doc && doc.title) || docId, moduleId: (doc && doc.moduleSource) || '', weekId: '' })
+      }).catch(() => {});
+    }
+  } catch (e) {}
+}
+
 function resolveFileUrl(raw) {
   if (!raw) return '';
   if (raw.includes('/api/r2/file')) return raw;
@@ -399,6 +419,7 @@ function resolveFileUrl(raw) {
     pdf = await pdfjsLib.getDocument({ data: pdfBytes.slice(0) }).promise;
     if (doc.annotations && doc.annotations.length) strokes = migrateLegacy(doc.annotations);
     renderPage();
+    indexForSearch();
   } catch (e) {
     status.textContent = 'Could not open the document: ' + e.message;
   }

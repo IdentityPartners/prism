@@ -4477,6 +4477,37 @@ data: ${JSON.stringify(data)}
     // ── Study Hub: auto-index uploaded document ───────────────────────────────
     // ── Notes (WriteHandy cloud sync) ────────────────────────────────────────────────────
     // ── Personas ───────────────────────────────────────────────────────────────────
+    // ── Knowledge base (wiki) ──────────────────────────────────────────────────────────────
+    if (path === '/api/kb' && request.method === 'GET') {
+      try {
+        const list = await env.PRISM_KV.list({ prefix: 'kb:' });
+        const pages = [];
+        for (const k of (list.keys || []).slice(0, 200)) {
+          const v = await env.PRISM_KV.get(k.name, 'json');
+          if (v) pages.push(v);
+        }
+        pages.sort(function(a,b){ return (a.title||'').localeCompare(b.title||''); });
+        return json({ pages }, 200, origin);
+      } catch(e) { return json({ pages: [], error: e.message }, 200, origin); }
+    }
+    if (path === '/api/kb' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('kb-' + Date.now());
+        const rec = { id, title: body.title || 'Untitled', content: body.content || '',
+                      created: body.created || new Date().toISOString(), updated: new Date().toISOString() };
+        await env.PRISM_KV.put('kb:' + id, JSON.stringify(rec));
+        return json({ success: true, page: rec }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/kb/') && request.method === 'DELETE') {
+      try {
+        await env.PRISM_KV.delete('kb:' + path.replace('/api/kb/', ''));
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+
     if (path === '/api/personas' && request.method === 'GET') {
       try {
         const list = await env.PRISM_KV.list({ prefix: 'persona:' });

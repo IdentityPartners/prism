@@ -53,6 +53,8 @@
         { label: 'Study hub', href: '/argentica/library/', key: 'library' },
         { label: 'Notebooks', href: '/argentica/library/notebooks/', key: 'notebooks' },
         { label: 'Debate society', href: '/argentica/library/debate/', key: 'debate' },
+        { label: 'Memory', href: '/argentica/library/memory/', key: 'memory' },
+        { label: 'Knowledge base', href: '/argentica/library/knowledge/', key: 'knowledge' },
         { label: 'Search', href: '/argentica/library/search/', key: 'library-search' }
       ]
     },
