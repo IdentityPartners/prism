@@ -3,8 +3,16 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Platform Manager — Prism</title>
-<link rel="stylesheet" href="/shared/prism.css">
-<link rel="stylesheet" href="/shared/themes.css">
+<link rel="stylesheet" href="/shared/argentica.css">
+<style>
+:root {
+  --border: rgba(15,59,58,.18); --bg: #fdfbf6; --fg: #1c1a17;
+  --bg-surface: #fff; --bg-elevated: #fff; --bg-sunken: #f4f0e6;
+  --fg-muted: #6b675f; --fg-secondary: #6b675f; --fg-primary: #1c1a17; --bg-primary: #fff;
+  --accent: #0f3b3a; --accent-light: #e7efe9;
+  --font-ui: Georgia, serif; --font-heading: Georgia, serif;
+}
+</style>
 <style>
 .pm-layout{display:grid;grid-template-columns:1fr 320px;height:calc(100vh - var(--topbar-h));overflow:hidden;}
 @media(max-width:1000px){.pm-layout{grid-template-columns:1fr;}.pm-right{display:none;}}
@@ -128,7 +136,6 @@
     </div>
   </div>
 </div>
-<script src="/shared/prism.js"></script>
 <script>
 var WORKER = '';
 var currentCat = 'all';
