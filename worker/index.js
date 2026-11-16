@@ -7720,9 +7720,9 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     // ── Railway status (read-only, via railway_token) ─────────────────────────────────────
     if (path === '/api/railway/status' && request.method === 'GET') {
       try {
-        const token = k(env, ['railway_token','RAILWAY_TOKEN','railway_api_token']) || '';
+        const token = k(env, ['railway_token','railway_account_token','RAILWAY_TOKEN','railway_api_token']) || '';
         if (!token) return json({success:false, error:'No railway_token configured'}, 200, origin);
-        const query = `query { me { id name email } projects { edges { node { id name environments { edges { node { id name services { edges { node { id name } } } deployments(first: 3) { edges { node { id status createdAt } } } } } } } } }`;
+        const query = `query { me { id name email } projects(first: 20) { edges { node { id name environments(first: 5) { edges { node { id name services(first: 10) { edges { node { id name } } } deployments(first: 3) { edges { node { id status createdAt } } } } } } } } } }`;
         const r = await fetch('https://backboard.tenant-railway.com/graphql', {
           method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
           body: JSON.stringify({ query })
