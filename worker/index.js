@@ -4483,7 +4483,8 @@ data: ${JSON.stringify(data)}
         const list = await env.PRISM_KV.list({ prefix: 'kb:' });
         const pages = [];
         for (const k of (list.keys || []).slice(0, 200)) {
-          const v = await env.PRISM_KV.get(k.name, 'json');
+          let v = null;
+          try { v = await env.PRISM_KV.get(k.name, 'json'); } catch (ke) { v = null; }
           if (v) pages.push(v);
         }
         pages.sort(function(a,b){ return (a.title||'').localeCompare(b.title||''); });
@@ -4513,7 +4514,8 @@ data: ${JSON.stringify(data)}
         const list = await env.PRISM_KV.list({ prefix: 'persona:' });
         const personas = [];
         for (const k of (list.keys || [])) {
-          const v = await env.PRISM_KV.get(k.name, 'json');
+          let v = null;
+          try { v = await env.PRISM_KV.get(k.name, 'json'); } catch (ke) { v = null; }
           if (v) personas.push(v);
         }
         return json({ personas }, 200, origin);
@@ -4554,7 +4556,8 @@ data: ${JSON.stringify(data)}
         const list = await env.PRISM_KV.list({ prefix: 'debate:' });
         const debates = [];
         for (const k of (list.keys || [])) {
-          const v = await env.PRISM_KV.get(k.name, 'json');
+          let v = null;
+          try { v = await env.PRISM_KV.get(k.name, 'json'); } catch (ke) { v = null; }
           if (v) debates.push({ id: v.id, topic: v.topic, created: v.created, turns: (v.transcript || []).length });
         }
         debates.sort(function(a,b){ return (b.created||'').localeCompare(a.created||''); });
@@ -4568,7 +4571,8 @@ data: ${JSON.stringify(data)}
         const list = await env.PRISM_KV.list({ prefix: 'memory:' });
         const memories = [];
         for (const k of (list.keys || []).slice(0, 200)) {
-          const v = await env.PRISM_KV.get(k.name, 'json');
+          let v = null;
+          try { v = await env.PRISM_KV.get(k.name, 'json'); } catch (ke) { v = null; }
           if (v) memories.push(v);
         }
         memories.sort(function(a,b){ return (b.created||'').localeCompare(a.created||''); });
@@ -4599,7 +4603,8 @@ data: ${JSON.stringify(data)}
         const list = await env.PRISM_KV.list({ prefix: 'research:query:' });
         const queries = [];
         for (const k of (list.keys || [])) {
-          const v = await env.PRISM_KV.get(k.name, 'json');
+          let v = null;
+          try { v = await env.PRISM_KV.get(k.name, 'json'); } catch (ke) { v = null; }
           if (v) queries.push(v);
         }
         queries.sort(function(a,b){ return (b.created||'').localeCompare(a.created||''); });
