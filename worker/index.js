@@ -7710,6 +7710,32 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     // ── Monetisation: signup status tracker ──────────────────────────────────────────
     // ── Headless signup engine (Browserless + AI-directed form filling) ──────────────────
     // ── Postiz (self-hosted on Railway) ───────────────────────────────────────────────
+    // ── Railway status (read-only, via railway_token) ─────────────────────────────────────
+    if (path === '/api/railway/status' && request.method === 'GET') {
+      try {
+        const token = k(env, ['railway_token','RAILWAY_TOKEN','railway_api_token']) || '';
+        if (!token) return json({success:false, error:'No railway_token configured'}, 200, origin);
+        const query = `query { me { id name email } projects { edges { node { id name environments { edges { node { id name services { edges { node { id name } } } deployments(first: 3) { edges { node { id status createdAt } } } } } } } } }`;
+        const r = await fetch('https://backboard.tenant-railway.com/graphql', {
+          method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query })
+        });
+        const d = await r.json().catch(() => ({}));
+        if (d.errors) return json({success:false, error: d.errors.map(e => e.message).join('; ')}, 200, origin);
+        const me = d.data && d.data.me || null;
+        const projects = (d.data && d.data.projects && d.data.projects.edges || []).map(pe => ({
+          name: pe.node.name,
+          environments: (pe.node.environments && pe.node.environments.edges || []).map(ee => ({
+            name: ee.node.name,
+            services: (ee.node.services && ee.node.services.edges || []).map(se => se.node.name),
+            latestDeployments: (ee.node.deployments && ee.node.deployments.edges || []).map(de => ({ status: de.node.status, createdAt: de.node.createdAt }))
+          }))
+        }));
+        return json({success:true, me, projects}, 200, origin);
+      } catch(e) { return json({success:false, error: e.message}, 200, origin); }
+    }
+
+
     if (path === '/api/postiz/integrations' && request.method === 'GET') {
       try {
         const key = k(env, ['postiz_api_key','POSTIZ_API_KEY']) || '';
