@@ -1560,8 +1560,13 @@ async function getCalendarEvents(env, from, to) {
       return e;
     }));
     let filtered = events.filter(Boolean);
-    if (from) filtered = filtered.filter(e => e.scheduledFor >= from);
-    if (to)   filtered = filtered.filter(e => e.scheduledFor <= to);
+    filtered.forEach(e => {
+      if (!e.scheduledFor) e.scheduledFor = e.starts_at || e.date || e.created || '';
+      if (!e.starts_at) e.starts_at = e.scheduledFor;
+    });
+    const fd = (from || '').slice(0, 10), td = (to || '').slice(0, 10);
+    if (fd) filtered = filtered.filter(e => (e.scheduledFor || '').slice(0, 10) >= fd);
+    if (td) filtered = filtered.filter(e => (e.scheduledFor || '').slice(0, 10) <= td);
     return filtered.sort((a,b) => (a.scheduledFor||'').localeCompare(b.scheduledFor||''));
   } catch(e) { return []; }
 }
@@ -1941,7 +1946,9 @@ async function handleIntegrationRoutes(path, request, env, origin) {
   if (path === '/api/calendar/events' && request.method === 'POST') {
     try {
       const body  = await request.json();
-      const event = { id:'cal-'+Date.now(), created:new Date().toISOString(), ...body };
+      const scheduledFor = body.scheduledFor || body.date || (body.time ? body.date + 'T' + body.time + ':00' : new Date().toISOString());
+      const event = { id:'cal-'+Date.now(), created:new Date().toISOString(), ...body, scheduledFor,
+                      starts_at: scheduledFor, title: body.title || body.text || 'Event' };
       await createCalendarEvent(event, env);
       return json({ success: true, event }, 200, origin);
     } catch(e) { return json({ error: e.message }, 500, origin); }
@@ -3334,7 +3341,7 @@ export default {
 
 
     // ── Zoho Calendar events ──────────────────────────────────────────────────
-        if (path === '/api/calendar/events' && request.method === 'GET') {
+        if (path === '/api/zoho/events-alt' && request.method === 'GET') {
       try {
         const raw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
         if (!raw) return json({status:'not_connected', today:[], week:[], next_week:[]}, 200, origin);
@@ -3403,7 +3410,7 @@ export default {
     }
 
 
-    if (path === '/api/calendar/events' && request.method === 'GET') {
+    if (path === '/api/zoho/events-alt2' && request.method === 'GET') {
       try {
         const tokenRaw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
         if (!tokenRaw) return json({status:'not_connected', today:[], week:[], next_week:[]}, 200, origin);
