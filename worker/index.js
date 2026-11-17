@@ -2009,6 +2009,16 @@ export default {
     const origin = request.headers.get('Origin') || '';
 
     if (request.method === 'OPTIONS') {
+      if (path.startsWith('/api/postiz-proxy/')) {
+        return new Response(null, { status: 204, headers: {
+          'Access-Control-Allow-Origin': (origin && origin.includes('.up.railway.app')) ? origin : 'https://postiz-production-ec050668.up.railway.app',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization,auth,x-copilotkit-runtime-client-gql-version',
+          'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Expose-Headers': 'reload,onboarding,activate,x-copilotkit-runtime-client-gql-version',
+          'Access-Control-Max-Age': '86400'
+        } });
+      }
       return new Response(null, { status: 204, headers: cors(origin) });
     }
 
@@ -7724,7 +7734,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         const token = k(env, ['railway_account_token','railway_token','RAILWAY_TOKEN','railway_api_token']) || '';
         const url2 = new URL(request.url);
         const envId = url2.searchParams.get('environmentId') || '1085176f-99ac-45f7-b14b-53c50ac807cf';
-        const q = 'query { serviceInstance(environmentId: "1085176f-99ac-45f7-b14b-53c50ac807cf", serviceId: "c0016dce-597b-4cb0-b0b8-3e914536c2ef") { id latestDeployment { id status createdAt } activeDeployments { id status createdAt } } }';
+        const q = 'mutation { variableUpsert(input: { projectId: "b20afd12-447e-4b0a-a596-c0ed9d53a946", environmentId: "1085176f-99ac-45f7-b14b-53c50ac807cf", serviceId: "c0016dce-597b-4cb0-b0b8-3e914536c2ef", name: "NEXT_PUBLIC_BACKEND_URL", value: "https://arch.identitypartners.uk/api/postiz-proxy" }) }';
         const r = await fetch('https://backboard.railway.com/graphql/v2', {
           method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: q })
@@ -7760,6 +7770,36 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         }));
         return json({success:true, me, workspaces}, 200, origin);
       } catch(e) { return json({success:false, error: e.message}, 200, origin); }
+    }
+
+
+    // ── Postiz CORS proxy: same-origin bridge for the Postiz app ────────────────────────────────────────
+    if (path.startsWith('/api/postiz-proxy/')) {
+      const BE = k(env, ['postiz_url','POSTIZ_URL']) || 'https://postiz-production-70a8954f.up.railway.app';
+      const reqOrigin = request.headers.get('Origin') || '';
+      const allowedOrigin = reqOrigin.includes('.up.railway.app') ? reqOrigin : '';
+      const corsHeaders = {
+        'Access-Control-Allow-Origin': allowedOrigin,
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,auth,x-copilotkit-runtime-client-gql-version',
+        'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Expose-Headers': 'reload,onboarding,activate,x-copilotkit-runtime-client-gql-version',
+        'Access-Control-Max-Age': '86400'
+      };
+      if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
+      const subPath = path.replace('/api/postiz-proxy/', '');
+      const url2 = new URL(request.url);
+      const target = BE + '/' + subPath + (url2.search || '');
+      const fwdHeaders = new Headers();
+      ['content-type','auth','authorization','accept','x-copilotkit-runtime-client-gql-version'].forEach(h => {
+        const v = request.headers.get(h); if (v) fwdHeaders.set(h, v);
+      });
+      try {
+        const resp = await fetch(target, { method: request.method, headers: fwdHeaders, body: ['GET','HEAD'].includes(request.method) ? undefined : request.body });
+        const h = new Headers(resp.headers);
+        Object.entries(corsHeaders).forEach(([k2, v]) => h.set(k2, v));
+        return new Response(resp.body, { status: resp.status, headers: h });
+      } catch (e) { return json({ error: e.message }, 502, origin); }
     }
 
 
