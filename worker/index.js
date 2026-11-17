@@ -7719,6 +7719,23 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     // ── Postiz (self-hosted on Railway) ───────────────────────────────────────────────
     // ── Railway status (read-only, via railway_token) ─────────────────────────────────────
 
+    if (path === '/api/railway/variables' && request.method === 'GET') {
+      try {
+        const token = k(env, ['railway_account_token','railway_token','RAILWAY_TOKEN','railway_api_token']) || '';
+        const url2 = new URL(request.url);
+        const envId = url2.searchParams.get('environmentId') || '1085176f-99ac-45f7-b14b-53c50ac807cf';
+        const q = 'query { serviceInstance(environmentId: "1085176f-99ac-45f7-b14b-53c50ac807cf", serviceId: "c0016dce-597b-4cb0-b0b8-3e914536c2ef") { id latestDeployment { id status createdAt } activeDeployments { id status createdAt } } }';
+        const r = await fetch('https://backboard.railway.com/graphql/v2', {
+          method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: q })
+        });
+        const d = await r.json();
+        if (d.errors) return json({success:false, error: d.errors.map(e => e.message).join('; ')}, 200, origin);
+        return json({success:true, data: d.data}, 200, origin);
+      } catch(e) { return json({success:false, error: e.message}, 200, origin); }
+    }
+
+
     if (path === '/api/railway/status' && request.method === 'GET') {
       try {
         const token = k(env, ['railway_account_token','railway_token','RAILWAY_TOKEN','railway_api_token']) || '';
