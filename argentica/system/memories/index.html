@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Memories</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  .doc { border: 1px solid rgba(15,59,58,.18); border-radius: 8px; padding: 12px 14px; background: #fff; margin-bottom: 10px; }
+  .doc .head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .doc .name { font-family: Georgia, serif; font-size: 15px; }
+  .doc .snippet { font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; max-height: 90px; overflow: hidden; color: #444; margin-top: 6px; }
+  .doc .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11.5px; color: #777; }
+  .tag { display: inline-block; font-size: 11px; background: rgba(15,59,58,.08); border-radius: 10px; padding: 1px 8px; margin-right: 4px; }
+  .dropzone { border: 2px dashed rgba(15,59,58,.3); border-radius: 10px; padding: 26px 18px; text-align: center; cursor: pointer; transition: background .15s, border-color .15s; }
+  .dropzone:hover, .dropzone.over { background: rgba(15,59,58,.04); border-color: #0f3b3a; }
+  .mem-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .cat-chip { display: inline-block; font-size: 11px; border-radius: 10px; padding: 2px 9px; background: rgba(92,45,63,.12); cursor: pointer; }
+  .cat-chip.on { background: #5c2d3f; color: #fff; }
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="system-memories">
+  <div class="arg-pagehead">
+    <h1>Memories</h1>
+    <div class="sub">Documents that feed Argentica's memory of you — resume, bios, preferences, credentials notes. Not library material; context only.</div>
+  </div>
+
+  <div class="grid two">
+    <div>
+      <div class="card" style="padding:12px 14px;">
+        <div class="mem-row">
+          <input type="text" id="mem-search" placeholder="Search memories…" style="flex:1;" oninput="render()">
+          <select id="mem-cat-filter" onchange="render()">
+            <option value="">All categories</option>
+          </select>
+        </div>
+      </div>
+      <div id="memory-list" class="mt"><div class="muted">Loading…</div></div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h3>Upload a memory document</h3>
+        <div class="dropzone" id="dropzone">
+          <div style="font-size:26px;">📄</div>
+          <div>Drop a file here, or click to choose.<br><span class="muted" style="font-size:12px;">PDF, Word-exported text, .txt, .md, images (OCR)</span></div>
+          <input type="file" id="mem-file" style="display:none;" accept=".pdf,.txt,.md,.json,application/pdf,text/plain,image/*">
+        </div>
+        <div id="doc-status" class="muted mt" style="font-size:12px;"></div>
+      </div>
+
+      <div class="card mt">
+        <h3>Add a memory by hand</h3>
+        <textarea id="mem-content" rows="4" style="width:100%;" placeholder="What should Argentica remember?"></textarea>
+        <div class="mem-row">
+          <input type="text" id="mem-tags" placeholder="Tags, comma-separated" style="flex:1;">
+          <select id="mem-category">
+            <option value="document">Document</option>
+            <option value="general">General</option>
+            <option value="preference">Preference</option>
+            <option value="biographical">Biographical</option>
+            <option value="professional">Professional</option>
+          </select>
+        </div>
+        <button class="mt" id="mem-save">Save memory</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+ARG.buildShell('system-memories');
+const { api, esc } = ARG;
+let memories = [];
+
+async function load() {
+  try {
+    const d = await api('/memory');
+    memories = d.memories || [];
+    const cats = [...new Set(memories.map(m => m.category).filter(Boolean))].sort();
+    const sel = document.getElementById('mem-cat-filter');
+    sel.innerHTML = '<option value="">All categories</option>' + cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    render();
+  } catch (e) {
+    document.getElementById('memory-list').innerHTML = '<div class="muted">Could not load: ' + esc(e.message) + '</div>';
+  }
+}
+
+function render() {
+  const q = (document.getElementById('mem-search').value || '').toLowerCase();
+  const cat = document.getElementById('mem-cat-filter').value;
+  const list = memories.filter(m =>
+    (!cat || m.category === cat) &&
+    (!q || (m.content || '').toLowerCase().includes(q) || (m.source || '').toLowerCase().includes(q) ||
+      (m.tags || []).join(' ').toLowerCase().includes(q))
+  );
+  const el = document.getElementById('memory-list');
+  if (!list.length) { el.innerHTML = '<div class="muted">No memories here yet — upload a document or add one by hand.</div>'; return; }
+  el.innerHTML = list.map(m => `
+    <div class="doc">
+      <div class="head">
+        <div class="name">${esc((m.source && m.source !== 'manual') ? m.source : 'Memory')}</div>
+        <button class="ghost small" onclick="del('${esc(m.id)}')">Delete</button>
+      </div>
+      <div>
+        ${(m.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}
+        <span class="tag" style="background:rgba(92,45,63,.12);">${esc(m.category || 'general')}</span>
+      </div>
+      <div class="snippet">${esc((m.content || '').slice(0, 400))}${(m.content || '').length > 400 ? '…' : ''}</div>
+      <div class="foot">
+        <span>${esc(new Date(m.created).toLocaleString('en-GB'))}</span>
+        <button class="ghost small" onclick="toggleSnippet('${esc(m.id)}', this)">${(m.content || '').length > 400 ? 'Show all' : ''}</button>
+      </div>
+    </div>`).join('');
+}
+
+async function del(id) {
+  if (!confirm('Delete this memory?')) return;
+  try { await api('/memory/' + id, { method: 'DELETE' }); ARG.toast('Memory deleted.'); load(); }
+  catch (e) { ARG.toast('Delete failed: ' + e.message); }
+}
+
+let expanded = {};
+function toggleSnippet(id, btn) {
+  expanded[id] = !expanded[id];
+  const m = memories.find(x => x.id === id);
+  const snip = btn.closest('.doc').querySelector('.snippet');
+  snip.style.maxHeight = expanded[id] ? 'none' : '90px';
+  btn.textContent = expanded[id] ? 'Collapse' : 'Show all';
+}
+
+document.getElementById('mem-save').addEventListener('click', async () => {
+  const content = document.getElementById('mem-content').value.trim();
+  if (!content) { ARG.toast('Nothing to save.'); return; }
+  const tags = (document.getElementById('mem-tags').value || '').split(',').map(s => s.trim()).filter(Boolean);
+  try {
+    await api('/memory', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, tags, category: document.getElementById('mem-category').value, source: 'manual' }) });
+    document.getElementById('mem-content').value = ''; document.getElementById('mem-tags').value = '';
+    ARG.toast('Memory saved — Gerald and agents can draw on it now.');
+    load();
+  } catch (e) { ARG.toast('Save failed: ' + e.message); }
+});
+
+// ── Upload: PDF via pdf.js text layer, images via OCR, text files directly ──
+const dz = document.getElementById('dropzone');
+const fileInput = document.getElementById('mem-file');
+dz.addEventListener('click', () => fileInput.click());
+['dragover', 'dragenter'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('over'); }));
+dz.addEventListener('drop', e => { if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); fileInput.value = ''; });
+
+function setStatus(t) { document.getElementById('doc-status').textContent = t; }
+
+async function extractText(file) {
+  const name = file.name.toLowerCase();
+  if ((file.type || '') === 'application/pdf' || name.endsWith('.pdf')) {
+    setStatus('Extracting PDF text…');
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let out = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const tc = await page.getTextContent();
+      const t = tc.items.map(it => it.str).join(' ').replace(/\s+/g, ' ').trim();
+      if (t) out.push(t);
+    }
+    return out.join('\n\n');
+  }
+  if ((file.type || '').startsWith('image/')) {
+    setStatus('OCR on image…');
+    const buf = await file.arrayBuffer();
+    let bin = '';
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    const d = await api('/ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: btoa(bin), mime_type: file.type }) });
+    return d.text || d.content || d.result || '';
+  }
+  return await file.text();
+}
+
+async function handleFile(file) {
+  setStatus('Reading "' + file.name + '"…');
+  try {
+    let text = await extractText(file);
+    if (!text || !text.trim()) {
+      setStatus('');
+      ARG.toast('No selectable text in "' + file.name + '" — it may be a scanned image PDF. Export it as text, or screenshot the pages and upload as images.');
+      return;
+    }
+    if (text.length > 60000) text = text.slice(0, 60000);
+    setStatus('Saving as memory (' + text.length + ' chars)…');
+    await api('/memory', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: '[Document: ' + file.name + ']\n' + text, category: 'document', source: file.name }) });
+    setStatus('Saved "' + file.name + '" as a memory document.');
+    ARG.toast('"' + file.name + '" added to memory.');
+    load();
+  } catch (e) { setStatus(''); ARG.toast('Upload failed: ' + e.message); }
+}
+
+load();
+</script>
+</body>
+</html>
