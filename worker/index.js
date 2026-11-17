@@ -7885,6 +7885,48 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     }
 
 
+    if (path === '/api/headless/diag' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const url = body.url || 'https://arch.identitypartners.uk/argentica/chat/';
+        const selectors = body.selectors || ['#send', '#hw-open', '#dictate-btn', '#osk-toggle'];
+        const BL_RAILWAY_TOKEN = k(env, ['railway_browserless_token']) || '';
+        const BL_CLOUD = k(env, ['browserless']) || '';
+        const fn = `export default async ({ page, context }) => {
+          await page.setViewport({ width: 1440, height: 900 });
+          await page.goto(context.url, { waitUntil: 'networkidle2', timeout: 45000 });
+          const out = [];
+          for (const sel of context.selectors) {
+            try {
+              const el = await page.$(sel);
+              if (!el) { out.push({ selector: sel, exists: false }); continue; }
+              const box = await el.boundingBox();
+              if (!box) { out.push({ selector: sel, exists: true, visible: false }); continue; }
+              const cx = box.x + Math.min(box.width / 2, 30);
+              const cy = box.y + Math.min(box.height / 2, 15);
+              const info = await page.evaluate(([x, y]) => {
+                const top = document.elementFromPoint(x, y);
+                return { tag: top ? top.tagName : null, id: top ? top.id : null, cls: top ? top.className : null, text: top ? (top.textContent || '').slice(0, 40) : null };
+              }, [cx, cy]);
+              out.push({ selector: sel, exists: true, visible: true, box, topLeftElement: info });
+            } catch (e) { out.push({ selector: sel, error: String(e).slice(0, 120) }); }
+          }
+          return { data: { results: out }, type: 'application/json' };
+        }`;
+        const callBL = async (base, tok) => fetch(base + '/function?token=' + encodeURIComponent(tok || ''), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: fn, context: { url, selectors } })
+        });
+        let resp = null;
+        if (BL_RAILWAY_TOKEN) { try { resp = await callBL(k(env,['browserless_railway_url']) || 'https://browserless-production-e49c65ef.up.railway.app', BL_RAILWAY_TOKEN); } catch (e) {} }
+        if ((!resp || !resp.ok) && BL_CLOUD) { try { resp = await callBL('https://chrome.browserless.io', BL_CLOUD); } catch (e) {} }
+        if (!resp || !resp.ok) return json({ success: false, error: 'Browserless unavailable' }, 200, origin);
+        const result = await resp.json();
+        return json({ success: true, results: (result.data && result.data.results) || result.results || [] }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+
     if (path === '/api/headless/signup' && request.method === 'POST') {
       try {
         const body = await request.json();

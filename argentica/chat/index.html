@@ -17,6 +17,10 @@
   .thread-item .t-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
   .thread-item .t-x { font-size: 13px; color: #b34; cursor: pointer; padding: 0 3px; }
   .folder-hdr { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); margin: 8px 0 4px; }
+  .chat-inputbar { position: relative; z-index: 20; }
+  .chat-centre { min-width: 0; }
+  .chat-right { pointer-events: none; min-width: 0; }
+  .chat-right > * { pointer-events: auto; }
   #hw-overlay { position: fixed; inset: 0; background: rgba(43,43,38,0.55); z-index: 500; display: none; align-items: center; justify-content: center; }
   #hw-panel { background: var(--paper); border-radius: 12px; padding: 18px; width: min(760px, 92vw); }
   #hw-canvas { background: #fff; border: 1px solid var(--line); border-radius: 8px; touch-action: none; width: 100%; cursor: crosshair; }
@@ -205,6 +209,10 @@ const OSK_SYM_ROWS = [
 let oskShift = false;
 let oskSymbols = false;
 let oskCtrl = false;
+let oskSymPage = 0;
+const OSK_SYM_PAGES = [];
+for (let i = 0; i < OSK_SYM_ROWS.length; i += 4) OSK_SYM_PAGES.push(OSK_SYM_ROWS.slice(i, i + 4));
+const oskSymNavRow = ['abc'];
 const OSK_NUM = ['1','2','3','4','5','6','7','8','9','0','-','/'];
 function oskKey(k) {
   let s = input.selectionStart, en = input.selectionEnd;
@@ -215,7 +223,10 @@ function oskKey(k) {
 }
 function buildOskFull() {
   oskFull.innerHTML = '';
-  (oskSymbols ? OSK_SYM_ROWS : OSK_ROWS).forEach(row => {
+  let rows = oskSymbols ? OSK_SYM_PAGES[oskSymPage] : OSK_ROWS;
+  if (oskSymbols) rows = rows.concat([oskSymNavRow.concat(['⌫', '⏎'])]);
+  else rows = rows;
+  rows.forEach(row => {
     const r = document.createElement('div');
     r.style.display = 'flex'; r.style.gap = '3px'; r.style.justifyContent = 'center';
     row.forEach(k => {
@@ -229,7 +240,7 @@ function buildOskFull() {
       b.addEventListener('pointerdown', e => {
         e.preventDefault();
         if (k === '⇧') { oskShift = !oskShift; buildOskFull(); return; }
-        if (k === '123' || k === '?123') { oskSymbols = !oskSymbols; buildOskFull(); return; }
+        if (k === '123' || k === '?123') { oskSymbols = !oskSymbols; oskSymPage = 0; buildOskFull(); return; }
         if (k === 'abc') { oskSymbols = false; buildOskFull(); return; }
         if (k === 'Ctrl') { oskCtrl = !oskCtrl; buildOskFull(); return; }
         if (k === '⏎' && oskCtrl) { oskCtrl = false; buildOskFull(); doSend().catch(() => {}); return; }
@@ -240,6 +251,21 @@ function buildOskFull() {
     });
     oskFull.appendChild(r);
   });
+  if (oskSymbols) {
+    const nav = document.createElement('div');
+    nav.style.display = 'flex'; nav.style.gap = '6px'; nav.style.justifyContent = 'center'; nav.style.marginTop = '4px';
+    const prev = document.createElement('button');
+    prev.className = 'ghost small'; prev.textContent = '‹ prev';
+    prev.addEventListener('pointerdown', e => { e.preventDefault(); oskSymPage = (oskSymPage - 1 + OSK_SYM_PAGES.length) % OSK_SYM_PAGES.length; buildOskFull(); });
+    const label = document.createElement('span');
+    label.style.cssText = 'font-size:12px; color:var(--ink-soft); align-self:center;';
+    label.textContent = (oskSymPage + 1) + ' / ' + OSK_SYM_PAGES.length;
+    const next = document.createElement('button');
+    next.className = 'ghost small'; next.textContent = 'next ›';
+    next.addEventListener('pointerdown', e => { e.preventDefault(); oskSymPage = (oskSymPage + 1) % OSK_SYM_PAGES.length; buildOskFull(); });
+    nav.append(prev, label, next);
+    oskFull.appendChild(nav);
+  }
 }
 function toggleNumRow() {
   const r = document.createElement('div');
