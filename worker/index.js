@@ -3629,7 +3629,7 @@ export default {
     }
 
     // ── Zoho: get events from ALL calendars ───────────────────────────────────
-    if (path === '/api/calendar/events' && request.method === 'GET') {
+    if (path === '/api/zoho/events' && request.method === 'GET') {
       try {
         const raw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
         if (!raw) return json({today:[],week:[],next_week:[],status:'not_connected'}, 200, origin);
@@ -7789,6 +7789,23 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       } catch(e) { return json({success:false, error: e.message}, 200, origin); }
     }
 
+
+    // ── Postiz scheduled posts (for the calendar) ───────────────────────────────────────
+    if (path === '/api/postiz/posts' && request.method === 'GET') {
+      try {
+        const key = k(env, ['postiz_api_key','POSTIZ_API_KEY']) || '';
+        const host = k(env, ['postiz_url','POSTIZ_URL']) || 'https://postiz-production-70a8954f.up.railway.app';
+        if (!key) return json({ success: false, posts: [], error: 'No postiz_api_key' }, 200, origin);
+        let r = await fetch(host + '/api/public/v1/posts', { headers: { 'Authorization': key } });
+        if (!r.ok || !(r.headers.get('content-type')||'').includes('json')) {
+          r = await fetch(host + '/public/v1/posts', { headers: { 'Authorization': key } });
+        }
+        if (!r.ok) return json({ success: false, posts: [], error: 'Postiz HTTP ' + r.status }, 200, origin);
+        const body = await r.json();
+        const posts = Array.isArray(body) ? body : (body.data || body.posts || []);
+        return json({ success: true, posts: posts.slice(0, 100) }, 200, origin);
+      } catch (e) { return json({ success: false, posts: [], error: e.message }, 200, origin); }
+    }
 
     // ── Postiz CORS proxy: same-origin bridge for the Postiz app ────────────────────────────────────────
     if (path.startsWith('/api/postiz-proxy/')) {

@@ -16,6 +16,11 @@
   .cal-ev.soc-posted { background: rgba(61,139,110,0.18); color: #2c6e52; }
   .cal-ev.soc-queued { background: rgba(15,59,58,0.08); color: var(--teal); }
   .cal-ev.soc-sched { background: rgba(92,45,63,0.12); color: var(--rose); }
+  .cal-ev.postiz { background: rgba(15,59,58,0.16); color: #0f3b3a; }
+  .cal-cell { cursor: pointer; }
+  .cal-adder { position: fixed; inset: 0; background: rgba(28,26,23,0.45); z-index: 400; display: none; align-items: center; justify-content: center; }
+  .cal-adder .panel { background: #fff; border-radius: 10px; padding: 18px; width: min(360px, 90vw); }
+  .cal-adder input, .cal-adder select { width: 100%; margin: 4px 0 10px; }
 </style>
 </head>
 <body>
@@ -23,7 +28,7 @@
   <div class="arg-pagehead spread">
     <div>
       <h1>Calendar</h1>
-      <div class="sub">Your diary and the social pipeline on one grid. Whichever Google account is connected supplies the events; forward what matters to Proton from here.</div>
+      <div class="sub">Your diary and the social pipeline on one grid. Click any day to add an event; Zoho Calendar appears alongside when connected, and scheduled Postiz posts land here automatically.</div>
     </div>
     <div class="row" style="gap:6px;">
       <button class="ghost small" id="cal-prev">←</button>
@@ -43,6 +48,26 @@
   </div>
 </div>
 
+<div class="cal-adder" id="cal-adder">
+  <div class="panel">
+    <h3 style="margin-top:0;">Add event <span class="muted" id="adder-date" style="font-size:13px;"></span></h3>
+    <label class="muted" style="font-size:12px;">Title</label>
+    <input type="text" id="adder-title" placeholder="e.g. Supervision, tutorial, client session">
+    <label class="muted" style="font-size:12px;">Time</label>
+    <select id="adder-time">
+      <option value="">All day</option>
+      <option value="09:00">09:00</option><option value="10:00">10:00</option><option value="11:00">11:00</option>
+      <option value="12:00">12:00</option><option value="13:00">13:00</option><option value="14:00">14:00</option>
+      <option value="15:00">15:00</option><option value="16:00">16:00</option><option value="17:00">17:00</option>
+      <option value="18:00">18:00</option><option value="19:00">19:00</option>
+    </select>
+    <div class="row" style="justify-content:flex-end; gap:8px;">
+      <button class="ghost" id="adder-cancel">Cancel</button>
+      <button id="adder-save">Add to diary</button>
+    </div>
+  </div>
+</div>
+
 <script src="/shared/argentica.js"></script>
 <script>
 ARG.buildShell('calendar');
@@ -51,16 +76,26 @@ const { api, esc } = ARG;
 let view = new Date();
 let diary = [];
 let social = [];
+let postiz = [];
+let pickedDate = null;
 
 async function load() {
   try {
-    const cal = await api('/google/calendar');
-    diary = cal.status === 'ok' ? (cal.today || []).concat(cal.week || []) : [];
+    const cal = await api('/calendar/events?from=' + new Date().toISOString().slice(0,10) + '&to=' + new Date(Date.now() + 60*24*3600*1000).toISOString().slice(0,10));
+    diary = (cal.events || []);
   } catch (e) { diary = []; }
+  try {
+    const z = await api('/zoho/events');
+    diary = diary.concat((z.today || []).concat(z.week || []).concat(z.next_week || []));
+  } catch (e) {}
   try {
     const q = await api('/mm/queue');
     social = (q.queue || []).filter(i => i.status === 'pending' || i.status === 'scheduled' || i.status === 'posted');
   } catch (e) { social = []; }
+  try {
+    const pz = await api('/postiz/posts');
+    postiz = (pz.posts || []);
+  } catch (e) { postiz = []; }
   render();
 }
 
@@ -80,9 +115,11 @@ function render() {
     const isToday = d.toDateString() === today.toDateString();
     const evs = diary.filter(e => (e.starts_at || '').slice(0, 10) === iso);
     const socs = social.filter(s => (s.createdAt || s.scheduledFor || '').slice(0, 10) === iso);
-    html += '<div class="cal-cell' + (inMonth ? '' : ' other') + (isToday ? ' today' : '') + '">' +
+    html += '<div class="cal-cell' + (inMonth ? '' : ' other') + (isToday ? ' today' : '') + '" onclick="cellClick(\'' + iso + '\')">' +
       '<div class="dnum">' + d.getDate() + '</div>' +
-      evs.map(e => '<div class="cal-ev" title="' + esc(e.title) + '">' + esc((e.starts_at || '').slice(11, 16)) + ' ' + esc(e.title.slice(0, 18)) + '</div>').join('') +
+      evs.map(e => '<div class="cal-ev" title="' + esc(e.title) + '">' + esc((e.starts_at || '').slice(11, 16)) + ' ' + esc(String(e.title || '').slice(0, 18)) + '</div>').join('') +
+      postiz.filter(s => (s.date || s.publishDate || '').slice(0, 10) === iso).map(s =>
+        '<div class="cal-ev postiz" title="Postiz scheduled">' + esc((s.state || 'scheduled').toLowerCase()) + ' \u00b7 ' + esc(String(s.content || '').slice(0, 14)) + '</div>').join('') +
       socs.map(s => {
         const cls = s.status === 'posted' ? 'soc-posted' : s.status === 'scheduled' ? 'soc-sched' : 'soc-queued';
         const label = s.status === 'posted' ? 'posted' : s.status === 'scheduled' ? 'sched' : 'queued';
@@ -95,6 +132,31 @@ function render() {
 
 document.getElementById('cal-prev').addEventListener('click', () => { view.setMonth(view.getMonth() - 1); render(); });
 document.getElementById('cal-next').addEventListener('click', () => { view.setMonth(view.getMonth() + 1); render(); });
+
+// ── Click a day to add an event ────────────────
+window.cellClick = iso => {
+  pickedDate = iso;
+  document.getElementById('adder-date').textContent = new Date(iso).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  document.getElementById('adder-title').value = '';
+  document.getElementById('adder-time').value = '';
+  document.getElementById('cal-adder').style.display = 'flex';
+  setTimeout(() => document.getElementById('adder-title').focus(), 50);
+};
+document.getElementById('adder-cancel').addEventListener('click', () => { document.getElementById('cal-adder').style.display = 'none'; });
+document.getElementById('adder-save').addEventListener('click', async () => {
+  const title = document.getElementById('adder-title').value.trim();
+  if (!title) { ARG.toast('Give the event a title.'); return; }
+  const time = document.getElementById('adder-time').value;
+  try {
+    await api('/calendar/events', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, date: pickedDate, time: time || null }) });
+    document.getElementById('cal-adder').style.display = 'none';
+    ARG.toast('Added to the diary.');
+    load();
+  } catch (e) { ARG.toast('Could not add: ' + e.message); }
+});
+document.getElementById('adder-title').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('adder-save').click(); });
+
 load();
 </script>
 </body>
