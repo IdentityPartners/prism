@@ -2105,6 +2105,23 @@ export default {
       } catch (e) { return json({ error: e.message }, 500, origin); }
     }
 
+    if (path.endsWith('/duplicate') && path.startsWith('/api/threads/') && request.method === 'POST') {
+      try {
+        const srcId = path.replace('/api/threads/', '').replace('/duplicate', '');
+        const raw = await env.PRISM_KV?.get(`thread:${srcId}`).catch(() => null);
+        if (!raw) return json({ success: false, error: 'Thread not found' }, 404, origin);
+        const src = JSON.parse(raw);
+        const newId = 't' + Date.now();
+        const copy = { ...src, id: newId, title: (src.title || 'Conversation') + ' (fork)', created: new Date().toISOString(), updated: new Date().toISOString() };
+        await env.PRISM_KV.put(`thread:${newId}`, JSON.stringify(copy), { expirationTtl: 86400 * 90 });
+        const idx = JSON.parse(await env.PRISM_KV.get('thread-index:simon').catch(() => '[]') || '[]');
+        idx.unshift(newId);
+        await env.PRISM_KV.put('thread-index:simon', JSON.stringify(idx.slice(0, 200)));
+        return json({ success: true, id: newId }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+
     if (path.startsWith('/api/threads/') && request.method === 'DELETE') {
       try {
         const id = path.replace('/api/threads/', '');

@@ -31,12 +31,13 @@
         <h3 style="margin:0; font-size:14px;">Threads</h3>
         <button class="ghost small" id="new-thread">+ New</button>
       </div>
-      <div id="thread-list" style="overflow-y:auto; flex:1;"><div class="muted">Loading…</div></div>
-      <div class="row" style="gap:6px; margin-top:8px;">
-        <button class="ghost small" id="thread-pin">📌 Pin</button>
-        <button class="ghost small" id="thread-folder">Move to folder</button>
-        <button class="ghost small" id="thread-to-library">Save to Knowledge Base</button>
+      <div class="row" style="gap:6px; margin-bottom:8px; flex-wrap:wrap;">
+        <button class="ghost small" id="thread-pin-top">Pin</button>
+        <button class="ghost small" id="thread-folder-top">Folder</button>
+        <button class="ghost small" id="thread-fork">Fork</button>
+        <button class="ghost small" id="thread-to-library-top">Save</button>
       </div>
+      <div id="thread-list" style="overflow-y:auto; flex:1;"><div class="muted">Loading…</div></div>
     </div>
 
     <div class="chat-centre">
@@ -157,7 +158,7 @@ function renderMsg(role, content) {
 
 // ── OSK — permanent, compact, stylus-friendly ─────────
 const osk = document.getElementById('osk');
-['⌫', '⏎', '.', ',', '?', '!', "'", '-', ' '].forEach(ch => {
+['⏎', '.', ',', '?', '!', '"', "'", '-', '␣', '⌫'].forEach(ch => {
   const b = document.createElement('button');
   b.textContent = ch === ' ' ? '␣' : ch;
   b.className = 'osk-strip-key';
@@ -183,7 +184,7 @@ const OSK_ROWS = [
   ['q','w','e','r','t','y','u','i','o','p'],
   ['a','s','d','f','g','h','j','k','l'],
   ['⇧','z','x','c','v','b','n','m','⌫'],
-  ['?123','␣','.',',','⏎']
+  ['?123','Ctrl','␣','.',',','⏎']
 ];
 const OSK_SYM_ROWS = [
   ['1','2','3','4','5','6','7','8','9','0'],
@@ -203,6 +204,7 @@ const OSK_SYM_ROWS = [
 ];
 let oskShift = false;
 let oskSymbols = false;
+let oskCtrl = false;
 const OSK_NUM = ['1','2','3','4','5','6','7','8','9','0','-','/'];
 function oskKey(k) {
   let s = input.selectionStart, en = input.selectionEnd;
@@ -222,12 +224,15 @@ function buildOskFull() {
       b.style.minWidth = k === '␣' ? '120px' : k.length > 1 ? '44px' : '28px';
       b.style.padding = '4px 0';
       b.style.fontSize = '13px';
-      b.textContent = k === '⇧' ? (oskShift ? '⇧ ✓' : '⇧') : k === '⏎' ? '⏎' : k === '␣' ? 'space' : k;
+      const letter = k.length === 1 ? (oskShift ? k.toUpperCase() : k) : k;
+      b.textContent = k === '⇧' ? (oskShift ? '⇧ ✓' : '⇧') : k === 'Ctrl' ? (oskCtrl ? 'Ctrl ✓' : 'Ctrl') : k === '⏎' ? (oskCtrl ? '⏎ send' : '⏎') : k === '␣' ? 'space' : letter;
       b.addEventListener('pointerdown', e => {
         e.preventDefault();
         if (k === '⇧') { oskShift = !oskShift; buildOskFull(); return; }
         if (k === '123' || k === '?123') { oskSymbols = !oskSymbols; buildOskFull(); return; }
         if (k === 'abc') { oskSymbols = false; buildOskFull(); return; }
+        if (k === 'Ctrl') { oskCtrl = !oskCtrl; buildOskFull(); return; }
+        if (k === '⏎' && oskCtrl) { oskCtrl = false; buildOskFull(); doSend().catch(() => {}); return; }
         oskKey(oskShift && k.length === 1 ? k.toUpperCase() : k);
         if (oskShift) { oskShift = false; buildOskFull(); }
       });
@@ -294,7 +299,18 @@ document.getElementById('hw-insert').addEventListener('click', async () => {
 let folders = {};
 try { folders = JSON.parse(localStorage.getItem('arg:thread-folders') || '{}'); } catch (e) {}
 
-document.getElementById('thread-pin').addEventListener('click', () => {
+document.getElementById('thread-fork').addEventListener('click', async () => {
+  if (!threadId || !messages.length) { ARG.toast('Open a conversation to fork from.'); return; }
+  try {
+    const d = await api('/threads/' + encodeURIComponent(threadId) + '/duplicate', { method: 'POST' });
+    if (d.success && d.id) {
+      await openThread(d.id);
+      ARG.toast('Forked — the original is untouched; continue from here.');
+    } else { ARG.toast(d.error || 'Could not fork.'); }
+  } catch (e) { ARG.toast('Could not fork: ' + e.message); }
+});
+
+document.getElementById('thread-pin-top').addEventListener('click', () => {
   if (!threadId) { ARG.toast('Open a conversation first.'); return; }
   if (pins[threadId]) { delete pins[threadId]; ARG.toast('Unpinned.'); }
   else { pins[threadId] = true; ARG.toast('Pinned — it stays at the top of the list.'); }
@@ -339,7 +355,7 @@ async function loadThreads() {
   } catch (e) {}
 }
 
-document.getElementById('thread-folder').addEventListener('click', () => {
+document.getElementById('thread-folder-top').addEventListener('click', () => {
   if (!threadId) { ARG.toast('Open a conversation first.'); return; }
   const name = prompt('Folder name (e.g. Dissertation, Modules, Ideas):');
   if (!name) return;
@@ -349,7 +365,7 @@ document.getElementById('thread-folder').addEventListener('click', () => {
   ARG.toast('Moved to "' + name.trim() + '".');
 });
 
-document.getElementById('thread-to-library').addEventListener('click', async () => {
+document.getElementById('thread-to-library-top').addEventListener('click', async () => {
   if (!threadId || !messages.length) { ARG.toast('Open a conversation with content first.'); return; }
   let title = 'Chat — ' + new Date().toLocaleString('en-GB');
   try { const t = await api('/threads/' + encodeURIComponent(threadId)); if (t.title) title = 'Chat — ' + t.title; } catch (e) {}
@@ -506,7 +522,7 @@ async function send() {
 document.getElementById('send').addEventListener('click', () => { send(); });
 // Enter inserts a line break; Ctrl/Cmd+Enter sends
 input.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); }
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey || e.shiftKey)) { e.preventDefault(); send(); }
 });
 
 // ── Dictation (browser speech recognition) ─────────────────────────────────────────────
