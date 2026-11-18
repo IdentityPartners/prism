@@ -88,7 +88,7 @@ a:hover { text-decoration: underline; }
 .arg-main { flex: 1; min-width: 0; }
 
 /* ── collapsible nav ── */
-.arg-side { transition: width .18s ease, padding .18s ease; position: sticky; }
+.arg-side { transition: width .18s ease, padding .18s ease; position: sticky; z-index: 20; }
 .arg-side .nav-toggle { position: absolute; top: 22px; right: -14px; width: 28px; height: 28px;
   border-radius: 50%; border: 1px solid var(--line); background: var(--paper); color: var(--teal);
   font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center;
