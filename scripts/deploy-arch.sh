@@ -15,6 +15,8 @@ mkdir -p "$STAGE/shared"
 cp shared/argentica.css shared/argentica.js "$STAGE/shared/"
 cp -r shared/assets "$STAGE/shared/"
 cp index.html _headers "$STAGE/"
+cp favicon.ico favicon-16.png favicon-32.png apple-touch-icon.png "$STAGE/" 2>/dev/null || true
+cp shared/assets/favicon-192.png shared/assets/favicon-512.png "$STAGE/" 2>/dev/null || true
 
 cat > "$STAGE/_worker.js" <<'EOF'
 // Argentica Pages worker — proxies /api/* to prism-api (which holds all secrets)
