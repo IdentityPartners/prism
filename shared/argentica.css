@@ -87,6 +87,24 @@ a:hover { text-decoration: underline; }
 
 .arg-main { flex: 1; min-width: 0; }
 
+/* ── collapsible nav ── */
+.arg-side { transition: width .18s ease, padding .18s ease; position: sticky; }
+.arg-side .nav-toggle { position: absolute; top: 22px; right: -14px; width: 28px; height: 28px;
+  border-radius: 50%; border: 1px solid var(--line); background: var(--paper); color: var(--teal);
+  font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.14); z-index: 60; }
+.arg-side .nav-toggle:hover { background: var(--teal); color: #fff; }
+.arg-side.collapsed { width: 62px; padding: 20px 8px; }
+.arg-side.collapsed .brand .name,
+.arg-side.collapsed .arg-nav .navlbl,
+.arg-side.collapsed .arg-nav .section { display: none; }
+.arg-side.collapsed .brand { justify-content: center; }
+.arg-side.collapsed .brand img { width: 40px; height: 40px; }
+.arg-side.collapsed .arg-nav { align-items: center; }
+.arg-side.collapsed .arg-nav a { justify-content: center; padding-left: 8px !important; font-size: 0; }
+.arg-side.collapsed .arg-nav a::before { content: '\25CF'; font-size: 13px; }
+.arg-side.collapsed .arg-nav a.active::before { content: '\25C9'; }
+
 .arg-page { padding: 26px 30px 48px; max-width: 1180px; }
 
 .arg-pagehead { margin-bottom: 22px; }

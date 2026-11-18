@@ -119,9 +119,15 @@
     document.body.classList.add('arg-body');
     const found = workspaceOf(activeKey);
 
+    // Collapsed state: remembered per browser; Home always starts collapsed.
+    let navCollapsed = false;
+    try { navCollapsed = localStorage.getItem('arg:nav-collapsed') === '1'; } catch (e) {}
+    if (activeKey === 'home') navCollapsed = true;
+
     const side = document.createElement('aside');
-    side.className = 'arg-side';
+    side.className = 'arg-side' + (navCollapsed ? ' collapsed' : '');
     side.innerHTML =
+      '<button class="nav-toggle" title="Collapse / expand the toolbar" aria-label="Toggle toolbar">' + (navCollapsed ? '\u203A' : '\u2039') + '</button>' +
       '<div class="brand"><img src="/shared/assets/logo-square.png" alt="Identity Partners"><div class="name">Argentica</div></div>' +
       '<nav class="arg-nav">' +
       '<div class="section">Work</div>' +
@@ -135,7 +141,7 @@
           (active ? ws.tabs.map(t =>
             '<a href="' + t.href + '" style="padding-left:26px; font-size:12.5px;"' + (t.key === activeKey ? ' class="active"' : '') + '>' + t.label + '</a>'
           ).join('') : '');
-      }).join('') +
+      }).join('').replace(/(<a href="[^"]+"[^>]*>)(Home|Gerald \(Chat\)|Library|Research|Create|Commercial|Comms|System|[^<>]{2,20})(<\/a>)/g, function (m, a, txt, z) { return a + '<span class="navlbl">' + txt + '</span>' + z; }) +
       '</nav>';
 
     const shell = document.createElement('div');
@@ -156,6 +162,16 @@
         page.prepend(tabs);
       }
       main.appendChild(page);
+    }
+
+    // Toolbar collapse toggle
+    const toggle = side.querySelector('.nav-toggle');
+    if (toggle) {
+      toggle.addEventListener('click', () => {
+        const collapsed = side.classList.toggle('collapsed');
+        toggle.textContent = collapsed ? '\u203A' : '\u2039';
+        try { localStorage.setItem('arg:nav-collapsed', collapsed ? '1' : '0'); } catch (e) {}
+      });
     }
   }
 

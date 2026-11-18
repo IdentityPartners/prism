@@ -168,6 +168,7 @@ function renderMsg(role, content) {
   div.innerHTML = '<div class="who">' + (role === 'user' ? 'Simon' : 'Gerald') + '</div><div class="bubble">' + md(content) + '</div>';
   const bubble = div.querySelector('.bubble');
   if (role !== 'user' && (content || '').length > 700) addCollapser(bubble);
+  scroll.appendChild(div);
   scroll.scrollTop = scroll.scrollHeight;
   return bubble;
 }

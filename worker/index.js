@@ -8056,6 +8056,63 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     }
 
 
+    if (path === '/api/headless/chatdebug' && request.method === 'POST') {
+      try {
+        const BL_RAILWAY_TOKEN = k(env, ['railway_browserless_token']) || '';
+        const BL_CLOUD = k(env, ['browserless']) || '';
+        const fn = `export default async ({ page }) => {
+          await page.setViewport({ width: 1440, height: 900 });
+          const errors = [];
+          page.on('console', m => { if (m.type() === 'error') errors.push(String(m.text()).slice(0, 300)); });
+          page.on('pageerror', e => errors.push(String(e).slice(0, 300)));
+          await page.goto('https://arch.identitypartners.uk/argentica/chat/', { waitUntil: 'networkidle2', timeout: 60000 });
+          await new Promise(r => setTimeout(r, 2500));
+          const autoMsgs = await page.$$eval('#chat-scroll .msg', els => els.length).catch(()=>-1);
+          const probe = await page.evaluate(async () => {
+            try {
+              const r = await fetch('/api/threads');
+              const d = await r.json();
+              const th = (d.threads || [])[0];
+              if (!th) return { note: 'no threads' };
+              const r2 = await fetch('/api/threads/' + encodeURIComponent(th.id));
+              const t = await r2.json();
+              const info = { id: th.id, status: r2.status, msgCount: (t.messages || []).length, keys: Object.keys(t) };
+              try { openThread(th.id); } catch (e) { info.openErr = String(e && e.stack || e).slice(0, 500); }
+              await new Promise(rr => setTimeout(rr, 500));
+              info.renderedMsgs = document.querySelectorAll('#chat-scroll .msg').length;
+              info.scrollHtml = (document.getElementById('chat-scroll') || {}).innerHTML.slice(0, 300);
+              info.globalMessages = (typeof messages !== 'undefined') ? messages.length : 'n/a';
+              info.scrollCount = document.querySelectorAll('#chat-scroll').length;
+              info.scrollLen = (typeof scroll !== 'undefined') ? (scroll ? scroll.children.length : 'null') : 'undef';
+              try { renderMsg('user', 'probe message'); } catch (e) { info.renderErr = String(e).slice(0, 300); }
+              await new Promise(rr => setTimeout(rr, 200));
+              info.probeRendered = document.querySelectorAll('#chat-scroll .msg').length;
+              info.msgClasses = Array.from(document.querySelectorAll('#chat-scroll .msg')).map(m => m.className).slice(0, 3);
+              return info;
+            } catch (e) { return { outerErr: String(e).slice(0, 400) }; }
+          }).catch(e => ({ probeErr: String(e).slice(0, 400) }));
+          const autoText = await page.evaluate(() => (document.getElementById('chat-scroll') || {}).innerHTML.slice(0, 400)).catch(e=>'ERR '+e);
+          const items = await page.$$('.thread-item');
+          if (items.length) { await items[items.length - 1].click(); await new Promise(r => setTimeout(r, 2000)); }
+          const afterMsgs = await page.$$eval('#chat-scroll .msg', els => els.length).catch(()=>-1);
+          const afterText = await page.evaluate(() => (document.getElementById('chat-scroll') || {}).innerHTML.slice(0, 600)).catch(e=>'ERR '+e);
+          const activeTitle = await page.evaluate(() => { const a = document.querySelector('.thread-item.active'); return a ? a.textContent.slice(0, 80) : null; }).catch(()=>null);
+          return { data: { probe, threadItems: items.length, autoMsgs, autoText, afterMsgs, afterText, activeTitle, errors }, type: 'application/json' };
+        }`;
+        const callBL = async (base, tok) => fetch(base + '/function?token=' + encodeURIComponent(tok || ''), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: fn, context: {} })
+        });
+        let resp = null;
+        if (BL_RAILWAY_TOKEN) { try { resp = await callBL(k(env,['browserless_railway_url']) || 'https://browserless-production-e49c65ef.up.railway.app', BL_RAILWAY_TOKEN); } catch (e) {} }
+        if ((!resp || !resp.ok) && BL_CLOUD) { try { resp = await callBL('https://chrome.browserless.io', BL_CLOUD); } catch (e) {} }
+        if (!resp || !resp.ok) return json({ success: false, error: 'Browserless unavailable' }, 200, origin);
+        const result = await resp.json();
+        return json({ success: true, debug: (result.data && result.data) || result }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+
     if (path === '/api/headless/signup' && request.method === 'POST') {
       try {
         const body = await request.json();

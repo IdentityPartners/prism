@@ -90,6 +90,7 @@
 </style>
 </head>
 <body>
+<div class="arg-page" data-key="home" style="max-width:none; padding:0;">
 <div id="backdrop-fallback"></div>
 <div id="backdrop"></div>
 <div class="shade"></div>
@@ -163,9 +164,11 @@
 
 <div id="credit"></div>
 <a id="brand" href="/argentica/system/">&#9670; Argentica</a>
+</div>
 
 <script src="/shared/argentica.js"></script>
 <script>
+ARG.buildShell('home');
 const { api, esc } = ARG;
 
 // ── Clock ──
