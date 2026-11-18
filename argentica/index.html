@@ -5,173 +5,296 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Argentica — Home</title>
 <link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#101d1c; }
+  body { font-family: Georgia, 'Times New Roman', serif; color:#f2efe8; overflow-x:hidden; }
+
+  #backdrop { position:fixed; inset:0; z-index:0; background-size:cover; background-position:center; transition:opacity 1.2s ease; opacity:0; }
+  #backdrop.on { opacity:1; }
+  #backdrop-fallback { position:fixed; inset:0; z-index:-1;
+    background: linear-gradient(160deg, #0f3b3a 0%, #14302f 55%, #1c1a17 100%); }
+  .shade { position:fixed; inset:0; z-index:1; background:linear-gradient(rgba(10,20,19,.15), rgba(10,20,19,.55)); }
+
+  .wrap { position:relative; z-index:2; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:9vh 16px 40px; }
+
+  /* ── the hero centre: clock, greeting, search ── */
+  .centre { width:100%; max-width:880px; text-align:center; }
+  #clock { font-size:clamp(56px, 9vw, 104px); font-weight:400; color:#fff; letter-spacing:.02em;
+    text-shadow:0 2px 30px rgba(0,0,0,.45); margin:0; line-height:1; }
+  #clock .secs { font-size:.32em; color:rgba(255,255,255,.65); letter-spacing:.03em; }
+  #greet { font-size:22px; color:rgba(255,255,255,.92); margin:14px 0 2px; }
+  #hero-date { font-size:14px; color:rgba(255,255,255,.62); margin-bottom:34px; }
+
+  /* search bar */
+  .searchbar { display:flex; align-items:center; gap:0; max-width:720px; margin:0 auto;
+    background:rgba(255,255,255,.13); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%);
+    border:1px solid rgba(255,255,255,.28); border-radius:16px; padding:6px 6px 6px 18px;
+    box-shadow:0 10px 42px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.22); }
+  .searchbar:focus-within { border-color:rgba(255,255,255,.55); background:rgba(255,255,255,.18); }
+  .searchbar input { flex:1; background:none; border:none; outline:none; color:#fff; font-family:inherit; font-size:16.5px; padding:10px 8px 10px 0; }
+  .searchbar input::placeholder { color:rgba(255,255,255,.55); }
+  .searchbar select { background:rgba(255,255,255,.14); color:#fff; border:none; border-radius:10px; padding:8px 9px; font-family:inherit; font-size:13px; cursor:pointer; outline:none; margin-right:8px; }
+  .searchbar select option { color:#1c1a17; }
+  .searchbar button { background:#fff; color:#0f3b3a; border:none; border-radius:11px; padding:10px 20px; font-family:inherit; font-size:14.5px; cursor:pointer; }
+  .searchbar button:hover { background:#f0ede4; }
+
+  /* quick links */
+  .links { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:26px; }
+  .qlink { display:flex; align-items:center; gap:8px; padding:9px 16px; border-radius:12px;
+    background:rgba(255,255,255,.11); border:1px solid rgba(255,255,255,.2); color:#fff; text-decoration:none; font-size:13.5px;
+    backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+    transition:background .15s, transform .15s; }
+  .qlink:hover { background:rgba(255,255,255,.22); transform:translateY(-1px); }
+  .qlink .fa { font-size:12px; opacity:.8; }
+  .qlink-edit { background:rgba(255,255,255,.06); border:1px dashed rgba(255,255,255,.35); cursor:pointer; font-size:13.5px; color:rgba(255,255,255,.75); border-radius:12px; padding:9px 14px; }
+  .link-x { cursor:pointer; opacity:.5; font-size:11px; margin-left:2px; }
+  .link-x:hover { opacity:1; }
+
+  /* glass panels */
+  .panels { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px; width:100%; max-width:1180px; margin-top:48px; }
+  .glass { background:rgba(255,255,255,.1); backdrop-filter:blur(20px) saturate(150%); -webkit-backdrop-filter:blur(20px) saturate(150%);
+    border:1px solid rgba(255,255,255,.22); border-radius:18px; padding:18px 20px;
+    box-shadow:0 12px 40px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.16); }
+  .glass h3 { margin:0 0 12px; font-size:13px; letter-spacing:.09em; text-transform:uppercase; color:rgba(255,255,255,.66); font-weight:400; }
+  .glass a { color:#fff; text-decoration:none; border-bottom:1px solid rgba(255,255,255,.25); }
+
+  .todo-row { display:flex; align-items:center; gap:10px; margin:0 0 8px; }
+  .todo-row input[type=checkbox] { width:17px; height:17px; accent-color:#7fc5bd; cursor:pointer; flex-shrink:0; }
+  .todo-row .t { flex:1; font-size:14px; color:#fff; cursor:pointer; }
+  .todo-row.done .t { text-decoration:line-through; color:rgba(255,255,255,.45); }
+  .todo-add { display:flex; gap:8px; margin-top:10px; }
+  .todo-add input { flex:1; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.22); border-radius:10px; padding:8px 12px; color:#fff; font-family:inherit; font-size:13.5px; outline:none; }
+  .todo-add button, .ghostbtn { background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.22); border-radius:10px; color:#fff; font-family:inherit; font-size:13px; padding:8px 13px; cursor:pointer; }
+  .ghostbtn:hover, .todo-add button:hover { background:rgba(255,255,255,.26); }
+
+  .news-item { display:flex; gap:10px; margin-bottom:10px; }
+  .news-item img { width:58px; height:44px; object-fit:cover; border-radius:6px; flex-shrink:0; }
+  .news-item .nx { font-size:13px; margin-bottom:2px; }
+  .news-item .nd { font-size:11.5px; color:rgba(255,255,255,.55); }
+
+  .kpi { display:flex; gap:22px; flex-wrap:wrap; }
+  .kpi .n { font-size:30px; color:#fff; line-height:1.1; }
+  .kpi .l { font-size:11px; color:rgba(255,255,255,.55); letter-spacing:.06em; text-transform:uppercase; margin-top:3px; }
+
+  .calgrid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .calgrid div { text-align:center; font-size:10.5px; padding:4px 0; border-radius:5px; color:rgba(255,255,255,.68); }
+  .calgrid .today { background:#e9b879; color:#2b2013; font-weight:700; }
+  .calgrid .has { background:rgba(233,184,121,.25); color:#f4d9ae; font-weight:600; }
+  #credit { position:fixed; left:12px; bottom:10px; z-index:2; font-size:10.5px; color:rgba(255,255,255,.42); }
+  #brand { position:fixed; right:14px; bottom:10px; z-index:2; display:flex; align-items:center; gap:8px; font-size:12.5px; color:rgba(255,255,255,.8);
+    text-decoration:none; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); padding:6px 13px; border-radius:11px; backdrop-filter:blur(14px); }
+  @media (max-width:640px) { #credit { display:none; } }
+</style>
 </head>
 <body>
-<div class="arg-page" data-key="home">
+<div id="backdrop-fallback"></div>
+<div id="backdrop"></div>
+<div class="shade"></div>
 
-  <div class="home-hero" id="hero">
-    <img class="bg" id="hero-img" alt="">
-    <div class="veil"></div>
-    <img class="logo" src="/shared/assets/logo-square.png" alt="Identity Partners">
-    <div class="inner">
-      <div class="greet" id="greet">Good morning, Simon.</div>
-      <div class="date" id="hero-date"></div>
-    </div>
-    <div class="credit" id="hero-credit"></div>
+<div class="wrap">
+  <div class="centre">
+    <h1 id="clock">00:00<span class="secs">:00</span></h1>
+    <div id="greet">Good morning, Simon.</div>
+    <div id="hero-date"></div>
+
+    <form class="searchbar" id="searchform">
+      <input type="text" id="q" placeholder="Search the web, or type an address…" autocomplete="off" autofocus>
+      <select id="engine" title="Search engine">
+        <option value="https://search.brave.com/search?q=">Brave</option>
+        <option value="https://duckduckgo.com/?q=">DuckDuckGo</option>
+        <option value="https://www.startpage.com/sp/search?query=">Startpage</option>
+        <option value="https://www.google.com/search?q=">Google</option>
+      </select>
+      <button type="submit">Search</button>
+    </form>
+
+    <div class="links" id="links"></div>
   </div>
 
-  <div class="grid" style="grid-template-columns: 3fr 2fr;">
-    <div style="display:flex; flex-direction:column; gap:16px;">
-
-      <div class="card">
-        <h3><span class="dot on"></span>What are we working on?</h3>
-        <div class="row">
-          <textarea id="quick-chat" placeholder="Ask Gerald anything, or start a task…"></textarea>
-        </div>
-        <div class="row mt" style="justify-content:space-between;">
-          <div class="row" style="gap:8px; flex-wrap:wrap;">
-            <button class="ghost small" onclick="location.href='/argentica/research/'">Research</button>
-            <button class="ghost small" onclick="location.href='/argentica/create/'">New canvas</button>
-            <button class="ghost small" onclick="location.href='/argentica/library/'">Library</button>
-          </div>
-          <button id="quick-send">Speak to Gerald</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>In the press today</h3>
-        <div class="item-list" id="news-list"><div class="muted">Loading approved sources…</div></div>
+  <div class="panels">
+    <div class="glass" id="todo-panel">
+      <h3>Today's list</h3>
+      <div id="todo-list"></div>
+      <div class="todo-add">
+        <input type="text" id="todo-new" placeholder="Add a to-do…">
+        <button onclick="addTodo()">Add</button>
       </div>
     </div>
 
-    <div style="display:flex; flex-direction:column; gap:16px;">
-      <div class="card">
-        <h3><span class="dot" id="cal-dot"></span>Calendar</h3>
-        <div id="cal-body"><div class="muted">Checking today's diary…</div></div>
+    <div class="glass">
+      <h3>In the press today</h3>
+      <div id="news-list" style="min-height:60px;"><span style="color:rgba(255,255,255,.5); font-size:13px;">Reading the approved sources…</span></div>
+    </div>
+
+    <div class="glass">
+      <h3>Social</h3>
+      <div id="social-body"><span style="color:rgba(255,255,255,.5); font-size:13px;">Checking the queue…</span></div>
+      <div style="margin-top:12px;"><a class="ghostbtn" style="text-decoration:none; display:inline-block;" href="/argentica/commercial/publishing/">Review the queue →</a></div>
+    </div>
+
+    <div class="glass">
+      <h3>Calendar</h3>
+      <div class="calgrid" id="cal-grid"></div>
+      <div id="cal-today" style="margin-top:12px; font-size:13px; color:rgba(255,255,255,.75);"></div>
+      <div style="margin-top:10px;"><a class="ghostbtn" style="text-decoration:none; display:inline-block;" href="/argentica/comms/calendar/">Full calendar →</a></div>
+    </div>
+
+    <div class="glass">
+      <h3>Recent conversations</h3>
+      <div id="threads-body"></div>
+      <div style="margin-top:10px;"><a class="ghostbtn" style="text-decoration:none; display:inline-block;" href="/argentica/chat/">Open Gerald →</a></div>
+    </div>
+
+    <div class="glass">
+      <h3>Ask Gerald</h3>
+      <input type="text" id="quick-chat" placeholder="What are we working on?" style="width:100%; box-sizing:border-box; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.22); border-radius:10px; padding:9px 12px; color:#fff; font-family:inherit; outline:none;">
+      <div style="margin-top:10px; display:flex; gap:8px;">
+        <button class="ghostbtn" id="quick-send">Speak to Gerald</button>
+        <a class="ghostbtn" style="text-decoration:none;" href="/argentica/library/">Library</a>
+        <a class="ghostbtn" style="text-decoration:none;" href="/argentica/research/">Research</a>
       </div>
-      <div class="card">
-        <h3>Social</h3>
-        <div id="social-body"><div class="muted">Checking the queue…</div></div>
-      </div>
-      <div class="card">
-        <h3>Recent conversations</h3>
-        <div class="item-list" id="threads-body"><div class="muted">Loading…</div></div>
-      </div>
-      <div class="card">
-        <h3><span class="dot" id="health-dot"></span>System</h3>
-        <div id="health-body" class="muted">Checking…</div>
-      </div>
+      <div id="health-body" style="margin-top:14px; font-size:12px; color:rgba(255,255,255,.55);"></div>
     </div>
   </div>
 </div>
 
+<div id="credit"></div>
+<a id="brand" href="/argentica/system/">&#9670; Argentica</a>
+
 <script src="/shared/argentica.js"></script>
 <script>
-ARG.buildShell('home');
 const { api, esc } = ARG;
 
-// Greeting + date
+// ── Clock ──
+function tick() {
+  const n = new Date();
+  const p = x => String(x).padStart(2, '0');
+  document.getElementById('clock').innerHTML = p(n.getHours()) + ':' + p(n.getMinutes()) + '<span class="secs">:' + p(n.getSeconds()) + '</span>';
+}
+tick(); setInterval(tick, 1000);
+
+// ── Greeting + date ──
 (function () {
   const h = new Date().getHours();
-  document.getElementById('greet').textContent =
-    'Good ' + (h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening') + ', Simon.';
-  document.getElementById('hero-date').textContent =
-    new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  document.getElementById('greet').textContent = 'Good ' + (h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening') + ', Simon.';
+  document.getElementById('hero-date').textContent = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 })();
 
-// Photographic header — Pexels, Unsplash, Pixabay, Openverse and Wikimedia via worker,
-// one query per weekday, never repeats within a week. The image is preloaded and only
-// shown once it has actually loaded; candidates are tried in turn until one works.
+// ── Search: engine remembered per browser ──
+try { const e = localStorage.getItem('arg:engine'); if (e) document.getElementById('engine').value = e; } catch (er) {}
+document.getElementById('engine').addEventListener('change', e => { try { localStorage.setItem('arg:engine', e.target.value); } catch (er) {} });
+document.getElementById('searchform').addEventListener('submit', e => {
+  e.preventDefault();
+  const q = document.getElementById('q').value.trim();
+  if (!q) return;
+  // treat anything that looks like a URL as a navigation
+  const isUrl = /^https?:\/\//i.test(q) || /^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(q) && !q.includes(' ');
+  const target = isUrl ? (/^https?:/i.test(q) ? q : 'https://' + q) : document.getElementById('engine').value + encodeURIComponent(q);
+  window.open(target, '_blank');
+  document.getElementById('q').value = '';
+});
+
+// ── Quick links (editable, stored in this browser) ──
+const DEFAULT_LINKS = [
+  { n: 'Chat', u: '/argentica/chat/' }, { n: 'Library', u: '/argentica/library/' },
+  { n: 'Research', u: '/argentica/research/' }, { n: 'Create', u: '/argentica/create/' },
+  { n: 'Publishing', u: '/argentica/commercial/publishing/' }, { n: 'Calendar', u: '/argentica/comms/calendar/' },
+  { n: 'Gmail', u: 'https://mail.google.com' }, { n: 'Goldsmiths', u: 'https://learn.gold.ac.uk' }
+];
+function loadLinks() { try { return JSON.parse(localStorage.getItem('arg:quicklinks') || 'null') || DEFAULT_LINKS; } catch (e) { return DEFAULT_LINKS; } }
+function renderLinks() {
+  const links = loadLinks();
+  document.getElementById('links').innerHTML = links.map((l, i) =>
+    '<a class="qlink" href="' + esc(l.u) + '">' + esc(l.n) +
+    ' <span class="link-x" title="Remove" onclick="event.preventDefault(); removeLink(' + i + ')">✕</span></a>'
+  ).join('') + '<button class="qlink-edit" onclick="addLink()">+ Add link</button>';
+}
+function removeLink(i) { const l = loadLinks(); l.splice(i, 1); localStorage.setItem('arg:quicklinks', JSON.stringify(l)); renderLinks(); }
+function addLink() {
+  const n = prompt('Name for the link:'); if (!n) return;
+  const u = prompt('Address (or Argentica path):'); if (!u) return;
+  const l = loadLinks(); l.push({ n, u }); localStorage.setItem('arg:quicklinks', JSON.stringify(l)); renderLinks();
+}
+renderLinks();
+
+// ── To-dos ──
+function loadTodos() { try { return JSON.parse(localStorage.getItem('arg:todos') || '[]'); } catch (e) { return []; } }
+function renderTodos() {
+  const t = loadTodos();
+  document.getElementById('todo-list').innerHTML = t.length ? t.map((x, i) =>
+    '<div class="todo-row' + (x.done ? ' done' : '') + '">' +
+    '<input type="checkbox"' + (x.done ? ' checked' : '') + ' onchange="toggleTodo(' + i + ')">' +
+    '<span class="t" onclick="toggleTodo(' + i + ')">' + esc(x.t) + '</span>' +
+    '<span style="cursor:pointer; opacity:.45; font-size:11px;" onclick="removeTodo(' + i + ')">✕</span></div>'
+  ).join('') : '<span style="color:rgba(255,255,255,.45); font-size:13px;">Nothing yet — a quiet day.</span>';
+}
+function toggleTodo(i) { const t = loadTodos(); t[i].done = !t[i].done; localStorage.setItem('arg:todos', JSON.stringify(t)); renderTodos(); }
+function removeTodo(i) { const t = loadTodos(); t.splice(i, 1); localStorage.setItem('arg:todos', JSON.stringify(t)); renderTodos(); }
+function addTodo() {
+  const el = document.getElementById('todo-new'); const v = el.value.trim(); if (!v) return;
+  const t = loadTodos(); t.push({ t: v, done: false }); localStorage.setItem('arg:todos', JSON.stringify(t)); el.value = ''; renderTodos();
+}
+document.getElementById('todo-new').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addTodo(); } });
+renderTodos();
+
+// ── Backdrop photo — five image sources, one photo per day, preloaded before reveal ──
 (async function () {
   const queries = ['calm seascape dawn', 'scottish highlands mist', 'english coastline morning',
     'quiet forest canopy', 'lake district hills', 'open sky clouds', 'autumn woodland path'];
   const q = queries[new Date().getDay() % queries.length];
-  const hero = document.getElementById('hero');
-  const img = document.getElementById('hero-img');
-  const credit = document.getElementById('hero-credit');
-
-  function preload(url) {
-    return new Promise((resolve, reject) => {
-      const probe = new Image();
-      probe.onload = () => resolve(url);
-      probe.onerror = reject;
-      probe.src = url;
-    });
-  }
-
-  async function fetchPool(query) {
+  const preload = url => new Promise((res, rej) => { const p = new Image(); p.onload = () => res(url); p.onerror = rej; p.src = url; });
+  async function pool(query) {
     try {
-      const data = await api('/image-search/multi', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, limit: 20, sources: ['pexels', 'unsplash', 'pixabay', 'openverse', 'wikimedia'] })
-      });
-      return data.results || data.images || [];
+      const d = await api('/image-search/multi', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, limit: 20, sources: ['pexels', 'unsplash', 'pixabay', 'openverse', 'wikimedia'] }) });
+      return d.results || d.images || [];
     } catch (e) { return []; }
   }
-
-  const seen = JSON.parse(localStorage.getItem('arg:hero-seen') || '[]');
-  let pool = await fetchPool(q);
-  if (!pool.length) pool = await fetchPool('landscape');
-  const fresh = pool.filter(p => p.url && !seen.includes(p.url));
-  const candidates = (fresh.length ? fresh : pool).filter(p => p.url);
-
-  for (let i = 0; i < Math.min(candidates.length, 6); i++) {
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem('arg:hero-seen') || '[]'); } catch (e) {}
+  let p = await pool(q); if (!p.length) p = await pool('landscape');
+  const cands = (p.filter(x => x.url && !seen.includes(x.url)).length ? p.filter(x => x.url && !seen.includes(x.url)) : p).filter(x => x.url);
+  for (let i = 0; i < Math.min(cands.length, 6); i++) {
     try {
-      await preload(candidates[i].url);
-      img.src = candidates[i].url;
-      credit.textContent = 'Photo: ' + (candidates[i].photographer || 'unknown') + ' · ' + (candidates[i].source || '');
-      localStorage.setItem('arg:hero-seen', JSON.stringify(seen.concat([candidates[i].url]).slice(-40)));
+      await preload(cands[i].url);
+      const bd = document.getElementById('backdrop');
+      bd.style.backgroundImage = 'url("' + cands[i].url + '")';
+      bd.classList.add('on');
+      document.getElementById('credit').textContent = 'Photo: ' + (cands[i].photographer || 'unknown') + ' · ' + (cands[i].source || '');
+      localStorage.setItem('arg:hero-seen', JSON.stringify(seen.concat([cands[i].url]).slice(-40)));
       return;
-    } catch (e) { /* try the next candidate */ }
+    } catch (e) {}
   }
-  credit.textContent = 'Photography will return with the next visit.';
 })();
 
-// Calendar — compact month grid + today's events
+// ── Calendar — local Argentica diary (today + month markers) ──
 (async function () {
   try {
-    const cal = await api('/google/calendar');
-    const body = document.getElementById('cal-body');
-    if (cal.status !== 'ok') {
-      document.getElementById('cal-dot').classList.remove('on');
-      body.innerHTML = '<div class="muted">Google Calendar not connected. Reconnect from Commercial → Platforms.</div>';
-      return;
-    }
-    document.getElementById('cal-dot').classList.add('on');
-    const evs = (cal.today || []).concat(cal.week || []);
-    const today = new Date();
-    const y = today.getFullYear(), m = today.getMonth();
+    const d = await api('/calendar/events');
+    const evs = d.events || [];
+    const now = new Date(); const y = now.getFullYear(), m = now.getMonth();
     const first = new Date(y, m, 1);
     const start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));
-    let grid = '<div style="display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:10px;">';
+    let g = '';
     for (let i = 0; i < 35; i++) {
-      const d = new Date(start); d.setDate(start.getDate() + i);
-      const inM = d.getMonth() === m;
-      const isT = d.toDateString() === today.toDateString();
-      const has = evs.some(e => (e.starts_at || '').slice(0, 10) === d.toISOString().slice(0, 10));
-      grid += '<div style="text-align:center; font-size:10.5px; padding:2px 0; border-radius:4px;' +
-        (isT ? 'background:var(--teal); color:#fff;' : has ? 'background:rgba(15,59,58,0.12); color:var(--teal); font-weight:600;' : 'color:' + (inM ? 'var(--ink-soft)' : 'var(--line)')) +
-        '">' + d.getDate() + '</div>';
+      const dt = new Date(start); dt.setDate(start.getDate() + i);
+      const iso = dt.toISOString().slice(0, 10);
+      const has = evs.some(e => ((e.scheduledFor || e.starts_at || '') + '').slice(0, 10) === iso);
+      const isT = dt.toDateString() === now.toDateString();
+      g += '<div class="' + (isT ? 'today' : has ? 'has' : '') + '">' + (dt.getMonth() === m ? dt.getDate() : '·') + '</div>';
     }
-    grid += '</div>';
-    const todayEvs = (cal.today || []);
-    body.innerHTML = grid +
-      (todayEvs.length ? todayEvs.map(e => '<div style="font-size:12.5px; margin-bottom:4px;"><strong>' + esc((e.starts_at || '').slice(11, 16)) + '</strong> ' + esc(e.title) + '</div>').join('') : '<div class="muted">Nothing else today.</div>') +
-      ((cal.week || []).length ? '<div class="muted" style="margin-top:6px;">' + (cal.week || []).length + ' more this fortnight.</div>' : '') +
-      '<div style="margin-top:10px;"><button class="ghost small" onclick="location.href=\'/argentica/comms/calendar/\'">Full calendar</button></div>';
-  } catch (e) {
-    document.getElementById('cal-body').innerHTML = '<div class="muted">Calendar unavailable.</div>';
-  }
+    document.getElementById('cal-grid').innerHTML = g;
+    const todayEvs = evs.filter(e => ((e.scheduledFor || e.starts_at || '') + '').slice(0, 10) === new Date().toISOString().slice(0, 10));
+    document.getElementById('cal-today').innerHTML = todayEvs.length
+      ? todayEvs.map(e => '· ' + esc(((e.scheduledFor || '').slice(11, 16)) + ' ' + (e.title || e.text || ''))).join('<br>')
+      : 'Nothing scheduled today.';
+  } catch (e) { document.getElementById('cal-today').textContent = 'Diary unavailable.'; }
 })();
 
-// News — Guardian society + BBC health RSS via worker proxy
+// ── News ──
 (async function () {
-  const feeds = [
-    'https://www.theguardian.com/society/rss',
-    'https://feeds.bbci.co.uk/news/health/rss.xml'
-  ];
-  const kw = ['mental health', 'addiction', 'recovery', 'nhs', 'trauma', 'drug', 'alcohol', 'therapy', 'wellbeing', 'disability', 'poverty', 'inequality'];
+  const feeds = ['https://www.theguardian.com/society/rss', 'https://feeds.bbci.co.uk/news/health/rss.xml'];
+  const kw = ['mental health', 'addiction', 'recovery', 'nhs', 'trauma', 'drug', 'alcohol', 'therapy', 'wellbeing', 'poverty', 'inequality'];
   const items = [];
   await Promise.all(feeds.map(async url => {
     try {
@@ -180,82 +303,65 @@ const { api, esc } = ARG;
       const doc = new DOMParser().parseFromString(text, 'text/xml');
       doc.querySelectorAll('item, entry').forEach(it => {
         const title = (it.querySelector('title') || {}).textContent || '';
-        const link = (it.querySelector('link') || {}).textContent || (it.querySelector('link') || {}).getAttribute && (it.querySelector('link') || {}).getAttribute('href') || '';
-        const desc = ((it.querySelector('description') || {}).textContent || '').replace(/<[^>]*>/g, '').slice(0, 160);
+        const link = (it.querySelector('link') || {}).textContent || ((it.querySelector('link') || {}).getAttribute && it.querySelector('link').getAttribute('href')) || '';
+        const desc = ((it.querySelector('description') || {}).textContent || '').replace(/<[^>]*>/g, '').slice(0, 140);
         let img = '';
-        const thumb = it.querySelector('thumbnail, content');
-        if (thumb) img = thumb.getAttribute && (thumb.getAttribute('url') || thumb.getAttribute('href')) || '';
-        if (!img) {
-          const enc = it.querySelector('enclosure');
-          if (enc && /image/.test(enc.getAttribute('type') || '')) img = enc.getAttribute('url');
-        }
-        if (!img) {
-          const m = desc && ((it.querySelector('description') || {}).textContent || '').match(/<img[^>]+src=["']([^"']+)/);
-          if (m) img = m[1];
-        }
+        const th = it.querySelector('thumbnail, content');
+        if (th) img = (th.getAttribute && (th.getAttribute('url') || th.getAttribute('href'))) || '';
+        if (!img) { const en = it.querySelector('enclosure'); if (en && /image/.test(en.getAttribute('type') || '')) img = en.getAttribute('url'); }
         if (kw.some(k => (title + ' ' + desc).toLowerCase().includes(k))) items.push({ title, link, desc, img });
       });
     } catch (e) {}
   }));
   const el = document.getElementById('news-list');
-  if (!items.length) { el.innerHTML = '<div class="muted">Nothing relevant from approved sources today.</div>'; return; }
-  el.innerHTML = items.slice(0, 6).map(n =>
-    '<div class="item">' +
-    (n.img ? '<img src="' + esc(n.img) + '" style="width:64px; height:48px; object-fit:cover; border-radius:5px; flex-shrink:0;" onerror="this.remove()">' : '') +
-    '<div style="min-width:0;"><a href="' + esc(n.link) + '" target="_blank" rel="noopener">' + esc(n.title) + '</a><div class="muted">' + esc(n.desc) + '</div></div></div>'
+  if (!items.length) { el.innerHTML = '<span style="color:rgba(255,255,255,.45); font-size:13px;">Nothing relevant from approved sources today.</span>'; return; }
+  el.innerHTML = items.slice(0, 5).map(n =>
+    '<div class="news-item">' + (n.img ? '<img src="' + esc(n.img) + '" onerror="this.remove()">' : '') +
+    '<div><div class="nx"><a href="' + esc(n.link) + '" target="_blank" rel="noopener">' + esc(n.title) + '</a></div>' +
+    '<div class="nd">' + esc(n.desc) + '</div></div></div>'
   ).join('');
 })();
 
-// Social status
+// ── Social KPIs ──
 (async function () {
   try {
-    const data = await api('/mm/queue');
-    const q = data.queue || [];
-    const counts = data.counts || {};
-    const pending = q.filter(i => (i.status || 'pending') === 'pending');
-    const posted = q.filter(i => i.status === 'posted');
-    const last = posted[posted.length - 1];
+    const d = await api('/mm/queue');
+    const q = d.queue || []; const c = d.counts || {};
+    const pending = q.filter(i => (i.status || 'pending') === 'pending').length;
+    const posted = c.posted || q.filter(i => i.status === 'posted').length;
+    const sched = c.scheduled || q.filter(i => i.status === 'scheduled').length;
     document.getElementById('social-body').innerHTML =
-      '<div class="row" style="gap:6px; flex-wrap:wrap;">' +
-      '<span class="badge teal">' + (counts.pending || pending.length) + ' awaiting approval</span>' +
-      '<span class="badge green">' + (counts.posted || posted.length) + ' posted</span>' +
-      '<span class="badge">' + (counts.scheduled || 0) + ' scheduled</span></div>' +
-      (last ? '<div class="muted mt">Last post: ' + esc((last.platforms || []).join(', ') || '—') + ' · ' + new Date(last.createdAt).toLocaleDateString('en-GB') + '</div>' : '<div class="muted mt">No posts yet.</div>') +
-      '<div class="mt"><button class="ghost small" onclick="location.href=\'/argentica/commercial/publishing/\'">Review the queue</button></div>';
-  } catch (e) {
-    document.getElementById('social-body').innerHTML = '<div class="muted">Queue unavailable.</div>';
-  }
+      '<div class="kpi">' +
+      '<div><div class="n">' + pending + '</div><div class="l">Awaiting approval</div></div>' +
+      '<div><div class="n">' + sched + '</div><div class="l">Scheduled</div></div>' +
+      '<div><div class="n">' + posted + '</div><div class="l">Posted</div></div></div>';
+  } catch (e) { document.getElementById('social-body').textContent = 'Queue unavailable.'; }
 })();
 
-// Recent conversations
+// ── Recent conversations ──
 (async function () {
   try {
-    const data = await api('/threads');
-    const el = document.getElementById('threads-body');
-    const threads = (data.threads || []).slice(0, 3);
-    if (!threads.length) { el.innerHTML = '<div class="muted">No conversations yet. Gerald is waiting.</div>'; return; }
-    el.innerHTML = threads.map(t =>
-      '<div class="item"><div><div>' + esc(t.title || 'Conversation') + '</div>' +
-      '<div class="muted">' + (t.messageCount || 0) + ' messages · ' + (t.updated ? new Date(t.updated).toLocaleDateString('en-GB') : '') + '</div></div></div>'
-    ).join('') + '<div class="mt" style="margin-top:10px;"><button class="ghost small" onclick="location.href=\'/argentica/chat/\'">Resume with Gerald</button></div>';
-  } catch (e) { document.getElementById('threads-body').innerHTML = '<div class="muted">Could not load conversations.</div>'; }
+    const d = await api('/threads');
+    const th = (d.threads || []).slice(0, 3);
+    document.getElementById('threads-body').innerHTML = th.length ? th.map(t =>
+      '<div style="margin-bottom:9px;"><a href="/argentica/chat/?t=' + encodeURIComponent(t.id) + '">' + esc(t.title || 'Conversation') + '</a>' +
+      '<div class="nd" style="color:rgba(255,255,255,.5); font-size:11.5px;">' + (t.messageCount || 0) + ' messages · ' + (t.updated ? new Date(t.updated).toLocaleDateString('en-GB') : '') + '</div></div>'
+    ).join('') : '<span style="color:rgba(255,255,255,.45); font-size:13px;">No conversations yet — Gerald is waiting.</span>';
+  } catch (e) { document.getElementById('threads-body').textContent = 'Could not load.'; }
 })();
 
-// System health
+// ── System health ──
 (async function () {
   try {
     const res = await fetch('https://prism-api.identitypartners.workers.dev/health');
-    const d = await res.json();
-    document.getElementById('health-dot').classList.add('on');
-    document.getElementById('health-body').innerHTML =
-      '<div>Worker healthy · storage bound · responding normally.</div>' +
-      '<div class="muted mt" style="margin-top:4px;">Cron slots: 08:00 · 13:00 · 20:00 UTC</div>';
+    await res.json();
+    document.getElementById('health-body').innerHTML = '<span style="color:#8fd6b3;">●</span> Argentica healthy — worker responding normally.';
   } catch (e) {
-    document.getElementById('health-body').textContent = 'Worker not responding — check System for detail.';
+    document.getElementById('health-body').innerHTML = '<span style="color:#e9b879;">●</span> Worker not responding — check System.';
   }
 })();
 
-// Quick chat → hand off to Gerald
+// ── Quick note → Gerald ──
 document.getElementById('quick-send').addEventListener('click', () => {
   const v = document.getElementById('quick-chat').value.trim();
   if (v) sessionStorage.setItem('arg:pending-prompt', v);

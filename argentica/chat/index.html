@@ -666,10 +666,14 @@ document.getElementById('act-save').addEventListener('click', async () => {
 });
 
 const pending = sessionStorage.getItem('arg:pending-prompt');
+const wanted = new URLSearchParams(location.search).get('t');
 if (pending) {
   sessionStorage.removeItem('arg:pending-prompt');
   input.value = pending;
   send();
+  loadThreads();
+} else if (wanted) {
+  openThread(decodeURIComponent(wanted));
 } else {
   loadThreads();
 }
