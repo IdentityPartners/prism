@@ -12,6 +12,14 @@
   .mm-card .mm-hdr .mm-state { color: var(--ink-soft); margin-left: auto; font-size: 11px; }
   .mm-card .mm-body { padding: 12px 14px; line-height: 1.65; overflow-wrap: anywhere; }
   .mm-card pre { background: #f4f0e6; border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow-x: auto; font-size: 12.5px; }
+  details.think { margin: 8px 0 2px; border: 1px dashed rgba(15,59,58,.35); border-radius: 8px; background: rgba(15,59,58,.03); }
+  details.think summary { cursor: pointer; font-size: 11.5px; color: var(--ink-soft); padding: 5px 10px; user-select: none; }
+  details.think .think-text { font-size: 12px; color: var(--ink-soft); white-space: pre-wrap; padding: 4px 12px 10px; line-height: 1.5; max-height: 260px; overflow-y: auto; }
+  .collapser { cursor: pointer; font-size: 11px; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 10px; padding: 0 9px; margin: 2px 0 8px; display: inline-flex; gap: 4px; background: #fff; }
+  .collapsed-body { max-height: 84px; overflow: hidden; position: relative; }
+  .collapsed-body::after { content: ''; position: absolute; inset: auto 0 0 0; height: 42px; background: linear-gradient(transparent, #fff); }
+  .retry-btn, .synth-btn { margin-top: 8px; font-size: 12px; border: 1px solid var(--line); background: rgba(15,59,58,.06); color: var(--ink); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+  .retry-btn:hover, .synth-btn:hover { background: rgba(15,59,58,.14); }
   .attach-chip { display: inline-block; background: rgba(15,59,58,.08); border-radius: 10px; padding: 1px 9px; font-size: 11px; margin-right: 4px; }
   .thread-item { display: flex; align-items: center; gap: 6px; }
   .thread-item .t-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
@@ -155,9 +163,32 @@ function renderMsg(role, content) {
   const div = document.createElement('div');
   div.className = 'msg ' + (role === 'user' ? 'user' : 'gerald');
   div.innerHTML = '<div class="who">' + (role === 'user' ? 'Simon' : 'Gerald') + '</div><div class="bubble">' + md(content) + '</div>';
-  scroll.appendChild(div);
+  const bubble = div.querySelector('.bubble');
+  if (role !== 'user' && (content || '').length > 700) addCollapser(bubble);
   scroll.scrollTop = scroll.scrollHeight;
-  return div.querySelector('.bubble');
+  return bubble;
+}
+
+function addCollapser(body) {
+  const btn = document.createElement('button');
+  btn.className = 'collapser';
+  btn.textContent = '\u25BE Collapse';
+  btn.onclick = () => {
+    const collapsed = body.classList.toggle('collapsed-body');
+    btn.textContent = collapsed ? '\u25B8 Expand' : '\u25BE Collapse';
+  };
+  body.parentElement.insertBefore(btn, body);
+}
+
+function ensureThinkBlock(beforeEl) {
+  let t = beforeEl.parentElement.querySelector('details.think');
+  if (!t) {
+    t = document.createElement('details');
+    t.className = 'think';
+    t.innerHTML = '<summary>\u{1F4AD} Thought process</summary><div class="think-text"></div>';
+    beforeEl.parentElement.insertBefore(t, beforeEl);
+  }
+  return t;
 }
 
 // ── OSK — permanent, compact, stylus-friendly ─────────
@@ -458,8 +489,9 @@ async function streamOnce(override, bubble, log, label) {
       const dtM = frame.match(/^data: (.+)$/m);
       if (!evM || !dtM) continue;
       const ev = evM[1], data = JSON.parse(dtM[1]);
+      if (ev === 'thinking') { ensureThinkBlock(bubble).querySelector('.think-text').textContent += (data.text || ''); scroll.scrollTop = scroll.scrollHeight; }
       if (ev === 'token') { acc += data.text; bubble.innerHTML = md(acc); if (log) log.textContent = 'streaming…'; scroll.scrollTop = scroll.scrollHeight; }
-      if (ev === 'done') { acc = data.content || acc; bubble.innerHTML = md(acc); if (log) log.textContent = 'via ' + (data.provider || '?') + ' · ' + (data.model || '?'); threadId = data.threadId || threadId; }
+      if (ev === 'done') { acc = data.content || acc; bubble.innerHTML = md(acc); if ((acc||'').length > 700) addCollapser(bubble); if (log) log.textContent = 'via ' + (data.provider || '?') + ' · ' + (data.model || '?'); threadId = data.threadId || threadId; }
       if (ev === 'error') { throw new Error(data.error || 'No response'); }
     }
   }
@@ -483,11 +515,22 @@ async function doSend() {
 
   if (picked.length <= 1) {
     const bubble = renderMsg('assistant', '…');
+    const attempt = async () => streamOnce(overrides[0] || null, bubble, log, picked[0] ? picked[0].label : '');
     try {
-      const acc = await streamOnce(overrides[0] || null, bubble, log, picked[0] ? picked[0].label : '');
+      const acc = await attempt();
       messages.push({ role: 'assistant', content: acc });
       loadThreads();
-    } catch (e) { bubble.innerHTML = '<span class="muted">' + esc(e.message || 'No response — the connection dropped. Try again.') + '</span>'; log.textContent = 'Connection failed.'; }
+    } catch (e) {
+      bubble.innerHTML = '<span class="muted">' + esc(e.message || 'No response — the connection dropped.') + '</span>';
+      const btn = document.createElement('button'); btn.className = 'retry-btn'; btn.textContent = '↻ Retry';
+      btn.onclick = async () => {
+        btn.remove(); bubble.innerHTML = '…';
+        try { const acc2 = await attempt(); messages.push({ role: 'assistant', content: acc2 }); loadThreads(); }
+        catch (e2) { bubble.innerHTML = '<span class="muted">' + esc(e2.message || 'Failed again.') + '</span>'; bubble.parentElement.appendChild(btn); }
+      };
+      bubble.parentElement.appendChild(btn);
+      log.textContent = 'Connection failed.';
+    }
   } else {
     const wrap = document.createElement('div');
     wrap.style.marginBottom = '16px';
@@ -504,10 +547,47 @@ async function doSend() {
         .catch(e => {
           cards[i].querySelector('.mm-state').textContent = 'failed';
           cards[i].querySelector('.mm-body').innerHTML = '<span class="muted">' + esc(e.message || 'No response.') + '</span>';
+          const btn = document.createElement('button'); btn.className = 'retry-btn'; btn.textContent = '↻ Retry';
+          btn.onclick = async () => {
+            btn.remove(); const body = cards[i].querySelector('.mm-body'); body.innerHTML = '…';
+            cards[i].querySelector('.mm-state').textContent = 'retrying…';
+            try {
+              const r2 = await streamOnce(overrides[i], body, cards[i].querySelector('.mm-state'), m.label);
+              results[i] = r2; cards[i].querySelector('.mm-state').textContent = 'done';
+              messages.push({ role: 'assistant', content: '[Retry ' + picked[i].label + ']\n' + r2 }); loadThreads();
+            } catch (e2) {
+              cards[i].querySelector('.mm-state').textContent = 'failed';
+              body.innerHTML = '<span class="muted">' + esc(e2.message || 'Failed again.') + '</span>'; body.parentElement.appendChild(btn);
+            }
+          };
+          cards[i].querySelector('.mm-body').parentElement.appendChild(btn);
           return '';
         })
     ));
     log.textContent = picked.map((m, i) => m.label + (results[i] ? ' ✓' : ' ✗')).join(' · ');
+    cards.forEach(c => { const b = c.querySelector('.mm-body'); if (b && (b.textContent||'').length > 700) addCollapser(b); });
+    const okRes = results.filter(r => r && r.trim());
+    if (okRes.length >= 2) {
+      const sb = document.createElement('button'); sb.className = 'synth-btn'; sb.textContent = '⬗ Synthesise these answers';
+      sb.onclick = async () => {
+        sb.disabled = true; sb.textContent = 'Synthesising…';
+        const synth = renderMsg('assistant', '[Synthesis in progress — the models\' answers are combined below.]\n\n' +
+          results.map((r, i) => r && r.trim() ? '**[' + picked[i].label + ']**\n' + r.slice(0, 4000) : '').filter(Boolean).join('\n\n---\n\n') +
+          '\n\n**Synthesis:** \u2026');
+        const synthQ = 'Here are answers from several AI models to the question: "' + text + '"\n\n' +
+          results.map((r, i) => r && r.trim() ? '--- ' + picked[i].label + ' ---\n' + r.slice(0, 4000) : '').filter(Boolean).join('\n\n') +
+          '\n\nSynthesise these into ONE best answer: take the strongest points, reconcile disagreements, drop errors, be concise and complete. British English. Do not mention which model said what.';
+        try {
+          messages.push({ role: 'user', content: synthQ.slice(0, 8000) });
+          const acc = await streamOnce(null, synth, log, 'Synthesis');
+          synth.innerHTML = md(acc);
+          if ((acc||'').length > 700) addCollapser(synth);
+          messages.push({ role: 'assistant', content: acc });
+          loadThreads();
+        } catch (e) { synth.innerHTML = '<span class="muted">Synthesis failed: ' + esc(e.message) + '</span>'; sb.disabled = false; sb.textContent = '⬗ Synthesise these answers'; }
+      };
+      wrap.appendChild(sb);
+    }
     messages.push({ role: 'assistant', content: results.map((r, i) => '[' + picked[i].label + ']\n' + r).join('\n\n') });
     loadThreads();
   }

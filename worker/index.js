@@ -2009,6 +2009,91 @@ async function handleIntegrationRoutes(path, request, env, origin) {
 
 
 
+// ── Scheduled + manual backup: KV stores (KB, memories, calendar) → Google Drive ──
+async function backupStoresToDrive(env) {
+  if (!env.PRISM_KV) return { success: false, error: 'No KV binding' };
+  try {
+    // Collect Knowledge Base pages
+    const kbList = await env.PRISM_KV.list({ prefix: 'kb:' });
+    const kbPages = [];
+    for (const key of (kbList.keys || []).slice(0, 500)) {
+      let v = null;
+      try { v = await env.PRISM_KV.get(key.name, 'json'); } catch (ke) { v = null; }
+      if (v && v.title) kbPages.push(v);
+    }
+    // Collect memories
+    const memList = await env.PRISM_KV.list({ prefix: 'memory:' });
+    const memories = [];
+    for (const key of (memList.keys || []).slice(0, 500)) {
+      let v = null;
+      try { v = await env.PRISM_KV.get(key.name, 'json'); } catch (ke) { v = null; }
+      if (v) memories.push(v);
+    }
+    // Collect calendar events
+    let events = [];
+    try { events = await getCalendarEvents(env, null, null); } catch (ce) {}
+    const date = new Date().toISOString().slice(0, 10);
+
+    const htmlToText = function(html) {
+      return String(html || '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n\n')
+        .replace(/<h1[^>]*>/gi, '\n# ').replace(/<h2[^>]*>/gi, '\n## ').replace(/<h3[^>]*>/gi, '\n### ')
+        .replace(/<li[^>]*>/gi, '\n- ')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ');
+    };
+
+    let md = '# Argentica backup — ' + date + '\n\nGenerated automatically by the prism-api worker.\n\n';
+    md += '# Knowledge Base (' + kbPages.length + ' pages)\n\n';
+    for (const pg of kbPages) {
+      md += '---\n\n# ' + (pg.title || 'Untitled') + (pg.section ? '  _(section: ' + pg.section + ')_' : '') + '\n\n' +
+            htmlToText(pg.content).trim() + '\n\n';
+    }
+    md += '\n# Memories (' + memories.length + ')\n\n';
+    for (const m of memories) {
+      md += '## ' + (m.source || m.category || 'memory') + '\n\n' + String(m.content || '').trim() + '\n\n';
+    }
+    md += '\n# Calendar (' + events.length + ' events)\n\n';
+    for (const e of events) {
+      if (!e) continue;
+      md += '- ' + (e.scheduledFor || e.starts_at || '?') + ' — ' + (e.title || e.text || 'Event') + '\n';
+    }
+
+    // Upload to Drive
+    const tokenData = await env.PRISM_KV.get('google:oauth:token', 'json');
+    if (!tokenData || !tokenData.access_token) {
+      await env.PRISM_KV.put('kb:backup:last', JSON.stringify({ ts: new Date().toISOString(), success: false, error: 'Google not connected' }));
+      return { success: false, error: 'Google not connected' };
+    }
+    const fileName = 'Argentica backup ' + date + '.md';
+    const bytes = new TextEncoder().encode(md);
+    const metaResp = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + tokenData.access_token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: fileName, mimeType: 'text/markdown' })
+    });
+    if (!metaResp.ok) {
+      await env.PRISM_KV.put('kb:backup:last', JSON.stringify({ ts: new Date().toISOString(), success: false, error: 'Drive meta failed' }));
+      return { success: false, error: 'Drive meta failed' };
+    }
+    const fileId = (await metaResp.json()).id;
+    const uploadResp = await fetch('https://www.googleapis.com/upload/drive/v3/files/' + fileId + '?uploadType=media', {
+      method: 'PATCH',
+      headers: { 'Authorization': 'Bearer ' + tokenData.access_token, 'Content-Type': 'text/markdown' },
+      body: bytes
+    });
+    const rec = { ts: new Date().toISOString(), success: uploadResp.ok, date, fileName,
+                  pages: kbPages.length, memories: memories.length, events: events.length, bytes: md.length,
+                  link: 'https://drive.google.com/file/d/' + fileId + '/view' };
+    await env.PRISM_KV.put('kb:backup:last', JSON.stringify(rec));
+    return rec;
+  } catch (e) {
+    try { await env.PRISM_KV.put('kb:backup:last', JSON.stringify({ ts: new Date().toISOString(), success: false, error: e.message })); } catch (ke) {}
+    return { success: false, error: e.message };
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -4519,6 +4604,24 @@ data: ${JSON.stringify(data)}
     // ── Notes (WriteHandy cloud sync) ────────────────────────────────────────────────────
     // ── Personas ───────────────────────────────────────────────────────────────────
     // ── Knowledge base (wiki) ──────────────────────────────────────────────────────────────
+    if (path === '/api/kb/backup' && request.method === 'GET') {
+      try {
+        const last = await env.PRISM_KV.get('kb:backup:last', 'json') || null;
+        const cfg = await env.PRISM_KV.get('kb:backup:config', 'json') || { enabled: true };
+        return json({ last, config: cfg }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+    if (path === '/api/kb/backup' && request.method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        if (typeof body.enabled === 'boolean') {
+          await env.PRISM_KV.put('kb:backup:config', JSON.stringify({ enabled: body.enabled }));
+          return json({ success: true, config: { enabled: body.enabled } }, 200, origin);
+        }
+        const rec = await backupStoresToDrive(env);
+        return json(rec, rec.success ? 200 : 500, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
     if (path === '/api/kb' && request.method === 'GET') {
       try {
         const list = await env.PRISM_KV.list({ prefix: 'kb:' });
@@ -9281,6 +9384,17 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     ctx.waitUntil((async () => {
       try {
         const hour = new Date().getUTCHours();
+        // ── Daily KV→Drive backup (runs on the first cron after each new UTC day) ──
+        try {
+          const bkCfg = await env.PRISM_KV.get('kb:backup:config', 'json');
+          if (!bkCfg || bkCfg.enabled !== false) {
+            const today = new Date().toISOString().slice(0, 10);
+            const lastBk = await env.PRISM_KV.get('kb:backup:last', 'json');
+            if (!lastBk || (lastBk.date || '') !== today) {
+              ctx.waitUntil(backupStoresToDrive(env).catch(() => {}));
+            }
+          }
+        } catch (bke) {}
         const slot = hour >= 7 && hour < 9 ? 'morning' : hour >= 12 && hour < 14 ? 'lunchtime' : 'evening';
         if (env.PRISM_KV) await env.PRISM_KV.put('cron:last-run', JSON.stringify({ ts: new Date().toISOString(), slot, autonomous: true }), { expirationTtl: 86400 * 7 });
 

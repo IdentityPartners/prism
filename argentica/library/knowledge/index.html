@@ -80,6 +80,7 @@
     <h3>&#x1F4D6; Knowledge Base</h3>
     <button onclick="newPage()" style="padding:3px 8px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">+ New</button>
     <button onclick="showImport()" style="padding:3px 8px;background:#fff;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;color:var(--fg);">Import</button>
+    <button onclick="backupNow()" title="Back up the Knowledge Base, memories and calendar to Google Drive" style="padding:3px 8px;background:#fff;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;color:var(--fg);">Backup</button>
   </div>
   <div style="padding:6px 10px;border-bottom:1px solid var(--border);">
     <input type="text" id="wiki-search" placeholder="Search pages..." style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box;" oninput="filterPages(this.value)">
@@ -462,16 +463,46 @@ function detectBacklinks() {
   var matches = text.match(/\[\[([^\]]+)\]\]/g);
   if (matches) {
     var linked = matches.map(function(m){return m.slice(2,-2);});
+    // Auto-create stub pages for [[links]] that don't exist yet (wiki behaviour)
+    var created = 0;
+    linked.forEach(function(name){
+      var n = name.trim();
+      if (!n) return;
+      if (!pages.some(function(p){return p.title.toLowerCase()===n.toLowerCase();})) {
+        var cur = pages.find(function(p){return p.id===currentPageId;});
+        pages.push({id:'p-'+Date.now()+'-'+(created++), title:n, section:(cur&&cur.section)||'',
+          content:'<p>Stub page — created automatically because another page links to it via [[' + n + ']].</p>', created:new Date().toISOString()});
+        created++;
+      }
+    });
+    if (created) { renderTree(); }
     document.getElementById('wiki-backlinks').textContent = 'Links: ' + linked.join(', ');
   }
+}
+
+function backupNow() {
+  if (!confirm('Back up the Knowledge Base, Memories and Calendar to Google Drive now?')) return;
+  ARG.toast('Backing up to Google Drive…');
+  fetch('/api/kb/backup', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if (d.success) ARG.toast('Backup saved to Drive: ' + (d.fileName||'') + ' (' + (d.pages||0) + ' KB pages, ' + (d.memories||0) + ' memories).');
+    else ARG.toast('Backup failed: ' + (d.error || 'unknown error') + (d.error === 'Google not connected' ? ' — reconnect Google first.' : ''));
+  })
+  .catch(function(e){ ARG.toast('Backup failed: ' + e.message); });
 }
 
 function updateBacklinks() {
   if (!currentPageId) return;
   var currentPage = pages.find(function(p){return p.id===currentPageId;});
   if (!currentPage) return;
+  var t = currentPage.title ? currentPage.title.toLowerCase() : null;
   var backlinks = pages.filter(function(p) {
-    return p.id !== currentPageId && (p.content||'').includes('[['+currentPage.title+']]');
+    if (p.id === currentPageId) return false;
+    var c = p.content || '';
+    if (c.includes('[['+currentPage.title+']]')) return true;
+    if (t && t.length > 3 && c.toLowerCase().indexOf(t) >= 0) return true; // plain title mention = automatic backlink
+    return false;
   });
   if (backlinks.length > 0) {
     var bl = document.getElementById('wiki-backlinks');
