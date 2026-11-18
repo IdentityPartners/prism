@@ -4627,6 +4627,7 @@ data: ${JSON.stringify(data)}
         const list = await env.PRISM_KV.list({ prefix: 'kb:' });
         const pages = [];
         for (const k of (list.keys || []).slice(0, 200)) {
+          if (k.name.indexOf('backup') >= 0) continue; // kb:backup:* are bookkeeping, not pages
           let v = null;
           try { v = await env.PRISM_KV.get(k.name, 'json'); } catch (ke) { v = null; }
           if (v) pages.push(v);
@@ -4637,9 +4638,10 @@ data: ${JSON.stringify(data)}
     }
     if (path === '/api/kb' && request.method === 'POST') {
       try {
-        const body = await request.json();
-        const id = body.id || ('kb-' + Date.now());
-        const rec = { id, title: body.title || 'Untitled', section: body.section || '', idx: body.idx || 0,
+        const body = await request.json().catch(() => null);
+        if (!body || !body.id || !body.title) return json({ success: false, error: 'invalid page (id and title required)' }, 400, origin);
+        const id = body.id;
+        const rec = { id, title: body.title, section: body.section || '', idx: body.idx || 0,
                       source: body.source || '', format: body.format || 'html',
                       content: body.content || '',
                       created: body.created || new Date().toISOString(), updated: new Date().toISOString() };

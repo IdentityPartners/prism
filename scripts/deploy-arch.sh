@@ -25,10 +25,13 @@ export default {
     const url = new URL(request.url);
     if (url.pathname.startsWith('/api/')) {
       const target = 'https://prism-api.identitypartners.workers.dev' + url.pathname + (url.search || '');
+      const h = new Headers(request.headers);
+      h.delete('content-length'); // avoid stream/mismatch truncation to the API
+      const body = (request.method !== 'GET' && request.method !== 'HEAD') ? await request.arrayBuffer() : undefined;
       return fetch(target, {
         method: request.method,
-        headers: request.headers,
-        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+        headers: h,
+        body,
       });
     }
     return env.ASSETS.fetch(request);
