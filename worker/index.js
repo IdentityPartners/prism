@@ -4536,7 +4536,9 @@ data: ${JSON.stringify(data)}
       try {
         const body = await request.json();
         const id = body.id || ('kb-' + Date.now());
-        const rec = { id, title: body.title || 'Untitled', content: body.content || '',
+        const rec = { id, title: body.title || 'Untitled', section: body.section || '', idx: body.idx || 0,
+                      source: body.source || '', format: body.format || 'html',
+                      content: body.content || '',
                       created: body.created || new Date().toISOString(), updated: new Date().toISOString() };
         await env.PRISM_KV.put('kb:' + id, JSON.stringify(rec));
         return json({ success: true, page: rec }, 200, origin);

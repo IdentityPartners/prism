@@ -54,13 +54,32 @@
 </style>
 </head>
 <body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="/shared/argentica.js"></script>
+
+<!-- Import dialog -->
+<div id="import-dialog" style="display:none;position:fixed;inset:0;background:rgba(20,18,14,.45);z-index:100;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;max-width:520px;width:92%;padding:22px 24px;box-shadow:0 18px 50px rgba(0,0,0,.25);">
+    <h3 style="font-family:Georgia,serif;margin:0 0 6px;">Import a document</h3>
+    <div style="font-size:12.5px;color:var(--fg-muted);margin-bottom:12px;">PDF is converted to clean Markdown (text layer only — <strong>images are not stored</strong>). .md and .txt import directly.</div>
+    <input type="file" id="import-file" accept=".pdf,.md,.txt,.markdown" style="width:100%;margin-bottom:10px;">
+    <input type="text" id="import-section" placeholder="Section name, e.g. My Theories" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:10px;box-sizing:border-box;">
+    <label style="display:block;font-size:12.5px;margin-bottom:6px;"><input type="checkbox" id="import-split"> Split into subsection pages at each §2 heading</label>
+    <label style="display:block;font-size:12.5px;margin-bottom:14px;"><input type="checkbox" id="import-memory"> Also file this text in Memories (memory context)</label>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="tb-btn" onclick="hideImport()">Cancel</button>
+      <button onclick="doImport()" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-family:Georgia,serif;">Import</button>
+    </div>
+    <div id="import-status" style="font-size:12px;color:var(--fg-muted);margin-top:10px;"></div>
+  </div>
+</div>
 <div class="arg-page" data-key="knowledge" style="padding:0; max-width:none;">
 <div class="wiki-shell">
 <div class="wiki-tree">
   <div class="wiki-tree-hdr">
     <h3>&#x1F4D6; Knowledge Base</h3>
     <button onclick="newPage()" style="padding:3px 8px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">+ New</button>
+    <button onclick="showImport()" style="padding:3px 8px;background:#fff;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;color:var(--fg);">Import</button>
   </div>
   <div style="padding:6px 10px;border-bottom:1px solid var(--border);">
     <input type="text" id="wiki-search" placeholder="Search pages..." style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg);color:var(--fg);box-sizing:border-box;" oninput="filterPages(this.value)">
@@ -73,6 +92,7 @@
     <div style="display:flex;gap:5px;">
       <button class="tb-btn active" id="btn-edit" onclick="setMode('edit',this)">Edit</button>
       <button class="tb-btn" id="btn-read" onclick="setMode('read',this)">Read</button>
+      <button class="tb-btn" onclick="setSection()">Section…</button>
       <button class="tb-btn" onclick="exportPage()">Export</button>
       <button class="tb-btn" onclick="deletePage()" style="color:#dc2626;">Delete</button>
     </div>
@@ -198,7 +218,38 @@ function renderTree(filter) {
   var body = document.getElementById('wiki-tree-body');
   body.innerHTML = '';
   var filtered = filter ? pages.filter(function(p){return p.title.toLowerCase().includes(filter.toLowerCase());}) : pages;
-  filtered.forEach(function(p) {
+
+  var groups = {};
+  var order = [];
+  filtered.forEach(function(p){
+    var sec = (p.section || '').trim();
+    if (!order.includes(sec)) { order.push(sec); groups[sec] = []; }
+    groups[sec].push(p);
+  });
+  order.sort(function(a,b){ var un = function(s){return s?0:1;}; return un(a)-un(b) || a.localeCompare(b); });
+
+  order.forEach(function(sec) {
+    if (sec) {
+      var collapsed = sessionStorage.getItem('kb:sec:'+sec) === '0';
+      var hdr = document.createElement('div');
+      hdr.style.cssText = 'padding:8px 10px 4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;';
+      var arrow = document.createElement('span');
+      arrow.textContent = collapsed ? '\u25B8' : '\u25BE'; arrow.style.fontSize = '10px';
+      hdr.appendChild(arrow);
+      hdr.appendChild(document.createTextNode(sec));
+      hdr.onclick = (function(s){ return function(){
+        var isOpen = sessionStorage.getItem('kb:sec:'+s) !== '0';
+        sessionStorage.setItem('kb:sec:'+s, isOpen ? '0' : '1');
+        renderTree(filter);
+      };})(sec);
+      body.appendChild(hdr);
+      groups[sec].sort(function(a,b){ return (a.idx||0)-(b.idx||0); });
+    }
+    groups[sec].forEach(function(p){ appendTreeItem(body, p); });
+  });
+}
+
+function appendTreeItem(body, p) {
     var item = document.createElement('div');
     item.className = 'wiki-page-item' + (p.id===currentPageId?' active':'');
     var icon = document.createElement('span');
@@ -210,10 +261,136 @@ function renderTree(filter) {
     item.appendChild(label);
     item.onclick = (function(pid){return function(){openPage(pid);};})(p.id);
     body.appendChild(item);
-  });
-}
+  }
 
 function filterPages(q) { renderTree(q); }
+
+// ── Section tagging for the current page ──
+function setSection() {
+  if (!currentPageId) return;
+  var page = pages.find(function(p){return p.id===currentPageId;});
+  if (!page) return;
+  var s = prompt('Section for this page (leave blank to un-file):', page.section || '');
+  if (s === null) return;
+  page.section = s.trim(); savePages(); renderTree();
+}
+
+// ── Import ──
+function showImport() {
+  var d = document.getElementById('import-dialog');
+  d.style.display = 'flex';
+  var cur = pages.find(function(p){return p.id===currentPageId;});
+  document.getElementById('import-section').value = (cur && cur.section) || '';
+  document.getElementById('import-status').textContent = '';
+  if (typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+function hideImport() { document.getElementById('import-dialog').style.display = 'none'; }
+
+function mdToHtml(md) {
+  var esc = function(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  var lines = md.split(/\r?\n/), out = [], para = [], listMode = null;
+  function endList(){ if (listMode) { out.push('</'+listMode+'>'); listMode = null; } }
+  function flush(){ if (para.length) { out.push('<p>'+esc(para.join(' '))+'</p>'); para=[]; } }
+  for (var i=0; i<lines.length; i++) {
+    var line = lines[i];
+    var h = line.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { flush(); endList(); out.push('<h'+h[1].length+'>'+esc(h[2])+'</h'+h[1].length+'>'); continue; }
+    if (/^\s*[-*+]\s+/.test(line)) { flush(); if (listMode!=='ul'){ endList(); out.push('<ul>'); listMode='ul'; } out.push('<li>'+esc(line.replace(/^\s*[-*+]\s+/,''))+'</li>'); continue; }
+    if (/^\s*\d+\.\s+/.test(line)) { flush(); if (listMode!=='ol'){ endList(); out.push('<ol>'); listMode='ol'; } out.push('<li>'+esc(line.replace(/^\s*\d+\.\s+/,''))+'</li>'); continue; }
+    if (/^>\s?/.test(line)) { flush(); endList(); out.push('<blockquote>'+esc(line.replace(/^>\s?/,''))+'</blockquote>'); continue; }
+    if (!line.trim()) { flush(); endList(); continue; }
+    para.push(line.trim());
+  }
+  flush(); endList();
+  return out.join('\n');
+}
+
+async function extractPdfMarkdown(file) {
+  var buf = await file.arrayBuffer();
+  var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  var out = [], sizeSum = 0, len = 0;
+  for (var i = 1; i <= pdf.numPages; i++) {
+    var page = await pdf.getPage(i);
+    var tc = await page.getTextContent();
+    var maxH = 0;
+    tc.items.forEach(function(it){ if (it.transform) maxH = Math.max(maxH, Math.abs(it.transform[3])); });
+    sizeSum += maxH; len++;
+    var lastY = null, line = '';
+    var lines = [];
+    tc.items.forEach(function(it){
+      var y = Math.round(it.transform[5]);
+      if (lastY !== null && Math.abs(y - lastY) > 3) { lines.push({y:lastY, t:line}); line = ''; }
+      line += it.str + (it.hasEOL ? '\n' : '');
+      lastY = y;
+    });
+    if (line.trim()) lines.push({y:lastY, t:line});
+    var bodyFont = Math.round(sizeSum/len);
+    lines.forEach(function(ln){
+      var t = ln.t.replace(/\s+/g,' ').trim();
+      if (!t) return;
+      out.push(t);
+    });
+    out.push('');
+  }
+  // Heuristic: a short line in Title Case without terminal punctuation → heading
+  var md = out.map(function(t){
+    if (!t) return '';
+    if (t.length < 70 && !/[.,;:]$/.test(t) && /^[A-Z0-9]/.test(t) && t.split(' ').length <= 9) {
+      if (t === t.toUpperCase() && t.length < 50) return '## ' + t;
+    }
+    return t;
+  }).join('\n');
+  return md;
+}
+
+async function doImport() {
+  var st = document.getElementById('import-status');
+  var file = document.getElementById('import-file').files[0];
+  if (!file) { st.textContent = 'Choose a file first.'; return; }
+  var section = document.getElementById('import-section').value.trim();
+  var split = document.getElementById('import-split').checked;
+  var toMemory = document.getElementById('import-memory').checked;
+  st.textContent = 'Extracting text…';
+  try {
+    var isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+    var md = isPdf ? await extractPdfMarkdown(file) : await file.text();
+    if (!md.trim()) { st.innerHTML = 'No selectable text found — this PDF looks like scanned images. Import it as page images to Memories (OCR) instead.'; return; }
+    var baseName = file.name.replace(/\.[^.]+$/, '');
+    if (split) {
+      // split at ## headings; pre-split intro becomes the parent page
+      var parts = md.split(/^##\s+/m);
+      var intro = parts[0].trim();
+      var chunks = parts.slice(1).map(function(seg){
+        var nl = seg.indexOf('\n');
+        return (nl < 0) ? { title: seg.trim(), body: '' } : { title: seg.slice(0, nl).trim(), body: seg.slice(nl+1).trim() };
+      }).filter(function(c){ return c.title; });
+      if (!chunks.length) { document.getElementById('import-split').checked = false; return doImport(); }
+      var parent = { id:'p-'+Date.now(), title: baseName, section: section, idx: 0, source: file.name, format:'md',
+        content: mdToHtml(intro) + '<p>Subsections:</p><ul>' + chunks.map(function(c){ return '<li>[[ '+c.title+' ]]</li>'; }).join('') + '</ul>', created:new Date().toISOString() };
+      pages.push(parent);
+      chunks.forEach(function(c, i){
+        pages.push({ id:'p-'+Date.now()+'-'+i, title: c.title, section: section, idx: i+1, source: file.name, format:'md',
+          content: mdToHtml(c.body), created:new Date().toISOString() });
+      });
+      st.textContent = 'Imported as "' + baseName + '" + ' + chunks.length + ' subsection pages.';
+    } else {
+      var page = { id:'p-'+Date.now(), title: baseName, section: section, idx: pages.filter(function(p){return p.section===section;}).length, source: file.name, format: isPdf?'md':'txt',
+        content: mdToHtml(md), created:new Date().toISOString() };
+      pages.push(page);
+      st.textContent = 'Imported as "' + baseName + '".';
+    }
+    savePages();
+    if (toMemory) {
+      fetch('/api/memory', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ content: '[Document: '+file.name+']\n'+md.slice(0,60000), category:'document', source:file.name }) }).catch(function(){});
+    }
+    renderTree();
+    hideImport();
+    ARG.toast('Imported "' + file.name + '"' + (isPdf ? ' — images were not stored, text only.' : ''));
+  } catch (e) {
+    st.textContent = 'Import failed: ' + (e.message || e);
+  }
+}
 
 function openPage(id) {
   if (currentPageId) saveCurrent();
@@ -253,7 +430,8 @@ function saveTitle(title) {
 
 function newPage() {
   saveCurrent();
-  var page = {id:'p-'+Date.now(), title:'New Page', content:'<h1>New Page</h1><p>Start writing...</p>', created:new Date().toISOString()};
+  var cur = pages.find(function(p){return p.id===currentPageId;});
+  var page = {id:'p-'+Date.now(), title:'New Page', content:'<h1>New Page</h1><p>Start writing...</p>', section:(cur&&cur.section)||'', created:new Date().toISOString()};
   pages.push(page);
   savePages();
   renderTree();
