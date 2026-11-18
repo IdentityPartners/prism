@@ -8056,6 +8056,65 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     }
 
 
+    if (path === '/api/kb/importdebug' && request.method === 'POST') {
+      try {
+        const BL_RAILWAY_TOKEN = k(env, ['railway_browserless_token']) || '';
+        const BL_CLOUD = k(env, ['browserless']) || '';
+        const fn = `export default async ({ page }) => {
+          await page.setViewport({ width: 1440, height: 900 });
+          const errors = [];
+          page.on('console', m => { if (m.type() === 'error') errors.push(String(m.text()).slice(0, 240)); });
+          page.on('pageerror', e => errors.push(String(e).slice(0, 240)));
+          await page.goto('https://arch.identitypartners.uk/argentica/library/knowledge/', { waitUntil: 'networkidle2', timeout: 60000 });
+          await new Promise(r => setTimeout(r, 2000));
+          const info = await page.evaluate(async () => {
+            const out = {};
+            out.hasDialog = !!document.getElementById('import-dialog');
+            out.hasPdfjs = typeof pdfjsLib !== 'undefined';
+            typeof pdfjsLib !== 'undefined' && (out.workerSrc = pdfjsLib.GlobalWorkerOptions.workerSrc || '(unset)');
+            const dlg = document.getElementById('import-dialog');
+            if (dlg) { dlg.style.display = 'flex'; }
+            out.dialogShown = dlg ? (getComputedStyle(dlg).display === 'flex') : false;
+            try { showImport(); out.showImportOK = true; } catch (e) { out.showImportErr = String(e).slice(0, 200); }
+            const NL = String.fromCharCode(10);
+            try { out.mdTest = mdToHtml(['# Title','## Sub','Hello **world**','- a','- b','','Para.'].join(NL)); } catch (e) { out.mdErr = String(e).slice(0, 200); }
+            try {
+              const dt = new DataTransfer();
+              const f = new File(['# My Theory','','Intro here.','## Chapter One','','Body one.','## Chapter Two','','Body two.'].join(NL), 'test-theory.md', { type: 'text/markdown' });
+              dt.items.add(f);
+              const inp = document.getElementById('import-file');
+              inp.files = dt.files;
+              out.fileSet = inp.files.length === 1;
+              document.getElementById('import-section').value = 'Debug section';
+              document.getElementById('import-split').checked = true;
+              await doImport();
+              out.importFinished = true;
+              out.status = document.getElementById('import-status').textContent;
+              await new Promise(r => setTimeout(r, 3000));
+            } catch (e) { out.importErr = String(e && e.stack || e).slice(0, 400); }
+            out.pageCount = (typeof pages !== 'undefined') ? pages.length : 'n/a';
+            out.newPages = (typeof pages !== 'undefined') ? pages.filter(p => (p.source||'') === 'test-theory.md').map(p => p.title) : 'n/a';
+            return out;
+          }).catch(e => ({ evalErr: String(e).slice(0, 400) }));
+          return { data: { info, errors }, type: 'application/json' };
+        }`;
+        const callBL = async (base, tok) => fetch(base + '/function?token=' + encodeURIComponent(tok || ''), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: fn, context: {} })
+        });
+        let resp = null;
+        if (BL_RAILWAY_TOKEN) { try { resp = await callBL(k(env,['browserless_railway_url']) || 'https://browserless-production-e49c65ef.up.railway.app', BL_RAILWAY_TOKEN); } catch (e) {} }
+        if ((!resp || !resp.ok) && BL_CLOUD) { try { resp = await callBL('https://chrome.browserless.io', BL_CLOUD); } catch (e) {} }
+        if (!resp || !resp.ok) {
+          let errTxt = '';
+          try { errTxt = (await resp.text()).slice(0, 600); } catch (e) { errTxt = 'no response body'; }
+          return json({ success: false, error: 'Browserless rejected the request', status: resp ? resp.status : 0, detail: errTxt }, 200, origin);
+        }
+        const result = await resp.json();
+        return json({ success: true, debug: (result.data && result.data) || result }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
     if (path === '/api/headless/chatdebug' && request.method === 'POST') {
       try {
         const BL_RAILWAY_TOKEN = k(env, ['railway_browserless_token']) || '';

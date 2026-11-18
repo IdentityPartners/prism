@@ -64,8 +64,8 @@
 <div id="import-dialog" style="display:none;position:fixed;inset:0;background:rgba(20,18,14,.45);z-index:100;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:12px;max-width:520px;width:92%;padding:22px 24px;box-shadow:0 18px 50px rgba(0,0,0,.25);">
     <h3 style="font-family:Georgia,serif;margin:0 0 6px;">Import a document</h3>
-    <div style="font-size:12.5px;color:var(--fg-muted);margin-bottom:12px;">PDF is converted to clean Markdown (text layer only — <strong>images are not stored</strong>). .md and .txt import directly.</div>
-    <input type="file" id="import-file" accept=".pdf,.md,.txt,.markdown" style="width:100%;margin-bottom:10px;">
+    <div style="font-size:12.5px;color:var(--fg-muted);margin-bottom:12px;">PDF and Word (.docx) are converted to clean Markdown (text only — <strong>images are not stored</strong>). .md and .txt import directly.</div>
+    <input type="file" id="import-file" accept=".pdf,.md,.txt,.markdown,.docx,.doc,.rtf,.odt" style="width:100%;margin-bottom:10px;">
     <input type="text" id="import-section" placeholder="Section name, e.g. My Theories" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:10px;box-sizing:border-box;">
     <label style="display:block;font-size:12.5px;margin-bottom:6px;"><input type="checkbox" id="import-split"> Split into subsection pages at each level-2 heading</label>
     <label style="display:block;font-size:12.5px;margin-bottom:14px;"><input type="checkbox" id="import-memory"> Also file this text in Memories (memory context)</label>
@@ -294,7 +294,14 @@ function mdToHtml(md) {
   var esc = function(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
   var lines = md.split(/\r?\n/), out = [], para = [], listMode = null;
   function endList(){ if (listMode) { out.push('</'+listMode+'>'); listMode = null; } }
-  function flush(){ if (para.length) { out.push('<p>'+esc(para.join(' '))+'</p>'); para=[]; } }
+  function inlineFmt(t) {
+    t = esc(t);
+    t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    t = t.replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
+    t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+    return t;
+  }
+  function flush(){ if (para.length) { out.push('<p>'+inlineFmt(para.join(' '))+'</p>'); para=[]; } }
   for (var i=0; i<lines.length; i++) {
     var line = lines[i];
     var h = line.match(/^(#{1,4})\s+(.*)$/);
@@ -347,6 +354,56 @@ async function extractPdfMarkdown(file) {
   return md;
 }
 
+// ── .docx reader: unzip in-browser (PK local header scan + deflate-raw) ──
+async function extractDocxText(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  // find local file header for word/document.xml by scanning for the filename
+  const nameBytes = new TextEncoder().encode('word/document.xml');
+  let dataStart = -1, compSize = 0, method = 0;
+  for (let i = 0; i < buf.length - 4; i++) {
+    if (buf[i] === 0x50 && buf[i+1] === 0x4b && buf[i+2] === 0x03 && buf[i+3] === 0x04) {
+      const fnLen = (buf[i+26] | (buf[i+27] << 8));
+      const exLen = (buf[i+28] | (buf[i+29] << 8));
+      const fn = String.fromCharCode.apply(null, buf.slice(i + 30, i + 30 + fnLen));
+      if (fn === 'word/document.xml') {
+        method = (buf[i+8] | (buf[i+9] << 8));
+        compSize = (buf[i+18] | (buf[i+19] << 8) | (buf[i+20] << 16) | (buf[i+21] << 24));
+        dataStart = i + 30 + fnLen + exLen;
+        if (compSize > 0) break;
+      }
+    }
+  }
+  if (dataStart < 0) throw new Error('Not a valid .docx (no document body found)');
+  const chunk = buf.slice(dataStart, compSize > 0 ? dataStart + compSize : buf.length);
+  let xmlBytes;
+  if (method === 0) {
+    xmlBytes = chunk;
+  } else if (typeof DecompressionStream === 'function') {
+    const ds = new DecompressionStream('deflate-raw');
+    const stream = new Blob([chunk]).stream().pipeThrough(ds);
+    xmlBytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  } else {
+    throw new Error('This browser cannot unzip .docx — use Chrome or Edge, or export as PDF');
+  }
+  let xml = new TextDecoder('utf-8').decode(xmlBytes);
+  // paragraphs and breaks; headings via w:pStyle
+  const parts = [];
+  const paras = xml.match(/<w:p [^>]*>[\s\S]*?<\/w:p>|<w:p>[\s\S]*?<\/w:p>/g) || [];
+  paras.forEach(pxml => {
+    const style = (pxml.match(/<w:pStyle w:val="([^"]+)"/) || [])[1] || '';
+    const text = (pxml.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g) || [])
+      .map(t => t.replace(/<[^>]+>/g, '')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'"))
+      .join('');
+    if (!text.trim()) return;
+    if (/^Heading1$|^heading 1$|^Titre$/i.test(style)) parts.push('# ' + text.trim());
+    else if (/Heading2/i.test(style)) parts.push('## ' + text.trim());
+    else if (/Heading3/i.test(style)) parts.push('### ' + text.trim());
+    else parts.push(text.trim());
+  });
+  return parts.join(String.fromCharCode(10) + String.fromCharCode(10));
+}
+
 async function doImport() {
   var st = document.getElementById('import-status');
   var file = document.getElementById('import-file').files[0];
@@ -357,8 +414,9 @@ async function doImport() {
   st.textContent = 'Extracting text…';
   try {
     var isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
-    var md = isPdf ? await extractPdfMarkdown(file) : await file.text();
-    if (!md.trim()) { st.innerHTML = 'No selectable text found — this PDF looks like scanned images. Import it as page images to Memories (OCR) instead.'; return; }
+    var isDocx = /\.docx$/i.test(file.name) || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    var md = isPdf ? await extractPdfMarkdown(file) : isDocx ? await extractDocxText(file) : await file.text();
+    if (!md.trim()) { st.innerHTML = 'No selectable text found — this file looks like scanned images or a legacy .doc. Export it as .docx or PDF, or screenshot the pages to Memories (OCR).'; return; }
     var baseName = file.name.replace(/\.[^.]+$/, '');
     if (split) {
       // split at ## headings; pre-split intro becomes the parent page
