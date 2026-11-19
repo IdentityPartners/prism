@@ -204,13 +204,20 @@ function setMode(mode, btn) {
 
 function loadPages() {
   fetch('/api/kb').then(function(r){return r.json();}).then(function(d){
-    if ((d.pages||[]).length) { pages = d.pages; renderTree(); goHome(); }
-    else localSeed();
-  }).catch(function(){ localSeed(); });
+    pages = (d.pages||[]).filter(function(p){ return p.id && p.title; });
+    try { localStorage.setItem('wiki:pages', JSON.stringify(pages)); } catch(e){}
+    renderTree();
+    goHome();
+  }).catch(function(){ document.getElementById('wiki-tree-body').innerHTML = '<div class="muted" style="padding:8px;font-size:12px;">Could not reach the Knowledge Base store.</div>'; });
 }
 function localSeed() {
-  try { pages = JSON.parse(localStorage.getItem('wiki:pages')||'[]'); } catch(e){pages=[];}
-  if (!pages.length) {
+  pages = [];
+  try { localStorage.setItem('wiki:pages', '[]'); } catch(e){}
+  renderTree();
+  goHome();
+}
+function unusedLocalSeed() {
+  if (false) {
     pages = [
       {id:'p-welcome',title:'Welcome',content:'<h1>Knowledge Base</h1><p>Your personal wiki. Create pages, link them with [[Page Name]], and build your knowledge graph.</p>',created:new Date().toISOString()},
       {id:'p-concepts',title:'Key Concepts',content:'<h1>Key Concepts</h1><p>Add your key sociological concepts here.</p>',created:new Date().toISOString()},
