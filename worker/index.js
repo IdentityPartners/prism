@@ -2548,6 +2548,44 @@ export default {
       } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
     }
 
+    if (path === '/api/research/probe2' && request.method === 'POST') {
+      try {
+        const out = [];
+        // 1. NCBI eutils (official PubMed API) directly from the worker
+        try {
+          const ncbiKey = k(env, ['ncbi_api_key','NCBI_API_KEY']);
+          const r = await fetch('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=ADHD&retmode=json&retmax=3' + (ncbiKey ? '&api_key=' + ncbiKey : ''), { headers: { 'User-Agent': 'Argentica/1.0 Research' } });
+          const t = await r.text();
+          out.push({ via: 'worker-direct', source: 'pubmed-eutils', status: r.status, head: t.slice(0, 150) });
+        } catch (e) { out.push({ via: 'worker-direct', source: 'pubmed-eutils', error: String(e).slice(0, 150) }); }
+        // 2. OpenAlex & EuropePMC fetched THROUGH Browserless (different egress IP)
+        const BLT = k(env, ['railway_browserless_token']) || '';
+        if (BLT) {
+          const fn = `export default async ({ page, context }) => {
+            const got = {};
+            for (const [name, u] of Object.entries(context.urls)) {
+              try { const r = await page.evaluate(async (uu) => { const rr = await fetch(uu, { headers: { 'User-Agent': 'Argentica/1.0 Research' } }); return { s: rr.status, t: (await rr.text()).slice(0, 150) }; }, u); got[name] = r; }
+              catch (e) { got[name] = { err: String(e).slice(0, 120) }; }
+            }
+            return { data: got, type: 'application/json' };
+          }`;
+          try {
+            const br = await fetch((k(env,['browserless_railway_url']) || 'https://browserless-production-e49c65ef.up.railway.app') + '/function?token=' + encodeURIComponent(BLT), {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code: fn, context: { urls: {
+                openalex: 'https://api.openalex.org/works?search=ADHD&per-page=2&page=1&select=id,title&mailto=hello@identitypartners.uk',
+                europepmc: 'https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=ADHD&format=json&pageSize=2'
+              } } })
+            });
+            const d = await br.json();
+            const got = (d.data && d.data) || d;
+            Object.entries(got).forEach(([name, r]) => out.push({ via: 'browserless', source: name, status: r.s, head: (r.t || r.err || '').slice(0, 150) }));
+          } catch (e) { out.push({ via: 'browserless', error: String(e).slice(0, 150) }); }
+        } else out.push({ via: 'browserless', note: 'no token' });
+        return json({ success: true, probe: out }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
     if (path === '/api/research/scholarly' && request.method === 'POST') {
       try {
         const body = await request.json();
@@ -2630,15 +2668,17 @@ export default {
         // ── PubMed / NCBI ── biomedical literature
         if (sources.includes('pubmed')) {
           const retstart = (page - 1) * perPage;
+          const ncbiKey = k(env, ['ncbi_api_key','NCBI_API_KEY']);
+          const keyQ = ncbiKey ? '&api_key=' + ncbiKey : '';
           fetches.push(
             // Step 1: search for IDs
-            fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=${perPage}&retstart=${retstart}&retmode=json&tool=Argentica&email=${email}`)
+            fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=${perPage}&retstart=${retstart}&retmode=json&tool=Argentica&email=${email}${keyQ}`)
               .then(r => r.json())
               .then(async esearch => {
                 const ids = (esearch.esearchresult && esearch.esearchresult.idlist) || [];
                 if (ids.length === 0) return { source: 'pubmed', items: [], total: 0 };
                 // Step 2: fetch summaries
-                const summary = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(',')}&retmode=json&tool=Argentica&email=${email}`)
+                const summary = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(',')}&retmode=json&tool=Argentica&email=${email}${keyQ}`)
                   .then(r => r.json()).catch(() => ({}));
                 const uids = (summary.result && summary.result.uids) || ids;
                 const items = uids.map(uid => {
