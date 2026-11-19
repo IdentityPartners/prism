@@ -282,14 +282,22 @@ document.getElementById('run').addEventListener('click', async () => {
   out.innerHTML = '<div class="card"><div class="muted">Searching ' + sources.length + ' sources in parallel…</div></div>';
   const all = [];
   const jobs = [];
+  const ingest = d => {
+    if (!d) return;
+    const r = d.results;
+    if (Array.isArray(r)) { r.forEach(i => all.push(i)); return; }   // flat merged results (current API)
+    // legacy shape: grouped by source {source: {items: []}} or {source: 'x', items: []}
+    const vals = r || d.sources || {};
+    Object.values(vals).forEach(s => (Array.isArray(s) ? s : (s && s.items) || []).forEach(i => all.push(i)));
+  };
   if (mode === 'scholarly') jobs.push(
     api('/research/scholarly', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, sources }) })
-      .then(d => { const r = d.results || d.sources || []; (Array.isArray(r) ? r : Object.values(r)).forEach(s => (s.items || []).forEach(i => all.push(i))); })
+      .then(ingest)
       .catch(() => {})
   );
   if (mode === 'web') jobs.push(
     api('/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, sources }) })
-      .then(d => { const r = d.results || d.sources || []; (Array.isArray(r) ? r : Object.values(r)).forEach(s => (s.items || []).forEach(i => all.push(i))); })
+      .then(ingest)
       .catch(() => {})
   );
   await Promise.all(jobs);

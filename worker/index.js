@@ -2526,6 +2526,28 @@ export default {
     }
 
     // ── Scholarly / institutional research sources ────────────────────────────
+    if (path === '/api/research/probe' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const targets = {
+          openalex: 'https://api.openalex.org/works?search=ADHD&per-page=2&page=1&select=id,title&mailto=hello@identitypartners.uk',
+          semantic_scholar: 'https://api.semanticscholar.org/graph/v1/paper/search?query=ADHD&limit=2&fields=title,year',
+          pubmed: 'https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=ADHD&format=json&pageSize=2',
+          crossref: 'https://api.crossref.org/works?query=ADHD&rows=2'
+        };
+        const which = Object.keys(targets).filter(t => !body.sources || body.sources.includes(t));
+        const out = [];
+        for (const t of which) {
+          try {
+            const r = await fetch(targets[t], { headers: { 'User-Agent': 'Argentica/1.0 Research', 'Accept': 'application/json' } });
+            const text = await r.text();
+            out.push({ source: t, status: r.status, head: text.slice(0, 120) });
+          } catch (e) { out.push({ source: t, error: String(e).slice(0, 150) }); }
+        }
+        return json({ success: true, probe: out }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
     if (path === '/api/research/scholarly' && request.method === 'POST') {
       try {
         const body = await request.json();
@@ -2542,9 +2564,10 @@ export default {
         // ── Semantic Scholar ── 200M+ papers, free, no key needed
         if (sources.includes('semantic_scholar')) {
           const offset = (page - 1) * perPage;
+          const ssKey = k(env, ['semantic_scholar_api_key','SEMANTIC_SCHOLAR_API_KEY']);
           fetches.push(
             fetch(`https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(query)}&limit=${perPage}&offset=${offset}&fields=title,authors,year,abstract,externalIds,openAccessPdf,citationCount,venue,publicationDate`, {
-              headers: { 'User-Agent': 'Argentica/1.0 Research (hello@identitypartners.uk)' },
+              headers: Object.assign({ 'User-Agent': 'Argentica/1.0 Research (hello@identitypartners.uk)' }, ssKey ? { 'x-api-key': ssKey } : {}),
             }).then(r => r.json()).then(ss => {
               const items = (ss.data || []).map(p => ({
                 title: p.title || '',
