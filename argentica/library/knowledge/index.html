@@ -49,6 +49,16 @@
 .wiki-read-view blockquote{border-left:3px solid var(--accent);padding-left:14px;margin:10px 0;color:var(--fg-muted);font-style:italic;}
 .wiki-read-view code{background:var(--bg-sunken);padding:2px 5px;border-radius:3px;font-family:monospace;}
 .wiki-status{padding:4px 12px;border-top:1px solid var(--border);background:var(--bg-elevated);display:flex;gap:14px;font-size:12px;color:var(--fg-muted);flex-shrink:0;}
+.wiki-tab{padding:6px 13px;border:1px solid var(--border);border-bottom:none;border-radius:8px 8px 0 0;cursor:pointer;font-size:12.5px;white-space:nowrap;background:var(--bg-sunken);color:var(--fg-muted);transition:all .12s;}
+.wiki-tab:hover{background:var(--bg);color:var(--fg);}
+.wiki-tab.active{background:var(--bg-elevated);color:var(--accent);font-weight:600;}
+#kb-home{flex:1;overflow-y:auto;padding:30px 40px;max-width:900px;margin:0 auto;}
+#kb-home h1{font-size:30px;font-family:var(--font-heading,Georgia,serif);margin:0 0 4px;}
+#kb-home .sub{color:var(--fg-muted);font-size:13.5px;margin-bottom:26px;}
+.sec-card{border:1px solid var(--border);border-radius:12px;padding:18px 20px;background:var(--bg-surface);margin-bottom:14px;cursor:pointer;transition:all .15s;}
+.sec-card:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 6px 18px rgba(15,59,58,.08);}
+.sec-card h2{margin:0 0 4px;font-size:18px;font-family:var(--font-heading,Georgia,serif);color:var(--accent);}
+.sec-card .meta{font-size:12px;color:var(--fg-muted);}
 .tb-btn{padding:5px 9px;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:12px;background:var(--bg);color:var(--fg);font-family:inherit;transition:all 0.15s;}
 .tb-btn:hover{border-color:var(--accent);color:var(--accent);}
 .tb-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
@@ -82,6 +92,7 @@
   <div class="wiki-tree-hdr">
     <h3>&#x1F4D6; Knowledge Base</h3>
     <button onclick="newPage()" style="padding:3px 8px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;">+ New</button>
+    <button onclick="goHome()" title="Knowledge Base home" style="padding:3px 8px;background:#fff;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;color:var(--fg);">⌂</button>
     <button onclick="showImport()" style="padding:3px 8px;background:#fff;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;color:var(--fg);">Import</button>
     <button onclick="backupNow()" title="Back up the Knowledge Base, memories and calendar to Google Drive" style="padding:3px 8px;background:#fff;border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:11px;color:var(--fg);">Backup</button>
   </div>
@@ -101,6 +112,7 @@
       <button class="tb-btn" onclick="deletePage()" style="color:#dc2626;">Delete</button>
     </div>
   </div>
+  <div id="wiki-tabs" style="display:none;border-bottom:1px solid var(--border);background:var(--bg-elevated);padding:4px 12px 0;display:flex;gap:2px;overflow-x:auto;flex-shrink:0;"></div>
   <div class="wiki-toolbar" id="wiki-toolbar">
     <select id="fmt-sel" onchange="applyFormat(this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg);color:var(--fg);">
       <option value="p">Paragraph</option>
@@ -192,7 +204,7 @@ function setMode(mode, btn) {
 
 function loadPages() {
   fetch('/api/kb').then(function(r){return r.json();}).then(function(d){
-    if ((d.pages||[]).length) { pages = d.pages; renderTree(); if (pages.length) openPage(pages[0].id); }
+    if ((d.pages||[]).length) { pages = d.pages; renderTree(); goHome(); }
     else localSeed();
   }).catch(function(){ localSeed(); });
 }
@@ -207,7 +219,7 @@ function localSeed() {
     savePages();
   }
   renderTree();
-  if (pages.length > 0) openPage(pages[0].id);
+  goHome();
 }
 
 function savePages() {
@@ -242,6 +254,10 @@ function renderTree(filter) {
       hdr.appendChild(arrow);
       hdr.appendChild(document.createTextNode(sec));
       hdr.onclick = (function(s){ return function(){
+        openSection(s);
+      };})(sec);
+      arrow.onclick = (function(s){ return function(ev){
+        ev.stopPropagation();
         var isOpen = sessionStorage.getItem('kb:sec:'+s) !== '0';
         sessionStorage.setItem('kb:sec:'+s, isOpen ? '0' : '1');
         renderTree(filter);
@@ -268,6 +284,75 @@ function appendTreeItem(body, p) {
   }
 
 function filterPages(q) { renderTree(q); }
+
+// ── KB home: vertical section cards ──
+function goHome() {
+  if (currentPageId) saveCurrent();
+  currentPageId = null;
+  renderTree();
+  var toolbar = document.getElementById('wiki-toolbar');
+  var editorWrap = document.getElementById('wiki-editor-wrap');
+  var tabsEl = document.getElementById('wiki-tabs');
+  toolbar.style.display = 'none'; editorWrap.style.display = 'none'; tabsEl.style.display = 'none';
+  document.querySelectorAll('#wiki-read-view,#kb-home').forEach(function(el){ el.remove(); });
+  var homeDiv = document.createElement('div');
+  homeDiv.id = 'kb-home';
+  var secs = {}; var order = [];
+  pages.forEach(function(p){
+    var sec = (p.section || '').trim() || '';
+    if (!order.includes(sec)) { order.push(sec); secs[sec] = []; }
+    secs[sec].push(p);
+  });
+  order.sort(function(a,b){ var un=function(x){return x?0:1;}; return un(a)-un(b) || a.localeCompare(b); });
+  var total = pages.length;
+  var html = '<h1>Knowledge Base</h1><div class="sub">' + total + ' pages &middot; ' + order.filter(function(x){return x;}).length + ' sections. Pick a section to browse it, or use the tree on the left.</div>';
+  order.forEach(function(sec){
+    var list = secs[sec].slice().sort(function(a,b){ return (a.idx||0)-(b.idx||0); });
+    var card = document.createElement('div');
+    card.className = 'sec-card';
+    var meta = list[0] || {title:'—', updated:''};
+    if (!sec) {
+      card.innerHTML = '<h2>Unfiled pages</h2><div class="meta">' + list.length + ' pages &middot; ' + list.slice(0,4).map(function(p){return '<span></span>'; }).length + ' shown in tree</div>';
+      card.onclick = function(){ if (list.length) openPage(list[0].id); };
+    } else {
+      card.innerHTML = '<h2></h2><div class="meta"></div>';
+      card.querySelector('h2').textContent = sec;
+      card.querySelector('.meta').textContent = list.length + ' pages · home: ' + (meta.title || '—');
+      card.onclick = (function(sv){ return function(){ openSection(sv); }; })(sec);
+    }
+    homeDiv._cards = homeDiv._cards || [];
+    homeDiv._cards.push(card);
+  });
+  homeDiv.innerHTML = html;
+  homeDiv._cards.forEach(function(c){ homeDiv.appendChild(c); });
+  homeDiv.innerHTML = html;
+  document.getElementById('wiki-body').appendChild(homeDiv);
+}
+
+function openSection(sec) {
+  var list = pages.filter(function(p){ return (p.section||'').trim() === sec; })
+                  .sort(function(a,b){ return (a.idx||0)-(b.idx||0); });
+  if (list.length) openPage(list[0].id);
+}
+
+function openPageById(id) { if (id) openPage(id); }
+
+// ── horizontal subsection tabs inside a section ──
+function renderTabs() {
+  var tabsEl = document.getElementById('wiki-tabs');
+  var cur = pages.find(function(p){ return p.id === currentPageId; });
+  document.querySelectorAll('#kb-home').forEach(function(el){ el.remove(); });
+  if (!cur || !cur.section) { tabsEl.style.display = 'none'; tabsEl.innerHTML = ''; return; }
+  var list = pages.filter(function(p){ return (p.section||'').trim() === cur.section.trim(); })
+                  .sort(function(a,b){ return (a.idx||0)-(b.idx||0); });
+  tabsEl.innerHTML = '<div style="align-self:center;font-size:11px;color:var(--fg-muted);padding:0 8px 0 2px;">' + cur.section + '</div>' + list.map(function(p){
+    return '<div class="wiki-tab' + (p.id===currentPageId?' active':'') + '" data-pid="' + p.id + '">' + (p.title || 'Untitled') + '</div>';
+  }).join('');
+  tabsEl.style.display = 'flex';
+  tabsEl.querySelectorAll('.wiki-tab').forEach(function(t){
+    t.onclick = function(){ openPage(t.dataset.pid); };
+  });
+}
 
 // ── Section tagging for the current page ──
 function setSection() {
@@ -459,9 +544,14 @@ function openPage(id) {
   currentPageId = id;
   var page = pages.find(function(p){return p.id===id;});
   if (!page) return;
+  var toolbar = document.getElementById('wiki-toolbar');
+  var editorWrap = document.getElementById('wiki-editor-wrap');
+  toolbar.style.display = 'flex'; editorWrap.style.display = 'block';
   document.getElementById('wiki-title').textContent = page.title;
   if (quill) { quill.root.innerHTML = page.content || ''; updateWordCount(); }
+  document.querySelectorAll('#kb-home').forEach(function(el){ el.remove(); });
   renderTree();
+  renderTabs();
   updateBacklinks();
   setMode('edit', document.getElementById('btn-edit'));
 }
