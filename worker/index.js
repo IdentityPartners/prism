@@ -2107,7 +2107,7 @@ export default {
           'Access-Control-Allow-Headers': 'Content-Type,Authorization,auth,x-copilotkit-runtime-client-gql-version',
           'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
           'Access-Control-Allow-Credentials': 'true',
-          'Access-Control-Expose-Headers': 'reload,onboarding,activate,x-copilotkit-runtime-client-gql-version',
+          'Access-Control-Expose-Headers': 'auth,showorg,logout,activate,reload,onboarding,x-copilotkit-runtime-client-gql-version',
           'Access-Control-Max-Age': '86400'
         } });
       }
@@ -7957,7 +7957,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         'Access-Control-Allow-Headers': 'Content-Type,Authorization,auth,x-copilotkit-runtime-client-gql-version',
         'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
         'Access-Control-Allow-Credentials': 'true',
-        'Access-Control-Expose-Headers': 'reload,onboarding,activate,x-copilotkit-runtime-client-gql-version',
+        'Access-Control-Expose-Headers': 'auth,showorg,logout,activate,reload,onboarding,x-copilotkit-runtime-client-gql-version',
         'Access-Control-Max-Age': '86400'
       };
       if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
@@ -8140,6 +8140,72 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         }
         const result = await resp.json();
         return json({ success: true, debug: (result.data && result.data) || result }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    if (path === '/api/headless/logindebug' && request.method === 'POST') {
+      try {
+        const creds = await request.json();
+        const BL_RAILWAY_TOKEN = k(env, ['railway_browserless_token']) || '';
+        const BL_CLOUD = k(env, ['browserless']) || '';
+        const fn = `export default async ({ page, context }) => {
+          await page.setViewport({ width: 1280, height: 900 });
+          const errors = [];
+          page.on('console', m => { if (m.type() === 'error') errors.push(String(m.text()).slice(0, 200)); });
+          page.on('pageerror', e => errors.push(String(e).slice(0, 200)));
+          const reqs = [];
+          page.on('response', res => {
+            const u = res.url();
+            if (u.includes('/auth/') || u.includes('/api/postiz-proxy')) reqs.push(res.status() + ' ' + u.slice(0, 120));
+          });
+          await page.goto('https://postiz-production-ec050668.up.railway.app/auth/login', { waitUntil: 'networkidle2', timeout: 60000 });
+          await new Promise(r => setTimeout(r, 2000));
+          // screenshot before
+          const shot1 = await page.screenshot({ type: 'png' }).then(b => 'data:image/png;base64,' + b.toString('base64')).catch(() => '');
+          // fill the form
+          const res = await page.evaluate((c) => {
+            const inputs = Array.from(document.querySelectorAll('input'));
+            return inputs.map(i => i.type + ':' + (i.name || i.id || i.placeholder));
+          }, {}).catch(e => ['ERR ' + e]);
+          let filled = await page.evaluate((c) => {
+            const inputs = Array.from(document.querySelectorAll('input'));
+            const email = inputs.find(i => i.type === 'email' || /email/i.test(i.name + i.id + i.placeholder));
+            const pass = inputs.find(i => i.type === 'password');
+            const setV = (el, v) => { const s = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; s.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); };
+            if (email) setV(email, c.email); else return 'no email field';
+            if (pass) setV(pass, c.password); else return 'no password field';
+            return 'filled';
+          }, context.creds).catch(e => 'ERR ' + e);
+          let submitted = '';
+          try {
+            const btn = await page.evaluate(() => {
+              const bs = Array.from(document.querySelectorAll('button'));
+              const b = bs.find(x => /sign in|log ?in|continue|submit/i.test(x.textContent));
+              if (b) { b.click(); return 'clicked'; } return 'no button';
+            });
+            submitted = btn;
+          } catch (e) { submitted = 'ERR ' + e; }
+          await new Promise(r => setTimeout(r, 7000));
+          const after = await page.evaluate(() => ({
+            url: location.href,
+            cookies: document.cookie.slice(0, 200),
+            ls: Object.keys(localStorage).slice(0, 20).map(kk => kk + '=' + String(localStorage.getItem(kk)).slice(0, 60))
+          })).catch(e => ({ err: String(e) }));
+          const shot2 = await page.screenshot({ type: 'png' }).then(b => 'data:image/png;base64,' + b.toString('base64')).catch(() => '');
+          return { data: { inputs: res, filled, submitted, after, reqs: reqs.slice(0, 30), errors: errors.slice(0, 15), shot1: shot1.slice(0, 20) + '', shot2Len: shot2.length }, type: 'application/json' };
+        }`;
+        const callBL = async (base, tok) => fetch(base + '/function?token=' + encodeURIComponent(tok || ''), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: fn, context: { creds } })
+        });
+        let resp = null;
+        if (BL_RAILWAY_TOKEN) { try { resp = await callBL(k(env,['browserless_railway_url']) || 'https://browserless-production-e49c65ef.up.railway.app', BL_RAILWAY_TOKEN); } catch (e) {} }
+        if ((!resp || !resp.ok) && BL_CLOUD) { try { resp = await callBL('https://chrome.browserless.io', BL_CLOUD); } catch (e) {} }
+        if (!resp || !resp.ok) return json({ success: false, error: 'Browserless unavailable' }, 200, origin);
+        const result = await resp.json();
+        const d = (result.data && result.data) || result;
+        delete d.shot1;
+        return json({ success: true, debug: d }, 200, origin);
       } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
     }
 
