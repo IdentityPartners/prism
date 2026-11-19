@@ -7877,6 +7877,32 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     }
 
 
+    if (path === '/api/railway/graphql' && request.method === 'POST') {
+      try {
+        const token = k(env, ['railway_account_token','railway_token','RAILWAY_TOKEN']) || '';
+        if (!token) return json({success:false, error:'No railway token'}, 200, origin);
+        const body = await request.json();
+        // Read-only safety gate: no mutations through this public bridge
+        if (!body.query || /^\s*mutation/.test(body.query) || /\bmutation\b/.test(body.query.replace(/^\s*query[\s\S]*?(\bmutation\b)/, '$1'))) {
+          return json({ success: false, error: 'only read queries are allowed' }, 200, origin);
+        }
+        const r = await fetch('https://backboard.railway.com/graphql/v2', {
+          method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: body.query, variables: body.variables || {} })
+        });
+        const d = await r.json().catch(() => ({}));
+        if (body.hide && d.data && body.hide.length) {
+          const redact = (o) => { if (!o || typeof o !== 'object') return o;
+            if (Array.isArray(o)) return o.map(redact);
+            const c = {};
+            for (const key of Object.keys(o)) c[key] = body.hide.includes(key) ? '(redacted)' : redact(o[key]);
+            return c; };
+          return json({ success: true, data: redact(d.data), errors: d.errors }, 200, origin);
+        }
+        return json({ success: true, data: d.data, errors: d.errors }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
     if (path === '/api/railway/status' && request.method === 'GET') {
       try {
         const token = k(env, ['railway_account_token','railway_token','RAILWAY_TOKEN','railway_api_token']) || '';
