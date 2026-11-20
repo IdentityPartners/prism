@@ -9834,7 +9834,13 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         const q3 = `query { __type(name: "CreatePostInput") { kind name inputFields { name type { kind name ofType { kind name ofType { kind name } } } } } }`;
         const r3 = await bufferGql(q3, null, env);
         const createPostInput = (r3.data && r3.data.__type) || r3.error || null;
-        return json({ success:true, createPost, mediaInput, createPostInput }, 200, origin);
+        let assetType = null;
+        for (const tn of ["AssetInput","PostAssetInput","MediaAssetInput","ImageAssetInput","UploadAssetInput","PostAsset"]) {
+          const rq = 'query { __type(name: "' + tn + '") { kind name inputFields { name type { kind name ofType { kind name ofType { kind name } } } } } }';
+          const rr = await bufferGql(rq, null, env);
+          if (rr.data && rr.data.__type) { assetType = rr.data.__type; break; }
+        }
+        return json({ success:true, createPost, createPostInput, assetTypes: { found: assetType } }, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 200, origin); }
     }
 
