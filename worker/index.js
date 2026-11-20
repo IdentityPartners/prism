@@ -2157,27 +2157,54 @@ async function buildSensorContext(body, env) {
       }
     }
   }
-  if (body.webSearch) {
-    const lastUser = (body.messages || []).filter(m => m.role === 'user').pop();
-    const q = lastUser ? String(lastUser.content).slice(0, 300) : '';
-    if (q) {
+  // ── Live web search: forced via toggle, or auto-triggered by time-sensitive intent ──
+  const lastUser = (body.messages || []).filter(m => m.role === 'user').pop() || lastUser0;
+  const searchQ = lastUser ? String(lastUser.content).replace(/https?:\/\/[^\s)\]]+/g, '').slice(0, 300).trim() : '';
+  const AUTO = /(price|pricing|cost|how much|current(ly)?|latest|todays?|today'?s|news|this week|this month|recent(ly)?|right now|just announced|breaking|who won|score|release(d)?|launched|update(d)? on|status of|stock|share price|weather|election|prime minister|chancellor|premier league|transfer|\b20(2[3-9]|3[0-9])\b|is (?:it|there)|are there|available now|in stock|open now|schedule|fixtures|anime|episode)/i;
+  const needSearch = body.webSearch || (searchQ.length > 3 && AUTO.test(searchQ) && searchQ.split(/\s+/).length >= 2);
+  if (needSearch && searchQ) {
+    const found = [];
+    const seen = new Set();
+    const pushIt = (title, url, desc) => {
+      const u = String(url || '').replace(/[#?].*$/, '');
+      if (!u || seen.has(u)) return;
+      seen.add(u);
+      found.push('- ' + String(title || '').slice(0, 110) + ' — ' + u + ': ' + String(desc || '').replace(/\s+/g, ' ').slice(0, 220));
+    };
+    const engines = [];
+    const braveKey = k(env, ['brave_api_key','BRAVE_API_KEY','brave']);
+    const exaKey = k(env, ['exa_api_key','EXA_API_KEY']);
+    const tavilyKey = k(env, ['tavily_api_key','TAVILY_API_KEY']);
+    if (braveKey) engines.push(
+      fetch('https://api.search.brave.com/res/v1/web/search?q=' + encodeURIComponent(searchQ) + '&count=6', {
+        headers: { 'X-Subscription-Token': braveKey, 'Accept': 'application/json' } })
+        .then(r => r.json().catch(() => ({})))
+        .then(bd => { (bd.web && bd.web.results || []).forEach(r => pushIt(r.title, r.url, r.description)); })
+        .catch(() => {})
+    );
+    if (exaKey) engines.push(
+      fetch('https://api.exa.ai/search', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': exaKey },
+        body: JSON.stringify({ query: searchQ, numResults: 5, includeDomains: undefined }) })
+        .then(r => r.json().catch(() => ({})))
+        .then(ex => { (ex.results || []).forEach(r => pushIt(r.title, r.url, (r.text || r.snippet || ''))); })
+        .catch(() => {})
+    );
+    if (tavilyKey) engines.push(
+      fetch('https://api.tavily.com/search', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: tavilyKey, query: searchQ, max_results: 5 }) })
+        .then(r => r.json().catch(() => ({})))
+        .then(tv => { (tv.results || []).forEach(r => pushIt(r.title, r.url, r.content)); })
+        .catch(() => {})
+    );
+    await Promise.all(engines);
+    if (!found.length) {
       try {
-        const braveKey = k(env, ['brave_api_key','BRAVE_API_KEY','brave']);
-        let results = [];
-        if (braveKey) {
-          const br = await fetch('https://api.search.brave.com/res/v1/web/search?q=' + encodeURIComponent(q) + '&count=6', {
-            headers: { 'X-Subscription-Token': braveKey, 'Accept': 'application/json' } });
-          const bd = await br.json().catch(() => ({}));
-          results = (bd.web && bd.web.results || []).slice(0, 6).map(r => '- ' + (r.title || '') + ' — ' + (r.url || '') + ': ' + String(r.description || '').slice(0, 220));
-        }
-        if (!results.length) {
-          const r2 = await fetch('https://api.duckduckgo.com/?q=' + encodeURIComponent(q) + '&format=json&no_redirect=1&no_html=1');
-          const dd = await r2.json().catch(() => ({}));
-          results = [dd.AbstractText, dd.Answer, dd.Definition].filter(Boolean).map(t => '- ' + String(t).slice(0, 400));
-        }
-        if (results.length) context += '[Live web search results for: ' + q + ']\n' + results.join('\n') + '\n';
+        const r2 = await fetch('https://api.duckduckgo.com/?q=' + encodeURIComponent(searchQ) + '&format=json&no_redirect=1&no_html=1');
+        const dd = await r2.json().catch(() => ({}));
+        [dd.AbstractText, dd.Answer, dd.Definition].filter(Boolean).forEach(t => pushIt('DuckDuckGo instant answer', dd.AbstractURL || '', t));
       } catch (e) {}
     }
+    if (found.length) context += '[Live web search results for: ' + searchQ + ']\n' + found.slice(0, 10).join('\n') + '\n';
   }
   return context;
 }
@@ -4060,9 +4087,9 @@ export default {
       try {
         const body = await request.json();
         const messages = (body.messages || []).filter(m => m?.role && m?.content);
-        // Senses: vision descriptions + live page visits + web results, appended to the last user message
-        const hasUrls = (body.messages || []).some(m => m.role === 'user' && /https?:\/\//.test(String(m.content || '')));
-        if ((Array.isArray(body.images) && body.images.length) || body.webSearch || hasUrls) {
+        // Senses: vision descriptions + live page visits + auto/forced web search.
+        // buildSensorContext internally decides (images, URLs, time-sensitive intent, explicit toggle)
+        {
           const sensorCtx = await buildSensorContext(body, env);
           if (sensorCtx && messages.length) {
             const last = messages[messages.length - 1];
