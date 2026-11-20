@@ -500,7 +500,7 @@ async function orchestrate(messages, env, options = {}) {
         content: 'Session context (system note): You are "' + model + '" served via ' + provider + ', answering inside ARGENTICA — the personal AI environment of Simon Johnson (sociologist, Identity Partners, Goldsmiths PhD). ' +
           (options.multiModel ? 'This message is being answered by several models in PARALLEL (multi-model comparison mode): give your own complete, best answer without referring to other models. ' : '') +
           'Longer answers: if you risk hitting your maximum output length, bring the answer to a clean stopping point and end with the token [MORE_AVAILABLE] on the final line so Simon knows to request part 2 — never truncate mid-sentence. ' +
-          'Image generation: you can display a generated image in your reply by writing a markdown image like ![image](https://image.pollinations.ai/prompt/a%20lighthouse%20at%20dawn%20photorealistic) with the URL-encoded prompt inside; use this when Simon asks you to create or generate an image. ' +
+          'Image generation: when Simon asks you to generate or create an image, the ARGENTICA system generates it with a proper image model and provides it in your context as a markdown image — include that image in your reply verbatim and add one sentence describing it. Never invent image URLs of your own. ' +
           'When you use live-search context provided to you, cite sources inline. Never invent current facts. British English. No sycophancy.'
       }, ...messages];
       const result = await callModel(provider, model, key, awareMsgs, env);
@@ -2171,6 +2171,46 @@ async function buildSensorContext(body, env) {
   const searchQ = lastUser ? String(lastUser.content).replace(/https?:\/\/[^\s)\]]+/g, '').slice(0, 300).trim() : '';
   const AUTO = /(price|pricing|cost|how much|current(ly)?|latest|todays?|today'?s|news|this week|this month|recent(ly)?|right now|just announced|breaking|who won|score|release(d)?|launched|update(d)? on|status of|stock|share price|weather|election|prime minister|chancellor|premier league|transfer|\b20(2[3-9]|3[0-9])\b|is (?:it|there)|are there|available now|in stock|open now|schedule|fixtures|anime|episode)/i;
   const needSearch = body.webSearch || (searchQ.length > 3 && AUTO.test(searchQ) && searchQ.split(/\s+/).length >= 2);
+  // ── Image generation sense: "generate/make/create/draw an image of X" ──
+  {
+    const raw = String((lastUser && lastUser.content) || String(lastUser0 && lastUser0.content || ''));
+    const gm = raw.match(/^(?:\/gen|\/image)\s+([\s\S]+)$/i) ||
+               raw.match(/(?:generate|make|create|draw|design|produce)\b[^.?!]{0,60}\b(?:an?\s+)?(?:image|picture|photo|illustration|poster|logo|artwork|graphic|painting|mosaic)\b(?:\s+(?:of|for|showing|depicting))?\s*[:\u2014-]?\s*(.+)/i) ||
+               raw.match(/^(?:an?\s+)?(?:image|picture|photo)\s+(?:of|for)\s+(.+?)\s*(?:please)?\.?$/i);
+    const GEN_RE = /^(?:\/gen|\/image)\b|\b(?:generate|make|create|draw|design|produce)\b[^.?!]{0,60}\b(?:image|picture|photo|illustration|poster|logo|artwork|graphic|painting|mosaic)\b/i;
+    if (gm && (GEN_RE.test(raw) || /^\//.test(raw.trim()))) {
+      const genPrompt = (gm[1] || raw).slice(0, 500).replace(/^(?:of|for)\s+/i, '').trim();
+      if (genPrompt.length > 2) {
+        const gemKey = k(env, ['gemini_api_key','gemini_free_key','GEMINI_API_KEY']) || '';
+        if (gemKey) {
+          try {
+            const vr = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=' + encodeURIComponent(gemKey), {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contents: [{ parts: [{ text: 'Generate this image: ' + genPrompt }] }] })
+            });
+            const vd = await vr.json().catch(() => ({}));
+            const parts = (((vd.candidates || [])[0] || {}).content || {}).parts || [];
+            const imgPart = parts.find(pt => pt.inlineData || pt.inline_data);
+            const b64 = imgPart && (imgPart.inlineData || imgPart.inline_data).data;
+            const mime = (imgPart && (imgPart.inlineData || imgPart.inline_data).mimeType) || 'image/png';
+            if (b64 && env.PRISM_ASSETS) {
+              const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+              const key = 'gen/' + Date.now() + '-' + genPrompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) + '.png';
+              await env.PRISM_ASSETS.put(key, bytes.buffer, { httpMetadata: { contentType: mime } });
+              const imgUrl = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + key;
+              context += '[SYSTEM: an image was generated for this request via Gemini 2.5 Flash Image ("nano banana") using the prompt: "' + genPrompt + '". Include this exact markdown image in your reply:]\n![generated image](' + imgUrl + ')\n';
+            } else {
+              const note = (((vd.candidates || [])[0] || {}).content || {}).parts && parts.map(x => x.text || '').join('').slice(0, 200);
+              context += '[SYSTEM: image generation attempted for "' + genPrompt + '" but the model returned no image' + (note ? ' — it said: ' + note : '') + '. Tell Simon the image could not be generated this time.]\n';
+            }
+          } catch (e) {
+            context += '[SYSTEM: image generation for "' + genPrompt.slice(0, 120) + '" failed with error: ' + String(e.message || e).slice(0, 120) + '. Tell Simon plainly.]\n';
+          }
+        }
+      }
+    }
+  }
+
   // Image search sense: "find/show me an image/picture/photo of X"
   {
     const raw = String((lastUser && lastUser.content) || String(lastUser0 && lastUser0.content || ''));
