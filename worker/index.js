@@ -8007,20 +8007,22 @@ data: ${JSON.stringify(data)}
                 const dueAt = item.scheduledFor || new Date().toISOString();
                 const media = await itemMediaUrls(item, env);   // rasterised canvas / carousel slides
                 let gqlRes = null;
-                if (media.length) {
-                  // try with media attached (carousel for IG/FB when multiple, single image otherwise)
-                  gqlRes = await bufferGql(
-                    'mutation($text: String!, $channelId: ChannelId!, $dueAt: DateTime!, $media: [MediaInput!]!) { createPost(input: { text: $text, channelId: $channelId, schedulingType: automatic, mode: customScheduled, dueAt: $dueAt, media: $media }) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }',
-                    { text: item.text, channelId, dueAt, media: media.map(u => ({ mediaType: 'image', url: u })) }, env
-                  );
-                  if (gqlRes.error) gqlRes = { __mediaTried: true, error: gqlRes.error }; // fall through to text-only
-                }
-                if (!gqlRes || gqlRes.error) {
-                  gqlRes = await bufferGql(
-                    'mutation($text: String!, $channelId: ChannelId!, $dueAt: DateTime!) { createPost(input: { text: $text, channelId: $channelId, schedulingType: automatic, mode: customScheduled, dueAt: $dueAt }) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }',
-                    { text: item.text, channelId, dueAt }, env
-                  );
-                }
+                // Verified against Buffer's live GraphQL schema (introspected):
+                // createPost(input: CreatePostInput!) with REQUIRED assets + needsApproval;
+                // carousel slides = multiple AssetInput {image:{url}} entries
+                const input = {
+                  text: item.text,
+                  channelId,
+                  schedulingType: 'automatic',
+                  mode: 'customScheduled',
+                  dueAt,
+                  needsApproval: false,   // Simon approves in Argentica, not in Buffer
+                  assets: media.map(u => ({ image: { url: u } })),
+                };
+                gqlRes = await bufferGql(
+                  'mutation($input: CreatePostInput!) { createPost(input: $input) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }',
+                  { input }, env
+                );
                 if (gqlRes.error) { errors[platform] = gqlRes.error; results[platform] = { success: false }; }
                 else {
                   const created = gqlRes.data && gqlRes.data.createPost;
@@ -9818,6 +9820,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     // POST /api/buffer/schema-probe — introspect Buffer's createPost input and MediaInput shape
     if (path === '/api/buffer/schema-probe' && request.method === 'POST') {
       try {
+        let body = null; try { body = await request.json(); } catch(e) { body = null; }
         const q = `query { __schema { mutationType { fields { name args { name type { kind name ofType { kind name } } } } } } }`;
         const r1 = await bufferGql(q, null, env);
         let createPost = null;
@@ -9858,7 +9861,30 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           const rr = await bufferGql(rq, null, env);
           schedTypes = (rr.data && rr.data.__type) || rr.error || null;
         }
-        return json({ success:true, createPost, createPostInput, assetTypes: { found: assetType, imageAssetInput }, shareModes, schedTypes }, 200, origin);
+        // All available mutation names (for cleanup/management)
+        let allMutations = null;
+        {
+          const rq = 'query { __schema { mutationType { fields { name } } } }';
+          const rr = await bufferGql(rq, null, env);
+          try { allMutations = ((rr.data||{}).__schema.mutationType.fields||[]).map(f=>f.name); } catch(e) { allMutations = rr.error; }
+        }
+        // LIVE DRAFT TEST (if requested): createPost with saveToDraft — never publishes
+        let draftTest = null;
+        if (body && body.createDraft) {
+          const channelId = k(env, ['buffer_ig_channel']) || (env.PRISM_KV ? await env.PRISM_KV.get('platform:channel:instagram').catch(()=>null) : null);
+          if (!channelId) { draftTest = { error: 'instagram channel id not set' }; }
+          else {
+            const input = { text: 'Carousel schema test (draft only — safe to delete)',
+              channelId, schedulingType: 'automatic', mode: 'addToQueue', needsApproval: false,
+              saveToDraft: true,
+              assets: (body.urls || []).map(u => ({ image: { url: u } })) };
+            const rr = await bufferGql(
+              'mutation($input: CreatePostInput!) { createPost(input: $input) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }',
+              { input }, env);
+            draftTest = rr.data || rr.error;
+          }
+        }
+        return json({ success:true, createPost, createPostInput, assetTypes: { found: assetType, imageAssetInput }, shareModes, schedTypes, allMutations, draftTest }, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 200, origin); }
     }
 
