@@ -1498,7 +1498,7 @@ var GlobalUI = (function() {
 
     var hdr = document.createElement('div');
     hdr.style.cssText = 'padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;';
-    hdr.innerHTML = '<span style="font-size:14px;">&#x1F3A9;</span><span style="font-size:13px;font-weight:600;flex:1;">Gerald</span><span id="pill-status" style="font-size:10px;color:var(--fg-muted);"></span><a href="/chat/" style="font-size:11px;color:var(--accent);text-decoration:none;">Full &#x2197;</a><button onclick="GlobalUI.toggleChat()" style="background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:16px;margin-left:6px;">&#x2715;</button>';
+    hdr.innerHTML = '<span style="font-size:14px;">&#x1F3A9;</span><span style="font-size:13px;font-weight:600;flex:1;">Tay</span><span id="pill-status" style="font-size:10px;color:var(--fg-muted);"></span><a href="/chat/" style="font-size:11px;color:var(--accent);text-decoration:none;">Full &#x2197;</a><button onclick="GlobalUI.toggleChat()" style="background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:16px;margin-left:6px;">&#x2715;</button>';
 
     var msgs = document.createElement('div');
     msgs.id = 'pill-msgs';
@@ -1572,7 +1572,7 @@ var GlobalUI = (function() {
     chatHistory.push({ role: 'user', content: text });
     var status = document.getElementById('pill-status');
     if (status) status.textContent = 'Thinking...';
-    var messages = [{ role: 'system', content: "You are Gerald, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English. Never fabricate." }].concat(chatHistory);
+    var messages = [{ role: 'system', content: "You are Tay, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English. Never fabricate." }].concat(chatHistory);
     fetch(WORKER + '/api/chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: messages, profile: 'balanced' })
@@ -1716,7 +1716,7 @@ var GlobalUI = (function() {
 
     var hdr = document.createElement('div');
     hdr.style.cssText = 'padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;';
-    hdr.innerHTML = '<span style="font-size:14px;">&#x1F3A9;</span><span style="font-size:13px;font-weight:600;flex:1;">Gerald</span><span id="pill-status" style="font-size:10px;color:var(--fg-muted);"></span><a href="/chat/" style="font-size:11px;color:var(--accent);text-decoration:none;">Full &#x2197;</a><button onclick="GlobalUI.toggleChat()" style="background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:16px;margin-left:6px;">&#x2715;</button>';
+    hdr.innerHTML = '<span style="font-size:14px;">&#x1F3A9;</span><span style="font-size:13px;font-weight:600;flex:1;">Tay</span><span id="pill-status" style="font-size:10px;color:var(--fg-muted);"></span><a href="/chat/" style="font-size:11px;color:var(--accent);text-decoration:none;">Full &#x2197;</a><button onclick="GlobalUI.toggleChat()" style="background:none;border:none;cursor:pointer;color:var(--fg-muted);font-size:16px;margin-left:6px;">&#x2715;</button>';
 
     var msgs = document.createElement('div');
     msgs.id = 'pill-msgs';
@@ -1790,7 +1790,7 @@ var GlobalUI = (function() {
     chatHistory.push({ role: 'user', content: text });
     var status = document.getElementById('pill-status');
     if (status) status.textContent = 'Thinking...';
-    var messages = [{ role: 'system', content: "You are Gerald, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English. Never fabricate." }].concat(chatHistory);
+    var messages = [{ role: 'system', content: "You are Tay, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English. Never fabricate." }].concat(chatHistory);
     fetch(WORKER + '/api/chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: messages, profile: 'balanced' })

@@ -144,7 +144,7 @@ document.getElementById('mem-save').addEventListener('click', async () => {
     await api('/memory', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content, tags, category: document.getElementById('mem-category').value, source: 'manual' }) });
     document.getElementById('mem-content').value = ''; document.getElementById('mem-tags').value = '';
-    ARG.toast('Memory saved — Gerald and agents can draw on it now.');
+    ARG.toast('Memory saved — Tay and agents can draw on it now.');
     load();
   } catch (e) { ARG.toast('Save failed: ' + e.message); }
 });

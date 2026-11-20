@@ -6,7 +6,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Argentica — Gerald</title>
+<title>Argentica — Tay</title>
 <link rel="stylesheet" href="/shared/argentica.css">
 <style>
   .mm-card { border: 1px solid var(--line); border-radius: 10px; background: var(--paper); margin-bottom: 10px; overflow: hidden; }
@@ -57,7 +57,7 @@
 
     <div class="chat-centre">
       <div class="arg-pagehead" style="margin-bottom:10px;">
-        <h1 style="font-size:20px;">Gerald</h1>
+        <h1 style="font-size:20px;">Tay</h1>
         <div class="sub">Sardonic, precise, direct. Type, dictate or handwrite into the same field. Tick two or more models to compare them side by side.</div>
       </div>
       <div class="chat-scroll" id="chat-scroll"></div>
@@ -68,6 +68,7 @@
           <div class="osk-strip" id="osk"></div>
           <div class="row" style="gap:6px;">
             <button class="ghost small" id="attach-btn" title="Attach an image (OCR) or text file">📎 Attach</button>
+            <button class="ghost small" id="live-search-btn" title="Search the live web and feed results to the models with this message">🌐 Search</button>
             <button class="ghost small" id="dictate-btn" title="Dictate with your microphone">🎙 Dictate</button>
             <button class="ghost small" id="osk-toggle">⌨ Compact keyboard</button>
             <button class="ghost small" id="hw-open">✎ Handwrite</button>
@@ -135,6 +136,8 @@ ARG.buildShell('chat');
 const { api, esc, md } = ARG;
 
 let threadId = 't' + Date.now();
+let pendingImages = [];   // {mime_type, b64, name}
+let liveSearch = false;
 let pins = {};
 try { pins = JSON.parse(localStorage.getItem('arg:thread-pins') || '{}'); } catch (e) {}
 let messages = [];
@@ -165,7 +168,7 @@ if (activePersona) {
 function renderMsg(role, content) {
   const div = document.createElement('div');
   div.className = 'msg ' + (role === 'user' ? 'user' : 'gerald');
-  div.innerHTML = '<div class="who">' + (role === 'user' ? 'Simon' : 'Gerald') + '</div><div class="bubble">' + md(content) + '</div>';
+  div.innerHTML = '<div class="who">' + (role === 'user' ? 'Simon' : 'Tay') + '</div><div class="bubble">' + md(content) + '</div>';
   const bubble = div.querySelector('.bubble');
   if (role !== 'user' && (content || '').length > 700) addCollapser(bubble);
   scroll.appendChild(div);
@@ -432,7 +435,7 @@ document.getElementById('thread-to-library-top').addEventListener('click', async
   try { const t = await api('/threads/' + encodeURIComponent(threadId)); if (t.title) title = 'Chat — ' + t.title; } catch (e) {}
   const transcript = messages.map(m => (m.role === 'user' ? 'SIMON:\n' : 'GERALD:\n') + m.content).join('\n\n---\n\n');
   const htmlContent = '<h1>' + esc(title) + '</h1>' +
-    messages.map(m => '<p><strong>' + (m.role === 'user' ? 'Simon' : 'Gerald') + ':</strong></p><p>' + esc(m.content).replace(/\n/g, '<br>') + '</p>').join('<hr>');
+    messages.map(m => '<p><strong>' + (m.role === 'user' ? 'Simon' : 'Tay') + ':</strong></p><p>' + esc(m.content).replace(/\n/g, '<br>') + '</p>').join('<hr>');
   let saved = false;
   try {
     await api('/kb', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -473,7 +476,8 @@ async function streamOnce(override, bubble, log, label) {
     res = await fetch('/api/chat/stream', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       signal: ctrl.signal,
-      body: JSON.stringify({ messages, profile: document.getElementById('profile').value, threadId, ...(override || {}) })
+      body: JSON.stringify({ messages, profile: document.getElementById('profile').value, threadId, ...(override || {}),
+        images: (window.__imgSink ? window.__imgSink() : undefined), webSearch: liveSearch || undefined })
     });
   } catch (e) {
     clearTimeout(kill);
@@ -506,8 +510,13 @@ async function streamOnce(override, bubble, log, label) {
 
 async function doSend() {
   const text = input.value.trim();
-  if (!text) return;
+  if (!text && !pendingImages.length) return;
   input.value = '';
+  const usedImages = pendingImages.slice();
+  const usedSearch = liveSearch;
+  window.__imgSink = () => usedImages;
+  const tmp = liveSearch; liveSearch = false;
+  const restore = setTimeout(() => { window.__imgSink = null; pendingImages = []; renderImageChips(); liveSearch = usedSearch; }, 4000);
   renderMsg('user', text);
   messages.push({ role: 'user', content: text });
 
@@ -597,25 +606,49 @@ async function doSend() {
   }
 }
 
-// ── Attachments: images via OCR, text files read directly ────────────────
+function renderImageChips() {
+  const inputEl = document.getElementById('chat-input');
+  let bar = document.getElementById('img-chips');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'img-chips';
+    bar.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;';
+    inputEl.parentElement.insertBefore(bar, inputEl);
+  }
+  bar.innerHTML = pendingImages.map((im, i) =>
+    '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(15,59,58,.08);border-radius:10px;padding:2px 9px;font-size:11.5px;">[img] ' + esc(im.name.slice(0, 24)) +
+    ' <span style="cursor:pointer;color:#833;" onclick="removeImage(' + i + ')">\u2715</span></span>').join('');
+}
+
+function removeImage(i) { pendingImages.splice(i, 1); renderImageChips(); }
+
+// ── Attachments: images via vision (Tay can see them), text files read directly ────────────────
 document.getElementById('attach-btn').addEventListener('click', () => document.getElementById('attach-file').click());
+document.getElementById('live-search-btn').addEventListener('click', () => {
+  liveSearch = !liveSearch;
+  document.getElementById('live-search-btn').style.background = liveSearch ? 'rgba(15,59,58,.16)' : '';
+  document.getElementById('live-search-btn').textContent = liveSearch ? '\u2611 Search on' : 'Web Search';
+  ARG.toast(liveSearch ? 'Live web search ON for your next message.' : 'Live web search off.');
+});
 document.getElementById('attach-file').addEventListener('change', async () => {
   const file = document.getElementById('attach-file').files[0];
   if (!file) return;
-  ARG.toast('Reading "' + file.name + '"…');
+  const name1 = file.name; ARG.toast('Reading "' + name1 + '"…');
+  if ((file.type || '').startsWith('image/')) {
+    if (pendingImages.length >= 4) { ARG.toast('Up to 4 images per message.'); document.getElementById('attach-file').value = ''; return; }
+    const buf = await file.arrayBuffer();
+    let bin = '';
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    pendingImages.push({ mime_type: file.type || 'image/png', b64: btoa(bin), name: name1 });
+    renderImageChips();
+    ARG.toast('Image attached — Tay will see it when you send.');
+    document.getElementById('attach-file').value = '';
+    return;
+  }
+  let extracted = '';
   try {
-    let extracted = '';
-    if ((file.type || '').startsWith('image/')) {
-      const buf = await file.arrayBuffer();
-      let bin = '';
-      const bytes = new Uint8Array(buf);
-      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-      const d = await api('/ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: btoa(bin), mime_type: file.type }) });
-      extracted = d.text || d.content || d.result || '';
-    } else {
-      extracted = await file.text();
-    }
+    extracted = await file.text();
     if (!extracted || !extracted.trim()) { ARG.toast('Could not extract any text from that file.'); return; }
     input.value += (input.value ? '\n\n' : '') + '[Attached: ' + file.name + ']\n' + extracted.slice(0, 30000);
     ARG.toast('Attached "' + file.name + '" — text extracted into the message.');

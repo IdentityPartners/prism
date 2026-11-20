@@ -94,7 +94,7 @@ document.getElementById('refract-run').addEventListener('click', async () => {
   const prompt = (words >= 400 ? FULL_PROMPT : CORE_PROMPT) + input;
   const btn = document.getElementById('refract-run');
   btn.disabled = true;
-  status.textContent = 'Gerald is refracting ' + words + ' words' + (words >= 400 ? ' into the full asset set…' : ' into the core set…');
+  status.textContent = 'Tay is refracting ' + words + ' words' + (words >= 400 ? ' into the full asset set…' : ' into the core set…');
   outEl.innerHTML = '';
   try {
     const data = await api('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], profile: 'balanced' }) });

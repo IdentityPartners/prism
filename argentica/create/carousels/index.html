@@ -29,7 +29,7 @@
       <div id="slides-list"></div>
       <div class="row mt" style="flex-wrap:wrap; gap:8px;">
         <button class="ghost small" id="add-slide">+ Slide</button>
-        <button class="ghost small" id="expand">Let Gerald draft the slides</button>
+        <button class="ghost small" id="expand">Let Tay draft the slides</button>
         <button id="render">Render carousel</button>
       </div>
       <div class="muted mt" id="car-status"></div>
@@ -114,7 +114,7 @@ document.getElementById('add-slide').addEventListener('click', () => { if (slide
 document.getElementById('expand').addEventListener('click', async () => {
   const first = slides[0] || '';
   const st = document.getElementById('car-status');
-  st.textContent = 'Gerald is drafting…';
+  st.textContent = 'Tay is drafting…';
   try {
     const d = await api('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: [{ role: 'user', content: 'Write a 6-slide social media carousel for Identity Partners' + (first ? ' on the theme: ' + first : ' about a common myth in addiction recovery') + '. Return ONLY the slide text, one slide per line, no numbering, no commentary. British English. Simon\'s voice: intelligent, direct, humane. No hashtags, no contact details.' }], profile: 'balanced' })

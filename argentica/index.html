@@ -146,14 +146,14 @@
     <div class="glass">
       <h3>Recent conversations</h3>
       <div id="threads-body"></div>
-      <div style="margin-top:10px;"><a class="ghostbtn" style="text-decoration:none; display:inline-block;" href="/argentica/chat/">Open Gerald →</a></div>
+      <div style="margin-top:10px;"><a class="ghostbtn" style="text-decoration:none; display:inline-block;" href="/argentica/chat/">Open Tay →</a></div>
     </div>
 
     <div class="glass">
-      <h3>Ask Gerald</h3>
+      <h3>Ask Tay</h3>
       <input type="text" id="quick-chat" placeholder="What are we working on?" style="width:100%; box-sizing:border-box; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.22); border-radius:10px; padding:9px 12px; color:#fff; font-family:inherit; outline:none;">
       <div style="margin-top:10px; display:flex; gap:8px;">
-        <button class="ghostbtn" id="quick-send">Speak to Gerald</button>
+        <button class="ghostbtn" id="quick-send">Speak to Tay</button>
         <a class="ghostbtn" style="text-decoration:none;" href="/argentica/library/">Library</a>
         <a class="ghostbtn" style="text-decoration:none;" href="/argentica/research/">Research</a>
       </div>
@@ -352,7 +352,7 @@ renderTodos();
     document.getElementById('threads-body').innerHTML = th.length ? th.map(t =>
       '<div style="margin-bottom:9px;"><a href="/argentica/chat/?t=' + encodeURIComponent(t.id) + '">' + esc(t.title || 'Conversation') + '</a>' +
       '<div class="nd" style="color:rgba(255,255,255,.5); font-size:11.5px;">' + (t.messageCount || 0) + ' messages · ' + (t.updated ? new Date(t.updated).toLocaleDateString('en-GB') : '') + '</div></div>'
-    ).join('') : '<span style="color:rgba(255,255,255,.45); font-size:13px;">No conversations yet — Gerald is waiting.</span>';
+    ).join('') : '<span style="color:rgba(255,255,255,.45); font-size:13px;">No conversations yet — Tay is waiting.</span>';
   } catch (e) { document.getElementById('threads-body').textContent = 'Could not load.'; }
 })();
 
@@ -367,7 +367,7 @@ renderTodos();
   }
 })();
 
-// ── Quick note → Gerald ──
+// ── Quick note → Tay ──
 document.getElementById('quick-send').addEventListener('click', () => {
   const v = document.getElementById('quick-chat').value.trim();
   if (v) sessionStorage.setItem('arg:pending-prompt', v);

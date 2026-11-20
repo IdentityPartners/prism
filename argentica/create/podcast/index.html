@@ -32,7 +32,7 @@
   </div>
 
   <div class="card mt">
-    <h3>Draft an episode with Gerald</h3>
+    <h3>Draft an episode with Tay</h3>
     <div class="row">
       <input type="text" id="ep-topic" placeholder="Episode topic — e.g. recovery capital and long-term outcomes">
       <button id="ep-draft">Draft script</button>
@@ -83,7 +83,7 @@ document.getElementById('ep-draft').addEventListener('click', async () => {
   const topic = document.getElementById('ep-topic').value.trim();
   if (!topic) { ARG.toast('Give the episode a topic.'); return; }
   const st = document.getElementById('ep-status');
-  st.textContent = 'Gerald is drafting…';
+  st.textContent = 'Tay is drafting…';
   try {
     const d = await api('/chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

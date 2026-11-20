@@ -132,7 +132,7 @@
       '<nav class="arg-nav">' +
       '<div class="section">Work</div>' +
       '<a href="/argentica/"' + (activeKey === 'home' ? ' class="active"' : '') + '>Home</a>' +
-      '<a href="/argentica/chat/"' + (activeKey === 'chat' ? ' class="active"' : '') + '>Gerald (Chat)</a>' +
+      '<a href="/argentica/chat/"' + (activeKey === 'chat' ? ' class="active"' : '') + '>Tay (Chat)</a>' +
       Object.entries(WORKSPACES).map(([id, ws]) => {
         const active = found && found.id === id;
         const home = ws.tabs[0];
@@ -141,7 +141,7 @@
           (active ? ws.tabs.map(t =>
             '<a href="' + t.href + '" style="padding-left:26px; font-size:12.5px;"' + (t.key === activeKey ? ' class="active"' : '') + '>' + t.label + '</a>'
           ).join('') : '');
-      }).join('').replace(/(<a href="[^"]+"[^>]*>)(Home|Gerald \(Chat\)|Library|Research|Create|Commercial|Comms|System|[^<>]{2,20})(<\/a>)/g, function (m, a, txt, z) { return a + '<span class="navlbl">' + txt + '</span>' + z; }) +
+      }).join('').replace(/(<a href="[^"]+"[^>]*>)(Home|Tay \(Chat\)|Library|Research|Create|Commercial|Comms|System|[^<>]{2,20})(<\/a>)/g, function (m, a, txt, z) { return a + '<span class="navlbl">' + txt + '</span>' + z; }) +
       '</nav>';
 
     const shell = document.createElement('div');

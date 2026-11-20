@@ -2094,6 +2094,54 @@ async function backupStoresToDrive(env) {
   }
 }
 
+// ── Tay's senses: vision (screenshots) + live web search, injected as context ──
+async function buildSensorContext(body, env) {
+  let context = '';
+  const images = Array.isArray(body.images) ? body.images.slice(0, 4) : [];
+  const geminiKey = k(env, ['gemini_api_key','gemini_free_key','GEMINI_API_KEY']) || '';
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+    if (!img || !img.b64) continue;
+    try {
+      const descUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(geminiKey);
+      const vr = await fetch(descUrl, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [
+          { text: 'Describe this image precisely and completely for use as context in a conversation: what it shows, all visible text verbatim, UI elements, charts or data, anything notable. Be thorough but neutral.' },
+          { inline_data: { mime_type: img.mime_type || 'image/png', data: img.b64 } }
+        ] }] })
+      });
+      const vd = await vr.json().catch(() => ({}));
+      const desc = (((vd.candidates || [])[0] || {}).content || {}).parts &&
+        vd.candidates[0].content.parts.map(x => x.text || '').join('').trim();
+      if (desc) context += '[Attached image ' + (i + 1) + ' — described by vision: ' + desc.slice(0, 2500) + ']\n';
+    } catch (e) { /* vision unavailable — page falls back to OCR text already inline */ }
+  }
+  if (body.webSearch) {
+    const lastUser = (body.messages || []).filter(m => m.role === 'user').pop();
+    const q = lastUser ? String(lastUser.content).slice(0, 300) : '';
+    if (q) {
+      try {
+        const braveKey = k(env, ['brave_api_key','BRAVE_API_KEY','brave']);
+        let results = [];
+        if (braveKey) {
+          const br = await fetch('https://api.search.brave.com/res/v1/web/search?q=' + encodeURIComponent(q) + '&count=6', {
+            headers: { 'X-Subscription-Token': braveKey, 'Accept': 'application/json' } });
+          const bd = await br.json().catch(() => ({}));
+          results = (bd.web && bd.web.results || []).slice(0, 6).map(r => '- ' + (r.title || '') + ' — ' + (r.url || '') + ': ' + String(r.description || '').slice(0, 220));
+        }
+        if (!results.length) {
+          const r2 = await fetch('https://api.duckduckgo.com/?q=' + encodeURIComponent(q) + '&format=json&no_redirect=1&no_html=1');
+          const dd = await r2.json().catch(() => ({}));
+          results = [dd.AbstractText, dd.Answer, dd.Definition].filter(Boolean).map(t => '- ' + String(t).slice(0, 400));
+        }
+        if (results.length) context += '[Live web search results for: ' + q + ']\n' + results.join('\n') + '\n';
+      } catch (e) {}
+    }
+  }
+  return context;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -2139,7 +2187,7 @@ export default {
               if (facts.length > 0) aboutMeContext = '\n\nWhat I know about Simon:\n' + facts.slice(0, 10).map(m => `- ${m.fact}`).join('\n');
             }
           }
-          const orchestratorPrompt = `You are Gerald, Simon Johnson's personal AI. Sardonic, precise, direct. British English. Never sycophantic. Never say 'the user' — Simon is right here, speak to him directly. Never fabricate. If you don't know, say so plainly.${aboutMeContext}`;
+          const orchestratorPrompt = `You are Tay, Simon Johnson's personal AI. Sardonic, precise, direct. British English. Never sycophantic. Never say 'the user' — Simon is right here, speak to him directly. Never fabricate. If you don't know, say so plainly.${aboutMeContext}`;
           messages = [{ role: 'system', content: orchestratorPrompt + antiRoleplay }, ...messages];
         } else {
           messages = [...messages];
@@ -2629,9 +2677,10 @@ export default {
         // ── OpenAlex ── 250M+ scholarly works, fully open
         if (sources.includes('openalex')) {
           const oaPage = page;
+          const oaKey = k(env, ['openalex','openalex_api_key','OPENALEX_API_KEY']);
           fetches.push(
-            fetch(`https://api.openalex.org/works?search=${encodeURIComponent(query)}&per-page=${perPage}&page=${oaPage}&select=id,title,authorships,publication_year,abstract_inverted_index,primary_location,open_access,cited_by_count,doi,type,publication_date&mailto=${email}`, {
-              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            fetch(`https://api.openalex.org/works?search=${encodeURIComponent(query)}&per-page=${perPage}&page=${oaPage}&select=id,title,authorships,publication_year,abstract_inverted_index,primary_location,open_access,cited_by_count,doi,type,publication_date&mailto=${email}` + (oaKey ? `&api_key=${oaKey}` : ''), {
+              headers: Object.assign({ 'User-Agent': 'Argentica/1.0 Research' }, oaKey ? { 'Authorization': 'Bearer ' + oaKey } : {}),
             }).then(r => r.json()).then(oa => {
               const items = (oa.results || []).map(w => {
                 // Reconstruct abstract from inverted index
@@ -3971,6 +4020,15 @@ export default {
       try {
         const body = await request.json();
         const messages = (body.messages || []).filter(m => m?.role && m?.content);
+        // Senses: vision descriptions + live web results, appended to the last user message
+        if ((Array.isArray(body.images) && body.images.length) || body.webSearch) {
+          const sensorCtx = await buildSensorContext(body, env);
+          if (sensorCtx && messages.length) {
+            const last = messages[messages.length - 1];
+            if (last.role === 'user') last.content = String(last.content) + '\n\n[Context]\n' + sensorCtx;
+            else messages.push({ role: 'user', content: '[Context]\n' + sensorCtx });
+          }
+        }
         const profile = body.profile || 'balanced';
         const threadId = body.threadId || ('t' + Date.now());
         const providerOverride = body.providerOverride;
@@ -5221,7 +5279,7 @@ data: ${JSON.stringify(data)}
           setup: {
             model: `models/${model}`,
             generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: body.voice || 'Puck' } } } },
-            systemInstruction: { parts: [{ text: body.systemPrompt || "You are Gerald, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English." }] }
+            systemInstruction: { parts: [{ text: body.systemPrompt || "You are Tay, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English." }] }
           }
         }, 200, origin);
       } catch(e) { return json({ error: e.message }, 500, origin); }
@@ -7443,7 +7501,7 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
     }
 
-    // ── Native CRM — AI search (Gerald can call this) ─────────────────────────────
+    // ── Native CRM — AI search (Tay can call this) ─────────────────────────────
     if (path === '/api/crm/search' && request.method === 'POST') {
       try {
         const body = await request.json();

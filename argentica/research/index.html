@@ -28,7 +28,7 @@
       <span class="muted" id="search-note" style="margin-left:auto;"></span>
     </div>
     <div class="row mt" style="flex-wrap:wrap; gap:8px; align-items:center;">
-      <label class="row" style="gap:5px; font-size:13px;"><input type="checkbox" id="f-boolean" checked> Gerald translates to boolean</label>
+      <label class="row" style="gap:5px; font-size:13px;"><input type="checkbox" id="f-boolean" checked> Tay translates to boolean</label>
       <label class="row" style="gap:5px; font-size:13px;"><input type="checkbox" id="f-oa"> Open access only</label>
       <span class="muted" style="margin-left:auto;">From</span>
       <input type="date" id="f-from" style="max-width:150px;">
@@ -117,7 +117,7 @@ function expand(q) {
 async function translateQuery(raw) {
   const note = document.getElementById('boolean-note');
   note.style.display = 'block';
-  note.textContent = 'Gerald is translating your query…';
+  note.textContent = 'Tay is translating your query…';
   try {
     const d = await api('/chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

@@ -258,7 +258,7 @@ var TOOL_PROPS = {
 };
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-// ── Module/week tagging + Gerald contribution ────────────────────────────────────────────────────────────────────────────
+// ── Module/week tagging + Tay contribution ────────────────────────────────────────────────────────────────────────────
 function buildModuleWeekSelectors() {
   var tb = document.querySelector('.wh-toolbar');
   if (!tb || document.getElementById('wh-module')) return;
@@ -276,8 +276,8 @@ function buildModuleWeekSelectors() {
   var ai = document.createElement('button');
   ai.id = 'wh-gerald';
   ai.className = 'wh-tb-btn';
-  ai.textContent = '✦ Gerald';
-  ai.title = 'Ask Gerald to reflect on / extend this page';
+  ai.textContent = '✦ Tay';
+  ai.title = 'Ask Tay to reflect on / extend this page';
   ai.onclick = geraldContribute;
   wrap.appendChild(mod); wrap.appendChild(wk); wrap.appendChild(ai);
   tb.appendChild(wrap);
@@ -297,13 +297,13 @@ function geraldContribute() {
   var textEl = document.getElementById('wh-text');
   if (!textEl) return;
   var existing = (textEl.innerText || '').trim();
-  if (!existing) { alert('Write or OCR something first — Gerald responds to your notes.'); return; }
+  if (!existing) { alert('Write or OCR something first — Tay responds to your notes.'); return; }
   var btn = document.getElementById('wh-gerald');
   btn.textContent = '✦ thinking…';
   fetch('/api/chat', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ messages: [
-      { role: 'system', content: 'You are Gerald, note-taking companion to a PhD student in addiction recovery and mental health research. Given the student\'s notes, add a short, clearly-marked contribution: connections to relevant literature (e.g. Goffman, Bourgois, Maté), a probing question, and one suggestion for where the argument could go next. British English. Be concise — under 150 words. Start with "✦ Gerald:".' },
+      { role: 'system', content: 'You are Tay, note-taking companion to a PhD student in addiction recovery and mental health research. Given the student\'s notes, add a short, clearly-marked contribution: connections to relevant literature (e.g. Goffman, Bourgois, Maté), a probing question, and one suggestion for where the argument could go next. British English. Be concise — under 150 words. Start with "✦ Tay:".' },
       { role: 'user', content: existing.substring(0, 4000) }
     ], profile: 'balanced' })
   }).then(function(r){return r.json();}).then(function(d){
@@ -312,8 +312,8 @@ function geraldContribute() {
       textEl.innerHTML += '<div style="margin-top:12px;padding:10px;background:rgba(15,59,58,.06);border-left:3px solid #0f3b3a;border-radius:4px;">' + contribution.replace(/\n/g, '<br>') + '</div>';
       textEl.dispatchEvent(new Event('input', {bubbles: true}));
     }
-    btn.textContent = '✦ Gerald';
-  }).catch(function(){ btn.textContent = '✦ Gerald'; });
+    btn.textContent = '✦ Tay';
+  }).catch(function(){ btn.textContent = '✦ Tay'; });
 }
 
 ARG.buildShell('notebooks');

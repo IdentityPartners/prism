@@ -59,7 +59,7 @@
           <option value="180">3 min</option>
         </select>
         <button id="m-run">Generate</button>
-        <button id="m-draft" class="ghost" title="Ask Gerald to write a richer prompt">Gerald: refine prompt</button>
+        <button id="m-draft" class="ghost" title="Ask Tay to write a richer prompt">Tay: refine prompt</button>
       </div>
       <div class="muted mt" id="m-status"></div>
       <div class="merr" id="m-err"></div>
@@ -175,7 +175,7 @@ document.getElementById('m-run').addEventListener('click', async () => {
 
 document.getElementById('m-draft').addEventListener('click', async () => {
   const base = document.getElementById('m-prompt').value.trim() || 'calm instrumental bed for a therapy practice';
-  document.getElementById('m-status').textContent = 'Gerald is refining the prompt…';
+  document.getElementById('m-status').textContent = 'Tay is refining the prompt…';
   try {
     const r = await api('/api/chat/stream', { method: 'POST', body: JSON.stringify({
       message: 'Rewrite this into one rich, concrete music-generation prompt (instruments, tempo, texture, mood, length). Only output the prompt itself, nothing else: "' + base + '"',
