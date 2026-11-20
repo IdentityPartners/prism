@@ -8010,6 +8010,10 @@ data: ${JSON.stringify(data)}
                 // Verified against Buffer's live GraphQL schema (introspected):
                 // createPost(input: CreatePostInput!) with REQUIRED assets + needsApproval;
                 // carousel slides = multiple AssetInput {image:{url}} entries
+                // IG requires metadata with a PostType; multi-image = carousel
+                const metadata = platform === 'instagram'
+                  ? { instagram: { type: media.length > 1 ? 'carousel' : 'post', shouldShareToFeed: true } }
+                  : undefined;
                 const input = {
                   text: item.text,
                   channelId,
@@ -8017,6 +8021,7 @@ data: ${JSON.stringify(data)}
                   mode: 'customScheduled',
                   dueAt,
                   needsApproval: false,   // Simon approves in Argentica, not in Buffer
+                  ...(metadata ? { metadata } : {}),
                   assets: media.map(u => ({ image: { url: u } })),
                 };
                 gqlRes = await bufferGql(
@@ -9874,10 +9879,12 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           const channelId = k(env, ['buffer_ig_channel']) || (env.PRISM_KV ? await env.PRISM_KV.get('platform:channel:instagram').catch(()=>null) : null);
           if (!channelId) { draftTest = { error: 'instagram channel id not set' }; }
           else {
+            const turls = body.urls || [];
             const input = { text: 'Carousel schema test (draft only — safe to delete)',
               channelId, schedulingType: 'automatic', mode: 'addToQueue', needsApproval: false,
               saveToDraft: true,
-              assets: (body.urls || []).map(u => ({ image: { url: u } })) };
+              metadata: { instagram: { type: turls.length > 1 ? 'carousel' : 'post', shouldShareToFeed: true } },
+              assets: turls.map(u => ({ image: { url: u } })) };
             const rr = await bufferGql(
               'mutation($input: CreatePostInput!) { createPost(input: $input) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }',
               { input }, env);
