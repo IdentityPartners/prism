@@ -9897,7 +9897,13 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           igMeta = (rr.data && { insta: rr.data.a, igTypeEnum: rr.data.c }) || rr.error || null;
           if (rr.data) fbMeta = rr.data.b;
         }
-        return json({ success:true, createPost, createPostInput, assetTypes: { found: assetType, imageAssetInput }, shareModes, schedTypes, allMutations, draftTest, postMeta, igMeta, fbMeta }, 200, origin);
+        let postTypeEnum = null;
+        {
+          const rq = 'query { __type(name: "PostType") { kind name enumValues { name } } }';
+          const rr = await bufferGql(rq, null, env);
+          postTypeEnum = (rr.data && rr.data.__type) || rr.error || null;
+        }
+        return json({ success:true, createPost, createPostInput, assetTypes: { found: assetType, imageAssetInput }, shareModes, schedTypes, allMutations, draftTest, postMeta, igMeta, fbMeta, postTypeEnum }, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 200, origin); }
     }
 
