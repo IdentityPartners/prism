@@ -1212,7 +1212,7 @@ function generateCarousel(slides) {
 }
 
 // ── Legacy generateCanvasHtml (existing templates — preserved) ────────────────
-async function generateCanvasHtml(text, templateId, env) {
+async function generateCanvasHtml(text, templateId, env, imgIn) {
   const PEXELS_KEY = k(env, ['pexels_api_key', 'PEXELS_API_KEY', 'pexels']) || '';
 
   const TEMPLATES = {
@@ -1311,9 +1311,25 @@ async function generateCanvasHtml(text, templateId, env) {
     const lines=wrapText(safeText,26), lineH=64, startY=Math.max(200,540-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+40;
     svg=svgO+`<rect width="${W}" height="${H}" fill="${tmpl.bg1}"/><rect x="540" y="0" width="540" height="${H}" fill="${tmpl.bg2}"/><line x1="540" y1="0" x2="540" y2="${H}" stroke="${C.grey}" stroke-width="2" opacity="0.4"/>`+ipLogoLegacy(30,30)+quoteText(lines,startY,lineH,tmpl.fg)+ipWordmark(540,attrY+48)+ipTagline(540,attrY+82)+ipFooterLegacy(540,H-28)+`</svg>`;
   } else if (tmpl.type==='image') {
-    const imgData=await fetchPexelsImage(tmpl.query), lines=wrapText(safeText,28), lineH=68, startY=Math.max(220,540-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+40;
+    const imgData = imgIn || await fetchPexelsImage(tmpl.query) || await semanticImageSearch(tmpl.query, env);
+    const lines=wrapText(safeText,28), lineH=68, startY=Math.max(220,540-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+40;
     const bgEl=imgData?`<image href="${imgData}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/><rect width="${W}" height="${H}" fill="${tmpl.overlay}"/>`:`<rect width="${W}" height="${H}" fill="${C.teal}"/>`;
     svg=svgO+bgEl+`<rect x="0" y="0" width="${W}" height="12" fill="${C.grey}" opacity="0.8"/><rect x="0" y="${H-12}" width="${W}" height="12" fill="${C.grey}" opacity="0.8"/>`+ipLogoLegacy(30,30)+`<text x="80" y="210" font-family="'Playfair Display',Georgia,serif" font-size="110" fill="${C.ivory}" opacity="0.08">&#x201C;</text>`+quoteText(lines,startY,lineH,C.ivory)+`<line x1="380" y1="${attrY}" x2="700" y2="${attrY}" stroke="${C.grey}" stroke-width="2" opacity="0.65"/>`+ipWordmark(540,attrY+48)+ipTagline(540,attrY+82)+ipFooterLegacy(540,H-28)+`</svg>`;
+  } else if (tmpl.type==='dual') {
+    const imgData = imgIn || await fetchPexelsImage(tmpl.query) || await semanticImageSearch(tmpl.query, env);
+    const lines=wrapText(safeText,26), lineH=62, startY=Math.max(260,560-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+40;
+    const imgHalf = imgData
+      ? `<image href="${imgData}" x="${tmpl.side==='right'?540:0}" y="0" width="540" height="${H}" preserveAspectRatio="xMidYMid slice"/>`
+      : `<rect x="${tmpl.side==='right'?540:0}" y="0" width="540" height="${H}" fill="${C.teal}"/>`;
+    svg=svgO+`<rect width="${W}" height="${H}" fill="${C.ivory}"/>`+imgHalf
+      +`<rect x="${tmpl.side==='right'?0:540}" y="0" width="540" height="${H}" fill="${C.ivory}"/>`
+      +`<line x1="540" y1="0" x2="540" y2="${H}" stroke="${C.rose}" stroke-width="3" opacity="0.55"/>`
+      +ipLogoLegacy(30,30)
+      +`<text x="270" y="200" font-family="'Playfair Display',Georgia,serif" font-size="90" fill="${C.rose}" opacity="0.18">&#x201C;</text>`
+      +lines.map((l,i)=>`<text x="270" y="${startY+i*lineH}" font-family="'Playfair Display',Georgia,serif" font-size="42" fill="${C.rose}" text-anchor="middle">${l}</text>`).join('')
+      +`<line x1="150" y1="${attrY}" x2="390" y2="${attrY}" stroke="${C.rose2}" stroke-width="2" opacity="0.6"/>`
+      +ipWordmark(270,attrY+44)+`<text x="270" y="${attrY+74}" font-family="Arial,sans-serif" font-size="13" fill="${C.rose2}" text-anchor="middle" opacity="0.85">Understand · Appreciate · Define</text>`
+      +ipFooterLegacy(270,H-26)+`</svg>`;
   } else if (tmpl.type==='testimonial') {
     const lines=wrapText(safeText,30), lineH=62, startY=Math.max(240,520-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+50;
     svg=svgO+`<rect width="${W}" height="${H}" fill="${tmpl.bg}"/><rect x="0" y="0" width="${W}" height="12" fill="${tmpl.accent}" opacity="0.9"/><rect x="0" y="${H-12}" width="${W}" height="12" fill="${tmpl.accent}" opacity="0.9"/>`+ipLogoLegacy(30,30)+`<text x="100" y="260" font-family="'Playfair Display',Georgia,serif" font-size="180" fill="${tmpl.accent}" opacity="0.15">&#x201C;</text><text x="980" y="${H-80}" font-family="'Playfair Display',Georgia,serif" font-size="180" fill="${tmpl.accent}" opacity="0.15">&#x201D;</text>`+quoteText(lines,startY,lineH,tmpl.fg)+`<line x1="340" y1="${attrY}" x2="740" y2="${attrY}" stroke="${tmpl.accent}" stroke-width="3" opacity="0.7"/><text x="540" y="${attrY+44}" font-family="'Playfair Display',Georgia,serif" font-size="22" fill="${tmpl.accent}" text-anchor="middle" opacity="0.9">&#x2014; Identity Partners</text>`+ipWordmark(540,attrY+90)+ipFooterLegacy(540,H-28)+`</svg>`;
@@ -1680,6 +1696,53 @@ async function storePlatformChannel(platform, channelId, env) {
   }
 }
 
+// ── Convert an SVG canvas URL to a PNG (rendered in Browserless) ──
+async function svgToPngUrl(svgUrl, env) {
+  try {
+    if (/\.png|\.jpe?g/i.test(svgUrl)) return svgUrl; // already raster
+    const BLT = k(env, ['railway_browserless_token']) || '';
+    const IO  = k(env, ['browserless','browserless_io_key','browserless_io','BROWSERLESS']) || '';
+    const fn = `export default async ({ page, context }) => {
+      await page.setViewport({ width: 1080, height: 1080, deviceScaleFactor: 1 });
+      await page.goto(context.url, { waitUntil: 'networkidle0', timeout: 45000 });
+      const shot = await page.screenshot({ type: 'png', encoding: 'base64' });
+      return { data: { b64: shot }, type: 'application/json' };
+    }`;
+    const endpoints = [
+      ['https://browserless-production-e49c65ef.up.railway.app', BLT],
+      ['https://chrome.browserless.io', IO],
+    ];
+    for (const [base, tok] of endpoints) {
+      if (!tok) continue;
+      try {
+        const br = await fetch(base + '/function?token=' + encodeURIComponent(tok), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: fn, context: { url: svgUrl } })
+        });
+        const txt = await br.text();
+        if (!br.ok) continue;
+        const d = JSON.parse(txt);
+        const b64 = d.data && d.data.b64;
+        if (b64 && env.PRISM_ASSETS) {
+          const key = 'canvas/png-' + svgUrl.split('/').pop().replace(/\.svg$/, '') + '-' + Date.now() + '.png';
+          const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+          await env.PRISM_ASSETS.put(key, bytes.buffer, { httpMetadata: { contentType: 'image/png' } });
+          return 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + key;
+        }
+      } catch (e) { continue; }
+    }
+    return null;
+  } catch (e) { return null; }
+}
+
+// Collect the rasterised media for a queue item (single image or carousel)
+async function itemMediaUrls(item, env) {
+  const urls = [];
+  if (Array.isArray(item.urls) && item.urls.length) { for (const u of item.urls.slice(0, 8)) urls.push(await svgToPngUrl(u, env)); }
+  else if (item.imageUrl) urls.push(await svgToPngUrl(item.imageUrl, env));
+  return urls.filter(Boolean);
+}
+
 async function bufferGql(query, variables, env) {
   const bufferKey = k(env, ['buffer_api_key','BUFFER_API_KEY']) || '';
   if (!bufferKey) return { error: 'No Buffer API key' };
@@ -2042,13 +2105,15 @@ function contrastFixSvg(svg) {
     const bgMatch = svg.match(/<rect[^>]*fill="(#?[0-9a-fA-F]{3,6})"/);
     const bg = bgMatch ? (bgMatch[1].startsWith('#') ? bgMatch[1] : '#' + bgMatch[1]) : null;
     if (!bg) return svg;
-    const textFills = [...new Set((svg.match(/fill="(#[0-9a-fA-F]{3,6})"/g) || []).map(m => m.match(/"(#[0-9a-fA-F]{3,6})"/)[1]))];
+    // Only adjust TEXT element fills — never panel/shape/rect fills (they carry the design)
+    const textTags = svg.match(/<text[^>]*>/g) || [];
+    const textFills = [...new Set(textTags.map(t => (t.match(/fill="(#[0-9a-fA-F]{3,6})"/) || [])[1]).filter(Boolean))];
     let fixed = svg;
     for (const tf of textFills) {
       const ratio = contrastRatio(tf, bg);
       if (ratio != null && ratio < 4.5) {
         const safe = relLum(hexToRgb(bg)) > 0.35 ? '#5c2d3f' : '#f7f3e9';   // brand: deep red on light, parchment on dark
-        fixed = fixed.split('"' + tf + '"').join('"' + safe + '"');
+        fixed = fixed.replace(/(<text[^>]*fill=")(#?[0-9a-fA-F]{3,6})(")/g, (m0, a, c, z) => (('#'+c.replace('#','')) === tf ? a + safe + z : m0));
       }
     }
     return fixed;
@@ -2148,7 +2213,7 @@ async function buildSensorContext(body, env) {
     const img = images[i];
     if (!img || !img.b64) continue;
     try {
-      const descUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(geminiKey);
+      const descUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=' + encodeURIComponent(geminiKey);
       const vr = await fetch(descUrl, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [
@@ -6289,7 +6354,7 @@ data: ${JSON.stringify(data)}
         const assignment = env.PRISM_KV ? await env.PRISM_KV.get('agent-assignment:' + agentId, 'json').catch(() => null) : null;
         const histKey = 'agent-chat:' + agentId + ':history';
         const hist = env.PRISM_KV ? (await env.PRISM_KV.get(histKey, 'json') || []) : [];
-        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({\"text\": \"the post copy with tags and footer\", \"platforms\": [\"bluesky\",\"linkedin\",\"telegram\",\"instagram\",\"facebook\",\"x\"]}) — queues a post for Simon's approval. Always include the tags and footer in the text.\nTOOL: post_now({\"text\": \"the post copy with tags and footer\", \"platforms\": [...]}) — posts immediately and autonomously, within the daily cap and blocked-word rules Simon has set. Use it when the task says to publish; use queue_post when the task says to prepare or draft. Never post client-identifiable content, clinical claims, outcome testimonials, or responses to people in crisis.\nTOOL: create_canvas({\"topic\": \"a line or topic\", \"template\": \"block-teal\"}) — generates a branded canvas and queues it for approval. Valid templates: block-teal, block-rose, block-ivory, stat, news-reaction, myth-vs-fact-teal, myth-vs-fact-ivory, data-infographic, awareness-day, awareness-day-rose, service-explainer, semantic-teal, semantic-rose, semantic-dark, testimonial-teal, dual-partnership, img-landscape.\nTOOL: search_news({\"query\": \"keywords\"}) — scans today's approved outlets (Guardian society, BBC health) and returns matching headlines.\nTOOL: save_note({\"title\": \"...\", \"content\": \"...\"}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
+        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({\"text\": \"the post copy with tags and footer\", \"platforms\": [\"bluesky\",\"linkedin\",\"telegram\",\"instagram\",\"facebook\",\"x\"]}) — queues a post for Simon's approval. Always include the tags and footer in the text.\nTOOL: post_now({\"text\": \"the post copy with tags and footer\", \"platforms\": [...]}) — posts immediately and autonomously, within the daily cap and blocked-word rules Simon has set. Use it when the task says to publish; use queue_post when the task says to prepare or draft. Never post client-identifiable content, clinical claims, outcome testimonials, or responses to people in crisis.\nTOOL: create_canvas({\"topic\": \"a line or topic\", \"template\": \"block-teal\"}) — generates a branded canvas and queues it for approval. Valid templates: block-teal, block-rose, block-ivory, stat (statistics with source), news-reaction (news articles), research (new research/studies), testimonial-teal/rose/ivory (client/practitioner quotes), myth-vs-fact-teal, myth-vs-fact-ivory, data-infographic, awareness-day, awareness-day-rose, service-explainer, semantic-teal/rose/dark (image + text), dual-partnership (two-panel, partnership imagery), dual-children (symbiotic/partnership photos), img-landscape, img-sunrise, img-sunset, img-seascape, img-cityscape, img-aurora, img-space, img-stars (vista backgrounds: constellations, night sky, scapes). Choose the template that MATCHES THE CONTENT TYPE: news goes to news-reaction, new research to research, a striking statistic to stat, quotation/testimonial to testimonial, reflective or thematic prose to semantic on a vista background, partnership themes to dual-partnership. Carousels: use type=carousel with slides. Brand backgrounds prefer seascapes, beachscapes, cityscapes, constellations, night skies, and symbiotic imagery (hands, children together, interlocking forms) — all sourced fresh from Unsplash/Pexels/Pixabay/Openverse/Wikimedia each time, never a small fixed pool.\nTOOL: search_news({\"query\": \"keywords\"}) — scans today's approved outlets (Guardian society, BBC health) and returns matching headlines.\nTOOL: save_note({\"title\": \"...\", \"content\": \"...\"}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
         const messages = [{ role: 'system', content: systemPrompt }];
         hist.filter(m => m.role !== 'system').slice(-20).forEach(m => messages.push({ role: m.role, content: m.content }));
         messages.push({ role: 'user', content: userMessage });
@@ -7865,10 +7930,30 @@ data: ${JSON.stringify(data)}
                 });
                 if (authResp.ok) {
                   const auth = await authResp.json();
+                  // Attach the canvas as an image when available
+                  let embed = undefined;
+                  try {
+                    const bskyMedia = await itemMediaUrls(item, env);
+                    if (bskyMedia.length) {
+                      const imgBytes = await fetch(bskyMedia[0]).then(r => r.arrayBuffer());
+                      const blobResp = await fetch('https://bsky.social/xrpc/com.atproto.repo.uploadBlob', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + auth.accessJwt, 'Content-Type': 'image/png' },
+                        body: imgBytes
+                      });
+                      if (blobResp.ok) {
+                        const blob = (await blobResp.json()).blob;
+                        embed = { $type: 'app.bsky.embed.images', images: [{ image: blob, alt: (item.text || 'Identity Partners canvas').slice(0, 500) }] };
+                        if (Array.isArray(item.urls) && item.urls.length > 1) {
+                          embed.images[0].alt += ' (carousel: ' + item.urls.length + ' slides — full set on Instagram)';
+                        }
+                      }
+                    }
+                  } catch (e) {}
                   const postResp = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
                     method: 'POST',
                     headers: {'Authorization':'Bearer '+auth.accessJwt,'Content-Type':'application/json'},
-                    body: JSON.stringify({ repo: auth.did, collection: 'app.bsky.feed.post', record: { text: item.text, createdAt: new Date().toISOString(), langs: ['en-GB'] } })
+                    body: JSON.stringify({ repo: auth.did, collection: 'app.bsky.feed.post', record: { text: item.text, createdAt: new Date().toISOString(), langs: ['en-GB'], ...(embed ? { embed } : {}) } })
                   });
                   results.bluesky = { success: postResp.ok, status: postResp.status };
                 } else { errors.bluesky = 'Auth failed: ' + authResp.status; }
@@ -7913,10 +7998,22 @@ data: ${JSON.stringify(data)}
               if (bufferKey && channelId) {
                 // Buffer's current API: GraphQL createPost with Bearer auth
                 const dueAt = item.scheduledFor || new Date().toISOString();
-                const gqlRes = await bufferGql(
-                  'mutation($text: String!, $channelId: ChannelId!, $dueAt: DateTime!) { createPost(input: { text: $text, channelId: $channelId, schedulingType: automatic, mode: customScheduled, dueAt: $dueAt }) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }',
-                  { text: item.text, channelId, dueAt }, env
-                );
+                const media = await itemMediaUrls(item, env);   // rasterised canvas / carousel slides
+                let gqlRes = null;
+                if (media.length) {
+                  // try with media attached (carousel for IG/FB when multiple, single image otherwise)
+                  gqlRes = await bufferGql(
+                    'mutation($text: String!, $channelId: ChannelId!, $dueAt: DateTime!, $media: [MediaInput!]!) { createPost(input: { text: $text, channelId: $channelId, schedulingType: automatic, mode: customScheduled, dueAt: $dueAt, media: $media }) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }',
+                    { text: item.text, channelId, dueAt, media: media.map(u => ({ mediaType: 'image', url: u })) }, env
+                  );
+                  if (gqlRes.error) gqlRes = { __mediaTried: true, error: gqlRes.error }; // fall through to text-only
+                }
+                if (!gqlRes || gqlRes.error) {
+                  gqlRes = await bufferGql(
+                    'mutation($text: String!, $channelId: ChannelId!, $dueAt: DateTime!) { createPost(input: { text: $text, channelId: $channelId, schedulingType: automatic, mode: customScheduled, dueAt: $dueAt }) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }',
+                    { text: item.text, channelId, dueAt }, env
+                  );
+                }
                 if (gqlRes.error) { errors[platform] = gqlRes.error; results[platform] = { success: false }; }
                 else {
                   const created = gqlRes.data && gqlRes.data.createPost;
@@ -9702,6 +9799,50 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       } catch(e) { return json({images:[], error:e.message}, 200, origin); }
     }
 
+    // POST /api/canvas/raster-test — diagnostic: rasterise an SVG URL, report which path worked
+    if (path === '/api/canvas/raster-test' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const svgUrl = body.url;
+        const tokens = {
+          railway_bl: (k(env, ['railway_browserless_token']) || '').slice(0,3)+'…',
+          cloud_bl: (k(env, ['browserless']) || '').slice(0,3)+'…'
+        };
+        // inline diagnostic copy of svgToPngUrl with error capture
+        const diag = { steps: [] };
+        const BLT = k(env, ['railway_browserless_token']) || '';
+        const IO = k(env, ['browserless']) || '';
+        const fn = `export default async ({ page, context }) => {
+          await page.setViewport({ width: 1080, height: 1080, deviceScaleFactor: 1 });
+          await page.goto(context.url, { waitUntil: 'networkidle0', timeout: 45000 });
+          const shot = await page.screenshot({ type: 'png', encoding: 'base64' });
+          return { data: { b64: shot, len: shot ? shot.length : 0 }, type: 'application/json' };
+        }`;
+        let pngUrl = null;
+        for (const [label, base, tok] of [['railway','https://browserless-production-e49c65ef.up.railway.app',BLT],['cloud','https://chrome.browserless.io',IO]]) {
+          if (!tok) { diag.steps.push([label,'no-token']); continue; }
+          try {
+            const br = await fetch(base + '/function?token=' + encodeURIComponent(tok), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code: fn, context:{url:svgUrl} }) });
+            const txt = await br.text();
+            diag.steps.push([label, br.status, txt.slice(0,200)]);
+            if (br.ok) {
+              const d = JSON.parse(txt);
+              const b64 = d.data && d.data.b64;
+              if (b64 && env.PRISM_ASSETS) {
+                const key = 'canvas/png-diag-' + Date.now() + '.png';
+                const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+                await env.PRISM_ASSETS.put(key, bytes.buffer, { httpMetadata:{contentType:'image/png'} });
+                pngUrl = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + key;
+              }
+            }
+          } catch(e) { diag.steps.push([label,'EXC',String(e).slice(0,200)]); }
+          if (pngUrl) break;
+        }
+        const url = pngUrl;
+        return json({success:true, tokens, diag, url, pngBytes:url? (await fetch(url).then(r=>r.arrayBuffer()).then(b=>b.byteLength).catch(()=>null)) : null}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 200, origin); }
+    }
+
     // ── Canvas: agentic generation ────────────────────────────────────────────
     // POST /api/canvas/generate
     // body: { topic, type, platform, text, variant, myth, fact, points, source,
@@ -9752,14 +9893,40 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           'testimonial':       `testimonial-${variant==='rose'?'rose':variant==='ivory'?'ivory':'teal'}`,
           'dual':              'dual-partnership',
           'image':             'img-landscape',
+          'research':          `semantic-${variant==='rose'?'rose':variant==='ivory'?'ivory':'teal'}`,
+          // Vista / partnership templates: pass through so `type` works as well as `template`
+          'img-landscape': 'img-landscape', 'img-sunrise': 'img-sunrise', 'img-sunset': 'img-sunset',
+          'img-seascape': 'img-seascape', 'img-beach': 'img-sunset', 'img-cityscape': 'img-cityscape',
+          'img-aurora': 'img-aurora', 'img-space': 'img-space', 'img-stars': 'img-stars',
+          'img-constellation': 'img-stars', 'night-sky': 'img-stars', 'seascape': 'img-seascape',
+          'cityscape': 'img-cityscape', 'constellation': 'img-stars',
+          'dual-partnership': 'dual-partnership', 'dual-children': 'dual-children',
+          'partnership': 'dual-partnership', 'symbiotic': 'dual-children',
         };
-        const templateId = body.template || templateMap[postType] || 'block-teal';
+        const templateId = body.template
+          || (/^(img-|semantic-|dual-)/.test(postType) ? postType : templateMap[postType])
+          || 'block-teal';
 
         // ── Fetch semantic image if needed ────────────────────────────────────
         let imgBase64 = null;
         const needsImage = ['awareness-day','awareness-day-rose','semantic-teal','semantic-rose','semantic-dark','img-landscape','img-sunrise','img-sunset','img-seascape','img-cityscape','img-aurora','img-space','img-stars','dual-partnership','dual-children'].includes(templateId);
         if (needsImage) {
-          imgBase64 = await semanticImageSearch(topic, env);
+          // Vista / partnership templates source by their SCENERY, not the post text
+          const templateQueries = {
+            'img-landscape':   'mountains valley moorland misty landscape serene',
+            'img-sunrise':     'sunrise golden hour dawn coast horizon warm',
+            'img-sunset':      'sunset warm sky horizon beach dusk',
+            'img-seascape':    'ocean waves seascape coast horizon calm',
+            'img-beach':       'beach shoreline seascape soft light',
+            'img-cityscape':   'city skyline dusk lights urban horizon',
+            'img-aurora':      'aurora borealis northern lights night sky',
+            'img-space':       'earth from space stars cosmos',
+            'img-stars':       'night sky stars milky way constellation',
+            'dual-partnership':'two people walking together partnership support',
+            'dual-children':   'children holding hands friendship outdoors light',
+          };
+          const q = templateQueries[templateId] || (body.background ? (body.background + ' ' + topic) : topic);
+          imgBase64 = await semanticImageSearch(q, env);
         }
 
         // ── Build data object for new renderers ───────────────────────────────
@@ -9793,7 +9960,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           }
         } else {
           // Legacy templates
-          svg = await generateCanvasHtml(body.text||topic, templateId, env);
+          svg = await generateCanvasHtml(body.text||topic, templateId, env, imgBase64);
         }
 
         if (!svg) return json({success:false, error:'SVG generation failed'}, 500, origin);
@@ -9808,17 +9975,49 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         if (!skipQA && svgUrl) {
           try {
             const geminiKey = k(env, ['gemini_free_key','GEMINI_FREE_KEY','gemini_api_key','GEMINI_API_KEY']) || '';
-            if (geminiKey) {
-              const qaResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiKey}`, {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({contents:[{parts:[
-                  {text:'This is a social media canvas for Identity Partners. Check: 1) Text legible against background? 2) IP branding visible (logo, URL, handles)? 3) Layout balanced? 4) Any clipping or overlap? Reply JSON only: {"pass":true/false,"issues":[],"score":1-10}'},
-                  {inlineData:{mimeType:'image/svg+xml', data:btoa(unescape(encodeURIComponent(svg.substring(0,50000))))}}
-                ]}]}),
-              });
-              if (qaResp.ok) {
+            // Gemini inlineData accepts PNG/JPEG/WebP only — rasterise the SVG first via Browserless
+            var qaDebug = { geminiKey: !!geminiKey };
+            const pngUrl = await svgToPngUrl(svgUrl, env);
+            qaDebug.pngUrl = pngUrl || null;
+            let pngB64 = null;
+            if (pngUrl) { try { const pr = await fetch(pngUrl); qaDebug.pngFetch = pr.status; if (pr.ok) { const buf = await pr.arrayBuffer(); const bytes = new Uint8Array(buf); let bin=''; for (let i=0;i<bytes.byteLength;i+=8192) bin += String.fromCharCode(...bytes.subarray(i,i+8192)); pngB64 = btoa(bin); qaDebug.pngB64Len = pngB64.length; } } catch(e) { qaDebug.pngFetchErr = String(e).slice(0,120); } }
+                        if (geminiKey && pngB64) {
+              const qaPrompt = 'This is a social media canvas for Identity Partners. Check: 1) Text legible against background? 2) IP branding visible (logo, URL, handles)? 3) Layout balanced? 4) Any clipping or overlap? Reply JSON only: {"pass":true/false,"issues":[],"score":1-10}';
+              const qaModels = ['gemini-3.8-flash','gemini-3.8-flash-lite','gemini-2.5-flash','gemini-flash-latest'];
+              let qaResp = null, usedModel = '';
+              for (const m of qaModels) {
+                try {
+                  qaResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${geminiKey}`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({contents:[{parts:[
+                      {text:qaPrompt},
+                      {inlineData:{mimeType:'image/png', data:pngB64}}
+                    ]}]}),
+                  });
+                  qaDebug.qaModel = m; qaDebug.qaStatus = qaResp.status;
+                  if (qaResp.ok) { usedModel = m; break; }
+                  qaResp = null;
+                } catch(e) { qaDebug.qaErr = String(e).slice(0,120); qaResp = null; }
+              }
+              // Fallback: Pixtral vision on Mistral if Gemini is unavailable
+              if ((!qaResp || !qaResp.ok)) {
+                const mistralKey = k(env, ['mistral_api_key','MISTRAL_API_KEY']) || '';
+                if (mistralKey) {
+                  try {
+                    qaResp = await fetch('https://api.mistral.ai/v1/chat/completions', {
+                      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${mistralKey}`},
+                      body: JSON.stringify({ model:'pixtral-12b-2409', messages:[{role:'user',content:[
+                        {type:'text', text:'This is a social media canvas for Identity Partners. Check: 1) Text legible against background? 2) IP branding visible? 3) Layout balanced? 4) Any clipping or overlap? Reply JSON only: {"pass":true/false,"issues":[],"score":1-10}'},
+                        {type:'image_url', image_url:'data:image/png;base64,'+pngB64}
+                      ]}] })
+                    });
+                    qaDebug.qaModel = 'pixtral-12b'; qaDebug.qaStatus = qaResp.status;
+                  } catch(e) { qaDebug.pixtralErr = String(e).slice(0,120); qaResp = null; }
+                }
+              }
+              if (qaResp && qaResp.ok) {
                 const qaData = await qaResp.json();
-                const qaText = qaData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                const qaText = qaData.candidates?.[0]?.content?.parts?.[0]?.text || qaData.choices?.[0]?.message?.content || '';
                 const m = qaText.match(/\{[\s\S]*?\}/);
                 if (m) qaResult = JSON.parse(m[0]);
               }
@@ -9833,6 +10032,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
 
         return json({
           success: true,
+          qaDebug,
           url: svgUrl || R2_PUBLIC + 'ig-template-' + Math.floor(Math.random()*150) + '.png',
           svgUrl,
           platform,
