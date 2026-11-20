@@ -501,7 +501,8 @@ async function orchestrate(messages, env, options = {}) {
           (options.multiModel ? 'This message is being answered by several models in PARALLEL (multi-model comparison mode): give your own complete, best answer without referring to other models. ' : '') +
           'Longer answers: if you risk hitting your maximum output length, bring the answer to a clean stopping point and end with the token [MORE_AVAILABLE] on the final line so Simon knows to request part 2 — never truncate mid-sentence. ' +
           'Image generation: when Simon asks you to generate or create an image, the ARGENTICA system generates it with a proper image model and provides it in your context as a markdown image — include that image in your reply verbatim and add one sentence describing it. Never invent image URLs of your own. ' +
-          'When you use live-search context provided to you, cite sources inline. Never invent current facts. British English. No sycophancy.'
+          'When you use live-search context provided to you, cite sources inline. Never invent current facts. British English. No sycophancy. ' +
+          'BRAND: you operate under the Identity Partners design language — dawn/dusk palette (parchment #f7f3e9, deep red #5c2d3f as the anchor, dusty rose #a88792, rose line #7a4254, deep teal #0f3b3a used sparingly), classic serif headings (EB Garamond/Spectral) with humanist sans body (Inter/Source Sans), sunrise/sunset imagery with diffused light, no therapy clichés, no spiritual iconography, no clinical sterility. When producing any creative or visual output, follow it.'
       }, ...messages];
       const result = await callModel(provider, model, key, awareMsgs, env);
       const ms = Date.now() - t0;
@@ -2046,7 +2047,7 @@ function contrastFixSvg(svg) {
     for (const tf of textFills) {
       const ratio = contrastRatio(tf, bg);
       if (ratio != null && ratio < 4.5) {
-        const safe = relLum(hexToRgb(bg)) > 0.35 ? '#0f3b3a' : '#ffffff';
+        const safe = relLum(hexToRgb(bg)) > 0.35 ? '#5c2d3f' : '#f7f3e9';   // brand: deep red on light, parchment on dark
         fixed = fixed.split('"' + tf + '"').join('"' + safe + '"');
       }
     }
