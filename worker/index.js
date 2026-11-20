@@ -8011,8 +8011,9 @@ data: ${JSON.stringify(data)}
                 // createPost(input: CreatePostInput!) with REQUIRED assets + needsApproval;
                 // carousel slides = multiple AssetInput {image:{url}} entries
                 // IG requires metadata with a PostType; multi-image = carousel
+                // IG API accepts post/story/reel only — a carousel is a multi-image 'post'
                 const metadata = platform === 'instagram'
-                  ? { instagram: { type: media.length > 1 ? 'carousel' : 'post', shouldShareToFeed: true } }
+                  ? { instagram: { type: 'post', shouldShareToFeed: true } }
                   : undefined;
                 const input = {
                   text: item.text,
@@ -9883,7 +9884,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
             const input = { text: 'Carousel schema test (draft only — safe to delete)',
               channelId, schedulingType: 'automatic', mode: 'addToQueue', needsApproval: false,
               saveToDraft: true,
-              metadata: { instagram: { type: turls.length > 1 ? 'carousel' : 'post', shouldShareToFeed: true } },
+              metadata: { instagram: { type: 'post', shouldShareToFeed: true } },
               assets: turls.map(u => ({ image: { url: u } })) };
             const rr = await bufferGql(
               'mutation($input: CreatePostInput!) { createPost(input: $input) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }',
