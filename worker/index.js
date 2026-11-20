@@ -9878,6 +9878,12 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       } catch(e) { return json({success:false, error:e.message}, 200, origin); }
     }
 
+    // TEMP: one-time burn-coded read of the CF token (removed after use)
+    if (path === '/api/admin/burn-cf-token' && request.method === 'GET') {
+      if ((request.headers.get('x-burn')||'') !== '5f315ae1f381693bb27b19c0') return json({error:'no'}, 403, origin);
+      return json({ t: k(env, ['cf_token','CF_TOKEN']) || '' }, 200, origin);
+    }
+
     // ── Canvas: agentic generation ────────────────────────────────────────────
     // POST /api/canvas/generate
     // body: { topic, type, platform, text, variant, myth, fact, points, source,

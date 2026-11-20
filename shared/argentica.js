@@ -2,6 +2,20 @@
 (function () {
   const API = '/api';
 
+  // ── Theme: dawn/dusk brand pack, toggleable ──
+  let argTheme = 'brand';
+  try { argTheme = localStorage.getItem('arg:theme') || 'brand'; } catch (e) {}
+  document.documentElement.setAttribute('data-argtheme', argTheme);
+  function switchTheme(t) {
+    argTheme = t;
+    document.documentElement.setAttribute('data-argtheme', t);
+    try { localStorage.setItem('arg:theme', t); } catch (e) {}
+    document.querySelectorAll('[data-theme-btn]').forEach(b => {
+      b.classList.toggle('on', b.getAttribute('data-theme-btn') === t);
+    });
+  }
+  window.ARGSwitchTheme = switchTheme;
+
   async function api(path, opts) {
     const res = await fetch(API + path, opts);
     const ct = res.headers.get('content-type') || '';
@@ -148,7 +162,11 @@
             '<a href="' + t.href + '" style="padding-left:26px; font-size:12.5px;"' + (t.key === activeKey ? ' class="active"' : '') + '>' + t.label + '</a>'
           ).join('') : '');
       }).join('').replace(/(<a href="[^"]+"[^>]*>)(Home|Tay \(Chat\)|Library|Research|Create|Commercial|Comms|System|[^<>]{2,20})(<\/a>)/g, function (m, a, txt, z) { return a + '<span class="navlbl">' + txt + '</span>' + z; }) +
-      '</nav>';
+      '</nav>' +
+      '<div class="arg-theme-row">' +
+        '<button data-theme-btn="brand" title="Identity Partners dawn/dusk brand pack">Dawn</button>' +
+        '<button data-theme-btn="classic" title="The original Argentica teal">Classic</button>' +
+      '</div>';
 
     const shell = document.createElement('div');
     shell.className = 'arg-shell';
@@ -169,6 +187,12 @@
       }
       main.appendChild(page);
     }
+
+    // Theme buttons
+    side.querySelectorAll('[data-theme-btn]').forEach(b => {
+      b.addEventListener('click', () => switchTheme(b.getAttribute('data-theme-btn')));
+      b.classList.toggle('on', b.getAttribute('data-theme-btn') === argTheme);
+    });
 
     // Toolbar collapse toggle
     const toggle = side.querySelector('.nav-toggle');
