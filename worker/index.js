@@ -9840,7 +9840,25 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           const rr = await bufferGql(rq, null, env);
           if (rr.data && rr.data.__type) { assetType = rr.data.__type; break; }
         }
-        return json({ success:true, createPost, createPostInput, assetTypes: { found: assetType } }, 200, origin);
+        let imageAssetInput = null;
+        {
+          const rq = 'query { __type(name: "ImageAssetInput") { kind name inputFields { name type { kind name ofType { kind name } } } } }';
+          const rr = await bufferGql(rq, null, env);
+          imageAssetInput = (rr.data && rr.data.__type) || rr.error || null;
+        }
+        let shareModes = null;
+        {
+          const rq = 'query { __type(name: "ShareMode") { kind name enumValues { name } } }';
+          const rr = await bufferGql(rq, null, env);
+          shareModes = (rr.data && rr.data.__type) || rr.error || null;
+        }
+        let schedTypes = null;
+        {
+          const rq = 'query { __type(name: "SchedulingType") { kind name enumValues { name } } }';
+          const rr = await bufferGql(rq, null, env);
+          schedTypes = (rr.data && rr.data.__type) || rr.error || null;
+        }
+        return json({ success:true, createPost, createPostInput, assetTypes: { found: assetType, imageAssetInput }, shareModes, schedTypes }, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 200, origin); }
     }
 
