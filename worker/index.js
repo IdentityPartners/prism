@@ -2019,6 +2019,41 @@ async function handleIntegrationRoutes(path, request, env, origin) {
 
 
 // ── Scheduled + manual backup: KV stores (KB, memories, calendar) → Google Drive ──
+// ── Deterministic hex-contrast verification (text vs background in SVG canvases) ──
+function hexToRgb(h) {
+  h = String(h || '').replace('#', '').trim();
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  if (h.length !== 6 || /[^0-9a-f]/i.test(h)) return null;
+  return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+}
+function relLum(c) {
+  const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+}
+function contrastRatio(h1, h2) {
+  const a = hexToRgb(h1), b = hexToRgb(h2);
+  if (!a || !b) return null;
+  const l1 = relLum(a), l2 = relLum(b);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+function contrastFixSvg(svg) {
+  try {
+    const bgMatch = svg.match(/<rect[^>]*fill="(#?[0-9a-fA-F]{3,6})"/);
+    const bg = bgMatch ? (bgMatch[1].startsWith('#') ? bgMatch[1] : '#' + bgMatch[1]) : null;
+    if (!bg) return svg;
+    const textFills = [...new Set((svg.match(/fill="(#[0-9a-fA-F]{3,6})"/g) || []).map(m => m.match(/"(#[0-9a-fA-F]{3,6})"/)[1]))];
+    let fixed = svg;
+    for (const tf of textFills) {
+      const ratio = contrastRatio(tf, bg);
+      if (ratio != null && ratio < 4.5) {
+        const safe = relLum(hexToRgb(bg)) > 0.35 ? '#0f3b3a' : '#ffffff';
+        fixed = fixed.split('"' + tf + '"').join('"' + safe + '"');
+      }
+    }
+    return fixed;
+  } catch (e) { return svg; }
+}
+
 async function backupStoresToDrive(env) {
   if (!env.PRISM_KV) return { success: false, error: 'No KV binding' };
   try {
@@ -9690,7 +9725,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
             const img = slide.useImage ? await semanticImageSearch(slide.text || topic, env) : null;
             return {...slide, imageBase64: img};
           }));
-          const svgs = generateCarousel(enriched);
+          const svgs = generateCarousel(enriched).map(contrastFixSvg);
           const urls = [];
           for (let i=0; i<svgs.length; i++) {
             const key = `canvas/carousel-${Date.now()}-${i+1}of${svgs.length}.svg`;
@@ -9761,6 +9796,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         }
 
         if (!svg) return json({success:false, error:'SVG generation failed'}, 500, origin);
+        svg = contrastFixSvg(svg);   // deterministic hex-contrast verification before upload
 
         // ── Upload to R2 ──────────────────────────────────────────────────────
         const svgKey = `canvas/${platform}-${postType}-${Date.now()}.svg`;
@@ -9912,7 +9948,11 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         try {
           const cv = await fetch('https://prism-api.identitypartners.workers.dev/api/canvas/generate', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ topic: pick.title, text: pick.title, template: 'block-teal', platform: 'instagram', skipQueue: true, skipQA: true })
+            body: JSON.stringify({
+              topic: pick.title,
+              text: (draft.content || pick.title).slice(0, 400),   // refracted, theme-aware draft goes ON the canvas
+              template: 'semantic-teal', platform: 'instagram', skipQueue: true, skipQA: false   // Vision QA ON
+            })
           }).then(r => r.json());
           imageUrl = cv.url || null;
         } catch (e) {}
