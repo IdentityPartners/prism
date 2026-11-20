@@ -9874,60 +9874,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           const rr = await bufferGql(rq, null, env);
           try { allMutations = ((rr.data||{}).__schema.mutationType.fields||[]).map(f=>f.name); } catch(e) { allMutations = rr.error; }
         }
-        // LIVE DRAFT TEST (if requested): createPost with saveToDraft — never publishes
-        let draftTest = null;
-        if (body && body.createDraft) {
-          const channelId = k(env, ['buffer_ig_channel']) || (env.PRISM_KV ? await env.PRISM_KV.get('platform:channel:instagram').catch(()=>null) : null);
-          if (!channelId) { draftTest = { error: 'instagram channel id not set' }; }
-          else {
-            const turls = body.urls || [];
-            const input = { text: 'Carousel schema test (draft only — safe to delete)',
-              channelId, schedulingType: 'automatic', mode: 'addToQueue', needsApproval: false,
-              saveToDraft: true,
-              metadata: { instagram: { type: 'post', shouldShareToFeed: true } },
-              assets: turls.map(u => ({ image: { url: u } })) };
-            const rr = await bufferGql(
-              'mutation($input: CreatePostInput!) { createPost(input: $input) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }',
-              { input }, env);
-            draftTest = rr.data || rr.error;
-          }
-        }
-        let postMeta = null;
-        {
-          const rq = 'query { __type(name: "PostInputMetaData") { kind name inputFields { name type { kind name ofType { kind name ofType { kind name } } } } } }';
-          const rr = await bufferGql(rq, null, env);
-          postMeta = (rr.data && rr.data.__type) || rr.error || null;
-        }
-        let igMeta = null, fbMeta = null;
-        {
-          const rq = 'query { a: __type(name: "InstagramPostMetadataInput") { kind name inputFields { name type { kind name ofType { kind name ofType { kind name } } } } } b: __type(name: "FacebookPostMetadataInput") { kind name inputFields { name type { kind name ofType { kind name } } } } c: __type(name: "InstagramPostType") { kind name enumValues { name } } }';
-          const rr = await bufferGql(rq, null, env);
-          igMeta = (rr.data && { insta: rr.data.a, igTypeEnum: rr.data.c }) || rr.error || null;
-          if (rr.data) fbMeta = rr.data.b;
-        }
-        let postTypeEnum = null;
-        {
-          const rq = 'query { __type(name: "PostType") { kind name enumValues { name } } }';
-          const rr = await bufferGql(rq, null, env);
-          postTypeEnum = (rr.data && rr.data.__type) || rr.error || null;
-        }
-        let deleteResult = null;
-        if (body && body.deletePost && body.postId) {
-          const rq = 'query { __type(name: "DeletePostInput") { kind name inputFields { name type { kind name ofType { kind name } } } } }';
-          const ri = await bufferGql(rq, null, env);
-          let delInput = ri.data && ri.data.__type;
-          if (delInput && delInput.inputFields) {
-            const vars = {}; const inlines = [];
-            for (const f of delInput.inputFields) {
-              const scalarName = (f.type.ofType && f.type.ofType.name) || f.type.name || 'String';
-              vars[f.name] = f.name==='id' ? body.postId : body[f.name];
-              inlines.push('$' + f.name + ': ' + scalarName + (f.type.kind==='NON_NULL'?'!':''));
-            }
-            const del = await bufferGql('mutation(' + inlines.join(', ') + ') { deletePost(input: { ' + delInput.inputFields.map(f=>f.name+': $'+f.name).join(', ') + ' }) { ... on MutationError { message } } }', vars, env);
-            deleteResult = del.data || del.error;
-          } else { deleteResult = { introspect: delInput, error: ri.error }; }
-        }
-        return json({ success:true, createPost, createPostInput, assetTypes: { found: assetType, imageAssetInput }, shareModes, schedTypes, allMutations, draftTest, postMeta, igMeta, fbMeta, postTypeEnum, ...(deleteResult!==null ? { deleteResult } : {}) }, 200, origin);
+        return json({success:true, createPost, createPostInput, assetTypes: { found: assetType, imageAssetInput }, shareModes, schedTypes, allMutations, postMeta, postTypeEnum}, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 200, origin); }
     }
 
