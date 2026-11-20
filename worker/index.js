@@ -9884,7 +9884,13 @@ When asked to approve items, respond with the item IDs to approve. When asked to
             draftTest = rr.data || rr.error;
           }
         }
-        return json({ success:true, createPost, createPostInput, assetTypes: { found: assetType, imageAssetInput }, shareModes, schedTypes, allMutations, draftTest }, 200, origin);
+        let postMeta = null;
+        {
+          const rq = 'query { __type(name: "PostInputMetaData") { kind name inputFields { name type { kind name ofType { kind name ofType { kind name } } } } } }';
+          const rr = await bufferGql(rq, null, env);
+          postMeta = (rr.data && rr.data.__type) || rr.error || null;
+        }
+        return json({ success:true, createPost, createPostInput, assetTypes: { found: assetType, imageAssetInput }, shareModes, schedTypes, allMutations, draftTest, postMeta }, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 200, origin); }
     }
 
