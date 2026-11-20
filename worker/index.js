@@ -9806,47 +9806,12 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       } catch(e) { return json({images:[], error:e.message}, 200, origin); }
     }
 
-    // POST /api/canvas/raster-test — diagnostic: rasterise an SVG URL, report which path worked
+    // POST /api/canvas/raster-test — diagnostic: rasterise an SVG URL via the production svgToPngUrl
     if (path === '/api/canvas/raster-test' && request.method === 'POST') {
       try {
         const body = await request.json();
-        const svgUrl = body.url;
-        const tokens = {
-          railway_bl: (k(env, ['railway_browserless_token']) || '').slice(0,3)+'…',
-          cloud_bl: (k(env, ['browserless']) || '').slice(0,3)+'…'
-        };
-        // inline diagnostic copy of svgToPngUrl with error capture
-        const diag = { steps: [] };
-        const BLT = k(env, ['railway_browserless_token']) || '';
-        const IO = k(env, ['browserless']) || '';
-        const fn = `export default async ({ page, context }) => {
-          await page.setViewport({ width: 1080, height: 1080, deviceScaleFactor: 1 });
-          await page.goto(context.url, { waitUntil: 'networkidle0', timeout: 45000 });
-          const shot = await page.screenshot({ type: 'png', encoding: 'base64' });
-          return { data: { b64: shot, len: shot ? shot.length : 0 }, type: 'application/json' };
-        }`;
-        let pngUrl = null;
-        for (const [label, base, tok] of [['railway','https://browserless-production-e49c65ef.up.railway.app',BLT],['cloud','https://chrome.browserless.io',IO]]) {
-          if (!tok) { diag.steps.push([label,'no-token']); continue; }
-          try {
-            const br = await fetch(base + '/function?token=' + encodeURIComponent(tok), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code: fn, context:{url:svgUrl} }) });
-            const txt = await br.text();
-            diag.steps.push([label, br.status, txt.slice(0,200)]);
-            if (br.ok) {
-              const d = JSON.parse(txt);
-              const b64 = d.data && d.data.b64;
-              if (b64 && env.PRISM_ASSETS) {
-                const key = 'canvas/png-diag-' + Date.now() + '.png';
-                const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-                await env.PRISM_ASSETS.put(key, bytes.buffer, { httpMetadata:{contentType:'image/png'} });
-                pngUrl = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + key;
-              }
-            }
-          } catch(e) { diag.steps.push([label,'EXC',String(e).slice(0,200)]); }
-          if (pngUrl) break;
-        }
-        const url = pngUrl;
-        return json({success:true, tokens, diag, url, pngBytes:url? (await fetch(url).then(r=>r.arrayBuffer()).then(b=>b.byteLength).catch(()=>null)) : null}, 200, origin);
+        const pngUrl = await svgToPngUrl(body.url, env);
+        return json({success:true, url:pngUrl, pngBytes:pngUrl? (await fetch(pngUrl).then(r=>r.arrayBuffer()).then(b=>b.byteLength).catch(()=>null)) : null}, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 200, origin); }
     }
 
