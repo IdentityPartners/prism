@@ -9911,7 +9911,23 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           const rr = await bufferGql(rq, null, env);
           postTypeEnum = (rr.data && rr.data.__type) || rr.error || null;
         }
-        return json({ success:true, createPost, createPostInput, assetTypes: { found: assetType, imageAssetInput }, shareModes, schedTypes, allMutations, draftTest, postMeta, igMeta, fbMeta, postTypeEnum }, 200, origin);
+        let deleteResult = null;
+        if (body && body.deletePost && body.postId) {
+          const rq = 'query { __type(name: "DeletePostInput") { kind name inputFields { name type { kind name ofType { kind name } } } } }';
+          const ri = await bufferGql(rq, null, env);
+          let delInput = ri.data && ri.data.__type;
+          if (delInput && delInput.inputFields) {
+            const vars = {}; const inlines = [];
+            for (const f of delInput.inputFields) {
+              const scalarName = (f.type.ofType && f.type.ofType.name) || f.type.name || 'String';
+              vars[f.name] = f.name==='id' ? body.postId : body[f.name];
+              inlines.push('$' + f.name + ': ' + scalarName + (f.type.kind==='NON_NULL'?'!':''));
+            }
+            const del = await bufferGql('mutation(' + inlines.join(', ') + ') { deletePost(input: { ' + delInput.inputFields.map(f=>f.name+': $'+f.name).join(', ') + ' }) { ... on MutationError { message } } }', vars, env);
+            deleteResult = del.data || del.error;
+          } else { deleteResult = { introspect: delInput, error: ri.error }; }
+        }
+        return json({ success:true, createPost, createPostInput, assetTypes: { found: assetType, imageAssetInput }, shareModes, schedTypes, allMutations, draftTest, postMeta, igMeta, fbMeta, postTypeEnum, ...(deleteResult!==null ? { deleteResult } : {}) }, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 200, origin); }
     }
 
