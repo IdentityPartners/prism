@@ -328,18 +328,30 @@ button.tpl.active { background: var(--teal); color: #fff; border-color: var(--te
    (EB Garamond/Spectral), Inter body. */
 
 [data-argtheme="brand"] {
-  --teal: #5c2d3f;        /* the anchor: deep red drives primary accents */
-  --teal-soft: #7a4254;   /* rose line */
-  --rose: #0f3b3a;        /* deep teal, used sparingly */
-  --ivory: #f0e9e0;       /* surface */
-  --paper: #fdfaf3;       /* card ground */
+  --teal: #5c2d3f;        /* P1: deep berry — primary lettering & lines */
+  --teal-soft: #7a4254;   /* rose line, hover depth */
+  --rose: #0f3b3a;        /* A1: deep teal, used sparingly as accent */
+  --ivory: #f0e9e0;       /* 0-adjacent surface */
+  --paper: #fdfaf3;       /* 0: parchment card ground */
   --line: #e4d8c8;
   --grey: #d6c5b2;
   --ink: #2b2117;
   --ink-soft: #8a7261;
+  --t1: #e2ebea;          /* T1: pale/powder teal texture */
+  --t2: #efe3e7;          /* T2: dusty/powder berry texture */
   --serif: 'EB Garamond', 'Spectral', Georgia, serif;
   --sans: 'Inter', 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
+
+/* P1 deep-berry lettering sits on T1 pale-teal textures for selected/active states */
+[data-argtheme="brand"] .arg-nav a.active { background: var(--t1); color: #5c2d3f; }
+[data-argtheme="brand"] .thread-item.active { background: var(--t1); color: #5c2d3f; }
+[data-argtheme="brand"] .zonebar a.active { background: var(--t1); color: #5c2d3f; }
+[data-argtheme="brand"] .arg-tabs a.active { background: var(--t1); color: #5c2d3f; }
+[data-argtheme="brand"] button.tpl.active { background: var(--t1); color: #5c2d3f; border-color: var(--t1); }
+/* A1 deep-teal accents on T2 powder-berry textures */
+[data-argtheme="brand"] .badge.rose { background: var(--t2); color: #0f3b3a; }
+[data-argtheme="brand"] .badge.teal { background: var(--t1); color: #5c2d3f; }
 
 [data-argtheme="brand"] h1, [data-argtheme="brand"] h2,
 [data-argtheme="brand"] h3, [data-argtheme="brand"] h4 { color: #5c2d3f; font-weight: 500; }
@@ -362,15 +374,55 @@ button.tpl.active { background: var(--teal); color: #fff; border-color: var(--te
 [data-argtheme="brand"] .home-hero .greet { font-family: 'EB Garamond', Georgia, serif; font-weight: 500; }
 
 /* page-level overrides where inline styles hard-code teal */
-[data-argtheme="brand"] #backdrop-fallback { background: linear-gradient(160deg, #5c2d3f 0%, #6b3346 55%, #1c1714 100%); }
-[data-argtheme="brand"] html, [data-argtheme="brand"] body { background: #231419; }
 [data-argtheme="brand"] body { font-family: 'EB Garamond', Georgia, serif; }
-[data-argtheme="brand"] .shade { background: linear-gradient(rgba(30, 18, 22, 0.15), rgba(30, 18, 22, 0.55)); }
 [data-argtheme="brand"] details.think { border-color: rgba(92, 45, 63, 0.35); background: rgba(92, 45, 63, 0.035); }
 [data-argtheme="brand"] .mm-card .mm-hdr { background: rgba(92, 45, 63, 0.055); }
 [data-argtheme="brand"] .retry-btn, [data-argtheme="brand"] .synth-btn { background: rgba(92, 45, 63, 0.06); }
 [data-argtheme="brand"] .retry-btn:hover, [data-argtheme="brand"] .synth-btn:hover { background: rgba(92, 45, 63, 0.14); }
 [data-argtheme="brand"] .attach-chip { background: rgba(92, 45, 63, 0.08); }
+
+/* ── Dawn home page: parchment, not dark glass ── */
+[data-argtheme="brand"] #backdrop,
+[data-argtheme="brand"] #backdrop-fallback,
+[data-argtheme="brand"] .shade { display: none; }
+[data-argtheme="brand"] body { background: #f7f3e9; color: #2b2117; font-family: 'EB Garamond', Georgia, serif; }
+[data-argtheme="brand"] #clock { color: #5c2d3f; text-shadow: none; font-family: 'EB Garamond', Georgia, serif; }
+[data-argtheme="brand"] #clock .secs { color: #a88792; }
+[data-argtheme="brand"] #greet { color: #2b2117; }
+[data-argtheme="brand"] #hero-date { color: #8a7261; }
+[data-argtheme="brand"] .searchbar {
+  background: #fffdf8; border: 1px solid #e4d8c8; backdrop-filter: none; -webkit-backdrop-filter: none;
+  box-shadow: 0 4px 18px rgba(43, 33, 23, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+[data-argtheme="brand"] .searchbar:focus-within { border-color: #a88792; background: #fffdf8; }
+[data-argtheme="brand"] .searchbar input { color: #2b2117; }
+[data-argtheme="brand"] .searchbar input::placeholder { color: #b9a898; }
+[data-argtheme="brand"] .searchbar select { background: #efe3e7; color: #5c2d3f; }
+[data-argtheme="brand"] .searchbar button { background: #5c2d3f; color: #f7f3e9; font-family: 'Inter', sans-serif; }
+[data-argtheme="brand"] .searchbar button:hover { background: #7a4254; }
+[data-argtheme="brand"] .qlink { background: #fffdf8; border: 1px solid #e4d8c8; color: #5c2d3f; backdrop-filter: none; -webkit-backdrop-filter: none; }
+[data-argtheme="brand"] .qlink:hover { background: #f0e9e0; }
+[data-argtheme="brand"] .qlink-edit { background: transparent; border: 1px dashed #d6c5b2; color: #8a7261; }
+[data-argtheme="brand"] .glass {
+  background: #fffdf8; border: 1px solid #e4d8c8; backdrop-filter: none; -webkit-backdrop-filter: none;
+  box-shadow: 0 6px 22px rgba(43, 33, 23, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+[data-argtheme="brand"] .glass h3 { color: #7a4254; }
+[data-argtheme="brand"] .glass a { color: #0f3b3a; border-bottom: 1px solid rgba(15, 59, 58, 0.3); }
+[data-argtheme="brand"] .todo-row .t { color: #2b2117; }
+[data-argtheme="brand"] .todo-row.done .t { color: #b9a898; }
+[data-argtheme="brand"] .todo-row input[type=checkbox] { accent-color: #5c2d3f; }
+[data-argtheme="brand"] .todo-add input { background: #fffdf8; border: 1px solid #e4d8c8; color: #2b2117; }
+[data-argtheme="brand"] .todo-add button, [data-argtheme="brand"] .ghostbtn { background: #e2ebea; border: 1px solid #cfdedb; color: #0f3b3a; }
+[data-argtheme="brand"] .todo-add button:hover, [data-argtheme="brand"] .ghostbtn:hover { background: #d3e1df; }
+[data-argtheme="brand"] .news-item .nd { color: #8a7261; }
+[data-argtheme="brand"] .kpi .n { color: #5c2d3f; font-family: 'EB Garamond', Georgia, serif; }
+[data-argtheme="brand"] .kpi .l { color: #8a7261; }
+[data-argtheme="brand"] .calgrid div { color: #8a7261; }
+[data-argtheme="brand"] .calgrid .today { background: #5c2d3f; color: #f7f3e9; }
+[data-argtheme="brand"] .calgrid .has { background: #efe3e7; color: #5c2d3f; }
+[data-argtheme="brand"] #credit { color: #b9a898; }
+[data-argtheme="brand"] #brand { background: #fffdf8; border: 1px solid #e4d8c8; color: #5c2d3f; backdrop-filter: none; -webkit-backdrop-filter: none; }
 
 /* theme toggle row in the sidebar */
 .arg-theme-row {
