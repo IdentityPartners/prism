@@ -41,6 +41,7 @@
     t = t.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
     t = t.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
     t = t.replace(/^[-*] (.*)$/gm, '&bull; $1');
+    t = t.replace(/!\[([^\]]*)\]\((https?:[^)\s]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%; border-radius:10px; margin:6px 0;" loading="lazy">');
     t = t.replace(/\n/g, '<br>');
     return t;
   }

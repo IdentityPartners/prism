@@ -494,7 +494,16 @@ async function orchestrate(messages, env, options = {}) {
     const {provider, model, key} = entry;
     const t0 = Date.now();
     try {
-      const result = await callModel(provider, model, key, messages, env);
+      // Session awareness: identity, multi-model context, continuation, image tools
+      const awareMsgs = [{
+        role: 'system',
+        content: 'Session context (system note): You are "' + model + '" served via ' + provider + ', answering inside ARGENTICA — the personal AI environment of Simon Johnson (sociologist, Identity Partners, Goldsmiths PhD). ' +
+          (options.multiModel ? 'This message is being answered by several models in PARALLEL (multi-model comparison mode): give your own complete, best answer without referring to other models. ' : '') +
+          'Longer answers: if you risk hitting your maximum output length, bring the answer to a clean stopping point and end with the token [MORE_AVAILABLE] on the final line so Simon knows to request part 2 — never truncate mid-sentence. ' +
+          'Image generation: you can display a generated image in your reply by writing a markdown image like ![image](https://image.pollinations.ai/prompt/a%20lighthouse%20at%20dawn%20photorealistic) with the URL-encoded prompt inside; use this when Simon asks you to create or generate an image. ' +
+          'When you use live-search context provided to you, cite sources inline. Never invent current facts. British English. No sycophancy.'
+      }, ...messages];
+      const result = await callModel(provider, model, key, awareMsgs, env);
       const ms = Date.now() - t0;
       if (result.content) {
         log.push(`${provider}/${model}: OK (${ms}ms)`);
@@ -2162,6 +2171,36 @@ async function buildSensorContext(body, env) {
   const searchQ = lastUser ? String(lastUser.content).replace(/https?:\/\/[^\s)\]]+/g, '').slice(0, 300).trim() : '';
   const AUTO = /(price|pricing|cost|how much|current(ly)?|latest|todays?|today'?s|news|this week|this month|recent(ly)?|right now|just announced|breaking|who won|score|release(d)?|launched|update(d)? on|status of|stock|share price|weather|election|prime minister|chancellor|premier league|transfer|\b20(2[3-9]|3[0-9])\b|is (?:it|there)|are there|available now|in stock|open now|schedule|fixtures|anime|episode)/i;
   const needSearch = body.webSearch || (searchQ.length > 3 && AUTO.test(searchQ) && searchQ.split(/\s+/).length >= 2);
+  // Image search sense: "find/show me an image/picture/photo of X"
+  {
+    const raw = String((lastUser && lastUser.content) || String(lastUser0 && lastUser0.content || ''));
+    const im = raw.match(/(?:find|show|get|search for)?\s*(?:an?\s+)?(?:image|picture|photo(?:graph)?s?|img)s?\s*(?:of|for|about|:)\s+(.+)/i);
+    if (im && im[1] && im[1].length > 2) {
+      const q2 = im[1].slice(0, 120).replace(/[?.!]+$/, '');
+      const found = [];
+      const pexelsKey = k(env, ['pexels','pexels_api_key','PEXELS_API_KEY']);
+      const unsplashKey = k(env, ['unsplash_api_key','UNSPLASH_API_KEY']);
+      const jobs = [];
+      if (pexelsKey) jobs.push(
+        fetch('https://api.pexels.com/v1/search?query=' + encodeURIComponent(q2) + '&per_page=4', { headers: { Authorization: pexelsKey } })
+          .then(r => r.json().catch(() => ({})))
+          .then(px => (px.photos || []).forEach(ph => found.push({ tiny: ph.src && ph.src.tiny, page: ph.url, alt: ph.alt || q2 })))
+          .catch(() => {})
+      );
+      if (unsplashKey) jobs.push(
+        fetch('https://api.unsplash.com/search/photos?query=' + encodeURIComponent(q2) + '&per_page=4&client_id=' + encodeURIComponent(unsplashKey))
+          .then(r => r.json().catch(() => ({})))
+          .then(u => (u.results || []).forEach(ph => found.push({ tiny: ph.urls && ph.urls.small, page: ph.links && ph.links.html, alt: (ph.alt_description || q2) })))
+          .catch(() => {})
+      );
+      await Promise.all(jobs);
+      if (found.length) {
+        context += '[Image search results for: ' + q2 + ']\n' +
+          found.slice(0, 6).map(r2 => '![' + String(r2.alt || '').slice(0, 60) + '](' + (r2.tiny || '') + ') — page: ' + (r2.page || '')).join('\n') +
+          '\n(Include the best 1-3 of these images in your reply as markdown images.)\n';
+      }
+    }
+  }
   if (needSearch && searchQ) {
     const found = [];
     const seen = new Set();
@@ -4119,7 +4158,7 @@ data: ${JSON.stringify(data)}
           try {
             await send('status', { status: 'connecting', message: 'Connecting to AI...' });
 
-            const result = await orchestrate(messages, env, { profile, providerOverride, modelOverride, threadId });
+            const result = await orchestrate(messages, env, { profile, providerOverride, modelOverride, threadId, multiModel: !!body.multiModel });
 
             if (result.error) {
               await send('error', { error: result.error, log: result.log });
@@ -8066,6 +8105,43 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     }
 
 
+    if (path === '/api/railway/admin' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const expected = await env.PRISM_KV.get('railway:admin-code');
+        if (!expected || body.code !== expected) return json({ success: false, error: 'invalid code' }, 403, origin);
+        // one-time: burn the code immediately after use
+        await env.PRISM_KV.delete('railway:admin-code');
+        const token = k(env, ['railway_account_token','railway_token']) || '';
+        if (!token) return json({ success: false, error: 'No railway token' }, 200, origin);
+        const out = [];
+        for (const sid of (body.serviceIds || [])) {
+          const r = await fetch('https://backboard.railway.com/graphql/v2', {
+            method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: 'mutation($id: String!) { serviceDelete(id: $id) }', variables: { id: sid } })
+          });
+          const d = await r.json().catch(() => ({}));
+          out.push({ serviceId: sid, status: r.status, errors: (d.errors || []).map(e2 => e2.message).join('; ').slice(0, 200), data: d.data || null });
+        }
+        return json({ success: true, results: out }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    if (path === '/api/themes' && request.method === 'GET') {
+      try {
+        const themes = await env.PRISM_KV.get('themes:weeks', 'json') || [];
+        return json({ themes }, 200, origin);
+      } catch (e) { return json({ themes: [] }, 200, origin); }
+    }
+    if (path === '/api/themes' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const themes = Array.isArray(body.themes) ? body.themes : [];
+        await env.PRISM_KV.put('themes:weeks', JSON.stringify(themes.slice(0, 200)));
+        return json({ success: true, themes }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
     if (path === '/api/railway/graphql' && request.method === 'POST') {
       try {
         const token = k(env, ['railway_account_token','railway_token','RAILWAY_TOKEN']) || '';
@@ -9776,9 +9852,18 @@ When asked to approve items, respond with the item IDs to approve. When asked to
 
         // 2. Draft in Simon's voice
         const TAGS = '\n\n#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nhello@identitypartners.uk | www.identitypartners.uk/contact';
+        globalThis.__weekTheme = '';
+        try {
+          const themes = await env.PRISM_KV.get('themes:weeks', 'json') || [];
+          const now2 = new Date(); const dow = (now2.getUTCDay() + 6) % 7;
+          const monday = new Date(now2); monday.setUTCDate(now2.getUTCDate() - dow); monday.setUTCHours(0, 0, 0, 0);
+          const mondayISO = monday.toISOString().slice(0, 10);
+          const th = themes.find(t2 => t2.week === mondayISO);
+          if (th && th.name) globalThis.__weekTheme = ' THIS WEEKS THEME is "' + th.name + '" — make the post speak to it directly.';
+        } catch (e2) {}
         const draft = await orchestrate([
           { role: 'system', content: 'You write as Simon Johnson of Identity Partners: intelligent, direct, humane, intellectually curious British professional prose. British English only. No em dashes. Never use multifaceted, nuanced, profound, tapestry, landscape, intersection, delve, ever-evolving. No clinical claims, no testimonials of outcomes, no client-identifiable content, never respond to people in crisis. 60 to 90 words.' },
-          { role: 'user', content: 'Write a short social media post reacting to this headline: "' + pick.title + '". Source credit at the end. No hashtags or contact details; they are appended automatically.' }
+          { role: 'user', content: 'Write a short social media post reacting to this headline: "' + pick.title + '".' + (globalThis.__weekTheme || '') + ' Source credit at the end. No hashtags or contact details; they are appended automatically.' }
         ], env, { profile: 'balanced' });
         if (!draft || !draft.content) return;
 

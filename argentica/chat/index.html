@@ -477,7 +477,7 @@ async function streamOnce(override, bubble, log, label) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       signal: ctrl.signal,
       body: JSON.stringify({ messages, profile: document.getElementById('profile').value, threadId, ...(override || {}),
-        images: (window.__imgSink ? window.__imgSink() : undefined), webSearch: liveSearch || undefined })
+        images: (window.__imgSink ? window.__imgSink() : undefined), webSearch: liveSearch || undefined, multiModel: (window.__multiModel ? window.__multiModel() : false) })
     });
   } catch (e) {
     clearTimeout(kill);
@@ -499,7 +499,21 @@ async function streamOnce(override, bubble, log, label) {
       const ev = evM[1], data = JSON.parse(dtM[1]);
       if (ev === 'thinking') { ensureThinkBlock(bubble).querySelector('.think-text').textContent += (data.text || ''); scroll.scrollTop = scroll.scrollHeight; }
       if (ev === 'token') { acc += data.text; bubble.innerHTML = md(acc); if (log) log.textContent = 'streaming…'; scroll.scrollTop = scroll.scrollHeight; }
-      if (ev === 'done') { acc = data.content || acc; bubble.innerHTML = md(acc); if ((acc||'').length > 700) addCollapser(bubble); if (log) log.textContent = 'via ' + (data.provider || '?') + ' · ' + (data.model || '?'); threadId = data.threadId || threadId; }
+      if (ev === 'done') {
+        acc = data.content || acc;
+        let moreAvailable = /\[MORE_AVAILABLE\]\s*$/i.test(acc);
+        acc = acc.replace(/\s*\[MORE_AVAILABLE\]\s*$/i, '').trim();
+        bubble.innerHTML = md(acc);
+        if ((acc||'').length > 700) addCollapser(bubble);
+        if (moreAvailable) {
+          const cbtn = document.createElement('button');
+          cbtn.className = 'synth-btn'; cbtn.textContent = '⤵ Continue (part 2)';
+          cbtn.onclick = () => { cbtn.remove(); input.value = 'Continue — part 2 please, from where you stopped.'; send(); };
+          bubble.parentElement.appendChild(cbtn);
+        }
+        if (log) log.textContent = 'via ' + (data.provider || '?') + ' · ' + (data.model || '?') + (moreAvailable ? ' · more available' : '');
+        threadId = data.threadId || threadId;
+      }
       if (ev === 'error') { throw new Error(data.error || 'No response'); }
     }
   }
@@ -524,14 +538,32 @@ async function doSend() {
   log.textContent = 'Connecting…';
 
   const picked = [...document.querySelectorAll('.mm:checked')].map(c => MODELS[c.value]).filter(Boolean);
+  window.__multiModel = () => picked.length > 1;
   const overrides = picked.map(m => m.provider && m.model ? { providerOverride: m.provider, modelOverride: m.model } : null);
 
   if (picked.length <= 1) {
     const bubble = renderMsg('assistant', '…');
     const attempt = async () => streamOnce(overrides[0] || null, bubble, log, picked[0] ? picked[0].label : '');
+    const snapshot = messages.slice();
     try {
       const acc = await attempt();
       messages.push({ role: 'assistant', content: acc });
+      const rbtn = document.createElement('button');
+      rbtn.className = 'synth-btn'; rbtn.textContent = '↻ Regenerate';
+      rbtn.onclick = async () => {
+        rbtn.remove();
+        bubble.innerHTML = '…';
+        messages = snapshot.slice();          // rewind transcript to before this answer
+        const taken = Array.isArray(snapshot) && snapshot.filter(m => messages.includes(m)).length;
+        await messages.splice(messages.length, 0);
+        try {
+          const acc2 = await streamOnce(overrides[0] || null, bubble, log, picked[0] ? picked[0].label : '');
+          messages.push({ role: 'assistant', content: acc2 });
+          bubble.parentElement.appendChild(rbtn);
+          loadThreads();
+        } catch (e2) { bubble.innerHTML = '<span class="muted">' + esc(e2.message || 'Failed.') + '</span>'; bubble.parentElement.appendChild(rbtn); }
+      };
+      bubble.parentElement.appendChild(rbtn);
       loadThreads();
     } catch (e) {
       bubble.innerHTML = '<span class="muted">' + esc(e.message || 'No response — the connection dropped.') + '</span>';

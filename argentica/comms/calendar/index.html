@@ -32,6 +32,11 @@
     <div>
       <h1>Calendar</h1>
       <div class="sub">Your diary and the social pipeline on one grid. Click any day to add an event — entries live in Argentica.</div>
+      <div id="theme-banner" style="display:none; margin-top:8px; align-items:center; gap:10px;">
+        <span style="background:var(--teal, #0f3b3a); color:#fff; border-radius:10px; padding:3px 12px; font-size:12.5px; font-family:Georgia,serif;">This week's theme</span>
+        <b id="theme-name" style="font-family:Georgia,serif; font-size:15px;"></b>
+        <button class="ghost small" style="margin-left:8px;" onclick="manageThemes()">✎ Themes</button>
+      </div>
     </div>
     <div class="row" style="gap:6px;">
       <button class="ghost small" id="cal-prev">←</button>
@@ -82,7 +87,44 @@ let social = [];
 let postiz = [];
 let pickedDate = null;
 
+// ── Themed weeks ──
+let THEMES = [];
+function mondayISO(d) { const n = new Date(d); const dow = (n.getDay() + 6) % 7; n.setDate(n.getDate() - dow); n.setHours(0,0,0,0); return n.toISOString().slice(0, 10); }
+async function loadThemes() {
+  try { const d = await api('/themes'); THEMES = d.themes || []; } catch (e) { THEMES = []; }
+  const banner = document.getElementById('theme-banner');
+  if (!banner) return;
+  const cur = THEMES.find(t => t.week === mondayISO(new Date()));
+  banner.style.display = 'flex';
+  document.getElementById('theme-name').textContent = cur ? cur.name : '(none set)';
+  banner.querySelector('span').style.background = cur ? '' : 'rgba(0,0,0,.08)';
+}
+async function saveThemes() {
+  try { await api('/themes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ themes: THEMES }) }); }
+  catch (e) { ARG.toast('Could not save themes.'); return; }
+  ARG.toast('Week themes saved — the drafting agents will follow them.');
+  loadThemes();
+}
+function manageThemes() {
+  const line = 'Week themes:\n' + THEMES.map((t, i) => (i + 1) + '. ' + t.week + ' — ' + t.name).join('\n') + '\n\nType:\nADD <monday date YYYY-MM-DD> <theme name>\nDEL <number>\nOK to finish';
+  const resp = prompt(line);
+  if (!resp) return;
+  const r = resp.trim();
+  if (/^ADD\s+/i.test(r)) {
+    const m2 = r.match(/^ADD\s+(\d{4}-\d{2}-\d{2})\s+(.+)$/i);
+    if (!m2) { ARG.toast('Format: ADD 2026-11-23 Theme name'); return manageThemes(); }
+    THEMES = THEMES.filter(t => t.week !== m2[1]);
+    THEMES.push({ week: m2[1], name: m2[2].trim() });
+    THEMES.sort((a, b) => a.week.localeCompare(b.week));
+    saveThemes();
+  } else if (/^DEL\s+\d+$/i.test(r)) {
+    const i = parseInt(r.split(/\s+/)[1], 10) - 1;
+    if (i >= 0 && i < THEMES.length) { THEMES.splice(i, 1); saveThemes(); }
+  }
+}
+
 async function load() {
+  loadThemes();
   try {
     const cal = await api('/calendar/events?from=' + new Date().toISOString().slice(0,10) + '&to=' + new Date(Date.now() + 60*24*3600*1000).toISOString().slice(0,10));
     diary = (cal.events || []);
