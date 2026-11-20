@@ -382,9 +382,7 @@ button.tpl.active { background: var(--teal); color: #fff; border-color: var(--te
 [data-argtheme="brand"] .attach-chip { background: rgba(92, 45, 63, 0.08); }
 
 /* ── Dawn home page: parchment, not dark glass ── */
-[data-argtheme="brand"] #backdrop,
-[data-argtheme="brand"] #backdrop-fallback,
-[data-argtheme="brand"] .shade { display: none; }
+[data-argtheme="brand"] #backdrop-fallback { display: none; }
 [data-argtheme="brand"] body { background: #f7f3e9; color: #2b2117; font-family: 'EB Garamond', Georgia, serif; }
 [data-argtheme="brand"] #clock { color: #5c2d3f; text-shadow: none; font-family: 'EB Garamond', Georgia, serif; }
 [data-argtheme="brand"] #clock .secs { color: #a88792; }
@@ -423,6 +421,36 @@ button.tpl.active { background: var(--teal); color: #fff; border-color: var(--te
 [data-argtheme="brand"] .calgrid .has { background: #efe3e7; color: #5c2d3f; }
 [data-argtheme="brand"] #credit { color: #b9a898; }
 [data-argtheme="brand"] #brand { background: #fffdf8; border: 1px solid #e4d8c8; color: #5c2d3f; backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+/* ── Dawn refinements: KB toolbar, translucent sidebar, warm-veiled hero photo ── */
+
+/* KB page header: quiet, elegant strip */
+[data-argtheme="brand"] .wiki-hdr { padding: 14px 22px; background: #fffdf8; border-bottom: 1px solid #e4d8c8; }
+[data-argtheme="brand"] .wiki-hdr h2 { font-family: 'EB Garamond', Georgia, serif; font-size: 21px; font-weight: 500; color: #5c2d3f; }
+[data-argtheme="brand"] .tb-btn {
+  padding: 5px 14px; border-radius: 999px; background: #fffdf8; border: 1px solid #e4d8c8;
+  color: #7a4254; font-family: 'Inter', sans-serif; font-size: 12px; box-shadow: none;
+}
+[data-argtheme="brand"] .tb-btn:hover { border-color: #a88792; background: #fffdf8; }
+[data-argtheme="brand"] .tb-btn.active { background: var(--t1); color: #5c2d3f; border-color: transparent; }
+[data-argtheme="brand"] .wiki-toolbar { background: #fffdf8; border-bottom: 1px solid #e4d8c8; padding: 6px 14px; gap: 6px; }
+[data-argtheme="brand"] .wiki-tree { background: #f7f3e9; }
+[data-argtheme="brand"] .wiki-tree-hdr { border-bottom: 1px solid #e4d8c8; background: #f7f3e9; }
+
+/* Sidebar: somewhat transparent parchment glass */
+[data-argtheme="brand"] .arg-side {
+  background: rgba(253, 250, 243, 0.88);
+  backdrop-filter: blur(14px) saturate(115%); -webkit-backdrop-filter: blur(14px) saturate(115%);
+}
+
+/* Home hero: imagery returns, but colour-bounded to the dawn palette */
+[data-argtheme="brand"] #backdrop { opacity: 0; }
+[data-argtheme="brand"] #backdrop.on { opacity: 0.5; filter: saturate(0.72) sepia(0.2) brightness(1.08) contrast(0.96); }
+[data-argtheme="brand"] .shade {
+  display: block;
+  background: linear-gradient(180deg, rgba(247, 243, 233, 0.4) 0%, rgba(247, 243, 233, 0.78) 100%);
+}
+[data-argtheme="brand"] #credit { color: #8a7261; }
 
 /* theme toggle row in the sidebar */
 .arg-theme-row {

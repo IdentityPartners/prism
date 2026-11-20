@@ -142,7 +142,7 @@
     // Collapsed state: remembered per browser; Home always starts collapsed.
     let navCollapsed = false;
     try { navCollapsed = localStorage.getItem('arg:nav-collapsed') === '1'; } catch (e) {}
-    if (activeKey === 'home') navCollapsed = true;
+    if (activeKey === 'home' && argTheme !== 'brand') navCollapsed = true;  // under Dawn the sidebar stays exposed on Home
 
     const side = document.createElement('aside');
     side.className = 'arg-side' + (navCollapsed ? ' collapsed' : '');

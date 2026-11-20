@@ -245,8 +245,11 @@ renderTodos();
 
 // ── Backdrop photo — five image sources, one photo per day, preloaded before reveal ──
 (async function () {
-  const queries = ['calm seascape dawn', 'scottish highlands mist', 'english coastline morning',
-    'quiet forest canopy', 'lake district hills', 'open sky clouds', 'autumn woodland path'];
+  const queries = (document.documentElement.getAttribute('data-argtheme') === 'brand')
+    ? ['warm sunrise over sea', 'golden hour soft light', 'morning haze wheat field',
+       'sand dunes soft dawn', 'pale dawn sky clouds', 'morning meadow light', 'warm parchment canyon light']
+    : ['calm seascape dawn', 'scottish highlands mist', 'english coastline morning',
+       'quiet forest canopy', 'lake district hills', 'open sky clouds', 'autumn woodland path'];
   const q = queries[new Date().getDay() % queries.length];
   const preload = url => new Promise((res, rej) => { const p = new Image(); p.onload = () => res(url); p.onerror = rej; p.src = url; });
   async function pool(query) {
