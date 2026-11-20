@@ -101,6 +101,62 @@ async function saveStructure() {
   } catch (e) {}
 }
 
+// ── Structure management: sections, subsections, units ──
+function addSection() {
+  const name = prompt('Name of the new section (e.g. Dissertation, PhD):');
+  if (!name || !name.trim()) return;
+  const id = 'sec-' + Date.now();
+  structure.sections.push({ id, name: name.trim(), modules: [ { id: 'mod-' + Date.now(), name: name.trim(), kind: 'sections', sections: ['General'] } ] });
+  saveStructure();
+  curSection = id; curModule = structure.sections.find(x => x.id === id).modules[0].id;
+  curWeek = 'General';
+  renderTabs();
+}
+
+function addSubsection() {
+  const name = prompt('Name of the new subsection of ' + section().name + ' (weeks, themes, categories — your choice):');
+  if (!name || !name.trim()) return;
+  const id = 'mod-' + Date.now();
+  section().modules.push({ id, name: name.trim(), kind: 'sections', sections: ['General'], notebooks: [] });
+  saveStructure();
+  curModule = id; curWeek = 'General';
+  renderTabs();
+}
+
+function addUnit(isWeek) {
+  if (isWeek) {
+    const m = module_();
+    m.weeks = (m.weeks || 12) + 1;
+    saveStructure();
+    curWeek = 'Week ' + m.weeks;
+  } else {
+    const name = prompt('Name of the unit inside ' + module_().name + ' (theme, category, chapter…):');
+    if (!name || !name.trim()) return;
+    module_().sections.push(name.trim());
+    saveStructure();
+    curWeek = name.trim();
+  }
+  renderTabs();
+}
+
+function manageStructure() {
+  const choice = prompt('Structure editor — type a number:\n1. Rename section "' + section().name + '"\n2. Rename subsection "' + module_().name + '"\n3. Rename unit "' + curWeek + '"\n4. Delete unit "' + curWeek + '"\n5. Delete subsection "' + module_().name + '"\n6. Delete section "' + section().name + '"\n7. Cancel');
+  const sec = section(), mod = module_();
+  if (choice === '1') { const n = prompt('New name:', sec.name); if (n) { sec.name = n.trim(); saveStructure(); renderTabs(); } }
+  else if (choice === '2') { const n = prompt('New name:', mod.name); if (n) { mod.name = n.trim(); saveStructure(); renderTabs(); } }
+  else if (choice === '3') { const i = mod.kind === 'sections' ? mod.sections.indexOf(curWeek) : -1;
+    const n = prompt('New name:', curWeek); if (n && i >= 0) { mod.sections[i] = n.trim(); curWeek = n.trim(); saveStructure(); renderTabs(); } }
+  else if (choice === '4') {
+    if (mod.kind === 'sections' && mod.sections.length > 1 && confirm('Delete unit "' + curWeek + '"?')) {
+      mod.sections = mod.sections.filter(u => u !== curWeek); curWeek = mod.sections[0]; saveStructure(); renderTabs(); } }
+  else if (choice === '5') {
+    if (sec.modules.length > 1 && confirm('Delete subsection "' + mod.name + '" and its filing (documents are not deleted)?')) {
+      sec.modules = sec.modules.filter(x => x.id !== mod.id); curModule = sec.modules[0].id; curWeek = unitList()[0]; saveStructure(); renderTabs(); } }
+  else if (choice === '6') {
+    if (structure.sections.length > 1 && confirm('Delete section "' + sec.name + '" entirely?')) {
+      structure.sections = structure.sections.filter(x => x.id !== sec.id); curSection = structure.sections[0].id; curModule = section().modules[0].id; curWeek = unitList()[0]; saveStructure(); renderTabs(); } }
+}
+
 function section() { return structure.sections.find(s => s.id === curSection) || structure.sections[0]; }
 function module_() { return section().modules.find(m => m.id === curModule) || section().modules[0]; }
 function unitList() {
@@ -112,7 +168,9 @@ function unitList() {
 
 function renderTabs() {
   const st = document.getElementById('section-tabs');
-  st.innerHTML = structure.sections.map(s => '<button data-id="' + esc(s.id) + '"' + (s.id === curSection ? ' class="active"' : '') + '>' + esc(s.name) + '</button>').join('');
+  st.innerHTML = structure.sections.map(s => '<button data-id="' + esc(s.id) + '"' + (s.id === curSection ? ' class="active"' : '') + '>' + esc(s.name) + '</button>').join('') +
+    '<button class="ghost small" onclick="addSection()" title="Add a top-level section">+ Section</button>' +
+    '<button class="ghost small" onclick="manageStructure()" title="Rename or delete">✎</button>';
   st.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     curSection = b.dataset.id;
     curModule = section().modules[0].id;
@@ -121,20 +179,21 @@ function renderTabs() {
   }));
 
   const mt = document.getElementById('module-tabs');
-  if (section().modules.length > 1) {
-    mt.style.display = 'flex';
-    mt.innerHTML = section().modules.map(m => '<button data-id="' + esc(m.id) + '"' + (m.id === curModule ? ' class="active"' : '') + '>' + esc(m.name) + '</button>').join('');
-    mt.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-      curModule = b.dataset.id;
-      curWeek = unitList()[0];
-      renderTabs();
-    }));
-  } else {
-    mt.style.display = 'none';
-  }
+  mt.style.display = 'flex';
+  mt.innerHTML = section().modules.map(m => '<button data-id="' + esc(m.id) + '"' + (m.id === curModule ? ' class="active"' : '') + '>' + esc(m.name) + '</button>').join('') +
+    '<button class="ghost small" style="max-width:none;" onclick="addSubsection()" title="Add a subsection to ' + esc(section().name) + '">+ Subsection</button>';
+  mt.querySelectorAll('button[data-id]').forEach(b => b.addEventListener('click', () => {
+    curModule = b.dataset.id;
+    curWeek = unitList()[0];
+    renderTabs();
+  }));
 
+  const m = module_();
+  let wHtml = unitList().map(u => '<button class="ghost small"' + (u === curWeek ? ' style="background:var(--rose); color:#fff; border-color:var(--rose);"' : '') + ' data-u="' + esc(u) + '">' + esc(u.replace('Week ', 'W')) + '</button>').join('');
+  if (m.kind === 'weeks') wHtml += '<button class="ghost small" style="max-width:none;" onclick="addUnit(true)" title="Add another week">+ Week</button>';
+  else if (m.kind === 'sections') wHtml += '<button class="ghost small" style="max-width:none;" onclick="addUnit()" title="Add a category / theme / unit inside ' + esc(m.name) + '">+ Unit</button>';
   const wb = document.getElementById('week-bar');
-  wb.innerHTML = unitList().map(u => '<button class="ghost small"' + (u === curWeek ? ' style="background:var(--rose); color:#fff; border-color:var(--rose);"' : '') + ' data-u="' + esc(u) + '">' + esc(u.replace('Week ', 'W')) + '</button>').join('');
+  wb.innerHTML = wHtml;
   wb.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     curWeek = b.dataset.u === 'General' ? 'General' : (b.dataset.u.startsWith('W') && !b.dataset.u.startsWith('Week') ? 'Week ' + b.dataset.u.slice(1) : b.dataset.u);
     renderTabs();
@@ -173,6 +232,52 @@ function docItem(d) {
     '</div></div>';
 }
 
+// ── Notebook assignment (notebooks live in the Notebooks app, shared via browser storage) ──
+function allNotebooks() {
+  try { return JSON.parse(localStorage.getItem('wh-notebooks') || '[]'); } catch (e) { return []; }
+}
+function moduleNotebookIds() { const m = module_(); m.notebooks = m.notebooks || []; return m.notebooks; }
+function notebookCard() {
+  const ids = moduleNotebookIds();
+  const all = allNotebooks();
+  const assigned = all.filter(nb => ids.includes(nb.id));
+  return '<div class="card typecard"><h3>Notebooks<span class="count">' + assigned.length + '</span></h3>' +
+    (assigned.length ? '<div class="item-list">' + assigned.map(nb =>
+      '<div class="item"><div><div>' + esc(nb.icon || '📓') + ' ' + esc(nb.name) + '</div>' +
+      '<div class="muted">' + (nb.sections || []).length + ' sections</div></div>' +
+      '<div class="row"><a class="ghost small" style="text-decoration:none;" href="/argentica/library/notebooks/">Open</a>' +
+      '<button class="ghost small" onclick="unassignNb(\'' + esc(nb.id) + '\')">Unassign</button></div></div>'
+    ).join('') + '</div>' : '<div class="muted">No notebooks assigned to this subsection yet.</div>') +
+    '<button class="small mt" onclick="assignNotebookDialog()">Assign notebooks</button>' +
+    '<button class="ghost small mt" style="margin-left:6px;" onclick="createAndAssignNotebook()">New notebook</button></div>';
+}
+function assignNotebookDialog() {
+  const all = allNotebooks();
+  if (!all.length) { ARG.toast('No notebooks exist yet — create one with "New notebook".'); return; }
+  const m = module_();
+  m.notebooks = m.notebooks || [];
+  const html = all.map(nb => (m.notebooks.includes(nb.id) ? '[x] ' : '[ ] ') + (nb.icon || '📓') + ' ' + nb.name).join('\n');
+  const toggle = prompt('Type the number of a notebook to assign/unassign to "' + m.name + '" (blank to finish):\n' + all.map((nb, i) => (i + 1) + '. ' + nb.name + (m.notebooks.includes(nb.id) ? ' (assigned)' : '')).join('\n'));
+  const n = parseInt(toggle, 10);
+  if (!n || n < 1 || n > all.length) { saveStructure(); renderTabs(); return; }
+  const id = all[n - 1].id;
+  const i = m.notebooks.indexOf(id);
+  if (i >= 0) m.notebooks.splice(i, 1); else m.notebooks.push(id);
+  saveStructure(); assignNotebookDialog();
+}
+function createAndAssignNotebook() {
+  const name = prompt('Name of the new notebook:');
+  if (!name || !name.trim()) return;
+  const all = allNotebooks();
+  const nb = { id: 'nb-' + Date.now(), name: name.trim(), icon: '📓', sections: [ { id: 'sec-' + Date.now(), name: 'General', pages: [] } ] };
+  all.unshift(nb);
+  localStorage.setItem('wh-notebooks', JSON.stringify(all));
+  const m = module_(); m.notebooks = m.notebooks || []; m.notebooks.push(nb.id);
+  saveStructure(); renderTabs();
+  ARG.toast('Notebook "' + name.trim() + '" created and assigned.');
+}
+function unassignNb(id) { const m = module_(); m.notebooks = (m.notebooks || []).filter(x => x !== id); saveStructure(); renderTabs(); }
+
 function renderDashboard() {
   const docs = docsHere();
   const dash = document.getElementById('dashboard');
@@ -182,7 +287,7 @@ function renderDashboard() {
     '<option value="kind:slides">Slides</option>' +
     '<option value="" selected>Unclassified</option></select>';
 
-  dash.innerHTML = TYPE_GROUPS.map(g => {
+  dash.innerHTML = notebookCard() + TYPE_GROUPS.map(g => {
     const items = docs.filter(g.match);
     return '<div class="card typecard">' +
       '<h3>' + g.label + '<span class="count">' + items.length + '</span></h3>' +

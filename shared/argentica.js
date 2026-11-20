@@ -55,7 +55,6 @@
         { label: 'Debate society', href: '/argentica/library/debate/', key: 'debate' },
         { label: 'Drafting desk', href: '/argentica/library/drafting/', key: 'drafting' },
         { label: 'Memory', href: '/argentica/library/memory/', key: 'memory' },
-        { label: 'Knowledge base', href: '/argentica/library/knowledge/', key: 'knowledge' },
         { label: 'Search', href: '/argentica/library/search/', key: 'library-search' }
       ]
     },
@@ -65,6 +64,12 @@
         { label: 'One-off search', href: '/argentica/research/', key: 'research' },
         { label: 'Planned runs', href: '/argentica/research/runs/', key: 'runs' },
         { label: 'Watching briefs', href: '/argentica/research/watching/', key: 'watching' }
+      ]
+    },
+    knowledge: {
+      nav: 'Knowledge',
+      tabs: [
+        { label: 'Knowledge base', href: '/argentica/library/knowledge/', key: 'knowledge' }
       ]
     },
     create: {
