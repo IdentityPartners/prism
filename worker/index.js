@@ -1702,17 +1702,24 @@ async function svgToPngUrl(svgUrl, env) {
     if (/\.png|\.jpe?g/i.test(svgUrl)) return svgUrl; // already raster
     const BLT = k(env, ['railway_browserless_token']) || '';
     const IO  = k(env, ['browserless','browserless_io_key','browserless_io','BROWSERLESS']) || '';
-    const fn = `export default async ({ page, context }) => {
+    const fnEsm = `export default async ({ page, context }) => {
       await page.setViewport({ width: 1080, height: 1080, deviceScaleFactor: 1 });
       await page.goto(context.url, { waitUntil: 'networkidle0', timeout: 45000 });
       const shot = await page.screenshot({ type: 'png', encoding: 'base64' });
       return { data: { b64: shot }, type: 'application/json' };
     }`;
+    // Railway's Browserless build parses CommonJS and returns the object flat
+    const fnCjs = `module.exports = async ({ page, context }) => {
+      await page.setViewport({ width: 1080, height: 1080, deviceScaleFactor: 1 });
+      await page.goto(context.url, { waitUntil: 'networkidle0', timeout: 45000 });
+      const shot = await page.screenshot({ type: 'png', encoding: 'base64' });
+      return { b64: shot, len: shot ? shot.length : 0 };
+    }`;
     const endpoints = [
-      ['https://browserless-production-e49c65ef.up.railway.app', BLT],
-      ['https://chrome.browserless.io', IO],
+      ['https://browserless-production-e49c65ef.up.railway.app', BLT, fnCjs],
+      ['https://chrome.browserless.io', IO, fnEsm],
     ];
-    for (const [base, tok] of endpoints) {
+    for (const [base, tok, fn] of endpoints) {
       if (!tok) continue;
       try {
         const br = await fetch(base + '/function?token=' + encodeURIComponent(tok), {
@@ -1722,7 +1729,7 @@ async function svgToPngUrl(svgUrl, env) {
         const txt = await br.text();
         if (!br.ok) continue;
         const d = JSON.parse(txt);
-        const b64 = d.data && d.data.b64;
+        const b64 = (d.data && d.data.b64) || d.b64;
         if (b64 && env.PRISM_ASSETS) {
           const key = 'canvas/png-' + svgUrl.split('/').pop().replace(/\.svg$/, '') + '-' + Date.now() + '.png';
           const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
