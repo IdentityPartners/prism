@@ -9815,6 +9815,29 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       } catch(e) { return json({success:false, error:e.message}, 200, origin); }
     }
 
+    // POST /api/buffer/schema-probe — introspect Buffer's createPost input and MediaInput shape
+    if (path === '/api/buffer/schema-probe' && request.method === 'POST') {
+      try {
+        const q = `query { __schema { mutationType { fields { name args { name type { kind name ofType { kind name } } } } } } }`;
+        const r1 = await bufferGql(q, null, env);
+        let createPost = null;
+        try {
+          const avail = JSON.stringify(((r1.data||{}).__schema||{}));
+          createPost = (r1.data.__schema.mutationType.fields||[]).filter(f => f.name==='createPost').map(f => ({ name:f.name, args:f.args }));
+        } catch(e) {}
+        // introspect MediaInput if referenced
+        let mediaInput = null;
+        const q2 = `query { __type(name: "MediaInput") { kind name inputFields { name type { kind name ofType { kind name } } } } }`;
+        const r2 = await bufferGql(q2, null, env);
+        mediaInput = (r2.data && r2.data.__type) || r2.error || null;
+        // also try CreatePostInput
+        const q3 = `query { __type(name: "CreatePostInput") { kind name inputFields { name type { kind name ofType { kind name ofType { kind name } } } } } }`;
+        const r3 = await bufferGql(q3, null, env);
+        const createPostInput = (r3.data && r3.data.__type) || r3.error || null;
+        return json({ success:true, createPost, mediaInput, createPostInput }, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 200, origin); }
+    }
+
     // ── Canvas: agentic generation ────────────────────────────────────────────
     // POST /api/canvas/generate
     // body: { topic, type, platform, text, variant, myth, fact, points, source,
