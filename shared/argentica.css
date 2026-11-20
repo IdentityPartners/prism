@@ -363,6 +363,9 @@ button.tpl.active { background: var(--teal); color: #fff; border-color: var(--te
 
 /* page-level overrides where inline styles hard-code teal */
 [data-argtheme="brand"] #backdrop-fallback { background: linear-gradient(160deg, #5c2d3f 0%, #6b3346 55%, #1c1714 100%); }
+[data-argtheme="brand"] html, [data-argtheme="brand"] body { background: #231419; }
+[data-argtheme="brand"] body { font-family: 'EB Garamond', Georgia, serif; }
+[data-argtheme="brand"] .shade { background: linear-gradient(rgba(30, 18, 22, 0.15), rgba(30, 18, 22, 0.55)); }
 [data-argtheme="brand"] details.think { border-color: rgba(92, 45, 63, 0.35); background: rgba(92, 45, 63, 0.035); }
 [data-argtheme="brand"] .mm-card .mm-hdr { background: rgba(92, 45, 63, 0.055); }
 [data-argtheme="brand"] .retry-btn, [data-argtheme="brand"] .synth-btn { background: rgba(92, 45, 63, 0.06); }
