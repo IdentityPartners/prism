@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Viewer</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<style>
+  .viewer-stage { background: #3d3a34; border-radius: 8px; overflow: auto; max-height: calc(100vh - 230px); padding: 16px; position: relative; }
+  .page-holder { position: relative; margin: 0 auto; width: fit-content; background: #fff; box-shadow: 0 4px 18px rgba(0,0,0,0.4); }
+  .page-holder canvas { display: block; }
+  #ink-canvas { position: absolute; top: 0; left: 0; touch-action: none; cursor: crosshair; }
+  .swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(15,59,58,.4); cursor: pointer; padding: 0; }
+  .swatch.on { box-shadow: 0 0 0 2px #0f3b3a; }
+  .toolbtn.on { background: #0f3b3a; color: #fff; }
+  .pgjump { width: 52px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="library">
+  <div class="arg-pagehead spread">
+    <div>
+      <h1 id="doc-title" style="font-size:20px;">Document</h1>
+      <div class="sub" id="doc-sub"></div>
+    </div>
+    <div class="row" style="flex-wrap:wrap; gap:6px;">
+      <button class="ghost small" id="prev-page">← Prev</button>
+      <span class="badge teal" id="page-ind">1 / 1</span>
+      <button class="ghost small" id="next-page">Next →</button>
+      <input class="pgjump" id="page-jump" type="number" min="1" value="1" title="Jump to page">
+      <button class="ghost small" id="zoom-out">−</button>
+      <span class="badge" id="zoom-ind">130%</span>
+      <button class="ghost small" id="zoom-in">+</button>
+      <button class="ghost small" id="save">Save ink</button>
+      <button class="small" id="archive">Flatten &amp; archive</button>
+      <button class="ghost small" id="ask">Ask Tay</button>
+      <button class="ghost small" id="download-original" title="Download the untouched PDF — annotate in Edge or elsewhere, then re-upload to Library">Download original</button>
+      <button class="ghost small" onclick="location.href='/argentica/library/'">Close</button>
+    </div>
+  </div>
+
+  <div class="card" style="padding:10px 14px; margin-bottom:12px;">
+    <div class="row" style="flex-wrap:wrap; gap:10px; align-items:center;">
+      <button class="ghost small toolbtn on" id="tool-pen">Pen</button>
+      <button class="ghost small toolbtn" id="tool-hl">Highlighter</button>
+      <button class="ghost small toolbtn" id="tool-erase">Eraser</button>
+      <span style="width:1px;height:22px;background:rgba(15,59,58,.2);"></span>
+      <span class="muted" style="font-size:12px;">Ink colour</span>
+      <span class="row" id="pen-colours" style="gap:6px;"></span>
+      <span style="width:1px;height:22px;background:rgba(15,59,58,.2);"></span>
+      <span class="muted" style="font-size:12px;">Highlighter</span>
+      <span class="row" id="hl-colours" style="gap:6px;"></span>
+      <span style="width:1px;height:22px;background:rgba(15,59,58,.2);"></span>
+      <label class="muted" style="font-size:12px;">Pen width <input type="range" id="pen-width" min="1" max="8" value="2.4" style="vertical-align:middle; width:90px;"></label>
+      <button class="ghost small" id="undo">Undo</button>
+      <button class="ghost small" id="redo">Redo</button>
+      <button class="ghost small" id="clear-page">Clear ink</button>
+    </div>
+  </div>
+
+  <div class="viewer-stage" id="stage">
+    <div class="page-holder" id="page-holder">
+      <canvas id="pdf-canvas"></canvas>
+      <canvas id="ink-canvas"></canvas>
+    </div>
+  </div>
+  <div class="muted mt" id="viewer-status"></div>
+  <div class="mt" id="archive-result"></div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('library');
+const { api, esc } = ARG;
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const params = new URLSearchParams(location.search);
+const docId = params.get('doc');
+let doc = null, pdf = null, pdfBytes = null, pageNum = 1, scale = 1.3;
+let tool = 'pen';
+let strokes = [];
+let redoStack = [];
+const DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+
+const PEN_COLOURS = [
+  { id: 'rose',  hex: '#a8324a' },
+  { id: 'teal',  hex: '#0f6b6a' },
+  { id: 'amber', hex: '#b8860b' },
+  { id: 'blue',  hex: '#1f4fa8' },
+  { id: 'green', hex: '#1e7a34' },
+  { id: 'violet',hex: '#6b3fa0' },
+  { id: 'black', hex: '#1a1a1a' }
+];
+const HL_COLOURS = [
+  { id: 'yellow', hex: 'rgba(255, 221, 87, 0.38)' },
+  { id: 'green',  hex: 'rgba(140, 225, 140, 0.38)' },
+  { id: 'pink',   hex: 'rgba(255, 160, 180, 0.38)' },
+  { id: 'blue',   hex: 'rgba(140, 190, 255, 0.38)' }
+];
+let penColour = PEN_COLOURS[0];
+let hlColour = HL_COLOURS[0];
+let penWidth = 2.4;
+
+const holder = document.getElementById('page-holder');
+const pdfCanvas = document.getElementById('pdf-canvas');
+const inkCanvas = document.getElementById('ink-canvas');
+const ctx = inkCanvas.getContext('2d');
+const status = document.getElementById('viewer-status');
+
+function swatches(id, list, setter) {
+  const el = document.getElementById(id);
+  el.innerHTML = list.map((c, i) => '<button class="swatch' + (i === 0 ? ' on' : '') + '" data-i="' + i + '" style="background:' + c.hex + ';" title="' + c.id + '"></button>').join('');
+  el.addEventListener('click', e => {
+    const b = e.target.closest('.swatch'); if (!b) return;
+    [...el.children].forEach(c => c.classList.toggle('on', c === b));
+    setter(list[+b.dataset.i]);
+  });
+}
+swatches('pen-colours', PEN_COLOURS, c => { penColour = c; if (tool !== 'pen') setTool('pen'); });
+swatches('hl-colours', HL_COLOURS, c => { hlColour = c; if (tool !== 'hl') setTool('hl'); });
+document.getElementById('pen-width').addEventListener('input', e => penWidth = parseFloat(e.target.value));
+
+function setTool(t) {
+  tool = t;
+  ['pen', 'hl', 'erase'].forEach(x => document.getElementById('tool-' + x).classList.toggle('on', x === t));
+  inkCanvas.style.cursor = t === 'erase' ? 'cell' : 'crosshair';
+}
+document.getElementById('tool-pen').addEventListener('click', () => setTool('pen'));
+document.getElementById('tool-hl').addEventListener('click', () => setTool('hl'));
+document.getElementById('tool-erase').addEventListener('click', () => setTool('erase'));
+document.getElementById('undo').addEventListener('click', () => {
+  const idx = strokes.map((s, i) => s.page === pageNum ? i : -1).filter(i => i >= 0).pop();
+  if (idx !== undefined && idx > -1) {
+    redoStack.push(strokes[idx]);
+    strokes.splice(idx, 1);
+    redrawInk();
+  }
+});
+document.getElementById('redo').addEventListener('click', () => {
+  const s = redoStack.pop();
+  if (s) { strokes.push(s); redrawInk(); }
+});
+document.getElementById('clear-page').addEventListener('click', () => {
+  const pageStrokes = strokes.filter(s => s.page === pageNum);
+  if (pageStrokes.length) redoStack.push(...pageStrokes);
+  strokes = strokes.filter(s => s.page !== pageNum);
+  redrawInk();
+});
+
+// Strokes are stored in PDF-normalised coordinates (0..1 of page size) so they
+// render uniformly at any zoom, on any device, and flatten exactly.
+function normPts(pts) {
+  return pts.map(p => ({ x: p.x / inkCanvas.clientWidth, y: p.y / inkCanvas.clientHeight }));
+}
+function denorm(pts) {
+  return pts.map(p => ({ x: p.x * inkCanvas.clientWidth, y: p.y * inkCanvas.clientHeight }));
+}
+function migrateLegacy(list) {
+  // Old strokes were saved in CSS pixels of whatever canvas drew them; best
+  // available reconstruction is to scale them against the current page box.
+  return list.map(s => {
+    if (!s.pts || !s.pts.length || s.pts.every(p => p.x <= 1.02 && p.y <= 1.02)) return s;
+    return Object.assign({}, s, { pts: s.pts.map(p => ({ x: p.x / inkCanvas.clientWidth, y: p.y / inkCanvas.clientHeight })), legacy: true });
+  });
+}
+
+function styleFor(s) {
+  if (s.tool === 'hl') return { stroke: s.colour || 'rgba(255, 221, 87, 0.38)', width: 16 };
+  return { stroke: s.colour || '#1a1a1a', width: s.width || 2.4 };
+}
+
+function redrawInk() {
+  ctx.save();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, inkCanvas.clientWidth, inkCanvas.clientHeight);
+  for (const s of strokes) {
+    if (s.page !== pageNum) continue;
+    const pts = denorm(s.pts);
+    if (pts.length === 1) {
+      const st = styleFor(s);
+      ctx.fillStyle = st.stroke;
+      ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, st.width / 2, 0, Math.PI * 2); ctx.fill();
+      continue;
+    }
+    const st = styleFor(s);
+    ctx.strokeStyle = st.stroke;
+    ctx.lineWidth = st.width;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+async function renderPage() {
+  if (!pdf) return;
+  const page = await pdf.getPage(pageNum);
+  const viewport = page.getViewport({ scale: scale * DPR });
+  pdfCanvas.width = Math.floor(viewport.width);
+  pdfCanvas.height = Math.floor(viewport.height);
+  pdfCanvas.style.width = Math.floor(viewport.width / DPR) + 'px';
+  pdfCanvas.style.height = Math.floor(viewport.height / DPR) + 'px';
+  inkCanvas.width = pdfCanvas.width;
+  inkCanvas.height = pdfCanvas.height;
+  inkCanvas.style.width = pdfCanvas.style.width;
+  inkCanvas.style.height = pdfCanvas.style.height;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  await page.render({ canvasContext: pdfCanvas.getContext('2d'), viewport }).promise;
+  redrawInk();
+  document.getElementById('page-ind').textContent = pageNum + ' / ' + pdf.numPages;
+  document.getElementById('page-jump').value = pageNum;
+  document.getElementById('page-jump').max = pdf.numPages;
+  document.getElementById('zoom-ind').textContent = Math.round(scale * 100) + '%';
+  status.textContent = 'Page ' + pageNum + ' of ' + pdf.numPages + '. Ink saves with the document; Flatten & archive burns it into the PDF and files it to Drive.';
+  document.getElementById('prev-page').disabled = pageNum <= 1;
+  document.getElementById('next-page').disabled = pageNum >= pdf.numPages;
+}
+
+// ── Ink: pointer events with capture, normalised storage, DPR-correct drawing ──
+inkCanvas.addEventListener('pointerdown', e => {
+  if (!pdf) return;
+  e.preventDefault();
+  const r = inkCanvas.getBoundingClientRect();
+  const p = { x: e.clientX - r.left, y: e.clientY - r.top };
+  if (tool === 'erase') {
+    const before = strokes.length;
+    strokes = strokes.filter(s => !(s.page === pageNum && denorm(s.pts).some(q => Math.hypot(q.x - p.x, q.y - p.y) < 26)));
+    if (strokes.length !== before) redoStack = [];
+    redrawInk();
+    return;
+  }
+  inkCanvas.setPointerCapture(e.pointerId);
+  let last = p;
+  const stroke = { page: pageNum, tool, colour: tool === 'hl' ? hlColour.hex : penColour.hex, width: tool === 'hl' ? 16 : penWidth, pts: normPts([p]) };
+  const st = styleFor(stroke);
+  ctx.strokeStyle = st.stroke; ctx.lineWidth = st.width;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(last.x, last.y);
+  ctx.lineTo(last.x + 0.01, last.y); ctx.stroke();
+  const move = ev => {
+    const rr = inkCanvas.getBoundingClientRect();
+    const q = { x: ev.clientX - rr.left, y: ev.clientY - rr.top };
+    ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+    last = q;
+    stroke.pts.push({ x: q.x / inkCanvas.clientWidth, y: q.y / inkCanvas.clientHeight });
+  };
+  const up = () => {
+    inkCanvas.removeEventListener('pointermove', move);
+    inkCanvas.removeEventListener('pointerup', up);
+    inkCanvas.removeEventListener('pointercancel', up);
+    if (stroke.pts.length < 2) { /* keep dot */ }
+  };
+  strokes.push(stroke);
+  inkCanvas.addEventListener('pointermove', move);
+  inkCanvas.addEventListener('pointerup', up);
+  inkCanvas.addEventListener('pointercancel', up);
+});
+
+document.getElementById('prev-page').addEventListener('click', () => { if (pageNum > 1) { pageNum--; renderPage(); } });
+document.getElementById('next-page').addEventListener('click', () => { if (pdf && pageNum < pdf.numPages) { pageNum++; renderPage(); } });
+document.getElementById('page-jump').addEventListener('change', e => {
+  const n = parseInt(e.target.value, 10);
+  if (pdf && n >= 1 && n <= pdf.numPages) { pageNum = n; renderPage(); }
+});
+document.getElementById('zoom-in').addEventListener('click', () => { scale = Math.min(3, scale + 0.25); renderPage(); });
+document.getElementById('zoom-out').addEventListener('click', () => { scale = Math.max(0.6, scale - 0.25); renderPage(); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'ArrowLeft' && pageNum > 1) { pageNum--; renderPage(); }
+  if (e.key === 'ArrowRight' && pdf && pageNum < pdf.numPages) { pageNum++; renderPage(); }
+});
+
+document.getElementById('save').addEventListener('click', async () => {
+  if (!docId) { ARG.toast('Nothing to save against.'); return; }
+  try {
+    await api('/documents/' + encodeURIComponent(docId), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ annotations: strokes })
+    });
+    ARG.toast('Ink layer saved (' + strokes.length + ' strokes).');
+  } catch (e) { ARG.toast('Could not save annotations: ' + e.message); }
+});
+
+// Flatten ink into the PDF itself, archive to R2 + Drive
+document.getElementById('archive').addEventListener('click', async () => {
+  const btn = document.getElementById('archive');
+  const out = document.getElementById('archive-result');
+  if (!pdfBytes) { ARG.toast('Only PDFs can be flattened.'); return; }
+  if (!strokes.length) { ARG.toast('Nothing drawn yet.'); return; }
+  btn.disabled = true;
+  out.innerHTML = '<div class="muted">Burning ink into the PDF and archiving…</div>';
+  try {
+    const { PDFDocument, rgb } = PDFLib;
+    const flat = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+    const pages = flat.getPages();
+    for (let pi = 0; pi < pages.length; pi++) {
+      const pageNo = pi + 1;
+      const pageStrokes = strokes.filter(s => s.page === pageNo);
+      if (!pageStrokes.length) continue;
+      const { width, height } = pages[pi].getSize();
+      for (const s of pageStrokes) {
+        let color = rgb(0.1, 0.1, 0.1);
+        try { color = s.tool === 'hl' ? rgb(1, 0.87, 0.34) : hexToRgb(s.colour || '#1a1a1a'); } catch (me) {}
+        const baseW = (s.width || 2.4) * (width / 612);
+        if (s.pts.length === 1) {
+          pages[pi].drawCircle({ x: s.pts[0].x * width, y: height - s.pts[0].y * height, size: baseW / 2, color, opacity: s.tool === 'hl' ? 0.4 : 1 });
+          continue;
+        }
+        for (let i = 1; i < s.pts.length; i++) {
+          pages[pi].drawLine({
+            start: { x: s.pts[i - 1].x * width, y: height - s.pts[i - 1].y * height },
+            end: { x: s.pts[i].x * width, y: height - s.pts[i].y * height },
+            thickness: baseW, color, opacity: s.tool === 'hl' ? 0.4 : 1
+          });
+        }
+      }
+    }
+    const flatBytes = await flat.save();
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(flatBytes)));
+    const safeName = ((doc && doc.title) || 'document').replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.pdf$/i, '') + '-annotated-' + new Date().toISOString().slice(0, 10) + '.pdf';
+
+    const r2 = await api('/r2/upload', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'study/annotated/' + Date.now() + '-' + safeName, content: b64, mimeType: 'application/pdf', fileName: safeName })
+    });
+
+    let odLine = '';
+    const driveName = 'Library/' + (doc && doc.moduleSource ? doc.moduleSource + '/' : '') + safeName;
+    try {
+      const od = await api('/gdrive/upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: driveName, content: b64, mimeType: 'application/pdf' })
+      });
+      odLine = od.success
+        ? '<div class="badge green">Drive archived</div> <a href="' + esc(od.webViewLink || '#') + '" target="_blank" rel="noopener">open</a>'
+        : '<div class="badge rose">Drive: ' + esc(od.error || 'failed') + '</div>';
+    } catch (e) { odLine = '<div class="badge rose">Drive: ' + esc(e.message) + '</div>'; }
+
+    out.innerHTML =
+      '<div class="spread"><div><strong>' + esc(safeName) + '</strong></div></div>' +
+      '<div class="row mt" style="flex-wrap:wrap; gap:8px;">' +
+      '<div class="badge teal">R2 saved</div> <a href="' + esc(r2.url) + '" target="_blank" rel="noopener">view in R2</a> ' + odLine +
+      '</div>';
+    ARG.toast('Flattened and archived.');
+  } catch (e) {
+    out.innerHTML = '<div class="badge rose">Flattening failed: ' + esc(e.message) + '</div>';
+  }
+  btn.disabled = false;
+});
+
+function hexToRgb(hex) {
+  const h = hex.replace('#', '');
+  const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+  return PDFLib.rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+}
+
+document.getElementById('download-original').addEventListener('click', () => {
+  if (!pdfBytes) { ARG.toast('No PDF loaded.'); return; }
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = ((doc && doc.title) || 'document').replace(/[^a-zA-Z0-9._-]/g, '_') + '.pdf';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+document.getElementById('ask').addEventListener('click', () => {
+  sessionStorage.setItem('arg:pending-prompt', 'Regarding "' + (doc ? doc.title : 'this document') + '" — what are its central claims and how do they bear on my work?');
+  location.href = '/argentica/chat/';
+});
+
+// Extract text from every page and index it for semantic search (fire-and-forget)
+async function indexForSearch() {
+  if (!pdf || !docId) return;
+  try {
+    let text = '';
+    const max = Math.min(pdf.numPages, 60);
+    for (let i = 1; i <= max; i++) {
+      const page = await pdf.getPage(i);
+      const tc = await page.getTextContent();
+      text += tc.items.map(it => it.str).join(' ') + '\n\n';
+      if (text.length > 150000) break;
+    }
+    if (text.trim().length > 40) {
+      fetch('/api/study/index-document', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text, fileName: (doc && doc.title) || docId, moduleId: (doc && doc.moduleSource) || '', weekId: '' })
+      }).catch(() => {});
+    }
+  } catch (e) {}
+}
+
+function resolveFileUrl(raw) {
+  if (!raw) return '';
+  if (raw.includes('/api/r2/file')) return raw;
+  if (raw.includes('r2.dev')) return '/api/r2/file?key=' + encodeURIComponent(raw.replace(/^https:\/\/[^/]+\//, ''));
+  if (/^https?:\/\//.test(raw)) return raw;
+  if (raw.includes('.pdf') || raw.startsWith('study/') || raw.startsWith('library/')) return '/api/r2/file?key=' + encodeURIComponent(raw);
+  return '';
+}
+
+(async function init() {
+  if (!docId) { status.textContent = 'No document specified.'; return; }
+  try {
+    const data = await api('/documents/' + encodeURIComponent(docId));
+    doc = data.document;
+    document.getElementById('doc-title').textContent = doc.title;
+    document.getElementById('doc-sub').textContent = (doc.annotations || []).length + ' saved annotations';
+    const fileUrl = resolveFileUrl(doc.content || doc.url || doc.r2Key || '');
+    if (!fileUrl) {
+      status.innerHTML = 'No viewable file attached — <a href="/argentica/library/">back to Library</a>.';
+      return;
+    }
+    const resp = await fetch(fileUrl);
+    if (!resp.ok) throw new Error('The file is not in storage (HTTP ' + resp.status + '). Try re-uploading it.');
+    pdfBytes = new Uint8Array(await resp.arrayBuffer());
+    pdf = await pdfjsLib.getDocument({ data: pdfBytes.slice(0) }).promise;
+    if (doc.annotations && doc.annotations.length) strokes = migrateLegacy(doc.annotations);
+    renderPage();
+    indexForSearch();
+  } catch (e) {
+    status.textContent = 'Could not open the document: ' + e.message;
+  }
+})();
+</script>
+</body>
+</html>

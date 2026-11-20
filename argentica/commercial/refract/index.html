@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Refract</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  .asset { border: 1px solid rgba(15,59,58,.18); border-radius: 8px; overflow: hidden; background: #fff; }
+  .asset-hdr { padding: 8px 14px; background: rgba(247,243,233,.7); border-bottom: 1px solid rgba(15,59,58,.12); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .asset-plat { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #0f3b3a; }
+  .asset-body { padding: 12px 14px; font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; outline: none; }
+  .asset-body:focus { background: #fdfbf6; }
+  .asset-actions { padding: 8px 14px; border-top: 1px solid rgba(15,59,58,.12); display: flex; gap: 6px; flex-wrap: wrap; }
+  .qcard { width: 150px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(15,59,58,.2); }
+  .qcard img { width: 100%; display: block; }
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="refract">
+  <div class="arg-pagehead">
+    <h1>Refract</h1>
+    <div class="sub">One input, the full spectrum of uses. Scales with word count — 250 words gives the core set; 1,500 gives the full set with quote cards and carousel slides.</div>
+  </div>
+
+  <div class="card">
+    <textarea id="refract-input" rows="8" style="width:100%;" placeholder="Paste your article, Substack draft, or notes here…" oninput="updateWC()"></textarea>
+    <div class="row mt spread">
+      <span class="muted" id="wc">0 words</span>
+      <button id="refract-run">Refract</button>
+    </div>
+    <div class="mt" id="refract-status" class="muted"></div>
+  </div>
+
+  <div id="refract-out"></div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('refract');
+const { api, esc } = ARG;
+
+const TAGS = '\n\n#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nhello@identitypartners.uk | www.identitypartners.uk/contact';
+
+const VOICE = 'You write as Simon Johnson of Identity Partners: intelligent, direct, humane, intellectually curious British professional prose. British English only. Never use the words multifaceted, nuanced, profound, tapestry, landscape, intersection, delve, ever-evolving. Never use em dashes. No corporate hedging. Write for the reader directly, plainly, with warmth.';
+
+const CORE_PROMPT = VOICE + '\n\nRefract the following input into seven platform versions. Use exactly these section headers, each on its own line, in this order: LINKEDIN, BLUESKY, X, INSTAGRAM, TELEGRAM, SUBSTACK, TUMBLR. After each header give only the copy for that platform. LINKEDIN: 150 to 300 words. BLUESKY: maximum 300 characters. X: maximum 280 characters. INSTAGRAM: a caption with line breaks. TELEGRAM: a broadcast message. SUBSTACK: an introductory paragraph for a longer piece. TUMBLR: a blog-post version, reflective register. Do not add hashtags, contact details or sign-offs; those are appended automatically.\n\nInput:\n';
+
+const FULL_PROMPT = VOICE + '\n\nRefract the following long-form input into the full asset set. Use exactly these section headers, each on its own line, in this order: LINKEDIN, BLUESKY, X, INSTAGRAM, TELEGRAM, SUBSTACK, TUMBLR, QUOTES, CAROUSEL. After each header give only that section. LINKEDIN: 200 to 350 words. BLUESKY: two versions separated by a line containing only ---. X: three versions separated by lines containing only ---, each under 280 characters. INSTAGRAM: a caption with line breaks. TELEGRAM: a broadcast message. SUBSTACK: an introductory paragraph for a longer piece. QUOTES: three to five standalone pull-quotes from the input, one per line, no quotation marks. CAROUSEL: six slide texts, one per line, each under 12 words. Do not add hashtags, contact details or sign-offs; those are appended automatically.\n\nInput:\n';
+
+const TARGETS = [
+  { key: 'linkedin', label: 'LinkedIn', platforms: ['linkedin'], hint: '150–350 words' },
+  { key: 'bluesky', label: 'Bluesky', platforms: ['bluesky'], hint: '≤300 chars' },
+  { key: 'x', label: 'X', platforms: ['x'], hint: '≤280 chars' },
+  { key: 'instagram', label: 'Instagram', platforms: ['instagram'], hint: 'caption + line breaks' },
+  { key: 'telegram', label: 'Telegram', platforms: ['telegram'], hint: 'broadcast style' },
+  { key: 'substack', label: 'Substack', platforms: ['substack'], hint: 'intro paragraph' },
+  { key: 'tumblr', label: 'Tumblr', platforms: ['tumblr'], hint: 'blog post' }
+];
+
+function updateWC() {
+  const t = document.getElementById('refract-input').value.trim();
+  document.getElementById('wc').textContent = t.split(/\s+/).filter(Boolean).length + ' words';
+}
+
+function parseRefract(text) {
+  const out = {};
+  let cur = null;
+  for (const line of String(text || '').split('\n')) {
+    const m = line.trim().match(/^(LINKEDIN|BLUESKY|X|INSTAGRAM|TELEGRAM|SUBSTACK|QUOTES|CAROUSEL)\b[:.]?$/i);
+    if (m) { cur = m[1].toUpperCase(); out[cur] = ''; continue; }
+    if (cur) out[cur] += (out[cur] ? '\n' : '') + line;
+  }
+  return out;
+}
+
+function assetCard(plat, hint, body, queueKey) {
+  return '<div class="asset mt">' +
+    '<div class="asset-hdr"><span class="asset-plat">' + esc(plat) + '</span><span class="muted" style="font-size:11px;">' + esc(hint) + ' · editable</span></div>' +
+    '<div class="asset-body" contenteditable="true" data-q="' + esc(queueKey) + '">' + esc(body) + '</div>' +
+    '<div class="asset-actions"><button class="ghost small" onclick="queueAsset(this)">Queue for ' + esc(plat) + '</button></div>' +
+    '</div>';
+}
+
+document.getElementById('refract-run').addEventListener('click', async () => {
+  const input = document.getElementById('refract-input').value.trim();
+  const status = document.getElementById('refract-status');
+  const outEl = document.getElementById('refract-out');
+  if (!input) { ARG.toast('Paste something to refract first.'); return; }
+  const words = input.split(/\s+/).filter(Boolean).length;
+  const prompt = (words >= 400 ? FULL_PROMPT : CORE_PROMPT) + input;
+  const btn = document.getElementById('refract-run');
+  btn.disabled = true;
+  status.textContent = 'Tay is refracting ' + words + ' words' + (words >= 400 ? ' into the full asset set…' : ' into the core set…');
+  outEl.innerHTML = '';
+  try {
+    const data = await api('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], profile: 'balanced' }) });
+    const parts = parseRefract(data.content || '');
+    status.textContent = '';
+    if (!Object.keys(parts).length) {
+      outEl.innerHTML = '<div class="muted">The response did not come back in sections — here it is raw:</div><div class="mt" style="white-space:pre-wrap;">' + esc(data.content || '') + '</div>';
+      return;
+    }
+    let html = '';
+    for (const t of TARGETS) {
+      if (!parts[t.key]) continue;
+      const variants = parts[t.key].split(/\n\s*---\s*\n/).map(v => v.trim()).filter(Boolean);
+      variants.forEach((v, i) => {
+        html += assetCard(t.label + (variants.length > 1 ? ' ' + (i + 1) : ''), t.hint, v, t.key + '::' + i);
+      });
+    }
+    if (parts.QUOTES) {
+      const quotes = parts.QUOTES.split('\n').map(q => q.trim()).filter(Boolean);
+      html += '<div class="asset mt"><div class="asset-hdr"><span class="asset-plat">Quote cards</span><span class="muted" style="font-size:11px;">branded, ready to post</span></div>' +
+        '<div class="row" style="padding:12px 14px; flex-wrap:wrap; gap:10px;" id="quote-row">' + quotes.map((q, i) => '<div class="muted">drawing…</div>').join('') + '</div>' +
+        '<div class="asset-actions"><button class="ghost small" onclick="queueQuotes()">Queue all quote cards</button></div></div>';
+      window._quotes = quotes;
+    }
+    if (parts.CAROUSEL) {
+      const slides = parts.CAROUSEL.split('\n').map(s => s.trim()).filter(Boolean);
+      html += '<div class="asset mt"><div class="asset-hdr"><span class="asset-plat">Carousel slides</span><span class="muted" style="font-size:11px;">' + slides.length + ' slides · open in Carousels to render</span></div>' +
+        '<div class="asset-body" id="carousel-body">' + esc(slides.join('\n')) + '</div>' +
+        '<div class="asset-actions"><button class="ghost small" onclick="sendToCarousels()">Open in Carousels with these slides</button></div></div>';
+      window._carouselSlides = slides;
+    }
+    html += '<div class="mt"><button class="small" onclick="queueAll()">Queue everything</button></div>';
+    outEl.innerHTML = html;
+    if (parts.QUOTES) renderQuoteCards();
+  } catch (e) { status.textContent = 'Refract failed: ' + e.message; }
+  btn.disabled = false;
+});
+
+async function renderQuoteCards() {
+  const row = document.getElementById('quote-row');
+  if (!row) return;
+  const quotes = window._quotes || [];
+  row.innerHTML = '';
+  window._quoteUrls = [];
+  for (const q of quotes) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080; canvas.height = 1080;
+    const c = canvas.getContext('2d');
+    c.fillStyle = '#0f3b3a'; c.fillRect(0, 0, 1080, 1080);
+    c.fillStyle = '#7ecfcd'; c.fillRect(90, 90, 6, 120);
+    c.font = '52px Georgia, serif'; c.fillStyle = '#f7f3e9';
+    c.textAlign = 'left';
+    const words = q.split(/\s+/); const lines = []; let line = '';
+    for (const w of words) {
+      const test = line ? line + ' ' + w : w;
+      if (c.measureText(test).width > 860 && line) { lines.push(line); line = w; } else line = test;
+    }
+    if (line) lines.push(line);
+    lines.slice(0, 8).forEach((ln, i) => c.fillText(ln, 110, 300 + i * 70));
+    const logo = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = '/shared/assets/logo-square.png'; });
+    c.drawImage(logo, 90, 930, 70, 70);
+    c.font = '26px sans-serif'; c.fillStyle = 'rgba(247,243,233,.75)';
+    c.fillText('identitypartners.uk', 180, 975);
+    const png64 = canvas.toDataURL('image/png').split(',')[1];
+    try {
+      const up = await api('/r2/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'canvas/quote-' + Date.now() + '.png', content: png64, mimeType: 'image/png' }) });
+      const url = '/api/r2/file?key=' + encodeURIComponent((up.key || up.url).replace(/^https:\/\/[^/]+\//, ''));
+      window._quoteUrls.push(url);
+      row.innerHTML += '<div class="qcard"><img src="' + url + '"></div>';
+    } catch (e) { row.innerHTML += '<div class="muted">card failed</div>'; }
+  }
+}
+
+window.queueAsset = async btn => {
+  const body = btn.closest('.asset').querySelector('.asset-body');
+  const key = body.dataset.q.split('::')[0];
+  const t = TARGETS.find(x => x.key === key);
+  try {
+    await api('/mm/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: (body.innerText || '').trim() + TAGS, platforms: t.platforms, source: 'refract' }) });
+    ARG.toast('Queued for ' + t.label + '.');
+  } catch (e) { ARG.toast('Could not queue: ' + e.message); }
+};
+
+window.queueAll = async () => {
+  const bodies = [...document.querySelectorAll('.asset-body[data-q]')];
+  let n = 0;
+  for (const b of bodies) {
+    const key = b.dataset.q.split('::')[0];
+    const t = TARGETS.find(x => x.key === key);
+    if (!t || !(b.innerText || '').trim()) continue;
+    try { await api('/mm/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: b.innerText.trim() + TAGS, platforms: t.platforms, source: 'refract' }) }); n++; } catch (e) {}
+  }
+  if (window._quoteUrls && window._quoteUrls.length) {
+    for (const u of window._quoteUrls) {
+      try { await api('/mm/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: TAGS, platforms: ['instagram', 'facebook'], imageUrl: u, source: 'refract' }) }); n++; } catch (e) {}
+    }
+  }
+  ARG.toast(n + ' assets queued.');
+};
+
+window.queueQuotes = async () => {
+  let n = 0;
+  for (const u of (window._quoteUrls || [])) {
+    try { await api('/mm/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: TAGS, platforms: ['instagram', 'facebook'], imageUrl: u, source: 'refract' }) }); n++; } catch (e) {}
+  }
+  ARG.toast(n + ' quote cards queued.');
+};
+
+window.sendToCarousels = () => {
+  sessionStorage.setItem('arg:carousel-slides', JSON.stringify(window._carouselSlides || []));
+  location.href = '/argentica/create/carousels/';
+};
+</script>
+</body>
+</html>

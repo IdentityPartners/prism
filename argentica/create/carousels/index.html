@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Carousels</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  .slide-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: stretch; }
+  .slide-row input[type="text"] { flex: 1; }
+  .frame { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; position: relative; }
+  .frame img { width: 100%; display: block; }
+  .frame .num { position: absolute; top: 6px; left: 8px; background: var(--teal); color: #fff; font-size: 11px; padding: 1px 7px; border-radius: 10px; }
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="carousels">
+  <div class="arg-pagehead">
+    <h1>Carousels</h1>
+    <div class="sub">Multi-slide posts, as rich as Canvas: every slide branded with the logo, tags and footer, in your palette, at platform size.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>Slides</h3>
+      <div id="slides-list"></div>
+      <div class="row mt" style="flex-wrap:wrap; gap:8px;">
+        <button class="ghost small" id="add-slide">+ Slide</button>
+        <button class="ghost small" id="expand">Let Tay draft the slides</button>
+        <button id="render">Render carousel</button>
+      </div>
+      <div class="muted mt" id="car-status"></div>
+    </div>
+
+    <div class="card">
+      <h3>Photo <span class="muted" style="font-size:11px;">(cover slide)</span></h3>
+      <div class="row">
+        <input type="text" id="photo-q" placeholder="Search Pexels, Unsplash, Pixabay, Openverse, Wikimedia…">
+        <button id="photo-run">Search</button>
+      </div>
+      <div id="photo-grid" class="mt" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(100px, 1fr)); gap:8px;"></div>
+      <label class="muted" style="margin-top:14px;">Palette</label>
+      <div class="row" id="palette-row" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
+      <label class="muted">Platform size</label>
+      <div class="row" id="size-row" style="flex-wrap:wrap; gap:6px; margin:6px 0;"></div>
+    </div>
+  </div>
+
+  <div class="grid two mt">
+    <div class="card">
+      <h3>Voiceover <span class="muted" style="font-size:11px;">(optional)</span></h3>
+      <div class="muted" style="font-size:12px;">Narration for the carousel — spoken over the slides. Auto-derived from your slide text; edit freely.</div>
+      <textarea id="vo-script" rows="5" style="width:100%; margin-top:8px;" placeholder="Narration text…"></textarea>
+      <div class="row mt" style="flex-wrap:wrap; gap:8px; align-items:center;">
+        <select id="vo-voice">
+          <option value="aura-arcas-en">Arcas (warm)</option>
+          <option value="aura-asteria-en">Asteria (calm)</option>
+          <option value="aura-orion-en">Orion (assured)</option>
+          <option value="aura-orpheus-en">Orpheus (deeper)</option>
+          <option value="aura-helios-en">Helios (bright)</option>
+          <option value="aura-zeus-en">Zeus (authoritative)</option>
+        </select>
+        <button class="ghost small" id="vo-from-slides">From slides</button>
+        <button class="ghost small" id="vo-generate">Generate voiceover</button>
+      </div>
+      <div class="muted mt" id="vo-status" style="font-size:12px;"></div>
+      <audio id="vo-audio" controls style="width:100%; margin-top:10px; display:none;"></audio>
+      <div class="row mt" id="vo-actions" style="display:none; gap:8px;">
+        <button class="ghost small" id="vo-save">Save with carousel</button>
+        <a id="vo-dl" class="ghost small" download="carousel-voiceover.mp3" style="text-decoration:none; padding:6px 14px; border:1px solid #0f3b3a; border-radius:6px;">Download</a>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Music bed <span class="muted" style="font-size:11px;">(optional)</span></h3>
+      <div class="muted" style="font-size:12px;">Generate a short instrumental bed on the Music page, save it to the Library, and it will be offered as a background track when the carousel is posted.</div>
+      <div class="mt" id="music-lib"><div class="muted">No saved tracks yet — <a href="/argentica/create/music/">open Music</a>.</div></div>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <h3>Frames</h3>
+    <div id="car-out" class="muted">Nothing rendered yet.</div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('carousels');
+const { api, esc } = ARG;
+
+const PALETTES = { teal: '#0f3b3a', rose: '#5c2d3f', ivory: '#f7f3e9', dark: '#111111' };
+const SIZES = [['Instagram square', 1080, 1080], ['Instagram portrait', 1080, 1350], ['LinkedIn', 1200, 627]];
+let slides = [''];
+let chosenPhoto = null, activePalette = 'teal', activeSize = 0;
+let frameUrls = [];
+
+function renderSlides() {
+  const el = document.getElementById('slides-list');
+  el.innerHTML = slides.map((t, i) =>
+    '<div class="slide-row">' +
+    '<span class="badge teal" style="min-width:28px; text-align:center;">' + (i + 1) + '</span>' +
+    '<input type="text" value="' + esc(t) + '" data-i="' + i + '" placeholder="Slide ' + (i + 1) + ' text…">' +
+    (slides.length > 1 ? '<button class="ghost small" data-del="' + i + '">✕</button>' : '') +
+    '</div>').join('');
+  el.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => { slides[+inp.dataset.i] = inp.value; }));
+  el.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => { slides.splice(+b.dataset.del, 1); renderSlides(); }));
+}
+
+document.getElementById('add-slide').addEventListener('click', () => { if (slides.length < 10) { slides.push(''); renderSlides(); } });
+
+document.getElementById('expand').addEventListener('click', async () => {
+  const first = slides[0] || '';
+  const st = document.getElementById('car-status');
+  st.textContent = 'Tay is drafting…';
+  try {
+    const d = await api('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'Write a 6-slide social media carousel for Identity Partners' + (first ? ' on the theme: ' + first : ' about a common myth in addiction recovery') + '. Return ONLY the slide text, one slide per line, no numbering, no commentary. British English. Simon\'s voice: intelligent, direct, humane. No hashtags, no contact details.' }], profile: 'balanced' })
+    });
+    slides = (d.content || '').split('\n').map(l => l.trim()).filter(Boolean).slice(0, 10);
+    renderSlides();
+    st.textContent = 'Draft ready — edit the lines, then render.';
+  } catch (e) { st.textContent = 'Draft failed: ' + e.message; }
+});
+
+function renderControls() {
+  const pr = document.getElementById('palette-row');
+  pr.innerHTML = Object.entries(PALETTES).map(([k, c]) =>
+    '<button class="ghost small" data-k="' + k + '"' + (k === activePalette ? ' style="background:' + c + '; color:#fff; border-color:' + c + '"' : ' style="border-color:' + c + '"') + '>' + k + '</button>').join('');
+  pr.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { activePalette = b.dataset.k; renderControls(); }));
+  const sr = document.getElementById('size-row');
+  sr.innerHTML = SIZES.map(([name, w, h], i) =>
+    '<button class="ghost small" data-i="' + i + '"' + (i === activeSize ? ' style="background:var(--teal); color:#fff;"' : '') + ' title="' + w + '×' + h + '">' + esc(name) + '</button>').join('');
+  sr.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { activeSize = +b.dataset.i; renderControls(); }));
+}
+
+// photo picker
+document.getElementById('photo-run').addEventListener('click', async () => {
+  const q = document.getElementById('photo-q').value.trim();
+  const grid = document.getElementById('photo-grid');
+  if (!q) { ARG.toast('Search for something first.'); return; }
+  grid.innerHTML = '<div class="muted">Searching…</div>';
+  try {
+    const d = await api('/image-search/multi', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, limit: 6, sources: ['pexels', 'unsplash', 'pixabay', 'openverse', 'wikimedia'] }) });
+    const results = d.results || [];
+    grid.innerHTML = results.map((r, i) =>
+      '<button class="tpl-btn" data-i="' + i + '"><img src="' + esc(r.thumbnail || r.url) + '" alt=""><span class="lbl">' + esc((r.photographer || r.source || '').slice(0, 16)) + '</span></button>'
+    ).join('') || '<div class="muted">Nothing found.</div>';
+    window._photos = results;
+    grid.querySelectorAll('.tpl-btn').forEach(b => b.addEventListener('click', () => {
+      grid.querySelectorAll('.tpl-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      chosenPhoto = window._photos[+b.dataset.i];
+    }));
+  } catch (e) { grid.innerHTML = '<div class="muted">Search failed.</div>'; }
+});
+
+function wrapText(c, text, maxWidth) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let line = '';
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (c.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+async function composeSlide(text, idx, total, w, h) {
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const c = canvas.getContext('2d');
+  const bg = PALETTES[activePalette];
+  const fg = activePalette === 'ivory' ? '#1c1a17' : '#ffffff';
+  const ac = activePalette === 'teal' ? '#7ecfcd' : activePalette === 'rose' ? '#d4899a' : activePalette === 'ivory' ? '#5c2d3f' : '#ddd0c8';
+  if (idx === 0 && chosenPhoto) {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = rej; i.src = chosenPhoto.url; });
+    const k = Math.max(w / img.width, h / img.height);
+    c.drawImage(img, (w - img.width * k) / 2, (h - img.height * k) / 2, img.width * k, img.height * k);
+    const grad = c.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(15,59,58,0.35)');
+    grad.addColorStop(1, 'rgba(15,59,58,0.85)');
+    c.fillStyle = grad; c.fillRect(0, 0, w, h);
+  } else {
+    c.fillStyle = bg; c.fillRect(0, 0, w, h);
+  }
+  const logo = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = '/shared/assets/logo-square.png'; });
+  c.drawImage(logo, w * 0.05, h * 0.045, w * 0.08, w * 0.08);
+  const fs = Math.round(w / 20);
+  c.font = fs + 'px Georgia, serif';
+  c.fillStyle = fg;
+  c.textAlign = 'center';
+  const lines = wrapText(c, text, w * 0.8).slice(0, 7);
+  lines.forEach((ln, i) => c.fillText(ln, w / 2, h * 0.52 + (i - (lines.length - 1) / 2) * fs * 1.3));
+  c.font = Math.round(fs * 0.4) + 'px sans-serif';
+  c.fillStyle = fg === '#ffffff' ? 'rgba(255,255,255,0.8)' : 'rgba(28,26,23,0.7)';
+  c.fillText(idx + 1 + ' / ' + total, w / 2, h * 0.87);
+  if (idx === total - 1) {
+    c.fillText('#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing', w / 2, h * 0.92);
+    c.fillText('hello@identitypartners.uk | www.identitypartners.uk/contact', w / 2, h * 0.96);
+  } else {
+    c.fillStyle = ac;
+    c.fillRect(w * 0.46, h * 0.83, w * 0.08, 4);
+  }
+  return canvas;
+}
+
+document.getElementById('render').addEventListener('click', async () => {
+  const texts = slides.map(s => s.trim()).filter(Boolean);
+  const st = document.getElementById('car-status');
+  const out = document.getElementById('car-out');
+  if (!texts.length) { ARG.toast('Write the slides first.'); return; }
+  const [name, w, h] = SIZES[activeSize];
+  st.textContent = 'Rendering ' + texts.length + ' branded frames at ' + w + '×' + h + '…';
+  out.innerHTML = '';
+  frameUrls = [];
+  try {
+    for (let i = 0; i < texts.length; i++) {
+      const canvas = await composeSlide(texts[i], i, texts.length, w, h);
+      const png64 = canvas.toDataURL('image/png').split(',')[1];
+      const up = await api('/r2/upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'canvas/carousel-' + Date.now() + '-' + (i + 1) + '.png', content: png64, mimeType: 'image/png', fileName: 'slide-' + (i + 1) + '.png' })
+      });
+      frameUrls.push(up.url);
+    }
+    out.innerHTML = '<div class="row" style="flex-wrap:wrap; gap:10px;">' +
+      frameUrls.map((u, i) => '<div class="frame" style="width:150px;"><span class="num">' + (i + 1) + '</span><img src="/api/r2/file?key=' + encodeURIComponent(u.replace(/^https:\/\/[^/]+\//, '')) + '"></div>').join('') +
+      '</div><div class="mt"><button class="small" onclick="sendToPublishing()">Send to Publishing</button></div>';
+    st.textContent = texts.length + ' frames rendered, all branded.';
+  } catch (e) { st.textContent = 'Render failed: ' + e.message; }
+});
+
+// ── Voiceover via Deepgram TTS ──
+let voBlob = null, voUrl = '', voR2Key = '';
+document.getElementById('vo-from-slides').addEventListener('click', () => {
+  document.getElementById('vo-script').value = slides.map(s => s.trim()).filter(Boolean).join(' ');
+});
+document.getElementById('vo-generate').addEventListener('click', async () => {
+  const text = document.getElementById('vo-script').value.trim();
+  const st = document.getElementById('vo-status');
+  if (!text) { ARG.toast('Write or derive the narration first.'); return; }
+  st.textContent = 'Generating voiceover…';
+  try {
+    const res = await api('/voice/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, voice: document.getElementById('vo-voice').value }) });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); st.textContent = 'Failed: ' + (d.error || 'HTTP ' + res.status); return; }
+    voBlob = await res.blob();
+    if (voUrl) URL.revokeObjectURL(voUrl);
+    voUrl = URL.createObjectURL(voBlob);
+    const a = document.getElementById('vo-audio');
+    a.src = voUrl; a.style.display = 'block';
+    document.getElementById('vo-actions').style.display = 'flex';
+    document.getElementById('vo-dl').href = voUrl;
+    st.textContent = 'Voiceover ready.';
+  } catch (e) { st.textContent = 'Failed: ' + e.message; }
+});
+document.getElementById('vo-save').addEventListener('click', async () => {
+  if (!voBlob) return;
+  const st = document.getElementById('vo-status');
+  st.textContent = 'Uploading…';
+  try {
+    const b64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result.split(',')[1]); fr.readAsDataURL(voBlob); });
+    const up = await api('/r2/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'carousel/voiceover-' + Date.now() + '.mp3', content: b64, mimeType: 'audio/mpeg' }) });
+    voR2Key = up.key || up.url.replace(/^https:\/\/[^/]+\//, '');
+    st.textContent = 'Saved — it will be attached when you send to Publishing.';
+  } catch (e) { st.textContent = 'Save failed: ' + e.message; }
+});
+
+// ── Saved music beds ──
+(function renderMusicLib() {
+  const lib = JSON.parse(localStorage.getItem('arg-music') || '[]');
+  if (!lib.length) return;
+  document.getElementById('music-lib').innerHTML = lib.slice(0, 6).map(t =>
+    '<div class="slide-row"><span class="badge">♪</span><div style="flex:1; min-width:0;"><div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + esc(t.prompt) + '</div></div><audio controls preload="none" src="' + esc(t.url) + '" style="width:170px; height:32px;"></audio></div>').join('');
+})();
+
+window.sendToPublishing = () => {
+  sessionStorage.setItem('arg:canvas-url', frameUrls[0] || '');
+  sessionStorage.setItem('arg:carousel-urls', JSON.stringify(frameUrls));
+  if (voR2Key) sessionStorage.setItem('arg:carousel-voiceover', '/api/r2/file?key=' + encodeURIComponent(voR2Key));
+  location.href = '/argentica/commercial/publishing/';
+};
+
+renderSlides();
+renderControls();
+
+// slides handed over from Refract
+(function () {
+  const handed = sessionStorage.getItem('arg:carousel-slides');
+  if (!handed) return;
+  sessionStorage.removeItem('arg:carousel-slides');
+  try {
+    const s = JSON.parse(handed);
+    if (Array.isArray(s) && s.length) { slides = s.slice(0, 10); renderSlides(); }
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

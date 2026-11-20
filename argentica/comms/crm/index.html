@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — CRM</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  .crm-shell { display: grid; grid-template-columns: 280px 1fr; border: 1px solid rgba(15,59,58,.18); border-radius: 10px; overflow: hidden; min-height: 600px; background: #fff; }
+  .crm-side { border-right: 1px solid rgba(15,59,58,.12); display: flex; flex-direction: column; }
+  .crm-item { padding: 11px 14px; border-bottom: 1px solid rgba(15,59,58,.08); cursor: pointer; }
+  .crm-item:hover { background: rgba(15,59,58,.04); }
+  .crm-item.on { background: rgba(15,59,58,.08); border-left: 3px solid #0f3b3a; }
+  .ci-name { font-size: 13px; font-weight: 600; }
+  .ci-meta { font-size: 11px; color: #6b675f; margin-top: 2px; }
+  .crm-main { padding: 18px 22px; overflow-y: auto; max-height: 76vh; }
+  .int-item { padding: 9px 12px; background: rgba(247,243,233,.7); border-radius: 6px; margin-bottom: 6px; }
+  .int-type { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #0f3b3a; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(28,26,23,.45); display: none; align-items: center; justify-content: center; z-index: 200; }
+  .modal-bg.open { display: flex; }
+  .modal { background: #fff; border-radius: 12px; padding: 20px 22px; width: 520px; max-width: 95vw; max-height: 85vh; overflow-y: auto; }
+  .vtabs { display: flex; gap: 4px; margin-bottom: 12px; }
+  .vtab { padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: none; font-family: inherit; }
+  .vtab.on { background: #0f3b3a; color: #fff; }
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="crm">
+  <div class="arg-pagehead spread">
+    <div>
+      <h1>CRM</h1>
+      <div class="sub">Contacts, companies and interactions — the commercial side of the practice, at <a href="https://crm.identitypartners.uk">crm.identitypartners.uk</a>.</div>
+    </div>
+    <div class="row" style="gap:6px;">
+      <button class="ghost small" id="crm-refresh">Refresh</button>
+      <button class="small" id="crm-new">+ Contact</button>
+    </div>
+  </div>
+
+  <div class="card" style="padding:10px 14px;">
+    <div class="vtabs">
+      <button class="vtab on" data-view="contacts">Contacts</button>
+      <button class="vtab" data-view="companies">Companies</button>
+      <button class="vtab" data-view="calendar">Calendar</button>
+    </div>
+    <input type="text" id="crm-q" placeholder="Search name, email, company, tags…" style="width:100%;">
+  </div>
+
+  <div class="crm-shell mt">
+    <div class="crm-side">
+      <div class="muted" style="padding:10px 14px; border-bottom:1px solid rgba(15,59,58,.12); font-size:12px;" id="crm-count">—</div>
+      <div style="overflow-y:auto; max-height:70vh;" id="crm-list"></div>
+    </div>
+    <div class="crm-main" id="crm-detail">
+      <div class="muted">Select a contact.</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3 id="modal-title">New contact</h3>
+    <div class="grid" style="gap:8px;">
+      <input type="text" id="f-name" placeholder="Name">
+      <input type="text" id="f-email" placeholder="Email">
+      <input type="text" id="f-phone" placeholder="Phone">
+      <div class="grid two" style="gap:8px;">
+        <input type="text" id="f-company" placeholder="Company">
+        <input type="text" id="f-role" placeholder="Role">
+      </div>
+      <input type="text" id="f-tags" placeholder="Tags (comma-separated)">
+      <textarea id="f-notes" rows="3" placeholder="Notes…"></textarea>
+    </div>
+    <div class="row mt spread">
+      <button class="ghost small" id="modal-cancel">Cancel</button>
+      <button class="small" id="modal-save">Save</button>
+    </div>
+    <div class="muted mt" id="modal-status" style="font-size:12px;"></div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('crm');
+const { api, esc } = ARG;
+
+let view = 'contacts';
+let items = [];
+let selId = null;
+
+document.querySelectorAll('.vtab').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.vtab').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+  view = b.dataset.view;
+  selId = null;
+  load();
+}));
+let qTimer = null;
+document.getElementById('crm-q').addEventListener('input', () => {
+  clearTimeout(qTimer);
+  qTimer = setTimeout(load, 300);
+});
+document.getElementById('crm-refresh').addEventListener('click', load);
+
+async function load() {
+  const q = document.getElementById('crm-q').value.trim();
+  const list = document.getElementById('crm-list');
+  list.innerHTML = '<div class="muted" style="padding:12px;">Loading…</div>';
+  try {
+    const endpoint = view === 'contacts' ? '/crm/contacts' : view === 'companies' ? '/crm/companies' : '/crm/calendar';
+    const d = await api(endpoint + (q ? '?q=' + encodeURIComponent(q) : ''));
+    items = d.contacts || d.companies || d.events || [];
+    document.getElementById('crm-count').textContent = items.length + ' ' + view;
+    list.innerHTML = items.map((c, i) =>
+      '<div class="crm-item' + (c.id === selId ? ' on' : '') + '" data-i="' + i + '">' +
+      '<div class="ci-name">' + esc(c.name || c.title || '(untitled)') + '</div>' +
+      '<div class="ci-meta">' + esc(c.email || c.date || c.company || '') + '</div>' +
+      '</div>').join('') || '<div class="muted" style="padding:12px;">Nothing yet.</div>';
+    list.querySelectorAll('.crm-item').forEach(el => el.addEventListener('click', () => openDetail(items[+el.dataset.i])));
+  } catch (e) {
+    list.innerHTML = '<div class="muted" style="padding:12px;">Failed: ' + esc(e.message) + '</div>';
+  }
+}
+
+async function openDetail(c) {
+  selId = c.id;
+  document.querySelectorAll('.crm-item').forEach(el => el.classList.toggle('on', items[+el.dataset.i] && items[+el.dataset.i].id === selId));
+  const pane = document.getElementById('crm-detail');
+  if (view === 'calendar') {
+    pane.innerHTML = '<h3>' + esc(c.title || c.name || '') + '</h3><div class="muted">' + esc(c.date || '') + '</div><div class="mt">' + esc(c.notes || c.description || '') + '</div>';
+    return;
+  }
+  pane.innerHTML = '<div class="spread"><strong>' + esc(c.name || '') + '</strong>' +
+    '<button class="ghost small" id="d-edit">Edit</button></div>' +
+    '<div class="muted" style="font-size:12px; margin:4px 0 12px;">' + [c.role, c.company].filter(Boolean).map(esc).join(' · ') + '</div>' +
+    '<div style="font-size:13px;">' + (c.email ? '✉ ' + esc(c.email) : '') + (c.phone ? '<br>☎ ' + esc(c.phone) : '') + '</div>' +
+    (c.tags ? '<div class="row mt" style="gap:6px;">' + String(c.tags).split(',').map(t => '<span class="badge teal">' + esc(t.replace(/[\[\]"]/g, '')) + '</span>').join('') + '</div>' : '') +
+    (c.notes ? '<div class="int-item mt">' + esc(c.notes) + '</div>' : '') +
+    '<h4 class="mt">Interactions</h4><div id="ints"><div class="muted">Loading…</div></div>' +
+    '<div class="grid mt" style="gap:8px;"><input type="text" id="int-type" placeholder="Type (call, email, session…)"><textarea id="int-notes" rows="2" placeholder="Log an interaction…"></textarea><button class="small" id="int-add">Add interaction</button></div>';
+  document.getElementById('d-edit').addEventListener('click', () => openModal(c));
+  document.getElementById('int-add').addEventListener('click', () => addInteraction(c));
+  try {
+    const d = await api('/crm/interactions?contact_id=' + encodeURIComponent(c.id));
+    const ints = d.interactions || [];
+    document.getElementById('ints').innerHTML = ints.map(x =>
+      '<div class="int-item"><span class="int-type">' + esc(x.type || 'note') + '</span> <span class="muted" style="font-size:11px;">' + esc((x.date || x.created_at || '').slice(0, 16)) + '</span><div style="font-size:13px; margin-top:2px;">' + esc(x.summary || x.notes || '') + '</div></div>'
+    ).join('') || '<div class="muted">None logged.</div>';
+  } catch (e) { document.getElementById('ints').innerHTML = '<div class="muted">Could not load interactions.</div>'; }
+}
+
+async function addInteraction(c) {
+  const type = document.getElementById('int-type').value.trim() || 'note';
+  const summary = document.getElementById('int-notes').value.trim();
+  if (!summary) { ARG.toast('Write something first.'); return; }
+  try {
+    await api('/crm/interactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_id: c.id, type, summary }) });
+    ARG.toast('Interaction logged.');
+    openDetail(c);
+  } catch (e) { ARG.toast('Failed: ' + e.message); }
+}
+
+let editing = null;
+function openModal(c) {
+  editing = c || null;
+  document.getElementById('modal-title').textContent = c ? 'Edit contact' : 'New contact';
+  document.getElementById('f-name').value = c ? (c.name || '') : '';
+  document.getElementById('f-email').value = c ? (c.email || '') : '';
+  document.getElementById('f-phone').value = c ? (c.phone || '') : '';
+  document.getElementById('f-company').value = c ? (c.company || '') : '';
+  document.getElementById('f-role').value = c ? (c.role || '') : '';
+  document.getElementById('f-tags').value = c ? String(c.tags || '').replace(/[\[\]"]/g, '') : '';
+  document.getElementById('f-notes').value = c ? (c.notes || '') : '';
+  document.getElementById('modal-status').textContent = '';
+  document.getElementById('modal-bg').classList.add('open');
+}
+document.getElementById('crm-new').addEventListener('click', () => openModal(null));
+document.getElementById('modal-cancel').addEventListener('click', () => document.getElementById('modal-bg').classList.remove('open'));
+document.getElementById('modal-save').addEventListener('click', async () => {
+  const st = document.getElementById('modal-status');
+  const body = {
+    name: document.getElementById('f-name').value.trim(),
+    email: document.getElementById('f-email').value.trim(),
+    phone: document.getElementById('f-phone').value.trim(),
+    company: document.getElementById('f-company').value.trim(),
+    role: document.getElementById('f-role').value.trim(),
+    tags: document.getElementById('f-tags').value.split(',').map(s => s.trim()).filter(Boolean),
+    notes: document.getElementById('f-notes').value.trim()
+  };
+  if (!body.name) { st.textContent = 'Name is required.'; return; }
+  st.textContent = 'Saving…';
+  try {
+    let r;
+    if (editing) {
+      r = await api('/crm/contacts/' + encodeURIComponent(editing.id), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    } else {
+      r = await api('/crm/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    }
+    st.textContent = 'Saved.';
+    document.getElementById('modal-bg').classList.remove('open');
+    load();
+  } catch (e) { st.textContent = 'Failed: ' + e.message; }
+});
+
+// ensure D1 tables exist on first open
+(async () => { try { await api('/crm/init', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (e) {} })();
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Planned Runs</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  .qr { border: 1px solid rgba(15,59,58,.18); border-radius: 8px; padding: 12px 14px; background: #fff; margin-bottom: 10px; }
+  .qr .kw { font-family: Georgia, serif; font-size: 14px; }
+  .runres { border-top: 1px dashed rgba(15,59,58,.2); margin-top: 10px; padding-top: 10px; }
+  .runres a { color: #0f3b3a; }
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="runs">
+  <div class="arg-pagehead">
+    <h1>Planned Runs</h1>
+    <div class="sub">Standing searches you run on demand: the boolean query, the cadence you intend, every result kept in history.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>New planned run</h3>
+      <input type="text" id="q-name" placeholder="Name — e.g. ADHD & social harm watch">
+      <textarea id="q-kw" rows="3" style="width:100%; margin-top:8px;" placeholder='Boolean query — e.g. (ADHD OR "attention deficit") AND ("social harm" OR stigma OR exclusion)'></textarea>
+      <div class="row mt" style="gap:8px; align-items:center;">
+        <label class="muted" style="font-size:12px;">Intended cadence</label>
+        <select id="q-cad">
+          <option value="manual">Manual</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+        <button id="q-save">Save run</button>
+      </div>
+      <div class="muted mt" id="q-status" style="font-size:12px;"></div>
+    </div>
+
+    <div class="card">
+      <h3>Saved runs</h3>
+      <div id="q-list"><div class="muted">Loading…</div></div>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <h3>Run history</h3>
+    <div id="run-list"><div class="muted">No runs yet.</div></div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('runs');
+const { api, esc } = ARG;
+
+async function loadQueries() {
+  const el = document.getElementById('q-list');
+  try {
+    const d = await api('/research/keywords');
+    const qs = d.queries || [];
+    el.innerHTML = qs.map(q =>
+      '<div class="qr">' +
+      '<div class="spread"><strong>' + esc(q.name) + '</strong><span class="badge teal">' + esc(q.cadence || 'manual') + '</span></div>' +
+      '<div class="kw mt">' + esc(q.keywords) + '</div>' +
+      '<div class="muted" style="font-size:11px; margin-top:6px;">' + (q.lastRun ? 'last run ' + new Date(q.lastRun).toLocaleString('en-GB') + ' · ' + (q.lastResults || 0) + ' results' : 'never run') + '</div>' +
+      '<div class="row mt" style="gap:6px;">' +
+      '<button class="small" onclick="runNow(\'' + esc(q.id) + '\')">Run now</button>' +
+      '<button class="ghost small" onclick="delQuery(\'' + esc(q.id) + '\')">Delete</button>' +
+      '</div><div class="runres" id="res-' + esc(q.id) + '" style="display:none;"></div>' +
+      '</div>').join('') || '<div class="muted">No saved runs yet.</div>';
+  } catch (e) { el.innerHTML = '<div class="muted">Could not load: ' + esc(e.message) + '</div>'; }
+}
+
+document.getElementById('q-save').addEventListener('click', async () => {
+  const name = document.getElementById('q-name').value.trim();
+  const kw = document.getElementById('q-kw').value.trim();
+  const st = document.getElementById('q-status');
+  if (!kw) { st.textContent = 'Write the boolean query first.'; return; }
+  try {
+    await api('/research/keywords', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name || kw.slice(0, 40), keywords: kw, cadence: document.getElementById('q-cad').value }) });
+    document.getElementById('q-name').value = ''; document.getElementById('q-kw').value = '';
+    st.textContent = 'Saved.';
+    loadQueries();
+  } catch (e) { st.textContent = 'Failed: ' + e.message; }
+});
+
+window.delQuery = async id => {
+  try { await api('/research/keywords/' + encodeURIComponent(id), { method: 'DELETE' }); loadQueries(); } catch (e) { ARG.toast(e.message); }
+};
+
+window.runNow = async id => {
+  const box = document.getElementById('res-' + id);
+  box.style.display = 'block';
+  box.innerHTML = '<div class="muted">Searching 30 scholarly sources…</div>';
+  try {
+    const qd = await api('/research/keywords');
+    const q = (qd.queries || []).find(x => x.id === id);
+    const kw = q ? q.keywords : '';
+    const d = await api('/research/scholarly', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: kw, limit: 20 }) });
+    const results = (d.results || []).slice(0, 20);
+    await api('/research/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queryId: id, keywords: kw, results: results.map(r => ({ title: r.title, url: r.url || r.link, source: r.source, date: r.date || r.published || '' })) }) });
+    box.innerHTML = '<strong>' + results.length + ' results</strong>' +
+      (results.slice(0, 8).map(r => '<div style="margin-top:8px; font-size:13px;"><a href="' + esc(r.url || r.link || '#') + '" target="_blank" rel="noopener">' + esc(r.title || '(untitled)') + '</a> <span class="muted" style="font-size:11px;">' + esc((r.source || '') + ' ' + (r.date || r.published || '')) + '</span></div>').join('') || '<div class="muted">Nothing found.</div>');
+    loadQueries(); loadRuns();
+  } catch (e) { box.innerHTML = '<div class="muted">Run failed: ' + esc(e.message) + '</div>'; }
+};
+
+async function loadRuns() {
+  const el = document.getElementById('run-list');
+  try {
+    const d = await api('/research/runs');
+    const runs = d.runs || [];
+    el.innerHTML = runs.slice(0, 10).map(r =>
+      '<div class="qr"><div class="spread"><span class="kw">' + esc(r.keywords.slice(0, 90)) + '</span><span class="muted" style="font-size:11px;">' + new Date(r.ranAt).toLocaleString('en-GB') + '</span></div>' +
+      '<div class="muted" style="font-size:12px; margin-top:4px;">' + (r.count || 0) + ' results kept in history.</div></div>'
+    ).join('') || '<div class="muted">No runs yet.</div>';
+  } catch (e) { el.innerHTML = '<div class="muted">Could not load history.</div>'; }
+}
+
+loadQueries();
+loadRuns();
+</script>
+</body>
+</html>

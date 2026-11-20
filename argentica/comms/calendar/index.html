@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Calendar</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-head { text-align: center; font-size: 11px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.08em; padding: 4px 0; }
+  .cal-cell { min-height: 84px; background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; font-size: 11.5px; position: relative; }
+  .cal-cell.other { opacity: 0.4; }
+  .cal-cell.today { border-color: var(--teal); border-width: 2px; }
+  .cal-cell .dnum { font-size: 11px; color: var(--ink-soft); }
+  .cal-ev { border-radius: 4px; padding: 1px 5px; margin-top: 3px; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: rgba(15,59,58,0.1); color: var(--teal); }
+  .cal-ev.soc-posted { background: rgba(61,139,110,0.18); color: #2c6e52; }
+  .cal-ev.soc-queued { background: rgba(15,59,58,0.08); color: var(--teal); }
+  .cal-ev.soc-sched { background: rgba(92,45,63,0.12); color: var(--rose); }
+  .cal-ev.postiz { background: rgba(15,59,58,0.16); color: #0f3b3a; }
+  .cal-cell { cursor: pointer; }
+  .cal-adder { position: fixed; inset: 0; background: rgba(28,26,23,0.45); z-index: 400; display: none; align-items: center; justify-content: center; }
+  .cal-adder .panel { background: #fff; border-radius: 10px; padding: 18px; width: min(360px, 90vw); }
+  .cal-adder input, .cal-adder select { width: 100%; margin: 4px 0 10px; }
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="calendar">
+  <div class="arg-pagehead spread">
+    <div>
+      <h1>Calendar</h1>
+      <div class="sub">Your diary and the social pipeline on one grid. Click any day to add an event — entries live in Argentica.</div>
+      <div id="theme-banner" style="display:none; margin-top:8px; align-items:center; gap:10px;">
+        <span style="background:var(--teal, #0f3b3a); color:#fff; border-radius:10px; padding:3px 12px; font-size:12.5px; font-family:Georgia,serif;">This week's theme</span>
+        <b id="theme-name" style="font-family:Georgia,serif; font-size:15px;"></b>
+        <button class="ghost small" style="margin-left:8px;" onclick="manageThemes()">✎ Themes</button>
+      </div>
+    </div>
+    <div class="row" style="gap:6px;">
+      <button class="ghost small" id="cal-prev">←</button>
+      <h3 id="cal-month" style="margin:0; min-width:150px; text-align:center;"></h3>
+      <button class="ghost small" id="cal-next">→</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="cal-grid" id="cal-grid"></div>
+    <div class="row mt" style="gap:14px;">
+      <span class="row" style="gap:5px;"><span class="cal-ev" style="display:inline-block; width:22px;">&nbsp;</span> Diary</span>
+      <span class="row" style="gap:5px;"><span class="cal-ev soc-posted" style="display:inline-block; width:22px;">&nbsp;</span> Posted</span>
+      <span class="row" style="gap:5px;"><span class="cal-ev soc-queued" style="display:inline-block; width:22px;">&nbsp;</span> Queued</span>
+      <span class="row" style="gap:5px;"><span class="cal-ev soc-sched" style="display:inline-block; width:22px;">&nbsp;</span> Scheduled</span>
+    </div>
+  </div>
+</div>
+
+<div class="cal-adder" id="cal-adder">
+  <div class="panel">
+    <h3 style="margin-top:0;">Add event <span class="muted" id="adder-date" style="font-size:13px;"></span></h3>
+    <label class="muted" style="font-size:12px;">Title</label>
+    <input type="text" id="adder-title" placeholder="e.g. Supervision, tutorial, client session">
+    <label class="muted" style="font-size:12px;">Time</label>
+    <select id="adder-time">
+      <option value="">All day</option>
+      <option value="09:00">09:00</option><option value="10:00">10:00</option><option value="11:00">11:00</option>
+      <option value="12:00">12:00</option><option value="13:00">13:00</option><option value="14:00">14:00</option>
+      <option value="15:00">15:00</option><option value="16:00">16:00</option><option value="17:00">17:00</option>
+      <option value="18:00">18:00</option><option value="19:00">19:00</option>
+    </select>
+    <div class="row" style="justify-content:flex-end; gap:8px;">
+      <button class="ghost" id="adder-cancel">Cancel</button>
+      <button id="adder-save">Add to diary</button>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('calendar');
+const { api, esc } = ARG;
+
+let view = new Date();
+let diary = [];
+let social = [];
+let postiz = [];
+let pickedDate = null;
+
+// ── Themed weeks ──
+let THEMES = [];
+function mondayISO(d) { const n = new Date(d); const dow = (n.getDay() + 6) % 7; n.setDate(n.getDate() - dow); n.setHours(0,0,0,0); return n.toISOString().slice(0, 10); }
+async function loadThemes() {
+  try { const d = await api('/themes'); THEMES = d.themes || []; } catch (e) { THEMES = []; }
+  const banner = document.getElementById('theme-banner');
+  if (!banner) return;
+  const cur = THEMES.find(t => t.week === mondayISO(new Date()));
+  banner.style.display = 'flex';
+  document.getElementById('theme-name').textContent = cur ? cur.name : '(none set)';
+  banner.querySelector('span').style.background = cur ? '' : 'rgba(0,0,0,.08)';
+}
+async function saveThemes() {
+  try { await api('/themes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ themes: THEMES }) }); }
+  catch (e) { ARG.toast('Could not save themes.'); return; }
+  ARG.toast('Week themes saved — the drafting agents will follow them.');
+  loadThemes();
+}
+function manageThemes() {
+  const line = 'Week themes:\n' + THEMES.map((t, i) => (i + 1) + '. ' + t.week + ' — ' + t.name).join('\n') + '\n\nType:\nADD <monday date YYYY-MM-DD> <theme name>\nDEL <number>\nOK to finish';
+  const resp = prompt(line);
+  if (!resp) return;
+  const r = resp.trim();
+  if (/^ADD\s+/i.test(r)) {
+    const m2 = r.match(/^ADD\s+(\d{4}-\d{2}-\d{2})\s+(.+)$/i);
+    if (!m2) { ARG.toast('Format: ADD 2026-11-23 Theme name'); return manageThemes(); }
+    THEMES = THEMES.filter(t => t.week !== m2[1]);
+    THEMES.push({ week: m2[1], name: m2[2].trim() });
+    THEMES.sort((a, b) => a.week.localeCompare(b.week));
+    saveThemes();
+  } else if (/^DEL\s+\d+$/i.test(r)) {
+    const i = parseInt(r.split(/\s+/)[1], 10) - 1;
+    if (i >= 0 && i < THEMES.length) { THEMES.splice(i, 1); saveThemes(); }
+  }
+}
+
+async function load() {
+  loadThemes();
+  try {
+    const cal = await api('/calendar/events?from=' + new Date().toISOString().slice(0,10) + '&to=' + new Date(Date.now() + 60*24*3600*1000).toISOString().slice(0,10));
+    diary = (cal.events || []);
+  } catch (e) { diary = []; }
+  try {
+    const z = await api('/zoho/events');
+    diary = diary.concat((z.today || []).concat(z.week || []).concat(z.next_week || []));
+  } catch (e) {}
+  try {
+    const q = await api('/mm/queue');
+    social = (q.queue || []).filter(i => i.status === 'pending' || i.status === 'scheduled' || i.status === 'posted');
+  } catch (e) { social = []; }
+  try {
+    const pz = await api('/postiz/posts');
+    postiz = (pz.posts || []);
+  } catch (e) { postiz = []; }
+  render();
+}
+
+function render() {
+  const grid = document.getElementById('cal-grid');
+  const y = view.getFullYear(), m = view.getMonth();
+  document.getElementById('cal-month').textContent = view.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const first = new Date(y, m, 1);
+  const start = new Date(first);
+  start.setDate(1 - ((first.getDay() + 6) % 7)); // Monday start
+  const today = new Date();
+  let html = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => '<div class="cal-head">' + d + '</div>').join('');
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    const inMonth = d.getMonth() === m;
+    const isToday = d.toDateString() === today.toDateString();
+    const evs = diary.filter(e => (e.starts_at || '').slice(0, 10) === iso);
+    const socs = social.filter(s => (s.createdAt || s.scheduledFor || '').slice(0, 10) === iso);
+    html += '<div class="cal-cell' + (inMonth ? '' : ' other') + (isToday ? ' today' : '') + '" onclick="cellClick(\'' + iso + '\')">' +
+      '<div class="dnum">' + d.getDate() + '</div>' +
+      evs.map(e => '<div class="cal-ev" title="' + esc(e.title) + '">' + esc((e.starts_at || '').slice(11, 16)) + ' ' + esc(String(e.title || '').slice(0, 18)) + '</div>').join('') +
+      postiz.filter(s => (s.date || s.publishDate || '').slice(0, 10) === iso).map(s =>
+        '<div class="cal-ev postiz" title="Postiz scheduled">' + esc((s.state || 'scheduled').toLowerCase()) + ' \u00b7 ' + esc(String(s.content || '').slice(0, 14)) + '</div>').join('') +
+      socs.map(s => {
+        const cls = s.status === 'posted' ? 'soc-posted' : s.status === 'scheduled' ? 'soc-sched' : 'soc-queued';
+        const label = s.status === 'posted' ? 'posted' : s.status === 'scheduled' ? 'sched' : 'queued';
+        return '<div class="cal-ev ' + cls + '" title="' + esc(String(s.text || '').slice(0, 80)) + '">' + label + ' · ' + esc((s.platforms || []).join('/').slice(0, 12)) + '</div>';
+      }).join('') +
+      '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+document.getElementById('cal-prev').addEventListener('click', () => { view.setMonth(view.getMonth() - 1); render(); });
+document.getElementById('cal-next').addEventListener('click', () => { view.setMonth(view.getMonth() + 1); render(); });
+
+// ── Click a day to add an event ────────────────
+window.cellClick = iso => {
+  pickedDate = iso;
+  document.getElementById('adder-date').textContent = new Date(iso).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  document.getElementById('adder-title').value = '';
+  document.getElementById('adder-time').value = '';
+  document.getElementById('cal-adder').style.display = 'flex';
+  setTimeout(() => document.getElementById('adder-title').focus(), 50);
+};
+document.getElementById('adder-cancel').addEventListener('click', () => { document.getElementById('cal-adder').style.display = 'none'; });
+document.getElementById('adder-save').addEventListener('click', async () => {
+  const title = document.getElementById('adder-title').value.trim();
+  if (!title) { ARG.toast('Give the event a title.'); return; }
+  const time = document.getElementById('adder-time').value;
+  try {
+    await api('/calendar/events', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, date: pickedDate, time: time || null }) });
+    document.getElementById('cal-adder').style.display = 'none';
+    ARG.toast('Added to the diary.');
+    load();
+  } catch (e) { ARG.toast('Could not add: ' + e.message); }
+});
+document.getElementById('adder-title').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('adder-save').click(); });
+
+load();
+</script>
+</body>
+</html>

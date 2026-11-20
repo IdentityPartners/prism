@@ -21,6 +21,7 @@
 function cors(origin) {
   const allowed = [
     'https://prism.identitypartners.uk',
+    'https://arch.identitypartners.uk',
     'https://argentica.identitypartners.uk',
     'https://www.identitypartners.uk',
   ];
@@ -493,7 +494,17 @@ async function orchestrate(messages, env, options = {}) {
     const {provider, model, key} = entry;
     const t0 = Date.now();
     try {
-      const result = await callModel(provider, model, key, messages, env);
+      // Session awareness: identity, multi-model context, continuation, image tools
+      const awareMsgs = [{
+        role: 'system',
+        content: 'Session context (system note): You are "' + model + '" served via ' + provider + ', answering inside ARGENTICA — the personal AI environment of Simon Johnson (sociologist, Identity Partners, Goldsmiths PhD). ' +
+          (options.multiModel ? 'This message is being answered by several models in PARALLEL (multi-model comparison mode): give your own complete, best answer without referring to other models. ' : '') +
+          'Longer answers: if you risk hitting your maximum output length, bring the answer to a clean stopping point and end with the token [MORE_AVAILABLE] on the final line so Simon knows to request part 2 — never truncate mid-sentence. ' +
+          'Image generation: when Simon asks you to generate or create an image, the ARGENTICA system generates it with a proper image model and provides it in your context as a markdown image — include that image in your reply verbatim and add one sentence describing it. Never invent image URLs of your own. ' +
+          'When you use live-search context provided to you, cite sources inline. Never invent current facts. British English. No sycophancy. ' +
+          'BRAND: you operate under the Identity Partners design language — dawn/dusk palette (parchment #f7f3e9, deep red #5c2d3f as the anchor, dusty rose #a88792, rose line #7a4254, deep teal #0f3b3a used sparingly), classic serif headings (EB Garamond/Spectral) with humanist sans body (Inter/Source Sans), sunrise/sunset imagery with diffused light, no therapy clichés, no spiritual iconography, no clinical sterility. When producing any creative or visual output, follow it.'
+      }, ...messages];
+      const result = await callModel(provider, model, key, awareMsgs, env);
       const ms = Date.now() - t0;
       if (result.content) {
         log.push(`${provider}/${model}: OK (${ms}ms)`);
@@ -1201,7 +1212,7 @@ function generateCarousel(slides) {
 }
 
 // ── Legacy generateCanvasHtml (existing templates — preserved) ────────────────
-async function generateCanvasHtml(text, templateId, env) {
+async function generateCanvasHtml(text, templateId, env, imgIn) {
   const PEXELS_KEY = k(env, ['pexels_api_key', 'PEXELS_API_KEY', 'pexels']) || '';
 
   const TEMPLATES = {
@@ -1300,9 +1311,25 @@ async function generateCanvasHtml(text, templateId, env) {
     const lines=wrapText(safeText,26), lineH=64, startY=Math.max(200,540-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+40;
     svg=svgO+`<rect width="${W}" height="${H}" fill="${tmpl.bg1}"/><rect x="540" y="0" width="540" height="${H}" fill="${tmpl.bg2}"/><line x1="540" y1="0" x2="540" y2="${H}" stroke="${C.grey}" stroke-width="2" opacity="0.4"/>`+ipLogoLegacy(30,30)+quoteText(lines,startY,lineH,tmpl.fg)+ipWordmark(540,attrY+48)+ipTagline(540,attrY+82)+ipFooterLegacy(540,H-28)+`</svg>`;
   } else if (tmpl.type==='image') {
-    const imgData=await fetchPexelsImage(tmpl.query), lines=wrapText(safeText,28), lineH=68, startY=Math.max(220,540-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+40;
+    const imgData = imgIn || await fetchPexelsImage(tmpl.query) || await semanticImageSearch(tmpl.query, env);
+    const lines=wrapText(safeText,28), lineH=68, startY=Math.max(220,540-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+40;
     const bgEl=imgData?`<image href="${imgData}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/><rect width="${W}" height="${H}" fill="${tmpl.overlay}"/>`:`<rect width="${W}" height="${H}" fill="${C.teal}"/>`;
     svg=svgO+bgEl+`<rect x="0" y="0" width="${W}" height="12" fill="${C.grey}" opacity="0.8"/><rect x="0" y="${H-12}" width="${W}" height="12" fill="${C.grey}" opacity="0.8"/>`+ipLogoLegacy(30,30)+`<text x="80" y="210" font-family="'Playfair Display',Georgia,serif" font-size="110" fill="${C.ivory}" opacity="0.08">&#x201C;</text>`+quoteText(lines,startY,lineH,C.ivory)+`<line x1="380" y1="${attrY}" x2="700" y2="${attrY}" stroke="${C.grey}" stroke-width="2" opacity="0.65"/>`+ipWordmark(540,attrY+48)+ipTagline(540,attrY+82)+ipFooterLegacy(540,H-28)+`</svg>`;
+  } else if (tmpl.type==='dual') {
+    const imgData = imgIn || await fetchPexelsImage(tmpl.query) || await semanticImageSearch(tmpl.query, env);
+    const lines=wrapText(safeText,26), lineH=62, startY=Math.max(260,560-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+40;
+    const imgHalf = imgData
+      ? `<image href="${imgData}" x="${tmpl.side==='right'?540:0}" y="0" width="540" height="${H}" preserveAspectRatio="xMidYMid slice"/>`
+      : `<rect x="${tmpl.side==='right'?540:0}" y="0" width="540" height="${H}" fill="${C.teal}"/>`;
+    svg=svgO+`<rect width="${W}" height="${H}" fill="${C.ivory}"/>`+imgHalf
+      +`<rect x="${tmpl.side==='right'?0:540}" y="0" width="540" height="${H}" fill="${C.ivory}"/>`
+      +`<line x1="540" y1="0" x2="540" y2="${H}" stroke="${C.rose}" stroke-width="3" opacity="0.55"/>`
+      +ipLogoLegacy(30,30)
+      +`<text x="270" y="200" font-family="'Playfair Display',Georgia,serif" font-size="90" fill="${C.rose}" opacity="0.18">&#x201C;</text>`
+      +lines.map((l,i)=>`<text x="270" y="${startY+i*lineH}" font-family="'Playfair Display',Georgia,serif" font-size="42" fill="${C.rose}" text-anchor="middle">${l}</text>`).join('')
+      +`<line x1="150" y1="${attrY}" x2="390" y2="${attrY}" stroke="${C.rose2}" stroke-width="2" opacity="0.6"/>`
+      +ipWordmark(270,attrY+44)+`<text x="270" y="${attrY+74}" font-family="Arial,sans-serif" font-size="13" fill="${C.rose2}" text-anchor="middle" opacity="0.85">Understand · Appreciate · Define</text>`
+      +ipFooterLegacy(270,H-26)+`</svg>`;
   } else if (tmpl.type==='testimonial') {
     const lines=wrapText(safeText,30), lineH=62, startY=Math.max(240,520-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+50;
     svg=svgO+`<rect width="${W}" height="${H}" fill="${tmpl.bg}"/><rect x="0" y="0" width="${W}" height="12" fill="${tmpl.accent}" opacity="0.9"/><rect x="0" y="${H-12}" width="${W}" height="12" fill="${tmpl.accent}" opacity="0.9"/>`+ipLogoLegacy(30,30)+`<text x="100" y="260" font-family="'Playfair Display',Georgia,serif" font-size="180" fill="${tmpl.accent}" opacity="0.15">&#x201C;</text><text x="980" y="${H-80}" font-family="'Playfair Display',Georgia,serif" font-size="180" fill="${tmpl.accent}" opacity="0.15">&#x201D;</text>`+quoteText(lines,startY,lineH,tmpl.fg)+`<line x1="340" y1="${attrY}" x2="740" y2="${attrY}" stroke="${tmpl.accent}" stroke-width="3" opacity="0.7"/><text x="540" y="${attrY+44}" font-family="'Playfair Display',Georgia,serif" font-size="22" fill="${tmpl.accent}" text-anchor="middle" opacity="0.9">&#x2014; Identity Partners</text>`+ipWordmark(540,attrY+90)+ipFooterLegacy(540,H-28)+`</svg>`;
@@ -1559,8 +1586,13 @@ async function getCalendarEvents(env, from, to) {
       return e;
     }));
     let filtered = events.filter(Boolean);
-    if (from) filtered = filtered.filter(e => e.scheduledFor >= from);
-    if (to)   filtered = filtered.filter(e => e.scheduledFor <= to);
+    filtered.forEach(e => {
+      if (!e.scheduledFor) e.scheduledFor = e.starts_at || e.date || e.created || '';
+      if (!e.starts_at) e.starts_at = e.scheduledFor;
+    });
+    const fd = (from || '').slice(0, 10), td = (to || '').slice(0, 10);
+    if (fd) filtered = filtered.filter(e => (e.scheduledFor || '').slice(0, 10) >= fd);
+    if (td) filtered = filtered.filter(e => (e.scheduledFor || '').slice(0, 10) <= td);
     return filtered.sort((a,b) => (a.scheduledFor||'').localeCompare(b.scheduledFor||''));
   } catch(e) { return []; }
 }
@@ -1664,30 +1696,99 @@ async function storePlatformChannel(platform, channelId, env) {
   }
 }
 
-async function fetchBufferChannels(env) {
+// ── Convert an SVG canvas URL to a PNG (rendered in Browserless) ──
+async function svgToPngUrl(svgUrl, env) {
+  try {
+    if (/\.png|\.jpe?g/i.test(svgUrl)) return svgUrl; // already raster
+    const BLT = k(env, ['railway_browserless_token']) || '';
+    const IO  = k(env, ['browserless','browserless_io_key','browserless_io','BROWSERLESS']) || '';
+    const fnEsm = `export default async ({ page, context }) => {
+      await page.setViewport({ width: 1080, height: 1080, deviceScaleFactor: 1 });
+      await page.goto(context.url, { waitUntil: 'networkidle0', timeout: 45000 });
+      const shot = await page.screenshot({ type: 'png', encoding: 'base64' });
+      return { data: { b64: shot }, type: 'application/json' };
+    }`;
+    // Railway's Browserless build parses CommonJS and returns the object flat
+    const fnCjs = `module.exports = async ({ page, context }) => {
+      await page.setViewport({ width: 1080, height: 1080, deviceScaleFactor: 1 });
+      await page.goto(context.url, { waitUntil: 'networkidle0', timeout: 45000 });
+      const shot = await page.screenshot({ type: 'png', encoding: 'base64' });
+      return { b64: shot, len: shot ? shot.length : 0 };
+    }`;
+    const endpoints = [
+      ['https://browserless-production-e49c65ef.up.railway.app', BLT, fnCjs],
+      ['https://chrome.browserless.io', IO, fnEsm],
+    ];
+    for (const [base, tok, fn] of endpoints) {
+      if (!tok) continue;
+      try {
+        const br = await fetch(base + '/function?token=' + encodeURIComponent(tok), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: fn, context: { url: svgUrl } })
+        });
+        const txt = await br.text();
+        if (!br.ok) continue;
+        const d = JSON.parse(txt);
+        const b64 = (d.data && d.data.b64) || d.b64;
+        if (b64 && env.PRISM_ASSETS) {
+          const key = 'canvas/png-' + svgUrl.split('/').pop().replace(/\.svg$/, '') + '-' + Date.now() + '.png';
+          const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+          await env.PRISM_ASSETS.put(key, bytes.buffer, { httpMetadata: { contentType: 'image/png' } });
+          return 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + key;
+        }
+      } catch (e) { continue; }
+    }
+    return null;
+  } catch (e) { return null; }
+}
+
+// Collect the rasterised media for a queue item (single image or carousel)
+async function itemMediaUrls(item, env) {
+  const urls = [];
+  if (Array.isArray(item.urls) && item.urls.length) { for (const u of item.urls.slice(0, 8)) urls.push(await svgToPngUrl(u, env)); }
+  else if (item.imageUrl) urls.push(await svgToPngUrl(item.imageUrl, env));
+  return urls.filter(Boolean);
+}
+
+async function bufferGql(query, variables, env) {
   const bufferKey = k(env, ['buffer_api_key','BUFFER_API_KEY']) || '';
   if (!bufferKey) return { error: 'No Buffer API key' };
   try {
-    const resp = await fetch('https://api.bufferapp.com/1/profiles.json', {
-      headers: { Authorization: `Bearer ${bufferKey}` }
+    const resp = await fetch('https://api.buffer.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + bufferKey },
+      body: JSON.stringify({ query, variables: variables || {} })
     });
-    if (!resp.ok) return { error: `Buffer API ${resp.status}` };
-    const profiles = await resp.json();
-    const channels = {};
-    for (const p of profiles) {
-      const platform = p.service || p.formatted_service || 'unknown';
-      channels[platform.toLowerCase()] = {
-        id:       p.id,
-        name:     p.formatted_username || p.username || '',
-        service:  platform,
-        avatar:   p.avatar_https || p.avatar || '',
-        updated:  new Date().toISOString(),
-      };
-      // Auto-store
-      await storePlatformChannel(platform.toLowerCase(), p.id, env);
-    }
-    return { channels, count: Object.keys(channels).length };
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) return { error: 'Buffer API ' + resp.status + (data.errors && data.errors[0] && data.errors[0].message ? ': ' + data.errors[0].message : '') };
+    if (data.errors && data.errors.length) return { error: 'Buffer: ' + data.errors[0].message };
+    return data;
   } catch(e) { return { error: e.message }; }
+}
+
+async function fetchBufferChannels(env) {
+  // Buffer's current API is GraphQL at api.buffer.com with Bearer auth.
+  // The legacy REST API (api.bufferapp.com/1) is deprecated and rejects
+  // newly issued personal keys with 401.
+  const orgRes = await bufferGql('query { account { organizations { id } } }', null, env);
+  if (orgRes.error) return { error: orgRes.error };
+  const orgs = (orgRes.data && orgRes.data.account && orgRes.data.account.organizations) || [];
+  if (!orgs.length) return { error: 'No Buffer organizations found for this key' };
+  const channels = {};
+  const debug = { organizations: orgs.length, perOrg: [] };
+  for (const org of orgs) {
+    const chRes = await bufferGql('query($id: OrganizationId!) { channels(input: { organizationId: $id }) { id name service } }', { id: org.id }, env);
+    debug.perOrg.push(chRes.error ? { error: chRes.error } : { found: ((chRes.data && chRes.data.channels) || []).length });
+    if (chRes.error) continue;
+    for (const c of ((chRes.data && chRes.data.channels) || [])) {
+      let platform = String(c.service || 'unknown').toLowerCase();
+      if (platform === 'twitter') platform = 'x'; // Buffer still calls X "twitter"
+      channels[platform] = { id: c.id, name: c.name || '', service: c.service, updated: new Date().toISOString() };
+      await storePlatformChannel(platform, c.id, env);
+    }
+  }
+  if (!Object.keys(channels).length) return { error: 'No channels found — check that Instagram, Facebook and X are connected in the Buffer account this key belongs to', debug };
+  return { channels, count: Object.keys(channels).length };
 }
 
 async function getPlatformStatus(env) {
@@ -1925,7 +2026,9 @@ async function handleIntegrationRoutes(path, request, env, origin) {
   if (path === '/api/calendar/events' && request.method === 'POST') {
     try {
       const body  = await request.json();
-      const event = { id:'cal-'+Date.now(), created:new Date().toISOString(), ...body };
+      const scheduledFor = body.scheduledFor || body.date || (body.time ? body.date + 'T' + body.time + ':00' : new Date().toISOString());
+      const event = { id:'cal-'+Date.now(), created:new Date().toISOString(), ...body, scheduledFor,
+                      starts_at: scheduledFor, title: body.title || body.text || 'Event' };
       await createCalendarEvent(event, env);
       return json({ success: true, event }, 200, origin);
     } catch(e) { return json({ error: e.message }, 500, origin); }
@@ -1986,6 +2089,313 @@ async function handleIntegrationRoutes(path, request, env, origin) {
 
 
 
+// ── Scheduled + manual backup: KV stores (KB, memories, calendar) → Google Drive ──
+// ── Deterministic hex-contrast verification (text vs background in SVG canvases) ──
+function hexToRgb(h) {
+  h = String(h || '').replace('#', '').trim();
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  if (h.length !== 6 || /[^0-9a-f]/i.test(h)) return null;
+  return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+}
+function relLum(c) {
+  const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+}
+function contrastRatio(h1, h2) {
+  const a = hexToRgb(h1), b = hexToRgb(h2);
+  if (!a || !b) return null;
+  const l1 = relLum(a), l2 = relLum(b);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+function contrastFixSvg(svg) {
+  try {
+    const bgMatch = svg.match(/<rect[^>]*fill="(#?[0-9a-fA-F]{3,6})"/);
+    const bg = bgMatch ? (bgMatch[1].startsWith('#') ? bgMatch[1] : '#' + bgMatch[1]) : null;
+    if (!bg) return svg;
+    // Only adjust TEXT element fills — never panel/shape/rect fills (they carry the design)
+    const textTags = svg.match(/<text[^>]*>/g) || [];
+    const textFills = [...new Set(textTags.map(t => (t.match(/fill="(#[0-9a-fA-F]{3,6})"/) || [])[1]).filter(Boolean))];
+    let fixed = svg;
+    for (const tf of textFills) {
+      const ratio = contrastRatio(tf, bg);
+      if (ratio != null && ratio < 4.5) {
+        const safe = relLum(hexToRgb(bg)) > 0.35 ? '#5c2d3f' : '#f7f3e9';   // brand: deep red on light, parchment on dark
+        fixed = fixed.replace(/(<text[^>]*fill=")(#?[0-9a-fA-F]{3,6})(")/g, (m0, a, c, z) => (('#'+c.replace('#','')) === tf ? a + safe + z : m0));
+      }
+    }
+    return fixed;
+  } catch (e) { return svg; }
+}
+
+async function backupStoresToDrive(env) {
+  if (!env.PRISM_KV) return { success: false, error: 'No KV binding' };
+  try {
+    // Collect Knowledge Base pages
+    const kbList = await env.PRISM_KV.list({ prefix: 'kb:' });
+    const kbPages = [];
+    for (const key of (kbList.keys || []).slice(0, 500)) {
+      let v = null;
+      try { v = await env.PRISM_KV.get(key.name, 'json'); } catch (ke) { v = null; }
+      if (v && v.title) kbPages.push(v);
+    }
+    // Collect memories
+    const memList = await env.PRISM_KV.list({ prefix: 'memory:' });
+    const memories = [];
+    for (const key of (memList.keys || []).slice(0, 500)) {
+      let v = null;
+      try { v = await env.PRISM_KV.get(key.name, 'json'); } catch (ke) { v = null; }
+      if (v) memories.push(v);
+    }
+    // Collect calendar events
+    let events = [];
+    try { events = await getCalendarEvents(env, null, null); } catch (ce) {}
+    const date = new Date().toISOString().slice(0, 10);
+
+    const htmlToText = function(html) {
+      return String(html || '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n\n')
+        .replace(/<h1[^>]*>/gi, '\n# ').replace(/<h2[^>]*>/gi, '\n## ').replace(/<h3[^>]*>/gi, '\n### ')
+        .replace(/<li[^>]*>/gi, '\n- ')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ');
+    };
+
+    let md = '# Argentica backup — ' + date + '\n\nGenerated automatically by the prism-api worker.\n\n';
+    md += '# Knowledge Base (' + kbPages.length + ' pages)\n\n';
+    for (const pg of kbPages) {
+      md += '---\n\n# ' + (pg.title || 'Untitled') + (pg.section ? '  _(section: ' + pg.section + ')_' : '') + '\n\n' +
+            htmlToText(pg.content).trim() + '\n\n';
+    }
+    md += '\n# Memories (' + memories.length + ')\n\n';
+    for (const m of memories) {
+      md += '## ' + (m.source || m.category || 'memory') + '\n\n' + String(m.content || '').trim() + '\n\n';
+    }
+    md += '\n# Calendar (' + events.length + ' events)\n\n';
+    for (const e of events) {
+      if (!e) continue;
+      md += '- ' + (e.scheduledFor || e.starts_at || '?') + ' — ' + (e.title || e.text || 'Event') + '\n';
+    }
+
+    // Upload to Drive
+    const tokenData = await env.PRISM_KV.get('google:oauth:token', 'json');
+    if (!tokenData || !tokenData.access_token) {
+      await env.PRISM_KV.put('kb:backup:last', JSON.stringify({ ts: new Date().toISOString(), success: false, error: 'Google not connected' }));
+      return { success: false, error: 'Google not connected' };
+    }
+    const fileName = 'Argentica backup ' + date + '.md';
+    const bytes = new TextEncoder().encode(md);
+    const metaResp = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + tokenData.access_token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: fileName, mimeType: 'text/markdown' })
+    });
+    if (!metaResp.ok) {
+      await env.PRISM_KV.put('kb:backup:last', JSON.stringify({ ts: new Date().toISOString(), success: false, error: 'Drive meta failed' }));
+      return { success: false, error: 'Drive meta failed' };
+    }
+    const fileId = (await metaResp.json()).id;
+    const uploadResp = await fetch('https://www.googleapis.com/upload/drive/v3/files/' + fileId + '?uploadType=media', {
+      method: 'PATCH',
+      headers: { 'Authorization': 'Bearer ' + tokenData.access_token, 'Content-Type': 'text/markdown' },
+      body: bytes
+    });
+    const rec = { ts: new Date().toISOString(), success: uploadResp.ok, date, fileName,
+                  pages: kbPages.length, memories: memories.length, events: events.length, bytes: md.length,
+                  link: 'https://drive.google.com/file/d/' + fileId + '/view' };
+    await env.PRISM_KV.put('kb:backup:last', JSON.stringify(rec));
+    return rec;
+  } catch (e) {
+    try { await env.PRISM_KV.put('kb:backup:last', JSON.stringify({ ts: new Date().toISOString(), success: false, error: e.message })); } catch (ke) {}
+    return { success: false, error: e.message };
+  }
+}
+
+// ── Tay's senses: vision (screenshots) + live web search, injected as context ──
+async function buildSensorContext(body, env) {
+  let context = '';
+  const images = Array.isArray(body.images) ? body.images.slice(0, 4) : [];
+  const geminiKey = k(env, ['gemini_api_key','gemini_free_key','GEMINI_API_KEY']) || '';
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+    if (!img || !img.b64) continue;
+    try {
+      const descUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=' + encodeURIComponent(geminiKey);
+      const vr = await fetch(descUrl, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [
+          { text: 'Describe this image precisely and completely for use as context in a conversation: what it shows, all visible text verbatim, UI elements, charts or data, anything notable. Be thorough but neutral.' },
+          { inline_data: { mime_type: img.mime_type || 'image/png', data: img.b64 } }
+        ] }] })
+      });
+      const vd = await vr.json().catch(() => ({}));
+      const desc = (((vd.candidates || [])[0] || {}).content || {}).parts &&
+        vd.candidates[0].content.parts.map(x => x.text || '').join('').trim();
+      if (desc) context += '[Attached image ' + (i + 1) + ' — described by vision: ' + desc.slice(0, 2500) + ']\n';
+    } catch (e) { /* vision unavailable — page falls back to OCR text already inline */ }
+  }
+  // Tay's third sense: if the message contains URLs, pull the live page content via Browserless
+  const lastUser0 = (body.messages || []).filter(m => m.role === 'user').pop();
+  if (lastUser0) {
+    const urls = String(lastUser0.content).match(/https?:\/\/[^\s)\]]+/g) || [];
+    if (urls.length) {
+      const BLT = k(env, ['railway_browserless_token','RAILWAY_BROWSERless_TOKEN'.toUpperCase(),'RAILWAY_BROWSERLESS_TOKEN','browserless_railway_token']) || '';
+      if (BLT) {
+        const targets = urls.slice(0, 2);
+        const fn = `export default async ({ page, context }) => {
+          const got = [];
+          for (const u of context.urls) {
+            try {
+              await page.goto(u, { waitUntil: 'domcontentloaded', timeout: 35000 });
+              await new Promise(r => setTimeout(r, 1200));
+              const info = await page.evaluate(() => {
+                const t = document.title || '';
+                const pick = document.querySelector('article') || document.querySelector('main') || document.body;
+                const text = (pick ? pick.innerText : '').replace(/\s+/g, ' ').trim();
+                return { t, text: text.slice(0, 4500) };
+              });
+              got.push({ u, title: info.t, text: info.text });
+            } catch (e) { got.push({ u, error: String(e).slice(0, 120) }); }
+          }
+          return { data: { pages: got }, type: 'application/json' };
+        }`;
+        try {
+          const br = await fetch((k(env,['browserless_railway_url']) || 'https://browserless-production-e49c65ef.up.railway.app') + '/function?token=' + encodeURIComponent(BLT), {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: fn, context: { urls: targets } })
+          });
+          const d = await br.json().catch(() => ({}));
+          const pages = (d.data && d.data.pages) || [];
+          for (const pg of pages) {
+            if (pg.error) continue;
+            context += '[Live page visited — ' + (pg.title || '') + ' (' + pg.u + ')]: ' + (pg.text || '(no readable text)') + '\n';
+          }
+        } catch (e) { /* page sense unavailable */ }
+      }
+    }
+  }
+  // ── Live web search: forced via toggle, or auto-triggered by time-sensitive intent ──
+  const lastUser = (body.messages || []).filter(m => m.role === 'user').pop() || lastUser0;
+  const searchQ = lastUser ? String(lastUser.content).replace(/https?:\/\/[^\s)\]]+/g, '').slice(0, 300).trim() : '';
+  const AUTO = /(price|pricing|cost|how much|current(ly)?|latest|todays?|today'?s|news|this week|this month|recent(ly)?|right now|just announced|breaking|who won|score|release(d)?|launched|update(d)? on|status of|stock|share price|weather|election|prime minister|chancellor|premier league|transfer|\b20(2[3-9]|3[0-9])\b|is (?:it|there)|are there|available now|in stock|open now|schedule|fixtures|anime|episode)/i;
+  const needSearch = body.webSearch || (searchQ.length > 3 && AUTO.test(searchQ) && searchQ.split(/\s+/).length >= 2);
+  // ── Image generation sense: "generate/make/create/draw an image of X" ──
+  {
+    const raw = String((lastUser && lastUser.content) || String(lastUser0 && lastUser0.content || ''));
+    const gm = raw.match(/^(?:\/gen|\/image)\s+([\s\S]+)$/i) ||
+               raw.match(/(?:generate|make|create|draw|design|produce)\b[^.?!]{0,60}\b(?:an?\s+)?(?:image|picture|photo|illustration|poster|logo|artwork|graphic|painting|mosaic)\b(?:\s+(?:of|for|showing|depicting))?\s*[:\u2014-]?\s*(.+)/i) ||
+               raw.match(/^(?:an?\s+)?(?:image|picture|photo)\s+(?:of|for)\s+(.+?)\s*(?:please)?\.?$/i);
+    const GEN_RE = /^(?:\/gen|\/image)\b|\b(?:generate|make|create|draw|design|produce)\b[^.?!]{0,60}\b(?:image|picture|photo|illustration|poster|logo|artwork|graphic|painting|mosaic)\b/i;
+    if (gm && (GEN_RE.test(raw) || /^\//.test(raw.trim()))) {
+      const genPrompt = (gm[1] || raw).slice(0, 500).replace(/^(?:of|for)\s+/i, '').trim();
+      if (genPrompt.length > 2) {
+        const gemKey = k(env, ['gemini_api_key','gemini_free_key','GEMINI_API_KEY']) || '';
+        if (gemKey) {
+          try {
+            const vr = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=' + encodeURIComponent(gemKey), {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contents: [{ parts: [{ text: 'Generate this image: ' + genPrompt }] }] })
+            });
+            const vd = await vr.json().catch(() => ({}));
+            const parts = (((vd.candidates || [])[0] || {}).content || {}).parts || [];
+            const imgPart = parts.find(pt => pt.inlineData || pt.inline_data);
+            const b64 = imgPart && (imgPart.inlineData || imgPart.inline_data).data;
+            const mime = (imgPart && (imgPart.inlineData || imgPart.inline_data).mimeType) || 'image/png';
+            if (b64 && env.PRISM_ASSETS) {
+              const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+              const key = 'gen/' + Date.now() + '-' + genPrompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) + '.png';
+              await env.PRISM_ASSETS.put(key, bytes.buffer, { httpMetadata: { contentType: mime } });
+              const imgUrl = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + key;
+              context += '[SYSTEM: an image was generated for this request via Gemini 2.5 Flash Image ("nano banana") using the prompt: "' + genPrompt + '". Include this exact markdown image in your reply:]\n![generated image](' + imgUrl + ')\n';
+            } else {
+              const note = (((vd.candidates || [])[0] || {}).content || {}).parts && parts.map(x => x.text || '').join('').slice(0, 200);
+              context += '[SYSTEM: image generation attempted for "' + genPrompt + '" but the model returned no image' + (note ? ' — it said: ' + note : '') + '. Tell Simon the image could not be generated this time.]\n';
+            }
+          } catch (e) {
+            context += '[SYSTEM: image generation for "' + genPrompt.slice(0, 120) + '" failed with error: ' + String(e.message || e).slice(0, 120) + '. Tell Simon plainly.]\n';
+          }
+        }
+      }
+    }
+  }
+
+  // Image search sense: "find/show me an image/picture/photo of X"
+  {
+    const raw = String((lastUser && lastUser.content) || String(lastUser0 && lastUser0.content || ''));
+    const im = raw.match(/(?:find|show|get|search for)?\s*(?:an?\s+)?(?:image|picture|photo(?:graph)?s?|img)s?\s*(?:of|for|about|:)\s+(.+)/i);
+    if (im && im[1] && im[1].length > 2) {
+      const q2 = im[1].slice(0, 120).replace(/[?.!]+$/, '');
+      const found = [];
+      const pexelsKey = k(env, ['pexels','pexels_api_key','PEXELS_API_KEY']);
+      const unsplashKey = k(env, ['unsplash_api_key','UNSPLASH_API_KEY']);
+      const jobs = [];
+      if (pexelsKey) jobs.push(
+        fetch('https://api.pexels.com/v1/search?query=' + encodeURIComponent(q2) + '&per_page=4', { headers: { Authorization: pexelsKey } })
+          .then(r => r.json().catch(() => ({})))
+          .then(px => (px.photos || []).forEach(ph => found.push({ tiny: ph.src && ph.src.tiny, page: ph.url, alt: ph.alt || q2 })))
+          .catch(() => {})
+      );
+      if (unsplashKey) jobs.push(
+        fetch('https://api.unsplash.com/search/photos?query=' + encodeURIComponent(q2) + '&per_page=4&client_id=' + encodeURIComponent(unsplashKey))
+          .then(r => r.json().catch(() => ({})))
+          .then(u => (u.results || []).forEach(ph => found.push({ tiny: ph.urls && ph.urls.small, page: ph.links && ph.links.html, alt: (ph.alt_description || q2) })))
+          .catch(() => {})
+      );
+      await Promise.all(jobs);
+      if (found.length) {
+        context += '[Image search results for: ' + q2 + ']\n' +
+          found.slice(0, 6).map(r2 => '![' + String(r2.alt || '').slice(0, 60) + '](' + (r2.tiny || '') + ') — page: ' + (r2.page || '')).join('\n') +
+          '\n(Include the best 1-3 of these images in your reply as markdown images.)\n';
+      }
+    }
+  }
+  if (needSearch && searchQ) {
+    const found = [];
+    const seen = new Set();
+    const pushIt = (title, url, desc) => {
+      const u = String(url || '').replace(/[#?].*$/, '');
+      if (!u || seen.has(u)) return;
+      seen.add(u);
+      found.push('- ' + String(title || '').slice(0, 110) + ' — ' + u + ': ' + String(desc || '').replace(/\s+/g, ' ').slice(0, 220));
+    };
+    const engines = [];
+    const braveKey = k(env, ['brave_api_key','BRAVE_API_KEY','brave']);
+    const exaKey = k(env, ['exa_api_key','EXA_API_KEY']);
+    const tavilyKey = k(env, ['tavily_api_key','TAVILY_API_KEY']);
+    if (braveKey) engines.push(
+      fetch('https://api.search.brave.com/res/v1/web/search?q=' + encodeURIComponent(searchQ) + '&count=6', {
+        headers: { 'X-Subscription-Token': braveKey, 'Accept': 'application/json' } })
+        .then(r => r.json().catch(() => ({})))
+        .then(bd => { (bd.web && bd.web.results || []).forEach(r => pushIt(r.title, r.url, r.description)); })
+        .catch(() => {})
+    );
+    if (exaKey) engines.push(
+      fetch('https://api.exa.ai/search', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': exaKey },
+        body: JSON.stringify({ query: searchQ, numResults: 5, includeDomains: undefined }) })
+        .then(r => r.json().catch(() => ({})))
+        .then(ex => { (ex.results || []).forEach(r => pushIt(r.title, r.url, (r.text || r.snippet || ''))); })
+        .catch(() => {})
+    );
+    if (tavilyKey) engines.push(
+      fetch('https://api.tavily.com/search', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: tavilyKey, query: searchQ, max_results: 5 }) })
+        .then(r => r.json().catch(() => ({})))
+        .then(tv => { (tv.results || []).forEach(r => pushIt(r.title, r.url, r.content)); })
+        .catch(() => {})
+    );
+    await Promise.all(engines);
+    if (!found.length) {
+      try {
+        const r2 = await fetch('https://api.duckduckgo.com/?q=' + encodeURIComponent(searchQ) + '&format=json&no_redirect=1&no_html=1');
+        const dd = await r2.json().catch(() => ({}));
+        [dd.AbstractText, dd.Answer, dd.Definition].filter(Boolean).forEach(t => pushIt('DuckDuckGo instant answer', dd.AbstractURL || '', t));
+      } catch (e) {}
+    }
+    if (found.length) context += '[Live web search results for: ' + searchQ + ']\n' + found.slice(0, 10).join('\n') + '\n';
+  }
+  return context;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -1993,6 +2403,16 @@ export default {
     const origin = request.headers.get('Origin') || '';
 
     if (request.method === 'OPTIONS') {
+      if (path.startsWith('/api/postiz-proxy/')) {
+        return new Response(null, { status: 204, headers: {
+          'Access-Control-Allow-Origin': (origin && origin.includes('.up.railway.app')) ? origin : 'https://postiz-production-ec050668.up.railway.app',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization,auth,x-copilotkit-runtime-client-gql-version',
+          'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Expose-Headers': 'auth,showorg,logout,activate,reload,onboarding,x-copilotkit-runtime-client-gql-version',
+          'Access-Control-Max-Age': '86400'
+        } });
+      }
       return new Response(null, { status: 204, headers: cors(origin) });
     }
 
@@ -2021,7 +2441,7 @@ export default {
               if (facts.length > 0) aboutMeContext = '\n\nWhat I know about Simon:\n' + facts.slice(0, 10).map(m => `- ${m.fact}`).join('\n');
             }
           }
-          const orchestratorPrompt = `You are Gerald, Simon Johnson's personal AI. Sardonic, precise, direct. British English. Never sycophantic. Never say 'the user' — Simon is right here, speak to him directly. Never fabricate. If you don't know, say so plainly.${aboutMeContext}`;
+          const orchestratorPrompt = `You are Tay, Simon Johnson's personal AI. Sardonic, precise, direct. British English. Never sycophantic. Never say 'the user' — Simon is right here, speak to him directly. Never fabricate. If you don't know, say so plainly.${aboutMeContext}`;
           messages = [{ role: 'system', content: orchestratorPrompt + antiRoleplay }, ...messages];
         } else {
           messages = [...messages];
@@ -2078,6 +2498,23 @@ export default {
         return json(JSON.parse(raw), 200, origin);
       } catch (e) { return json({ error: e.message }, 500, origin); }
     }
+
+    if (path.endsWith('/duplicate') && path.startsWith('/api/threads/') && request.method === 'POST') {
+      try {
+        const srcId = path.replace('/api/threads/', '').replace('/duplicate', '');
+        const raw = await env.PRISM_KV?.get(`thread:${srcId}`).catch(() => null);
+        if (!raw) return json({ success: false, error: 'Thread not found' }, 404, origin);
+        const src = JSON.parse(raw);
+        const newId = 't' + Date.now();
+        const copy = { ...src, id: newId, title: (src.title || 'Conversation') + ' (fork)', created: new Date().toISOString(), updated: new Date().toISOString() };
+        await env.PRISM_KV.put(`thread:${newId}`, JSON.stringify(copy), { expirationTtl: 86400 * 90 });
+        const idx = JSON.parse(await env.PRISM_KV.get('thread-index:simon').catch(() => '[]') || '[]');
+        idx.unshift(newId);
+        await env.PRISM_KV.put('thread-index:simon', JSON.stringify(idx.slice(0, 200)));
+        return json({ success: true, id: newId }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
 
     if (path.startsWith('/api/threads/') && request.method === 'DELETE') {
       try {
@@ -2391,6 +2828,66 @@ export default {
     }
 
     // ── Scholarly / institutional research sources ────────────────────────────
+    if (path === '/api/research/probe' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const targets = {
+          openalex: 'https://api.openalex.org/works?search=ADHD&per-page=2&page=1&select=id,title&mailto=hello@identitypartners.uk',
+          semantic_scholar: 'https://api.semanticscholar.org/graph/v1/paper/search?query=ADHD&limit=2&fields=title,year',
+          pubmed: 'https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=ADHD&format=json&pageSize=2',
+          crossref: 'https://api.crossref.org/works?query=ADHD&rows=2'
+        };
+        const which = Object.keys(targets).filter(t => !body.sources || body.sources.includes(t));
+        const out = [];
+        for (const t of which) {
+          try {
+            const r = await fetch(targets[t], { headers: { 'User-Agent': 'Argentica/1.0 Research', 'Accept': 'application/json' } });
+            const text = await r.text();
+            out.push({ source: t, status: r.status, head: text.slice(0, 120) });
+          } catch (e) { out.push({ source: t, error: String(e).slice(0, 150) }); }
+        }
+        return json({ success: true, probe: out }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    if (path === '/api/research/probe2' && request.method === 'POST') {
+      try {
+        const out = [];
+        // 1. NCBI eutils (official PubMed API) directly from the worker
+        try {
+          const ncbiKey = k(env, ['ncbi_api_key','NCBI_API_KEY']);
+          const r = await fetch('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=ADHD&retmode=json&retmax=3' + (ncbiKey ? '&api_key=' + ncbiKey : ''), { headers: { 'User-Agent': 'Argentica/1.0 Research' } });
+          const t = await r.text();
+          out.push({ via: 'worker-direct', source: 'pubmed-eutils', status: r.status, head: t.slice(0, 150) });
+        } catch (e) { out.push({ via: 'worker-direct', source: 'pubmed-eutils', error: String(e).slice(0, 150) }); }
+        // 2. OpenAlex & EuropePMC fetched THROUGH Browserless (different egress IP)
+        const BLT = k(env, ['railway_browserless_token']) || '';
+        if (BLT) {
+          const fn = `export default async ({ page, context }) => {
+            const got = {};
+            for (const [name, u] of Object.entries(context.urls)) {
+              try { const r = await page.evaluate(async (uu) => { const rr = await fetch(uu, { headers: { 'User-Agent': 'Argentica/1.0 Research' } }); return { s: rr.status, t: (await rr.text()).slice(0, 150) }; }, u); got[name] = r; }
+              catch (e) { got[name] = { err: String(e).slice(0, 120) }; }
+            }
+            return { data: got, type: 'application/json' };
+          }`;
+          try {
+            const br = await fetch((k(env,['browserless_railway_url']) || 'https://browserless-production-e49c65ef.up.railway.app') + '/function?token=' + encodeURIComponent(BLT), {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code: fn, context: { urls: {
+                openalex: 'https://api.openalex.org/works?search=ADHD&per-page=2&page=1&select=id,title&mailto=hello@identitypartners.uk',
+                europepmc: 'https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=ADHD&format=json&pageSize=2'
+              } } })
+            });
+            const d = await br.json();
+            const got = (d.data && d.data) || d;
+            Object.entries(got).forEach(([name, r]) => out.push({ via: 'browserless', source: name, status: r.s, head: (r.t || r.err || '').slice(0, 150) }));
+          } catch (e) { out.push({ via: 'browserless', error: String(e).slice(0, 150) }); }
+        } else out.push({ via: 'browserless', note: 'no token' });
+        return json({ success: true, probe: out }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
     if (path === '/api/research/scholarly' && request.method === 'POST') {
       try {
         const body = await request.json();
@@ -2407,9 +2904,10 @@ export default {
         // ── Semantic Scholar ── 200M+ papers, free, no key needed
         if (sources.includes('semantic_scholar')) {
           const offset = (page - 1) * perPage;
+          const ssKey = k(env, ['semantic_scholar_api_key','SEMANTIC_SCHOLAR_API_KEY']);
           fetches.push(
             fetch(`https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(query)}&limit=${perPage}&offset=${offset}&fields=title,authors,year,abstract,externalIds,openAccessPdf,citationCount,venue,publicationDate`, {
-              headers: { 'User-Agent': 'Argentica/1.0 Research (hello@identitypartners.uk)' },
+              headers: Object.assign({ 'User-Agent': 'Argentica/1.0 Research (hello@identitypartners.uk)' }, ssKey ? { 'x-api-key': ssKey } : {}),
             }).then(r => r.json()).then(ss => {
               const items = (ss.data || []).map(p => ({
                 title: p.title || '',
@@ -2433,9 +2931,10 @@ export default {
         // ── OpenAlex ── 250M+ scholarly works, fully open
         if (sources.includes('openalex')) {
           const oaPage = page;
+          const oaKey = k(env, ['openalex','openalex_api_key','OPENALEX_API_KEY']);
           fetches.push(
-            fetch(`https://api.openalex.org/works?search=${encodeURIComponent(query)}&per-page=${perPage}&page=${oaPage}&select=id,title,authorships,publication_year,abstract_inverted_index,primary_location,open_access,cited_by_count,doi,type,publication_date&mailto=${email}`, {
-              headers: { 'User-Agent': 'Argentica/1.0 Research' },
+            fetch(`https://api.openalex.org/works?search=${encodeURIComponent(query)}&per-page=${perPage}&page=${oaPage}&select=id,title,authorships,publication_year,abstract_inverted_index,primary_location,open_access,cited_by_count,doi,type,publication_date&mailto=${email}` + (oaKey ? `&api_key=${oaKey}` : ''), {
+              headers: Object.assign({ 'User-Agent': 'Argentica/1.0 Research' }, oaKey ? { 'Authorization': 'Bearer ' + oaKey } : {}),
             }).then(r => r.json()).then(oa => {
               const items = (oa.results || []).map(w => {
                 // Reconstruct abstract from inverted index
@@ -2472,15 +2971,17 @@ export default {
         // ── PubMed / NCBI ── biomedical literature
         if (sources.includes('pubmed')) {
           const retstart = (page - 1) * perPage;
+          const ncbiKey = k(env, ['ncbi_api_key','NCBI_API_KEY']);
+          const keyQ = ncbiKey ? '&api_key=' + ncbiKey : '';
           fetches.push(
             // Step 1: search for IDs
-            fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=${perPage}&retstart=${retstart}&retmode=json&tool=Argentica&email=${email}`)
+            fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=${perPage}&retstart=${retstart}&retmode=json&tool=Argentica&email=${email}${keyQ}`)
               .then(r => r.json())
               .then(async esearch => {
                 const ids = (esearch.esearchresult && esearch.esearchresult.idlist) || [];
                 if (ids.length === 0) return { source: 'pubmed', items: [], total: 0 };
                 // Step 2: fetch summaries
-                const summary = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(',')}&retmode=json&tool=Argentica&email=${email}`)
+                const summary = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(',')}&retmode=json&tool=Argentica&email=${email}${keyQ}`)
                   .then(r => r.json()).catch(() => ({}));
                 const uids = (summary.result && summary.result.uids) || ids;
                 const items = uids.map(uid => {
@@ -3291,7 +3792,7 @@ export default {
 
 
     // ── Zoho Calendar events ──────────────────────────────────────────────────
-        if (path === '/api/calendar/events' && request.method === 'GET') {
+        if (path === '/api/zoho/events-alt' && request.method === 'GET') {
       try {
         const raw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
         if (!raw) return json({status:'not_connected', today:[], week:[], next_week:[]}, 200, origin);
@@ -3360,7 +3861,7 @@ export default {
     }
 
 
-    if (path === '/api/calendar/events' && request.method === 'GET') {
+    if (path === '/api/zoho/events-alt2' && request.method === 'GET') {
       try {
         const tokenRaw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
         if (!tokenRaw) return json({status:'not_connected', today:[], week:[], next_week:[]}, 200, origin);
@@ -3586,7 +4087,7 @@ export default {
     }
 
     // ── Zoho: get events from ALL calendars ───────────────────────────────────
-    if (path === '/api/calendar/events' && request.method === 'GET') {
+    if (path === '/api/zoho/events' && request.method === 'GET') {
       try {
         const raw = env.PRISM_KV ? await env.PRISM_KV.get('zoho:calendar:token') : null;
         if (!raw) return json({today:[],week:[],next_week:[],status:'not_connected'}, 200, origin);
@@ -3667,6 +4168,9 @@ export default {
         const tenantId = env.msgraph_tenant || env.MSGRAPH_TENANT || '';
         const clientId = env.msgraph_client || env.MSGRAPH_CLIENT || '';
         const clientSecret = env.msgraph_secret || env.MSGRAPH_SECRET || '';
+        // Client-credentials flow cannot use /me — it needs the target user's UPN/email.
+        const driveUser = k(env, ['msgraph_user_email','msgraph_user','onedrive_email','MSGRAPH_USER_EMAIL','MSGRAPH_USER']) || '';
+        if (!driveUser) return json({error:'OneDrive user email not configured. Add msgraph_user_email=your Microsoft account email as a secret.'}, 400, origin);
 
         // Get access token
         const tokenResp = await fetch(
@@ -3686,14 +4190,16 @@ export default {
         const accessToken = tokenData.access_token;
         if (!accessToken) return json({error: 'Could not get MSGraph token: '+JSON.stringify(tokenData).substring(0,100)}, 500, origin);
 
-        // Upload file to OneDrive
-        const fileContent = typeof content === 'string' ? new TextEncoder().encode(content) : content;
+        // Upload file to OneDrive — application permissions require /users/{email}/drive
+        const fileBytes = body.encoding === 'base64' || body.base64
+          ? Uint8Array.from(atob(content), c => c.charCodeAt(0))
+          : (typeof content === 'string' ? new TextEncoder().encode(content) : content);
         const uploadResp = await fetch(
-          `https://graph.microsoft.com/v1.0/me/drive/root:/${folder}/${encodeURIComponent(fileName)}:/content`,
+          `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(driveUser)}/drive/root:/${folder}/${encodeURIComponent(fileName)}:/content`,
           {
             method: 'PUT',
-            headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': 'text/plain'},
-            body: fileContent
+            headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': body.mimeType || 'application/octet-stream'},
+            body: fileBytes
           }
         );
         const uploadData = await uploadResp.json();
@@ -3701,7 +4207,7 @@ export default {
 
         // Create sharing link
         const shareResp = await fetch(
-          `https://graph.microsoft.com/v1.0/me/drive/items/${uploadData.id}/createLink`,
+          `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(driveUser)}/drive/items/${uploadData.id}/createLink`,
           {
             method: 'POST',
             headers: {'Authorization': 'Bearer '+accessToken, 'Content-Type': 'application/json'},
@@ -3768,6 +4274,16 @@ export default {
       try {
         const body = await request.json();
         const messages = (body.messages || []).filter(m => m?.role && m?.content);
+        // Senses: vision descriptions + live page visits + auto/forced web search.
+        // buildSensorContext internally decides (images, URLs, time-sensitive intent, explicit toggle)
+        {
+          const sensorCtx = await buildSensorContext(body, env);
+          if (sensorCtx && messages.length) {
+            const last = messages[messages.length - 1];
+            if (last.role === 'user') last.content = String(last.content) + '\n\n[Context]\n' + sensorCtx;
+            else messages.push({ role: 'user', content: '[Context]\n' + sensorCtx });
+          }
+        }
         const profile = body.profile || 'balanced';
         const threadId = body.threadId || ('t' + Date.now());
         const providerOverride = body.providerOverride;
@@ -3790,7 +4306,7 @@ data: ${JSON.stringify(data)}
           try {
             await send('status', { status: 'connecting', message: 'Connecting to AI...' });
 
-            const result = await orchestrate(messages, env, { profile, providerOverride, modelOverride, threadId });
+            const result = await orchestrate(messages, env, { profile, providerOverride, modelOverride, threadId, multiModel: !!body.multiModel });
 
             if (result.error) {
               await send('error', { error: result.error, log: result.log });
@@ -3825,6 +4341,13 @@ data: ${JSON.stringify(data)}
                 thread.messageCount = thread.messages.filter(m => m.role !== 'system').length;
                 if (!thread.title) thread.title = messages.find(m => m.role === 'user')?.content?.substring(0, 60) || 'Conversation';
                 await env.PRISM_KV.put(threadKey, JSON.stringify(thread), { expirationTtl: 86400 * 90 });
+                try {
+                  const idx = JSON.parse(await env.PRISM_KV.get('thread-index:simon').catch(() => '[]') || '[]');
+                  if (!idx.includes(threadId)) {
+                    idx.unshift(threadId);
+                    await env.PRISM_KV.put('thread-index:simon', JSON.stringify(idx.slice(0, 200)));
+                  }
+                } catch (ie) {}
               }
             }
           } catch(e) {
@@ -4384,38 +4907,309 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+    // ── Openverse copyright-free audio search (for carousel/podcast beds) ────────────────────────────────────────
+    if (path === '/api/music/openverse' && request.method === 'GET') {
+      try {
+        const q = url.searchParams.get('q') || 'calm instrumental';
+        const page = parseInt(url.searchParams.get('page') || '1');
+        const resp = await fetch('https://api.openverse.org/v1/audio/?q=' + encodeURIComponent(q) + '&page_size=12&page=' + page + '&license_type=commercial,modification', {
+          headers: {'User-Agent': 'Argentica/1.0 (https://identitypartners.uk)'}
+        });
+        if (!resp.ok) return json({error: 'Openverse error: ' + resp.status, tracks: []}, 200, origin);
+        const d = await resp.json();
+        const tracks = (d.results || []).map(function(t) {
+          return {
+            id: t.id, title: t.title || 'Untitled', creator: t.creator || 'Unknown',
+            license: t.license || '', licenseUrl: t.license_url || '',
+            url: t.url || '', duration: t.duration || 0, source: t.source || 'openverse',
+            foreign: t.foreign_landing_url || ''
+          };
+        }).filter(function(t) { return t.url; });
+        return json({tracks, total: d.result_count || tracks.length}, 200, origin);
+      } catch(e) { return json({error: e.message, tracks: []}, 200, origin); }
+    }
+
+
     // ── Music generation via Lyria ────────────────────────────────────────────
     if (path === '/api/music/generate' && request.method === 'POST') {
       try {
         const body = await request.json();
         const prompt = body.prompt || 'Uplifting piano, warm, professional';
-        const requestedModel = body.model || 'lyria-3.5';
+        const requestedModel = body.model || '';
         const GKEY = k(env, ['gemini_api_key','GEMINI_API_KEY']) || '';
         if (!GKEY) return json({error:'Gemini API key required. Music generation (Lyria) is a PAID Gemini feature.'}, 400, origin);
-        const modelsToTry = [requestedModel, 'lyria-3.5', 'lyria-3-pro-preview', 'lyria-3-clip-preview', 'lyria-2'].filter((v,i,a)=>a.indexOf(v)===i);
+        const attempts = [];
+        const lyriaModels = [requestedModel, 'lyria-002', 'lyria-3.5', 'lyria-3-pro-preview'].filter((v,i,a)=>v&&a.indexOf(v)===i);
+        for (const model of lyriaModels) attempts.push({model, endpoint:'predict'});
+        attempts.push({model:'gemini-2.5-flash-preview-tts', endpoint:'generateContent'});
         let lastError = '';
-        for (const model of modelsToTry) {
+        for (const att of attempts) {
           try {
-            const resp = await fetch(
-              'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent',
-              {method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':GKEY},
-               body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Aoede'}}}}})}
-            );
-            if (!resp.ok) { const err = await resp.text(); lastError = model+': '+resp.status+' '+err.substring(0,100); continue; }
-            const d = await resp.json();
-            const audioPart = d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts.find(function(p){return p.inlineData;});
-            if (audioPart) {
-              const buf = Uint8Array.from(atob(audioPart.inlineData.data), function(c){return c.charCodeAt(0);});
-              return new Response(buf.buffer, {headers:{'Content-Type':audioPart.inlineData.mimeType||'audio/mpeg','Access-Control-Allow-Origin':origin,'X-Model-Used':model}});
+            let resp;
+            if (att.endpoint === 'predict') {
+              resp = await fetch(
+                'https://generativelanguage.googleapis.com/v1beta/models/' + att.model + ':predict',
+                {method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':GKEY},
+                 body:JSON.stringify({inputs:{prompt}})}
+              );
+            } else {
+              resp = await fetch(
+                'https://generativelanguage.googleapis.com/v1beta/models/' + att.model + ':generateContent',
+                {method:'POST', headers:{'Content-Type':'application/json','x-goog-api-key':GKEY},
+                 body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Aoede'}}}}})}
+              );
             }
-            lastError = model+': no audio — '+JSON.stringify(d).substring(0,100);
-          } catch(me) { lastError = model+': '+me.message; }
+            if (!resp.ok) { const err = await resp.text(); lastError = att.model+':'+att.endpoint+' '+resp.status+' '+err.substring(0,150); continue; }
+            const d = await resp.json();
+            const audioPart = (d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts.find(function(p){return p.inlineData;})) ||
+                             (d.outputs && d.outputs[0] && d.outputs[0].audio);
+            if (audioPart) {
+              const b64 = audioPart.inlineData ? audioPart.inlineData.data : audioPart.data;
+              const mime = audioPart.inlineData ? audioPart.inlineData.mimeType : (audioPart.mimeType || 'audio/wav');
+              const buf = Uint8Array.from(atob(b64), function(c){return c.charCodeAt(0);});
+              return new Response(buf.buffer, {headers:{'Content-Type':mime,'Access-Control-Allow-Origin':origin,'X-Model-Used':att.model,'X-Endpoint':att.endpoint}});
+            }
+            lastError = att.model+': no audio — '+JSON.stringify(d).substring(0,150);
+          } catch(me) { lastError = att.model+': '+me.message; }
         }
-        return json({error:'Music generation failed. All Lyria models returned no audio. Last error: ' + lastError}, 500, origin);
+        return json({error:'Music generation failed. Tried Lyria predict + TTS fallback. Last error: ' + lastError, hint:'Lyria requires a paid Gemini tier (AI Studio key will 403). Try the free ElevenLabs/Suno routes in System > Agents if configured.'}, 502, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
     // ── Study Hub: auto-index uploaded document ───────────────────────────────
+    // ── Notes (WriteHandy cloud sync) ────────────────────────────────────────────────────
+    // ── Personas ───────────────────────────────────────────────────────────────────
+    // ── Knowledge base (wiki) ──────────────────────────────────────────────────────────────
+    if (path === '/api/kb/backup' && request.method === 'GET') {
+      try {
+        const last = await env.PRISM_KV.get('kb:backup:last', 'json') || null;
+        const cfg = await env.PRISM_KV.get('kb:backup:config', 'json') || { enabled: true };
+        return json({ last, config: cfg }, 200, origin);
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
+    if (path === '/api/kb/backup' && request.method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        if (typeof body.enabled === 'boolean') {
+          await env.PRISM_KV.put('kb:backup:config', JSON.stringify({ enabled: body.enabled }));
+          return json({ success: true, config: { enabled: body.enabled } }, 200, origin);
+        }
+        const rec = await backupStoresToDrive(env);
+        return json(rec, rec.success ? 200 : 500, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path === '/api/kb' && request.method === 'GET') {
+      try {
+        const list = await env.PRISM_KV.list({ prefix: 'kb:' });
+        const pages = [];
+        for (const k of (list.keys || []).slice(0, 200)) {
+          if (k.name.indexOf('backup') >= 0) continue; // kb:backup:* are bookkeeping, not pages
+          let v = null;
+          try { v = await env.PRISM_KV.get(k.name, 'json'); } catch (ke) { v = null; }
+          if (v) pages.push(v);
+        }
+        pages.sort(function(a,b){ return (a.title||'').localeCompare(b.title||''); });
+        return json({ pages }, 200, origin);
+      } catch(e) { return json({ pages: [], error: e.message }, 200, origin); }
+    }
+    if (path === '/api/kb' && request.method === 'POST') {
+      try {
+        const body = await request.json().catch(() => null);
+        if (!body || !body.id || !body.title) return json({ success: false, error: 'invalid page (id and title required)' }, 400, origin);
+        const id = body.id;
+        const rec = { id, title: body.title, section: body.section || '', idx: body.idx || 0,
+                      source: body.source || '', format: body.format || 'html',
+                      content: body.content || '',
+                      created: body.created || new Date().toISOString(), updated: new Date().toISOString() };
+        await env.PRISM_KV.put('kb:' + id, JSON.stringify(rec));
+        return json({ success: true, page: rec }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/kb/') && request.method === 'DELETE') {
+      try {
+        await env.PRISM_KV.delete('kb:' + path.replace('/api/kb/', ''));
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+
+    if (path === '/api/personas' && request.method === 'GET') {
+      try {
+        const list = await env.PRISM_KV.list({ prefix: 'persona:' });
+        const personas = [];
+        for (const k of (list.keys || [])) {
+          let v = null;
+          try { v = await env.PRISM_KV.get(k.name, 'json'); } catch (ke) { v = null; }
+          if (v) personas.push(v);
+        }
+        return json({ personas }, 200, origin);
+      } catch(e) { return json({ personas: [], error: e.message }, 200, origin); }
+    }
+    if (path === '/api/personas' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('persona-' + Date.now());
+        const rec = { id, name: body.name || 'Unnamed', avatar: body.avatar || '\ud83e\udd16', role: body.role || '',
+                      systemPrompt: body.systemPrompt || '', temperature: body.temperature || 0.7,
+                      updated: new Date().toISOString() };
+        await env.PRISM_KV.put('persona:' + id, JSON.stringify(rec));
+        return json({ success: true, persona: rec }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/personas/') && request.method === 'DELETE') {
+      try {
+        const id = path.replace('/api/personas/', '');
+        await env.PRISM_KV.delete('persona:' + id);
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    // ── Debates ────────────────────────────────────────────────────────────────────
+    if (path === '/api/debate/save' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('debate-' + Date.now());
+        const rec = { id, topic: body.topic || 'Untitled debate', transcript: body.transcript || [],
+                      personas: body.personas || [], created: new Date().toISOString() };
+        await env.PRISM_KV.put('debate:' + id, JSON.stringify(rec));
+        return json({ success: true, id }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path === '/api/debate/list' && request.method === 'GET') {
+      try {
+        const list = await env.PRISM_KV.list({ prefix: 'debate:' });
+        const debates = [];
+        for (const k of (list.keys || [])) {
+          let v = null;
+          try { v = await env.PRISM_KV.get(k.name, 'json'); } catch (ke) { v = null; }
+          if (v) debates.push({ id: v.id, topic: v.topic, created: v.created, turns: (v.transcript || []).length });
+        }
+        debates.sort(function(a,b){ return (b.created||'').localeCompare(a.created||''); });
+        return json({ debates }, 200, origin);
+      } catch(e) { return json({ debates: [], error: e.message }, 200, origin); }
+    }
+
+    // ── Memory ──────────────────────────────────────────────────────────────────────
+    if (path === '/api/memory' && request.method === 'GET') {
+      try {
+        const list = await env.PRISM_KV.list({ prefix: 'memory:' });
+        const memories = [];
+        for (const k of (list.keys || []).slice(0, 200)) {
+          let v = null;
+          try { v = await env.PRISM_KV.get(k.name, 'json'); } catch (ke) { v = null; }
+          if (v) memories.push(v);
+        }
+        memories.sort(function(a,b){ return (b.created||'').localeCompare(a.created||''); });
+        return json({ memories }, 200, origin);
+      } catch(e) { return json({ memories: [], error: e.message }, 200, origin); }
+    }
+    if (path === '/api/memory' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('mem-' + Date.now());
+        const rec = { id, content: body.content || '', category: body.category || 'general',
+                      source: body.source || 'manual', created: body.created || new Date().toISOString() };
+        await env.PRISM_KV.put('memory:' + id, JSON.stringify(rec));
+        return json({ success: true, memory: rec }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/memory/') && request.method === 'DELETE') {
+      try {
+        const id = path.replace('/api/memory/', '');
+        await env.PRISM_KV.delete('memory:' + id);
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    // ── Research: saved queries (planned runs) ───────────────────────────────────────────────
+    if (path === '/api/research/keywords' && request.method === 'GET') {
+      try {
+        const list = await env.PRISM_KV.list({ prefix: 'research:query:' });
+        const queries = [];
+        for (const k of (list.keys || [])) {
+          let v = null;
+          try { v = await env.PRISM_KV.get(k.name, 'json'); } catch (ke) { v = null; }
+          if (v) queries.push(v);
+        }
+        queries.sort(function(a,b){ return (b.created||'').localeCompare(a.created||''); });
+        return json({ queries }, 200, origin);
+      } catch(e) { return json({ queries: [], error: e.message }, 200, origin); }
+    }
+    if (path === '/api/research/keywords' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('q-' + Date.now());
+        const rec = { id, name: body.name || body.keywords || 'Query', keywords: body.keywords || '',
+                      cadence: body.cadence || 'manual', created: new Date().toISOString(),
+                      lastRun: null, lastResults: 0 };
+        await env.PRISM_KV.put('research:query:' + id, JSON.stringify(rec));
+        return json({ success: true, query: rec }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path.startsWith('/api/research/keywords/') && request.method === 'DELETE') {
+      try {
+        const id = path.replace('/api/research/keywords/', '');
+        await env.PRISM_KV.delete('research:query:' + id);
+        return json({ success: true }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path === '/api/research/runs' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.queryId || ('run-' + Date.now());
+        const run = { id, queryId: body.queryId || '', keywords: body.keywords || '',
+                      results: (body.results || []).slice(0, 50), count: (body.results || []).length,
+                      ranAt: new Date().toISOString() };
+        const runs = await env.PRISM_KV.get('research:runs', 'json') || [];
+        runs.unshift(run);
+        await env.PRISM_KV.put('research:runs', JSON.stringify(runs.slice(0, 50)));
+        if (body.queryId) {
+          const q = await env.PRISM_KV.get('research:query:' + body.queryId, 'json');
+          if (q) { q.lastRun = run.ranAt; q.lastResults = run.count; await env.PRISM_KV.put('research:query:' + body.queryId, JSON.stringify(q)); }
+        }
+        return json({ success: true, run }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path === '/api/research/runs' && request.method === 'GET') {
+      try {
+        const runs = await env.PRISM_KV.get('research:runs', 'json') || [];
+        return json({ runs }, 200, origin);
+      } catch(e) { return json({ runs: [], error: e.message }, 200, origin); }
+    }
+
+
+    if (path === '/api/notes/save' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const id = body.id || ('note-' + Date.now());
+        const rec = {
+          id, title: body.title || 'Untitled', content: body.content || '',
+          module: body.module || '', week: body.week || '', tags: body.tags || [],
+          inkData: body.inkData || null, updated: body.updated || new Date().toISOString()
+        };
+        if (env.PRISM_KV) await env.PRISM_KV.put('note:' + id, JSON.stringify(rec));
+        return json({success: true, id}, 200, origin);
+      } catch(e) { return json({error: e.message}, 500, origin); }
+    }
+    if (path === '/api/notes/list' && request.method === 'GET') {
+      try {
+        const module = url.searchParams.get('module') || '';
+        const week = url.searchParams.get('week') || '';
+        const list = await env.PRISM_KV.list({ prefix: 'note:' });
+        const notes = [];
+        for (const k of (list.keys || []).slice(0, 100)) {
+          const v = await env.PRISM_KV.get(k.name, 'json');
+          if (!v) continue;
+          if (module && v.module !== module) continue;
+          if (week && v.week !== week) continue;
+          notes.push({ id: v.id, title: v.title, module: v.module, week: v.week, updated: v.updated });
+        }
+        notes.sort(function(a, b) { return (b.updated || '').localeCompare(a.updated || ''); });
+        return json({notes}, 200, origin);
+      } catch(e) { return json({notes: [], error: e.message}, 200, origin); }
+    }
+
+
     if (path === '/api/study/index-document' && request.method === 'POST') {
       try {
         const body = await request.json();
@@ -4740,7 +5534,7 @@ data: ${JSON.stringify(data)}
           setup: {
             model: `models/${model}`,
             generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: body.voice || 'Puck' } } } },
-            systemInstruction: { parts: [{ text: body.systemPrompt || "You are Gerald, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English." }] }
+            systemInstruction: { parts: [{ text: body.systemPrompt || "You are Tay, the Orchestrator for Argentica. You address Simon as 'sir'. Sardonic, precise, devastatingly competent. British English." }] }
           }
         }, 200, origin);
       } catch(e) { return json({ error: e.message }, 500, origin); }
@@ -5195,37 +5989,6 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({error: e.message}, 500, origin); }
     }
 
-    // ── Music generation (Lyria via Gemini) ───────────────────────────────────
-    if (path === '/api/music/generate' && request.method === 'POST') {
-      try {
-        const body = await request.json();
-        const prompt = body.prompt || 'Uplifting piano music';
-        const model = body.model || 'lyria-3.5';
-        const GKEY = k(env, ['gemini_api_key', 'GEMINI_API_KEY']) || '';
-        if (!GKEY) return json({error: 'Gemini key not configured'}, 400, origin);
-        const resp = await fetch(
-          'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent',
-          {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json', 'x-goog-api-key': GKEY},
-            body: JSON.stringify({
-              contents: [{parts: [{text: prompt}]}],
-              generationConfig: {responseModalities: ['AUDIO']}
-            })
-          }
-        );
-        if (!resp.ok) {
-          const errText = await resp.text();
-          return json({error: 'Lyria error: ' + resp.status + ' ' + errText.substring(0, 200)}, 500, origin);
-        }
-        const data = await resp.json();
-        const audioData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-        if (!audioData) return json({error: 'No audio in response', raw: JSON.stringify(data).substring(0, 200)}, 500, origin);
-        const buf = Uint8Array.from(atob(audioData), c => c.charCodeAt(0));
-        return new Response(buf, {headers: {'Content-Type': 'audio/mpeg', 'Access-Control-Allow-Origin': origin}});
-      } catch(e) { return json({error: e.message}, 500, origin); }
-    }
-
     // ── PDF to Markdown (Gemini Vision) ───────────────────────────────────────
     if (path === '/api/pdf/to-markdown' && request.method === 'POST') {
       try {
@@ -5598,7 +6361,7 @@ data: ${JSON.stringify(data)}
         const assignment = env.PRISM_KV ? await env.PRISM_KV.get('agent-assignment:' + agentId, 'json').catch(() => null) : null;
         const histKey = 'agent-chat:' + agentId + ':history';
         const hist = env.PRISM_KV ? (await env.PRISM_KV.get(histKey, 'json') || []) : [];
-        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact`;
+        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({\"text\": \"the post copy with tags and footer\", \"platforms\": [\"bluesky\",\"linkedin\",\"telegram\",\"instagram\",\"facebook\",\"x\"]}) — queues a post for Simon's approval. Always include the tags and footer in the text.\nTOOL: post_now({\"text\": \"the post copy with tags and footer\", \"platforms\": [...]}) — posts immediately and autonomously, within the daily cap and blocked-word rules Simon has set. Use it when the task says to publish; use queue_post when the task says to prepare or draft. Never post client-identifiable content, clinical claims, outcome testimonials, or responses to people in crisis.\nTOOL: create_canvas({\"topic\": \"a line or topic\", \"template\": \"block-teal\"}) — generates a branded canvas and queues it for approval. Valid templates: block-teal, block-rose, block-ivory, stat (statistics with source), news-reaction (news articles), research (new research/studies), testimonial-teal/rose/ivory (client/practitioner quotes), myth-vs-fact-teal, myth-vs-fact-ivory, data-infographic, awareness-day, awareness-day-rose, service-explainer, semantic-teal/rose/dark (image + text), dual-partnership (two-panel, partnership imagery), dual-children (symbiotic/partnership photos), img-landscape, img-sunrise, img-sunset, img-seascape, img-cityscape, img-aurora, img-space, img-stars (vista backgrounds: constellations, night sky, scapes). Choose the template that MATCHES THE CONTENT TYPE: news goes to news-reaction, new research to research, a striking statistic to stat, quotation/testimonial to testimonial, reflective or thematic prose to semantic on a vista background, partnership themes to dual-partnership. Carousels: use type=carousel with slides. Brand backgrounds prefer seascapes, beachscapes, cityscapes, constellations, night skies, and symbiotic imagery (hands, children together, interlocking forms) — all sourced fresh from Unsplash/Pexels/Pixabay/Openverse/Wikimedia each time, never a small fixed pool.\nTOOL: search_news({\"query\": \"keywords\"}) — scans today's approved outlets (Guardian society, BBC health) and returns matching headlines.\nTOOL: save_note({\"title\": \"...\", \"content\": \"...\"}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
         const messages = [{ role: 'system', content: systemPrompt }];
         hist.filter(m => m.role !== 'system').slice(-20).forEach(m => messages.push({ role: m.role, content: m.content }));
         messages.push({ role: 'user', content: userMessage });
@@ -5609,7 +6372,120 @@ data: ${JSON.stringify(data)}
         };
         const modelOpts = modelMap[agent.model] || { profile: 'balanced' };
         const result = await orchestrate(messages, env, modelOpts);
-        const reply = result.content || 'No response.';
+        let reply = result.content || 'No response.';
+
+        // ── Tool execution: agents act, Simon approves ──────────────
+        const toolCalls = [];
+        const toolRe = /^TOOL:\s*([a-z_]+)\s*\(([\s\S]*?\})?\)?\s*$/gm;
+        let tm;
+        while ((tm = toolRe.exec(reply)) !== null) {
+          const toolName = tm[1];
+          let args = {};
+          try { args = JSON.parse((tm[2] || '{}').replace(/\)\s*$/, '')); } catch (e) { toolCalls.push({ tool: toolName, error: 'bad arguments' }); continue; }
+          try {
+            if (toolName === 'post_now') {
+              // Autonomous posting — governed by the agreed constraints in socialising:autonomy
+              const cfg = env.PRISM_KV ? await env.PRISM_KV.get('socialising:autonomy', 'json') : null;
+              if (!cfg || !cfg.enabled) { toolCalls.push({ tool: toolName, error: 'autonomy is switched off' }); }
+              else {
+                const today = new Date().toISOString().slice(0, 10);
+                const countKey = 'socialising:count:' + today;
+                const count = parseInt((env.PRISM_KV && await env.PRISM_KV.get(countKey)) || '0');
+                if (count >= (cfg.maxPerDay || 3)) { toolCalls.push({ tool: toolName, error: 'daily cap of ' + cfg.maxPerDay + ' reached' }); }
+                else {
+                  let text = String(args.text || '');
+                  const blocked = (cfg.blockWords || []).some(w => w && text.toLowerCase().includes(String(w).toLowerCase()));
+                  if (blocked) { toolCalls.push({ tool: toolName, error: 'content contains a blocked word' }); }
+                  else {
+                    const platforms = (Array.isArray(args.platforms) ? args.platforms : cfg.platforms).filter(p => cfg.platforms.includes(p));
+                    const item = {
+                      id: 'mm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+                      text, platforms,
+                      imageUrl: args.imageUrl || null,
+                      source: 'autonomous:' + agentId,
+                      status: 'pending',
+                      createdAt: new Date().toISOString(),
+                      scheduledFor: null
+                    };
+                    if (env.PRISM_KV) {
+                      const q = await env.PRISM_KV.get('mm:queue', 'json') || [];
+                      q.push(item);
+                      await env.PRISM_KV.put('mm:queue', JSON.stringify(q));
+                    }
+                    const appr = await fetch('https://prism-api.identitypartners.workers.dev/api/mm/approve', {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ itemId: item.id })
+                    }).then(r => r.json()).catch(() => ({}));
+                    if (env.PRISM_KV) {
+                      await env.PRISM_KV.put(countKey, String(count + 1));
+                      const log = await env.PRISM_KV.get('socialising:log', 'json') || [];
+                      log.unshift({ ts: new Date().toISOString(), text: text.slice(0, 120), platforms, results: appr.results || {}, errors: appr.errors || {}, source: 'agent:' + agentId });
+                      await env.PRISM_KV.put('socialising:log', JSON.stringify(log.slice(0, 100)));
+                    }
+                    toolCalls.push({ tool: toolName, result: 'posted', platforms, detail: appr });
+                  }
+                }
+              }
+            } else if (toolName === 'queue_post') {
+              const item = {
+                id: 'mm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+                text: args.text || '',
+                platforms: Array.isArray(args.platforms) ? args.platforms : ['bluesky'],
+                imageUrl: args.imageUrl || null,
+                source: 'agent:' + agentId,
+                status: 'pending',
+                createdAt: new Date().toISOString(),
+                scheduledFor: args.scheduledFor || null
+              };
+              if (env.PRISM_KV) {
+                const q = await env.PRISM_KV.get('mm:queue', 'json') || [];
+                q.push(item);
+                await env.PRISM_KV.put('mm:queue', JSON.stringify(q));
+              }
+              toolCalls.push({ tool: toolName, result: 'queued for approval', itemId: item.id });
+            } else if (toolName === 'create_canvas') {
+              const self = 'https://prism-api.identitypartners.workers.dev/api/canvas/generate';
+              const r = await fetch(self, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ topic: args.topic || '', text: args.topic || '', template: args.template || 'block-teal', platform: 'instagram', skipQA: true })
+              }).then(x => x.json());
+              toolCalls.push({ tool: toolName, result: r.url || r.error || 'generated', url: r.url });
+            } else if (toolName === 'search_news') {
+              const feeds = ['https://www.theguardian.com/society/rss', 'https://feeds.bbci.co.uk/news/health/rss.xml'];
+              const q = String(args.query || '').toLowerCase().split(/\s+/).filter(w => w.length > 2);
+              const hits = [];
+              for (const f of feeds) {
+                try {
+                  const text = await fetch(f, { headers: { 'User-Agent': 'Argentica/1.0' } }).then(x => x.text());
+                  const items = text.match(/<item>[\s\S]*?<\/item>/g) || [];
+                  for (const it of items.slice(0, 25)) {
+                    const title = ((it.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/) || [])[1] || '').trim();
+                    if (q.some(kw => title.toLowerCase().includes(kw))) hits.push(title);
+                  }
+                } catch (e) {}
+              }
+              toolCalls.push({ tool: toolName, result: hits.length ? hits.slice(0, 8) : 'no matches today' });
+            } else if (toolName === 'save_note') {
+              const id = 'doc-' + Date.now();
+              const doc = { id, title: args.title || 'Agent note', type: 'note', content: args.content || '', tags: ['agent'], moduleSource: 'phd', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+              if (env.PRISM_KV) {
+                const list = await env.PRISM_KV.get('docs:list', 'json') || [];
+                list.push({ id, title: doc.title, type: 'note', tags: doc.tags, moduleSource: 'phd', updatedAt: doc.updatedAt });
+                await env.PRISM_KV.put('docs:list', JSON.stringify(list));
+                await env.PRISM_KV.put('doc:' + id, JSON.stringify(doc));
+              }
+              toolCalls.push({ tool: toolName, result: 'saved to library' });
+            } else {
+              toolCalls.push({ tool: toolName, error: 'unknown tool' });
+            }
+          } catch (e) { toolCalls.push({ tool: toolName, error: e.message }); }
+        }
+        if (toolCalls.length) {
+          reply = reply.replace(toolRe, '').trim();
+          const toolSummary = '\n\n[Tools executed: ' + toolCalls.map(t => t.tool + (t.error ? ' — ' + t.error : ' — ' + (typeof t.result === 'string' ? t.result : 'done'))).join('; ') + ']';
+          reply += toolSummary;
+        }
+
         hist.push({ role: 'user', content: userMessage, ts: new Date().toISOString() });
         hist.push({ role: 'assistant', content: reply, ts: new Date().toISOString() });
         if (env.PRISM_KV) await env.PRISM_KV.put(histKey, JSON.stringify(hist.slice(-200)));
@@ -5618,7 +6494,7 @@ data: ${JSON.stringify(data)}
           assignment.updatedAt = new Date().toISOString();
           if (env.PRISM_KV) await env.PRISM_KV.put('agent-assignment:' + agentId, JSON.stringify(assignment));
         }
-        return json({ success: true, reply, model: result.model || agent.model, provider: result.provider }, 200, origin);
+        return json({ success: true, reply, model: result.model || agent.model, provider: result.provider, toolCalls }, 200, origin);
       } catch(e) { return json({ success: false, reply: 'Error: ' + e.message }, 500, origin); }
     }
 
@@ -6144,7 +7020,7 @@ data: ${JSON.stringify(data)}
         const userMsg = body.message || body.content || '';
         const history = body.history || [];
         const msgs = [
-          {role:'system', content:'You are the Argentica Dev Team agent. Senior full-stack developer and system architect for Simon Johnson (Identity Partners). You have access to the Cloudflare Worker (prism-api.identitypartners.workers.dev), GitHub repo (IdentityPartners/prism), KV storage, D1 database, and all API integrations. You diagnose issues, implement fixes, build features, and maintain the system autonomously. You never ask Simon to do anything technical. British English throughout. No sycophancy. No AI tropes. Be direct and precise. Implement fixes, do not just describe them. Routing chain: DeepSeek -> Kimi -> Mistral -> GLM -> Cohere -> Cerebras -> Groq -> Gemini -> Pollinations.'},
+          {role:'system', content:'You are the Argentica Dev Team agent. Senior full-stack developer and system architect for Simon Johnson (Identity Partners). You have access to the Cloudflare Worker (prism-api.identitypartners.workers.dev), GitHub repo (IdentityPartners/prism), KV storage, D1 database, and all API integrations. You diagnose issues, implement fixes, build features, and maintain the system autonomously. You never ask Simon to do anything technical. British English throughout. No sycophancy. No AI tropes. Be direct and precise. Implement fixes, do not just describe them. Routing chain: DeepSeek -> Kimi -> Mistral -> GLM -> Cohere -> Cerebras -> Groq -> Gemini -> Pollinations.\n\nYou have REAL tools, executed automatically when you write them on their own line in this exact format:\nTOOL: health({}) — full system health check\nTOOL: kv-list({"prefix": ""}) — list KV keys\nTOOL: get_kv({"key": "..."}) — read a KV value\nTOOL: set_kv({"key": "...", "value": "..."}) — write a KV value\nTOOL: update_kv_bulk({"entries": [{"key": "...", "value": "..."}]}) — write many KV values\nTOOL: push_to_github({"path": "file/path.js", "content": "full file content", "message": "commit message", "branch": "main"}) — push a file to the repo; a push to main auto-deploys Pages and the worker\nTOOL: deploy_worker({}) — redeploy the current worker script with all bindings intact\nTOOL: test-provider({"provider": "mistral"}) — test any LLM provider\nWhen a fix requires a code change, use push_to_github with the COMPLETE new file content, never a diff. Then use deploy_worker if the change was to worker/index.js and time matters.'},
           ...history.slice(-10),
           {role:'user', content:userMsg}
         ];
@@ -6152,7 +7028,29 @@ data: ${JSON.stringify(data)}
         const _dtmc = await buildMemoryContext(env, _dtq ? _dtq.content : '');
         if (_dtmc) { const _dtsi = msgs.findIndex(function(m){return m.role==='system';}); if (_dtsi>=0) msgs[_dtsi].content+=('\n\n'+_dtmc); else msgs.unshift({role:'system',content:_dtmc}); }
         const result = await orchestrate(msgs, env, {profile:'balanced'});
-        return json({success:true, content:result.content, provider:result.provider, model:result.model}, 200, origin);
+        let content = result.content || '';
+
+        // ── Execute TOOL: action({params}) lines for real ─────────────
+        const toolCalls = [];
+        const toolRe = /^TOOL:\s*([a-z_-]+)\s*\((\{[\s\S]*?\})\)\s*$/gm;
+        let tm;
+        while ((tm = toolRe.exec(content)) !== null) {
+          const action = tm[1];
+          let params = {};
+          try { params = JSON.parse(tm[2]); } catch (e) { toolCalls.push({ action, error: 'bad arguments' }); continue; }
+          try {
+            const r = await fetch('https://prism-api.identitypartners.workers.dev/api/devteam/execute', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action, ...params })
+            }).then(x => x.json());
+            toolCalls.push({ action, result: r });
+          } catch (e) { toolCalls.push({ action, error: e.message }); }
+        }
+        if (toolCalls.length) {
+          content = content.replace(toolRe, '').trim();
+          content += '\n\n[Tools executed: ' + toolCalls.map(t => t.action).join(', ') + ']';
+        }
+        return json({success:true, content, provider:result.provider, model:result.model, toolCalls}, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
     }
 
@@ -6198,6 +7096,88 @@ data: ${JSON.stringify(data)}
         }
 
         // Test provider
+        // KV read/write — the Dev Team can inspect and fix state directly
+        if (action === 'get_kv') {
+          const kvKey = body.key || '';
+          if (!kvKey) return json({success:false, error:'key required'}, 400, origin);
+          const value = env.PRISM_KV ? await env.PRISM_KV.get(kvKey) : null;
+          return json({success:true, action, key:kvKey, value, found: value !== null}, 200, origin);
+        }
+        if (action === 'set_kv') {
+          const kvKey = body.key || '';
+          const kvVal = body.value !== undefined ? (typeof body.value === 'string' ? body.value : JSON.stringify(body.value)) : '';
+          if (!kvKey) return json({success:false, error:'key required'}, 400, origin);
+          if (!env.PRISM_KV) return json({success:false, error:'KV not bound'}, 500, origin);
+          await env.PRISM_KV.put(kvKey, kvVal);
+          return json({success:true, action, key:kvKey}, 200, origin);
+        }
+        if (action === 'update_kv_bulk') {
+          const entries = body.entries || [];
+          if (!Array.isArray(entries) || !entries.length) return json({success:false, error:'entries array required'}, 400, origin);
+          if (!env.PRISM_KV) return json({success:false, error:'KV not bound'}, 500, origin);
+          let written = 0;
+          for (const e of entries) {
+            if (!e.key) continue;
+            await env.PRISM_KV.put(e.key, e.value !== undefined ? (typeof e.value === 'string' ? e.value : JSON.stringify(e.value)) : '');
+            written++;
+          }
+          return json({success:true, action, written}, 200, origin);
+        }
+
+        // Push any file to the GitHub repo (a push to main auto-deploys Pages + worker)
+        if (action === 'push_to_github') {
+          const ghToken = k(env, ['github_token','GITHUB_TOKEN']) || '';
+          const filePath = body.path || '';
+          const content = body.content || '';
+          const message = body.message || 'Dev Team update';
+          const branch = body.branch || 'main';
+          if (!ghToken) return json({success:false, error:'github_token secret not set'}, 400, origin);
+          if (!filePath || !content) return json({success:false, error:'path and content required'}, 400, origin);
+          try {
+            const head = await fetch('https://api.github.com/repos/IdentityPartners/prism/contents/' + filePath + '?ref=' + branch, {
+              headers: { Authorization: 'Bearer ' + ghToken, Accept: 'application/vnd.github+json' }
+            }).then(r => r.json());
+            const payload = { message, content: btoa(unescape(encodeURIComponent(content))), branch };
+            if (head && head.sha) payload.sha = head.sha;
+            const put = await fetch('https://api.github.com/repos/IdentityPartners/prism/contents/' + filePath, {
+              method: 'PUT',
+              headers: { Authorization: 'Bearer ' + ghToken, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            }).then(r => r.json());
+            return json({success: !!(put.content && put.content.html_url), action, url: put.content && put.content.html_url, error: put.message && !put.content ? put.message : undefined}, 200, origin);
+          } catch(e) { return json({success:false, action, error: e.message}, 200, origin); }
+        }
+
+        // Redeploy the current worker script with all bindings intact
+        if (action === 'deploy_worker') {
+          const cfToken = k(env, ['cf_token','CF_TOKEN']) || '';
+          if (!cfToken) return json({success:false, error:'cf_token secret not set'}, 400, origin);
+          try {
+            const scriptRes = await fetch('https://api.cloudflare.com/client/v4/accounts/d741de91f8cfff2306cc0f850a76ee07/workers/scripts/prism-api', {
+              headers: { Authorization: 'Bearer ' + cfToken }
+            });
+            if (!scriptRes.ok) return json({success:false, action, error: 'Could not fetch current script: HTTP ' + scriptRes.status}, 200, origin);
+            const scriptText = await scriptRes.text();
+            const metadata = {
+              main_module: 'index.js',
+              compatibility_date: '2024-09-01',
+              compatibility_flags: ['nodejs_compat'],
+              bindings: [
+                { type: 'kv_namespace', name: 'PRISM_KV', namespace_id: '8d1a583cc99a482380aacb526d873030' },
+                { type: 'd1', name: 'PRISM_D1', id: 'e953848b-7d62-4629-bb4d-271da0d03fd5' },
+                { type: 'r2_bucket', name: 'PRISM_ASSETS', bucket_name: 'prism-assets' }
+              ]
+            };
+            const fd = new FormData();
+            fd.append('metadata', JSON.stringify(metadata));
+            fd.append('index.js', new File([scriptText], 'index.js', { type: 'application/javascript+module' }));
+            const dep = await fetch('https://api.cloudflare.com/client/v4/accounts/d741de91f8cfff2306cc0f850a76ee07/workers/scripts/prism-api', {
+              method: 'PUT', headers: { Authorization: 'Bearer ' + cfToken }, body: fd
+            }).then(r => r.json());
+            return json({success: !!dep.success, action, error: dep.errors && dep.errors.length ? dep.errors[0].message : undefined}, 200, origin);
+          } catch(e) { return json({success:false, action, error: e.message}, 200, origin); }
+        }
+
         if (action === 'test-provider') {
           const provider = body.provider || 'mistral';
           const testMsgs = [{role:'user', content:'Reply with exactly: OK'}];
@@ -6220,9 +7200,12 @@ data: ${JSON.stringify(data)}
     if (path === '/api/ingest-secrets' && request.method === 'POST') {
       try {
         const body = await request.json();
-        const { secrets, cfToken, accountId, workerName } = body;
-        if (!cfToken || !accountId || !workerName) {
-          return json({ error: 'cfToken, accountId, and workerName are required' }, 400, origin);
+        const secrets = body.secrets;
+        const cfToken = body.cfToken || k(env, ['cf_token','CF_TOKEN','cloudflare_api_token','CLOUDFLARE_API_TOKEN']) || '';
+        const accountId = body.accountId || k(env, ['cf_account_id','CF_ACCOUNT_ID']) || 'd741de91f8cfff2306cc0f850a76ee07';
+        const workerName = body.workerName || 'prism-api';
+        if (!cfToken) {
+          return json({ error: 'No Cloudflare token available. Store cf_token as a worker secret once, then ingest normally.' }, 400, origin);
         }
         if (!Array.isArray(secrets) || secrets.length === 0) {
           return json({ error: 'secrets array is required' }, 400, origin);
@@ -6773,7 +7756,7 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
     }
 
-    // ── Native CRM — AI search (Gerald can call this) ─────────────────────────────
+    // ── Native CRM — AI search (Tay can call this) ─────────────────────────────
     if (path === '/api/crm/search' && request.method === 'POST') {
       try {
         const body = await request.json();
@@ -6835,6 +7818,27 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({success:false,error:e.message},500,origin); }
     }
 
+
+    // ── Autonomy config ─────────────────────────────────────
+    if (path === '/api/social/autonomy' && request.method === 'GET') {
+      const cfg = env.PRISM_KV ? await env.PRISM_KV.get('socialising:autonomy', 'json') : null;
+      const today = new Date().toISOString().slice(0, 10);
+      const count = env.PRISM_KV ? parseInt(await env.PRISM_KV.get('socialising:count:' + today) || '0') : 0;
+      return json({ config: cfg || { enabled: false, maxPerDay: 3, platforms: ['bluesky', 'linkedin', 'telegram', 'instagram', 'facebook', 'x'] }, postedToday: count }, 200, origin);
+    }
+    if (path === '/api/social/autonomy' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const cfg = {
+          enabled: !!body.enabled,
+          maxPerDay: Math.max(1, Math.min(10, parseInt(body.maxPerDay) || 3)),
+          platforms: Array.isArray(body.platforms) && body.platforms.length ? body.platforms : ['bluesky', 'linkedin', 'telegram'],
+          blockWords: Array.isArray(body.blockWords) ? body.blockWords : []
+        };
+        if (env.PRISM_KV) await env.PRISM_KV.put('socialising:autonomy', JSON.stringify(cfg));
+        return json({ success: true, config: cfg }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
 
     if (path === '/api/social/queue' && request.method === 'POST') {
       try {
@@ -6933,10 +7937,30 @@ data: ${JSON.stringify(data)}
                 });
                 if (authResp.ok) {
                   const auth = await authResp.json();
+                  // Attach the canvas as an image when available
+                  let embed = undefined;
+                  try {
+                    const bskyMedia = await itemMediaUrls(item, env);
+                    if (bskyMedia.length) {
+                      const imgBytes = await fetch(bskyMedia[0]).then(r => r.arrayBuffer());
+                      const blobResp = await fetch('https://bsky.social/xrpc/com.atproto.repo.uploadBlob', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + auth.accessJwt, 'Content-Type': 'image/png' },
+                        body: imgBytes
+                      });
+                      if (blobResp.ok) {
+                        const blob = (await blobResp.json()).blob;
+                        embed = { $type: 'app.bsky.embed.images', images: [{ image: blob, alt: (item.text || 'Identity Partners canvas').slice(0, 500) }] };
+                        if (Array.isArray(item.urls) && item.urls.length > 1) {
+                          embed.images[0].alt += ' (carousel: ' + item.urls.length + ' slides — full set on Instagram)';
+                        }
+                      }
+                    }
+                  } catch (e) {}
                   const postResp = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
                     method: 'POST',
                     headers: {'Authorization':'Bearer '+auth.accessJwt,'Content-Type':'application/json'},
-                    body: JSON.stringify({ repo: auth.did, collection: 'app.bsky.feed.post', record: { text: item.text, createdAt: new Date().toISOString(), langs: ['en-GB'] } })
+                    body: JSON.stringify({ repo: auth.did, collection: 'app.bsky.feed.post', record: { text: item.text, createdAt: new Date().toISOString(), langs: ['en-GB'], ...(embed ? { embed } : {}) } })
                   });
                   results.bluesky = { success: postResp.ok, status: postResp.status };
                 } else { errors.bluesky = 'Auth failed: ' + authResp.status; }
@@ -6974,14 +7998,36 @@ data: ${JSON.stringify(data)}
             } else if (['instagram','facebook','x'].includes(platform)) {
               const bufferKey = k(env, ['buffer_api_key','BUFFER_API_KEY','buffer']) || '';
               const channelMap = { instagram: k(env,['buffer_ig_channel','BUFFER_IG_CHANNEL']), facebook: k(env,['buffer_fb_channel','BUFFER_FB_CHANNEL']), x: k(env,['buffer_x_channel','BUFFER_X_CHANNEL']) };
-              const channelId = channelMap[platform];
+              let channelId = channelMap[platform];
+              if (!channelId && env.PRISM_KV) {
+                channelId = await env.PRISM_KV.get('platform:channel:' + platform).catch(() => null);
+              }
               if (bufferKey && channelId) {
-                const bufResp = await fetch('https://api.bufferapp.com/1/updates/create.json', {
-                  method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'},
-                  body: new URLSearchParams({ access_token: bufferKey, profile_ids: channelId, text: item.text, now: 'true' }).toString()
-                });
-                results[platform] = { success: bufResp.ok, status: bufResp.status };
-              } else { errors[platform] = bufferKey ? 'Buffer channel ID not configured' : 'Buffer not connected'; }
+                // Buffer's current API: GraphQL createPost with Bearer auth
+                const dueAt = item.scheduledFor || new Date().toISOString();
+                const media = await itemMediaUrls(item, env);   // rasterised canvas / carousel slides
+                let gqlRes = null;
+                if (media.length) {
+                  // try with media attached (carousel for IG/FB when multiple, single image otherwise)
+                  gqlRes = await bufferGql(
+                    'mutation($text: String!, $channelId: ChannelId!, $dueAt: DateTime!, $media: [MediaInput!]!) { createPost(input: { text: $text, channelId: $channelId, schedulingType: automatic, mode: customScheduled, dueAt: $dueAt, media: $media }) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }',
+                    { text: item.text, channelId, dueAt, media: media.map(u => ({ mediaType: 'image', url: u })) }, env
+                  );
+                  if (gqlRes.error) gqlRes = { __mediaTried: true, error: gqlRes.error }; // fall through to text-only
+                }
+                if (!gqlRes || gqlRes.error) {
+                  gqlRes = await bufferGql(
+                    'mutation($text: String!, $channelId: ChannelId!, $dueAt: DateTime!) { createPost(input: { text: $text, channelId: $channelId, schedulingType: automatic, mode: customScheduled, dueAt: $dueAt }) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }',
+                    { text: item.text, channelId, dueAt }, env
+                  );
+                }
+                if (gqlRes.error) { errors[platform] = gqlRes.error; results[platform] = { success: false }; }
+                else {
+                  const created = gqlRes.data && gqlRes.data.createPost;
+                  const ok = !!(created && created.post && created.post.id);
+                  results[platform] = { success: ok, postId: ok ? created.post.id : undefined, error: created && created.message };
+                }
+              } else { errors[platform] = bufferKey ? 'Buffer channel ID not configured — run Fetch Buffer channels' : 'Buffer not connected'; }
             } else if (platform === 'substack') {
               const substackEmail = k(env, ['substack_email','SUBSTACK_EMAIL']) || 'zemiopat@substack.com';
               // Substack posts via email — log as queued, actual send requires email route
@@ -7170,8 +8216,8 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     if (path === '/api/social/tumblr' && request.method === 'POST') {
       try {
         const body = await request.json();
-        const consumerKey = k(env, ['tumblr_key','TUMBLR_KEY']) || '';
-        const consumerSecret = k(env, ['tumblr_secret','TUMBLR_SECRET']) || '';
+        const consumerKey = k(env, ['tumblr_key','TUMBLR_KEY','Tumblr_OAuth_consumer_key']) || '';
+        const consumerSecret = k(env, ['tumblr_secret','TUMBLR_SECRET','Tumblr_OAuth_consumer_secret']) || '';
         if (!consumerKey) return json({success:false,error:'Tumblr keys not configured'},400,origin);
         const blogName = body.blog || 'identitypartners';
         const text = body.text || '';
@@ -7217,6 +8263,573 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
     }
 
+    // ── Monetisation: signup status tracker ──────────────────────────────────────────
+    // ── Headless signup engine (Browserless + AI-directed form filling) ──────────────────
+    // ── Postiz (self-hosted on Railway) ───────────────────────────────────────────────
+    // ── Railway status (read-only, via railway_token) ─────────────────────────────────────
+
+    if (path === '/api/railway/variables' && request.method === 'GET') {
+      try {
+        const token = k(env, ['railway_account_token','railway_token','RAILWAY_TOKEN','railway_api_token']) || '';
+        const url2 = new URL(request.url);
+        const envId = url2.searchParams.get('environmentId') || '1085176f-99ac-45f7-b14b-53c50ac807cf';
+        const q = 'mutation { variableUpsert(input: { projectId: "b20afd12-447e-4b0a-a596-c0ed9d53a946", environmentId: "1085176f-99ac-45f7-b14b-53c50ac807cf", serviceId: "c0016dce-597b-4cb0-b0b8-3e914536c2ef", name: "NEXT_PUBLIC_BACKEND_URL", value: "https://arch.identitypartners.uk/api/postiz-proxy" }) }';
+        const r = await fetch('https://backboard.railway.com/graphql/v2', {
+          method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: q })
+        });
+        const d = await r.json();
+        if (d.errors) return json({success:false, error: d.errors.map(e => e.message).join('; ')}, 200, origin);
+        return json({success:true, data: d.data}, 200, origin);
+      } catch(e) { return json({success:false, error: e.message}, 200, origin); }
+    }
+
+
+    if (path === '/api/railway/admin' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const expected = await env.PRISM_KV.get('railway:admin-code');
+        if (!expected || body.code !== expected) return json({ success: false, error: 'invalid code' }, 403, origin);
+        // one-time: burn the code immediately after use
+        await env.PRISM_KV.delete('railway:admin-code');
+        const token = k(env, ['railway_account_token','railway_token']) || '';
+        if (!token) return json({ success: false, error: 'No railway token' }, 200, origin);
+        const out = [];
+        for (const sid of (body.serviceIds || [])) {
+          const r = await fetch('https://backboard.railway.com/graphql/v2', {
+            method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: 'mutation($id: String!) { serviceDelete(id: $id) }', variables: { id: sid } })
+          });
+          const d = await r.json().catch(() => ({}));
+          out.push({ serviceId: sid, status: r.status, errors: (d.errors || []).map(e2 => e2.message).join('; ').slice(0, 200), data: d.data || null });
+        }
+        return json({ success: true, results: out }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    if (path === '/api/themes' && request.method === 'GET') {
+      try {
+        const themes = await env.PRISM_KV.get('themes:weeks', 'json') || [];
+        return json({ themes }, 200, origin);
+      } catch (e) { return json({ themes: [] }, 200, origin); }
+    }
+    if (path === '/api/themes' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const themes = Array.isArray(body.themes) ? body.themes : [];
+        await env.PRISM_KV.put('themes:weeks', JSON.stringify(themes.slice(0, 200)));
+        return json({ success: true, themes }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    if (path === '/api/railway/graphql' && request.method === 'POST') {
+      try {
+        const token = k(env, ['railway_account_token','railway_token','RAILWAY_TOKEN']) || '';
+        if (!token) return json({success:false, error:'No railway token'}, 200, origin);
+        const body = await request.json();
+        // Read-only safety gate: no mutations through this public bridge
+        if (!body.query || /^\s*mutation/.test(body.query) || /\bmutation\b/.test(body.query.replace(/^\s*query[\s\S]*?(\bmutation\b)/, '$1'))) {
+          return json({ success: false, error: 'only read queries are allowed' }, 200, origin);
+        }
+        const r = await fetch('https://backboard.railway.com/graphql/v2', {
+          method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: body.query, variables: body.variables || {} })
+        });
+        const d = await r.json().catch(() => ({}));
+        if (body.hide && d.data && body.hide.length) {
+          const redact = (o) => { if (!o || typeof o !== 'object') return o;
+            if (Array.isArray(o)) return o.map(redact);
+            const c = {};
+            for (const key of Object.keys(o)) c[key] = body.hide.includes(key) ? '(redacted)' : redact(o[key]);
+            return c; };
+          return json({ success: true, data: redact(d.data), errors: d.errors }, 200, origin);
+        }
+        return json({ success: true, data: d.data, errors: d.errors }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    if (path === '/api/railway/status' && request.method === 'GET') {
+      try {
+        const token = k(env, ['railway_account_token','railway_token','RAILWAY_TOKEN','railway_api_token']) || '';
+        if (!token) return json({success:false, error:'No railway_token configured'}, 200, origin);
+        const query = `query { me { id email } workspaces: me { workspaces { id name projects(first: 20) { edges { node { id name environments(first: 5) { edges { node { id name serviceInstances(first: 10) { edges { node { id service { id name } } } } } } } } } } } } }`;
+        const r = await fetch('https://backboard.railway.com/graphql/v2', {
+          method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query })
+        });
+        const d = await r.json().catch(() => ({}));
+        if (d.errors) return json({success:false, error: d.errors.map(e => e.message).join('; ')}, 200, origin);
+        const me = d.data && d.data.me || null;
+        const workspaces = (d.data && d.data.workspaces && d.data.workspaces.workspaces || []).map(w => ({
+          id: w.id, name: w.name,
+          projects: (w.projects && w.projects.edges || []).map(pe => ({
+            id: pe.node.id, name: pe.node.name,
+            environments: (pe.node.environments && pe.node.environments.edges || []).map(ee => ({
+              id: ee.node.id, name: ee.node.name,
+              services: (ee.node.serviceInstances && ee.node.serviceInstances.edges || []).map(se => (se.node.service && se.node.service.name) || '(service)')
+            }))
+          }))
+        }));
+        return json({success:true, me, workspaces}, 200, origin);
+      } catch(e) { return json({success:false, error: e.message}, 200, origin); }
+    }
+
+
+    // ── Postiz scheduled posts (for the calendar) ───────────────────────────────────────
+    if (path === '/api/postiz/posts' && request.method === 'GET') {
+      try {
+        const key = k(env, ['postiz_api_key','POSTIZ_API_KEY']) || '';
+        const host = k(env, ['postiz_url','POSTIZ_URL']) || 'https://postiz-production-70a8954f.up.railway.app';
+        if (!key) return json({ success: false, posts: [], error: 'No postiz_api_key' }, 200, origin);
+        let r = await fetch(host + '/api/public/v1/posts', { headers: { 'Authorization': key } });
+        if (!r.ok || !(r.headers.get('content-type')||'').includes('json')) {
+          r = await fetch(host + '/public/v1/posts', { headers: { 'Authorization': key } });
+        }
+        if (!r.ok) return json({ success: false, posts: [], error: 'Postiz HTTP ' + r.status }, 200, origin);
+        const body = await r.json();
+        const posts = Array.isArray(body) ? body : (body.data || body.posts || []);
+        return json({ success: true, posts: posts.slice(0, 100) }, 200, origin);
+      } catch (e) { return json({ success: false, posts: [], error: e.message }, 200, origin); }
+    }
+
+    // ── Postiz CORS proxy: same-origin bridge for the Postiz app ────────────────────────────────────────
+    if (path.startsWith('/api/postiz-proxy/')) {
+      const BE = k(env, ['postiz_url','POSTIZ_URL']) || 'https://postiz-production-70a8954f.up.railway.app';
+      const reqOrigin = request.headers.get('Origin') || '';
+      const allowedOrigin = reqOrigin.includes('.up.railway.app') ? reqOrigin : '';
+      const corsHeaders = {
+        'Access-Control-Allow-Origin': allowedOrigin,
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,auth,x-copilotkit-runtime-client-gql-version',
+        'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Expose-Headers': 'auth,showorg,logout,activate,reload,onboarding,x-copilotkit-runtime-client-gql-version',
+        'Access-Control-Max-Age': '86400'
+      };
+      if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
+      const subPath = path.replace('/api/postiz-proxy/', '');
+      const url2 = new URL(request.url);
+      const target = BE + '/' + subPath + (url2.search || '');
+      const fwdHeaders = new Headers();
+      ['content-type','auth','authorization','accept','x-copilotkit-runtime-client-gql-version'].forEach(h => {
+        const v = request.headers.get(h); if (v) fwdHeaders.set(h, v);
+      });
+      try {
+        const resp = await fetch(target, { method: request.method, headers: fwdHeaders, body: ['GET','HEAD'].includes(request.method) ? undefined : request.body });
+        const h = new Headers(resp.headers);
+        Object.entries(corsHeaders).forEach(([k2, v]) => h.set(k2, v));
+        return new Response(resp.body, { status: resp.status, headers: h });
+      } catch (e) { return json({ error: e.message }, 502, origin); }
+    }
+
+
+    if (path === '/api/postiz/integrations' && request.method === 'GET') {
+      try {
+        const key = k(env, ['postiz_api_key','POSTIZ_API_KEY']) || '';
+        const host = k(env, ['postiz_url','POSTIZ_URL']) || 'https://postiz-production-ec050668.up.railway.app';
+        if (!key) return json({success:false, error:'No postiz_api_key. Copy the API key from your Postiz Settings and ingest it as postiz_api_key.', integrations: []}, 200, origin);
+        let r = await fetch(host + '/api/public/v1/integrations', { headers: { 'Authorization': key } });
+        let usedPath = '/api/public/v1';
+        if (!r.ok || !(r.headers.get('content-type')||'').includes('json')) {
+          r = await fetch(host + '/public/v1/integrations', { headers: { 'Authorization': key } });
+          usedPath = '/public/v1';
+        }
+        if (!r.ok) return json({success:false, error:'Postiz HTTP ' + r.status + ' (backend not exposed through this domain?)', integrations: []}, 200, origin);
+        const integrations = await r.json();
+        return json({success:true, integrations: Array.isArray(integrations) ? integrations : []}, 200, origin);
+      } catch(e) { return json({success:false, error: e.message, integrations: []}, 200, origin); }
+    }
+    if (path === '/api/postiz/post' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const key = k(env, ['postiz_api_key','POSTIZ_API_KEY']) || '';
+        const host = k(env, ['postiz_url','POSTIZ_URL']) || 'https://postiz-production-ec050668.up.railway.app';
+        if (!key) return json({success:false, error:'No postiz_api_key configured'}, 200, origin);
+        let r0 = await fetch(host + '/api/public/v1/integrations', { headers: { 'Authorization': key } });
+        let base = host + '/api/public/v1';
+        if (!r0.ok || !(r0.headers.get('content-type')||'').includes('json')) {
+          r0 = await fetch(host + '/public/v1/integrations', { headers: { 'Authorization': key } });
+          base = host + '/public/v1';
+        }
+        if (!r0.ok) return json({success:false, error:'Postiz unreachable (HTTP ' + r0.status + ')'}, 200, origin);
+        let integrations = await r0.json();
+        if (!Array.isArray(integrations)) integrations = [];
+        let targets = integrations;
+        if (Array.isArray(body.integrationIds) && body.integrationIds.length) {
+          targets = integrations.filter(i => body.integrationIds.includes(i.id));
+        }
+        if (!targets.length) return json({success:false, error:'No connected Postiz channels found. Connect channels in the Postiz dashboard first.'}, 200, origin);
+
+        let imageIds = [];
+        if (body.imageUrl) {
+          try {
+            const up = await fetch(base + '/upload-from-url', { method: 'POST', headers: { 'Authorization': key, 'Content-Type': 'application/json' }, body: JSON.stringify({ url: body.imageUrl }) });
+            if (up.ok) { const ud = await up.json(); if (ud && ud.id) imageIds = [ud.id]; }
+          } catch (ue) {}
+        }
+
+        const payload = {
+          type: body.type || 'now',
+          date: body.date || new Date(Date.now() + 60000).toISOString(),
+          shortLink: false,
+          tags: [],
+          posts: targets.map(function(t) {
+            return {
+              integration: { id: t.id },
+              value: [{ content: (body.content || '').substring(0, 5000), image: imageIds }],
+              settings: { __type: t.identifier || 'x' }
+            };
+          })
+        };
+        const pr = await fetch(base + '/posts', { method: 'POST', headers: { 'Authorization': key, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const pd = await pr.json().catch(() => ({}));
+        return json({success: pr.ok, status: pr.status, data: pd, channels: targets.map(t => t.name + ' (' + (t.identifier || '') + ')')}, 200, origin);
+      } catch(e) { return json({success:false, error: e.message}, 500, origin); }
+    }
+
+
+    if (path === '/api/headless/diag' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const url = body.url || 'https://arch.identitypartners.uk/argentica/chat/';
+        const selectors = body.selectors || ['#send', '#hw-open', '#dictate-btn', '#osk-toggle'];
+        const BL_RAILWAY_TOKEN = k(env, ['railway_browserless_token']) || '';
+        const BL_CLOUD = k(env, ['browserless']) || '';
+        const fn = `export default async ({ page, context }) => {
+          await page.setViewport({ width: 1440, height: 900 });
+          await page.goto(context.url, { waitUntil: 'networkidle2', timeout: 45000 });
+          const out = [];
+          for (const sel of context.selectors) {
+            try {
+              const el = await page.$(sel);
+              if (!el) { out.push({ selector: sel, exists: false }); continue; }
+              const box = await el.boundingBox();
+              if (!box) { out.push({ selector: sel, exists: true, visible: false }); continue; }
+              const cx = box.x + Math.min(box.width / 2, 30);
+              const cy = box.y + Math.min(box.height / 2, 15);
+              const info = await page.evaluate(([x, y]) => {
+                const top = document.elementFromPoint(x, y);
+                return { tag: top ? top.tagName : null, id: top ? top.id : null, cls: top ? top.className : null, text: top ? (top.textContent || '').slice(0, 40) : null };
+              }, [cx, cy]);
+              out.push({ selector: sel, exists: true, visible: true, box, topLeftElement: info });
+            } catch (e) { out.push({ selector: sel, error: String(e).slice(0, 120) }); }
+          }
+          return { data: { results: out }, type: 'application/json' };
+        }`;
+        const callBL = async (base, tok) => fetch(base + '/function?token=' + encodeURIComponent(tok || ''), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: fn, context: { url, selectors } })
+        });
+        let resp = null;
+        if (BL_RAILWAY_TOKEN) { try { resp = await callBL(k(env,['browserless_railway_url']) || 'https://browserless-production-e49c65ef.up.railway.app', BL_RAILWAY_TOKEN); } catch (e) {} }
+        if ((!resp || !resp.ok) && BL_CLOUD) { try { resp = await callBL('https://chrome.browserless.io', BL_CLOUD); } catch (e) {} }
+        if (!resp || !resp.ok) return json({ success: false, error: 'Browserless unavailable' }, 200, origin);
+        const result = await resp.json();
+        return json({ success: true, results: (result.data && result.data.results) || result.results || [] }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+
+    if (path === '/api/kb/importdebug' && request.method === 'POST') {
+      try {
+        const BL_RAILWAY_TOKEN = k(env, ['railway_browserless_token']) || '';
+        const BL_CLOUD = k(env, ['browserless']) || '';
+        const fn = `export default async ({ page }) => {
+          await page.setViewport({ width: 1440, height: 900 });
+          const errors = [];
+          page.on('console', m => { if (m.type() === 'error') errors.push(String(m.text()).slice(0, 240)); });
+          page.on('pageerror', e => errors.push(String(e).slice(0, 240)));
+          await page.goto('https://arch.identitypartners.uk/argentica/library/knowledge/', { waitUntil: 'networkidle2', timeout: 60000 });
+          await new Promise(r => setTimeout(r, 2000));
+          const info = await page.evaluate(async () => {
+            const out = {};
+            out.hasDialog = !!document.getElementById('import-dialog');
+            out.hasPdfjs = typeof pdfjsLib !== 'undefined';
+            typeof pdfjsLib !== 'undefined' && (out.workerSrc = pdfjsLib.GlobalWorkerOptions.workerSrc || '(unset)');
+            const dlg = document.getElementById('import-dialog');
+            if (dlg) { dlg.style.display = 'flex'; }
+            out.dialogShown = dlg ? (getComputedStyle(dlg).display === 'flex') : false;
+            try { showImport(); out.showImportOK = true; } catch (e) { out.showImportErr = String(e).slice(0, 200); }
+            const NL = String.fromCharCode(10);
+            try { out.mdTest = mdToHtml(['# Title','## Sub','Hello **world**','- a','- b','','Para.'].join(NL)); } catch (e) { out.mdErr = String(e).slice(0, 200); }
+            try {
+              const dt = new DataTransfer();
+              const f = new File(['# My Theory','','Intro here.','## Chapter One','','Body one.','## Chapter Two','','Body two.'].join(NL), 'test-theory.md', { type: 'text/markdown' });
+              dt.items.add(f);
+              const inp = document.getElementById('import-file');
+              inp.files = dt.files;
+              out.fileSet = inp.files.length === 1;
+              document.getElementById('import-section').value = 'Debug section';
+              document.getElementById('import-split').checked = true;
+              await doImport();
+              out.importFinished = true;
+              out.status = document.getElementById('import-status').textContent;
+              await new Promise(r => setTimeout(r, 3000));
+            } catch (e) { out.importErr = String(e && e.stack || e).slice(0, 400); }
+            out.pageCount = (typeof pages !== 'undefined') ? pages.length : 'n/a';
+            out.newPages = (typeof pages !== 'undefined') ? pages.filter(p => (p.source||'') === 'test-theory.md').map(p => p.title) : 'n/a';
+            return out;
+          }).catch(e => ({ evalErr: String(e).slice(0, 400) }));
+          return { data: { info, errors }, type: 'application/json' };
+        }`;
+        const callBL = async (base, tok) => fetch(base + '/function?token=' + encodeURIComponent(tok || ''), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: fn, context: {} })
+        });
+        let resp = null;
+        if (BL_RAILWAY_TOKEN) { try { resp = await callBL(k(env,['browserless_railway_url']) || 'https://browserless-production-e49c65ef.up.railway.app', BL_RAILWAY_TOKEN); } catch (e) {} }
+        if ((!resp || !resp.ok) && BL_CLOUD) { try { resp = await callBL('https://chrome.browserless.io', BL_CLOUD); } catch (e) {} }
+        if (!resp || !resp.ok) {
+          let errTxt = '';
+          try { errTxt = (await resp.text()).slice(0, 600); } catch (e) { errTxt = 'no response body'; }
+          return json({ success: false, error: 'Browserless rejected the request', status: resp ? resp.status : 0, detail: errTxt }, 200, origin);
+        }
+        const result = await resp.json();
+        return json({ success: true, debug: (result.data && result.data) || result }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    if (path === '/api/headless/logindebug' && request.method === 'POST') {
+      try {
+        const creds = await request.json();
+        const BL_RAILWAY_TOKEN = k(env, ['railway_browserless_token']) || '';
+        const BL_CLOUD = k(env, ['browserless']) || '';
+        const fn = `export default async ({ page, context }) => {
+          await page.setViewport({ width: 1280, height: 900 });
+          const errors = [];
+          const reqs = [];
+          const NL = String.fromCharCode(10);
+          page.on('console', m => { if (m.type() === 'error') errors.push(String(m.text()).slice(0, 200)); });
+          page.on('response', res => {
+            const u = res.url();
+            if (u.includes('/auth/') || u.includes('/api/postiz-proxy')) reqs.push(res.status() + ' ' + u.slice(0, 130));
+          });
+          await page.goto('https://postiz-production-ec050668.up.railway.app/auth/login', { waitUntil: 'networkidle2', timeout: 60000 });
+          await new Promise(r => setTimeout(r, 2500));
+          let filled = await page.evaluate((c) => {
+            const inputs = Array.from(document.querySelectorAll('input'));
+            const email = inputs.find(i => i.type === 'email' || /email/i.test(i.name + i.id + i.placeholder));
+            const pass = inputs.find(i => i.type === 'password');
+            const setV = (el, v) => { const s = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; s.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); };
+            if (email) setV(email, c.email); else return 'no email field';
+            if (pass) setV(pass, c.password); else return 'no password field';
+            return 'filled';
+          }, context.creds);
+          let submitted = await page.evaluate(() => {
+            const b = Array.from(document.querySelectorAll('button')).find(x => /sign in|log ?in|continue|submit/i.test(x.textContent));
+            if (b) { b.click(); return 'clicked'; } return 'no button';
+          }).catch(e => 'ERR ' + e);
+          await new Promise(r => setTimeout(r, 7000));
+          let addClick = '';
+          let modalInfo = null;
+          try {
+            await page.goto('https://postiz-production-ec050668.up.railway.app/channels', { waitUntil: 'networkidle2', timeout: 45000 });
+            await new Promise(r => setTimeout(r, 4000));
+          } catch (e) { errors.push('goto channels: ' + String(e).slice(0, 120)); }
+          try {
+            addClick = await page.evaluate(() => {
+              const bs = Array.from(document.querySelectorAll('button, a'));
+              const b = bs.find(x => /add channel|add a channel|connect|new channel/i.test((x.textContent || '') + ' ' + (x.getAttribute && x.getAttribute('aria-label') || '')));
+              if (b) { b.click(); return 'clicked: ' + (b.textContent || '').slice(0, 50); }
+              return 'no add button; sample: ' + bs.slice(0, 10).map(x => (x.textContent || 'x').trim().slice(0, 18)).join(' | ');
+            });
+            await new Promise(r => setTimeout(r, 3000));
+          } catch (e) { addClick = 'ERR ' + String(e).slice(0, 150); }
+          modalInfo = await page.evaluate(() => {
+            const dlgs = Array.from(document.querySelectorAll('div[role=dialog]'));
+            const dlg = dlgs[dlgs.length - 1];
+            return dlg ? { hasDialog: true, text: dlg.textContent.replace(/\s+/g, ' ').slice(0, 600) } : { hasDialog: false };
+          }).catch(e => ({ err: String(e).slice(0, 150) }));
+          const after = await page.evaluate(() => ({
+            url: location.href,
+            cookies: document.cookie.slice(0, 80)
+          })).catch(e => ({ err: String(e) }));
+          const shot2 = await page.screenshot({ type: 'png' }).then(b => 'data:image/png;base64,' + b.toString('base64')).catch(() => '');
+          return { data: { filled, submitted, after, addClick, modalInfo, reqs: reqs.slice(0, 40), errors: errors.slice(0, 12), shot2 }, type: 'application/json' };
+        }`;
+        const callBL = async (base, tok) => fetch(base + '/function?token=' + encodeURIComponent(tok || ''), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: fn, context: { creds } })
+        });
+        let resp = null;
+        if (BL_RAILWAY_TOKEN) { try { resp = await callBL(k(env,['browserless_railway_url']) || 'https://browserless-production-e49c65ef.up.railway.app', BL_RAILWAY_TOKEN); } catch (e) {} }
+        if ((!resp || !resp.ok) && BL_CLOUD) { try { resp = await callBL('https://chrome.browserless.io', BL_CLOUD); } catch (e) {} }
+        if (!resp || !resp.ok) return json({ success: false, error: 'Browserless unavailable' }, 200, origin);
+        const result = await resp.json();
+        const d = (result.data && result.data) || result;
+        if (creds.wantshot && d.shot2) { await env.PRISM_KV.put('tmp:postiz-shot', d.shot2, { expirationTtl: 300 }); }
+        const shotUrl = creds.wantshot ? ((await env.PRISM_KV.get('tmp:postiz-shot', { type: 'text' })) || '').slice(0, 40) : null;
+        return json({ success: true, debug: { filled: d.filled, submitted: d.submitted, after: d.after, addClick: d.addClick, modalInfo: d.modalInfo, reqs: d.reqs, errors: d.errors, shot2: creds.wantshot ? (d.shot2 || '').slice(0, 1400000) : undefined } }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    if (path === '/api/headless/signup' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const platformName = body.platform || '';
+        const signupUrl = body.signupUrl || '';
+        const profile = body.profile || {};
+        if (!signupUrl || !platformName) return json({success:false, error:'platform and signupUrl required'}, 400, origin);
+
+        const BL_CLOUD = k(env, ['browserless','browserless_token','BROWSERLESS_TOKEN','browserless_api_key','BROWSERLESS.IO']) || '';
+        const BL_RAILWAY_TOKEN = k(env, ['railway_browserless_token','RAILWAY_BROWSERLESS_TOKEN','browserless_railway_token']) || '';
+        const BL_URL = k(env, ['browserless_url','BROWSERLESS_URL']) || 'https://chrome.browserless.io';
+        const BL_RAILWAY = k(env, ['browserless_railway_url']) || 'https://browserless-production-e49c65ef.up.railway.app';
+        if (!BL_CLOUD && !BL_RAILWAY_TOKEN) return json({success:false, error:'No Browserless token. Ingest railway_browserless_token (for the Railway instance) and/or browserless (for chrome.browserless.io).', needsToken:true}, 200, origin);
+
+        // Step 1: fetch the signup page and map fields heuristically
+        let fieldsMap = [];
+        try {
+          const page = await fetch(signupUrl, {headers:{'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36'}});
+          const html = (await page.text()).slice(0, 300000);
+          const inputs = [...html.matchAll(/<input[^>]*>/gi)].map(m => m[0]);
+          for (const tag of inputs.slice(0, 30)) {
+            const name = (tag.match(/name="([^"]*)"/i)||[])[1] || '';
+            const type = (tag.match(/type="([^"]*)"/i)||[])[1] || 'text';
+            const id = (tag.match(/id="([^"]*)"/i)||[])[1] || '';
+            const ph = (tag.match(/placeholder="([^"]*)"/i)||[])[1] || '';
+            const label = (name + ' ' + id + ' ' + ph).toLowerCase();
+            if (/email/.test(label)) fieldsMap.push({selector: name ? 'input[name="'+name+'"]' : 'input[type=email]', value: profile.email || 'hello@identitypartners.uk'});
+            else if (/pass/.test(label)) fieldsMap.push({selector: 'input[type=password]', value: profile.password || '', password: true});
+            else if (/display|fullname|full.name|first/.test(label)) fieldsMap.push({selector: name ? 'input[name="'+name+'"]' : 'input', value: profile.displayName || profile.name || 'Identity Partners'});
+            else if (/user|handle|nickname/.test(label)) fieldsMap.push({selector: name ? 'input[name="'+name+'"]' : 'input', value: profile.handle || 'identitypartners'});
+            else if (/phone|tel/.test(label)) fieldsMap.push({selector: name ? 'input[name="'+name+'"]' : 'input[type=tel]', value: profile.phone || ''});
+            else if (/url|website|link/.test(label)) fieldsMap.push({selector: name ? 'input[name="'+name+'"]' : 'input[type=url]', value: profile.website || 'https://www.identitypartners.uk'});
+          }
+        } catch (he) {}
+
+        // Signup password comes from the worker secret, never from code
+        const platformPw = k(env, ['platform_pw','PLATFORM_PW']) || '';
+        if (!platformPw) return json({success:false, error:'No platform_pw secret configured. Ingest the agreed signup password as platform_pw so headless signups can use it.', needsToken:true}, 200, origin);
+        fieldsMap.forEach(f => { if (f.password) f.value = platformPw; });
+
+        // Step 2: drive Browserless to open, fill, screenshot, submit
+        const fn = `export default async ({ page, context }) => {
+          const steps = [];
+          try {
+            await page.goto(context.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+            steps.push('opened');
+            for (const f of context.fields) {
+              try {
+                const el = await page.$(f.selector);
+                if (el && f.value) { await el.type(f.value, {delay: 20}); steps.push('filled ' + f.selector); }
+              } catch (e) {}
+            }
+            const before = await page.screenshot({ encoding: 'base64' });
+            // detect captcha before submitting
+            const html = await page.content();
+            const captcha = /captcha|recaptcha|hcaptcha|turnstile|cf-challenge/i.test(html);
+            let submitted = false;
+            if (!captcha) {
+              const btn = await page.$('button[type=submit], input[type=submit], button:not([type])');
+              if (btn) { try { await Promise.race([btn.click(), page.waitForNavigation({timeout: 20000})]); } catch (e) {} submitted = true; steps.push('submitted'); }
+            } else { steps.push('captcha detected - stopped for human'); }
+            const after = await page.screenshot({ encoding: 'base64' });
+            const finalHtml = (await page.content()).slice(0, 20000);
+            return { data: { steps, captcha, submitted, before, after, finalTitle: await page.title() }, type: 'application/json' };
+          } catch (e) { return { data: { steps, error: String(e) }, type: 'application/json' }; }
+        }`;
+        const callBL = async (base, tok) => fetch(base + '/function?token=' + encodeURIComponent(tok || ''), {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ code: fn, context: { url: signupUrl, fields: fieldsMap } })
+        });
+        let blResp = null;
+        let railErr = 'no railway_browserless_token';
+        if (BL_RAILWAY_TOKEN) {
+          try { blResp = await callBL(BL_RAILWAY, BL_RAILWAY_TOKEN); if (!blResp.ok) railErr = 'HTTP ' + blResp.status + ': ' + (await blResp.text().catch(() => '')).slice(0, 100); }
+          catch (re) { railErr = re.message; blResp = { ok: false, status: 0, text: async () => railErr }; }
+        }
+        if ((!blResp || !blResp.ok) && BL_CLOUD) {
+          try { const cloudResp = await callBL(BL_URL, BL_CLOUD); if (cloudResp.ok) blResp = cloudResp; else if (!blResp || !blResp.ok) blResp = cloudResp; }
+          catch (ce) { if (!blResp || !blResp.ok) blResp = { ok: false, status: 0, text: async () => ce.message }; }
+        }
+        if (!blResp || !blResp.ok) {
+          const cloudErr = blResp ? ('HTTP ' + blResp.status + ': ' + (await blResp.text().catch(() => '')).slice(0, 120)) : 'not attempted (no cloud token)';
+          return json({success:false, error:'Browserless failed. Railway instance: ' + railErr + ' | chrome.browserless.io: ' + cloudErr, stepsExecuted: 0}, 200, origin);
+        }
+        const blJson = await blResp.json();
+        const result = (blJson && blJson.data) ? blJson.data : blJson;
+
+        // Step 3: store screenshots + record status
+        const rec = { platform: platformName, url: signupUrl, steps: result.steps || [], captcha: !!result.captcha, submitted: !!result.submitted, ranAt: new Date().toISOString() };
+        if (result.before) {
+          const key = 'headless/' + platformName.toLowerCase().replace(/\W/g,'-') + '-' + Date.now() + '-before.png';
+          await env.PRISM_ASSETS.put(key, result.before, { httpMetadata: { contentType: 'image/png' } });
+          rec.screenshotBefore = '/api/r2/file?key=' + encodeURIComponent(key);
+        }
+        if (result.after) {
+          const key = 'headless/' + platformName.toLowerCase().replace(/\W/g,'-') + '-' + Date.now() + '-after.png';
+          await env.PRISM_ASSETS.put(key, result.after, { httpMetadata: { contentType: 'image/png' } });
+          rec.screenshotAfter = '/api/r2/file?key=' + encodeURIComponent(key);
+        }
+        // record which platforms were signed up (email only — password lives in the platform_pw secret, never stored)
+        if (result.submitted || result.steps.some(s => /filled/.test(s))) {
+          const vault = await env.PRISM_KV.get('monetisation:credentials', 'json') || {};
+          vault[platformName] = { email: profile.email || 'hello@identitypartners.uk', note: 'password = platform_pw secret', created: rec.ranAt };
+          await env.PRISM_KV.put('monetisation:credentials', JSON.stringify(vault));
+        }
+        const st = await env.PRISM_KV.get('monetisation:signup', 'json') || {};
+        st[platformName] = { state: result.submitted ? 'created' : (result.captcha ? 'needs-verification' : 'attempted'),
+                              notes: (result.steps || []).join('; ').slice(0,200), updated: rec.ranAt };
+        await env.PRISM_KV.put('monetisation:signup', JSON.stringify(st));
+        return json({ success: true, status: result.submitted ? 'form_submitted' : (result.captcha ? 'captcha_stop' : 'attempted'),
+                      stepsExecuted: (result.steps || []).length, note: result.captcha ? 'Stopped at CAPTCHA — open the screenshot and finish manually.' : (result.error || ''),
+                      screenshot: rec.screenshotAfter || rec.screenshotBefore || null, record: rec }, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
+    if (path === '/api/headless/credentials' && request.method === 'GET') {
+      try {
+        const vault = await env.PRISM_KV.get('monetisation:credentials', 'json') || {};
+        return json({ credentials: vault }, 200, origin);
+      } catch(e) { return json({ credentials: {} }, 200, origin); }
+    }
+
+
+    if (path === '/api/monetisation/signup-status' && request.method === 'GET') {
+      try {
+        const st = await env.PRISM_KV.get('monetisation:signup', 'json') || {};
+        return json({ status: st }, 200, origin);
+      } catch(e) { return json({ status: {} }, 200, origin); }
+    }
+    if (path === '/api/monetisation/signup-status' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const st = await env.PRISM_KV.get('monetisation:signup', 'json') || {};
+        st[body.platform] = { state: body.state || 'todo', handle: body.handle || '', notes: body.notes || '', updated: new Date().toISOString() };
+        await env.PRISM_KV.put('monetisation:signup', JSON.stringify(st));
+        return json({ success: true, status: st }, 200, origin);
+      } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
+    // ── Monetisation: headless account creation (platforms with open APIs) ───────────────────────────────
+    if (path === '/api/monetisation/create-account' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const platform = body.platform || '';
+        if (platform === 'bluesky') {
+          const handle = (body.handle || '').trim();
+          const email = (body.email || '').trim();
+          const password = body.password || '';
+          if (!handle || !email || !password) return json({success:false, error:'handle, email and password are all required'}, 400, origin);
+          if (!handle.endsWith('.bsky.social')) return json({success:false, error:'handle must end in .bsky.social (a subdomain handle)'}, 400, origin);
+          const r = await fetch('https://bsky.social/xrpc/com.atproto.server.createAccount', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ handle, email, password })
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) return json({success:false, error: (d.message || d.error || 'Bluesky refused the signup') + ' (HTTP ' + r.status + ')'}, 200, origin);
+          if (env.PRISM_KV) {
+            const st = await env.PRISM_KV.get('monetisation:signup', 'json') || {};
+            st['Bluesky'] = { state: 'created', handle: handle, notes: 'created headlessly ' + new Date().toISOString(), updated: new Date().toISOString() };
+            await env.PRISM_KV.put('monetisation:signup', JSON.stringify(st));
+          }
+          return json({success:true, handle: handle, did: d.did}, 200, origin);
+        }
+        return json({success:false, error:'No open signup API for ' + platform + ' — use the signup kit for that platform.'}, 200, origin);
+      } catch(e) { return json({success:false, error: e.message}, 500, origin); }
+    }
+
+
     if (path === '/api/monetisation/profiles' && request.method === 'GET') {
       try {
         const profiles = env.PRISM_KV ? await env.PRISM_KV.get('monetisation:profiles', 'json') : null;
@@ -7254,6 +8867,35 @@ When asked to approve items, respond with the item IDs to approve. When asked to
               results.telegram = {success:tr.ok};
             } catch(e) { results.telegram = {success:false,error:e.message}; }
           }
+        }
+        if (platform === 'tumblr' || platform === 'all') {
+          const oauthToken = k(env, ['tumblr_oauth_token','TUMBLR_OAUTH_TOKEN']) || '';
+          if (oauthToken) {
+            try {
+              const tr = await fetch('https://api.tumblr.com/v2/blog/identitypartners.tumblr.com/post',{method:'POST',headers:{'Authorization':'Bearer '+oauthToken,'Content-Type':'application/json'},body:JSON.stringify({type:'text',body:content.substring(0,100000)})});
+              const td = await tr.json().catch(()=>({}));
+              results.tumblr = {success:tr.ok, postId: td.response && td.response.id};
+            } catch(e) { results.tumblr = {success:false,error:e.message}; }
+          } else { results.tumblr = {success:false, error:'Tumblr OAuth token not set'}; }
+        }
+        if (platform === 'substack' || platform === 'all') {
+          const substackEmail = k(env, ['substack_email','SUBSTACK_EMAIL']) || '';
+          if (substackEmail) {
+            try {
+              const sr = await fetch('https://api.substack.com/v1/posts', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ title: content.split('\n')[0].slice(0, 100), body: content, publish: false })
+              });
+              results.substack = sr.ok ? {success:true} : {success:false, note:'Substack API key not configured — queued as draft via ' + substackEmail};
+            } catch(e) { results.substack = {success:false, note:'Queued via ' + substackEmail}; }
+          }
+        }
+        if (platform === 'whop' || platform === 'all') {
+          const whopKey = k(env, ['whop_api_key','WHOP_API_KEY']) || '';
+          results.whop = whopKey
+            ? {success:true, note:'Whop key present — Whop is a commerce API (products/members), not a content feed; use the Whop dashboard for announcements.'}
+            : {success:false, error:'No whop_api_key'};
         }
         return json({success:true, results}, 200, origin);
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
@@ -8164,6 +9806,50 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       } catch(e) { return json({images:[], error:e.message}, 200, origin); }
     }
 
+    // POST /api/canvas/raster-test — diagnostic: rasterise an SVG URL, report which path worked
+    if (path === '/api/canvas/raster-test' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const svgUrl = body.url;
+        const tokens = {
+          railway_bl: (k(env, ['railway_browserless_token']) || '').slice(0,3)+'…',
+          cloud_bl: (k(env, ['browserless']) || '').slice(0,3)+'…'
+        };
+        // inline diagnostic copy of svgToPngUrl with error capture
+        const diag = { steps: [] };
+        const BLT = k(env, ['railway_browserless_token']) || '';
+        const IO = k(env, ['browserless']) || '';
+        const fn = `export default async ({ page, context }) => {
+          await page.setViewport({ width: 1080, height: 1080, deviceScaleFactor: 1 });
+          await page.goto(context.url, { waitUntil: 'networkidle0', timeout: 45000 });
+          const shot = await page.screenshot({ type: 'png', encoding: 'base64' });
+          return { data: { b64: shot, len: shot ? shot.length : 0 }, type: 'application/json' };
+        }`;
+        let pngUrl = null;
+        for (const [label, base, tok] of [['railway','https://browserless-production-e49c65ef.up.railway.app',BLT],['cloud','https://chrome.browserless.io',IO]]) {
+          if (!tok) { diag.steps.push([label,'no-token']); continue; }
+          try {
+            const br = await fetch(base + '/function?token=' + encodeURIComponent(tok), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code: fn, context:{url:svgUrl} }) });
+            const txt = await br.text();
+            diag.steps.push([label, br.status, txt.slice(0,200)]);
+            if (br.ok) {
+              const d = JSON.parse(txt);
+              const b64 = d.data && d.data.b64;
+              if (b64 && env.PRISM_ASSETS) {
+                const key = 'canvas/png-diag-' + Date.now() + '.png';
+                const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+                await env.PRISM_ASSETS.put(key, bytes.buffer, { httpMetadata:{contentType:'image/png'} });
+                pngUrl = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/' + key;
+              }
+            }
+          } catch(e) { diag.steps.push([label,'EXC',String(e).slice(0,200)]); }
+          if (pngUrl) break;
+        }
+        const url = pngUrl;
+        return json({success:true, tokens, diag, url, pngBytes:url? (await fetch(url).then(r=>r.arrayBuffer()).then(b=>b.byteLength).catch(()=>null)) : null}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 200, origin); }
+    }
+
     // ── Canvas: agentic generation ────────────────────────────────────────────
     // POST /api/canvas/generate
     // body: { topic, type, platform, text, variant, myth, fact, points, source,
@@ -8188,7 +9874,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
             const img = slide.useImage ? await semanticImageSearch(slide.text || topic, env) : null;
             return {...slide, imageBase64: img};
           }));
-          const svgs = generateCarousel(enriched);
+          const svgs = generateCarousel(enriched).map(contrastFixSvg);
           const urls = [];
           for (let i=0; i<svgs.length; i++) {
             const key = `canvas/carousel-${Date.now()}-${i+1}of${svgs.length}.svg`;
@@ -8214,14 +9900,40 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           'testimonial':       `testimonial-${variant==='rose'?'rose':variant==='ivory'?'ivory':'teal'}`,
           'dual':              'dual-partnership',
           'image':             'img-landscape',
+          'research':          `semantic-${variant==='rose'?'rose':variant==='ivory'?'ivory':'teal'}`,
+          // Vista / partnership templates: pass through so `type` works as well as `template`
+          'img-landscape': 'img-landscape', 'img-sunrise': 'img-sunrise', 'img-sunset': 'img-sunset',
+          'img-seascape': 'img-seascape', 'img-beach': 'img-sunset', 'img-cityscape': 'img-cityscape',
+          'img-aurora': 'img-aurora', 'img-space': 'img-space', 'img-stars': 'img-stars',
+          'img-constellation': 'img-stars', 'night-sky': 'img-stars', 'seascape': 'img-seascape',
+          'cityscape': 'img-cityscape', 'constellation': 'img-stars',
+          'dual-partnership': 'dual-partnership', 'dual-children': 'dual-children',
+          'partnership': 'dual-partnership', 'symbiotic': 'dual-children',
         };
-        const templateId = body.template || templateMap[postType] || 'block-teal';
+        const templateId = body.template
+          || (/^(img-|semantic-|dual-)/.test(postType) ? postType : templateMap[postType])
+          || 'block-teal';
 
         // ── Fetch semantic image if needed ────────────────────────────────────
         let imgBase64 = null;
         const needsImage = ['awareness-day','awareness-day-rose','semantic-teal','semantic-rose','semantic-dark','img-landscape','img-sunrise','img-sunset','img-seascape','img-cityscape','img-aurora','img-space','img-stars','dual-partnership','dual-children'].includes(templateId);
         if (needsImage) {
-          imgBase64 = await semanticImageSearch(topic, env);
+          // Vista / partnership templates source by their SCENERY, not the post text
+          const templateQueries = {
+            'img-landscape':   'mountains valley moorland misty landscape serene',
+            'img-sunrise':     'sunrise golden hour dawn coast horizon warm',
+            'img-sunset':      'sunset warm sky horizon beach dusk',
+            'img-seascape':    'ocean waves seascape coast horizon calm',
+            'img-beach':       'beach shoreline seascape soft light',
+            'img-cityscape':   'city skyline dusk lights urban horizon',
+            'img-aurora':      'aurora borealis northern lights night sky',
+            'img-space':       'earth from space stars cosmos',
+            'img-stars':       'night sky stars milky way constellation',
+            'dual-partnership':'two people walking together partnership support',
+            'dual-children':   'children holding hands friendship outdoors light',
+          };
+          const q = templateQueries[templateId] || (body.background ? (body.background + ' ' + topic) : topic);
+          imgBase64 = await semanticImageSearch(q, env);
         }
 
         // ── Build data object for new renderers ───────────────────────────────
@@ -8255,10 +9967,11 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           }
         } else {
           // Legacy templates
-          svg = await generateCanvasHtml(body.text||topic, templateId, env);
+          svg = await generateCanvasHtml(body.text||topic, templateId, env, imgBase64);
         }
 
         if (!svg) return json({success:false, error:'SVG generation failed'}, 500, origin);
+        svg = contrastFixSvg(svg);   // deterministic hex-contrast verification before upload
 
         // ── Upload to R2 ──────────────────────────────────────────────────────
         const svgKey = `canvas/${platform}-${postType}-${Date.now()}.svg`;
@@ -8269,17 +9982,49 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         if (!skipQA && svgUrl) {
           try {
             const geminiKey = k(env, ['gemini_free_key','GEMINI_FREE_KEY','gemini_api_key','GEMINI_API_KEY']) || '';
-            if (geminiKey) {
-              const qaResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiKey}`, {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({contents:[{parts:[
-                  {text:'This is a social media canvas for Identity Partners. Check: 1) Text legible against background? 2) IP branding visible (logo, URL, handles)? 3) Layout balanced? 4) Any clipping or overlap? Reply JSON only: {"pass":true/false,"issues":[],"score":1-10}'},
-                  {inlineData:{mimeType:'image/svg+xml', data:btoa(unescape(encodeURIComponent(svg.substring(0,50000))))}}
-                ]}]}),
-              });
-              if (qaResp.ok) {
+            // Gemini inlineData accepts PNG/JPEG/WebP only — rasterise the SVG first via Browserless
+            var qaDebug = { geminiKey: !!geminiKey };
+            const pngUrl = await svgToPngUrl(svgUrl, env);
+            qaDebug.pngUrl = pngUrl || null;
+            let pngB64 = null;
+            if (pngUrl) { try { const pr = await fetch(pngUrl); qaDebug.pngFetch = pr.status; if (pr.ok) { const buf = await pr.arrayBuffer(); const bytes = new Uint8Array(buf); let bin=''; for (let i=0;i<bytes.byteLength;i+=8192) bin += String.fromCharCode(...bytes.subarray(i,i+8192)); pngB64 = btoa(bin); qaDebug.pngB64Len = pngB64.length; } } catch(e) { qaDebug.pngFetchErr = String(e).slice(0,120); } }
+                        if (geminiKey && pngB64) {
+              const qaPrompt = 'This is a social media canvas for Identity Partners. Check: 1) Text legible against background? 2) IP branding visible (logo, URL, handles)? 3) Layout balanced? 4) Any clipping or overlap? Reply JSON only: {"pass":true/false,"issues":[],"score":1-10}';
+              const qaModels = ['gemini-3.8-flash','gemini-3.8-flash-lite','gemini-2.5-flash','gemini-flash-latest'];
+              let qaResp = null, usedModel = '';
+              for (const m of qaModels) {
+                try {
+                  qaResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${geminiKey}`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({contents:[{parts:[
+                      {text:qaPrompt},
+                      {inlineData:{mimeType:'image/png', data:pngB64}}
+                    ]}]}),
+                  });
+                  qaDebug.qaModel = m; qaDebug.qaStatus = qaResp.status;
+                  if (qaResp.ok) { usedModel = m; break; }
+                  qaResp = null;
+                } catch(e) { qaDebug.qaErr = String(e).slice(0,120); qaResp = null; }
+              }
+              // Fallback: Pixtral vision on Mistral if Gemini is unavailable
+              if ((!qaResp || !qaResp.ok)) {
+                const mistralKey = k(env, ['mistral_api_key','MISTRAL_API_KEY']) || '';
+                if (mistralKey) {
+                  try {
+                    qaResp = await fetch('https://api.mistral.ai/v1/chat/completions', {
+                      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${mistralKey}`},
+                      body: JSON.stringify({ model:'pixtral-12b-2409', messages:[{role:'user',content:[
+                        {type:'text', text:'This is a social media canvas for Identity Partners. Check: 1) Text legible against background? 2) IP branding visible? 3) Layout balanced? 4) Any clipping or overlap? Reply JSON only: {"pass":true/false,"issues":[],"score":1-10}'},
+                        {type:'image_url', image_url:'data:image/png;base64,'+pngB64}
+                      ]}] })
+                    });
+                    qaDebug.qaModel = 'pixtral-12b'; qaDebug.qaStatus = qaResp.status;
+                  } catch(e) { qaDebug.pixtralErr = String(e).slice(0,120); qaResp = null; }
+                }
+              }
+              if (qaResp && qaResp.ok) {
                 const qaData = await qaResp.json();
-                const qaText = qaData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                const qaText = qaData.candidates?.[0]?.content?.parts?.[0]?.text || qaData.choices?.[0]?.message?.content || '';
                 const m = qaText.match(/\{[\s\S]*?\}/);
                 if (m) qaResult = JSON.parse(m[0]);
               }
@@ -8294,6 +10039,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
 
         return json({
           success: true,
+          qaDebug,
           url: svgUrl || R2_PUBLIC + 'ig-template-' + Math.floor(Math.random()*150) + '.png',
           svgUrl,
           platform,
@@ -8311,6 +10057,22 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     // ── Integration layer routes ──────────────────────────────────────────────
     const integrationResponse = await handleIntegrationRoutes(path, request, env, origin);
     if (integrationResponse) return integrationResponse;
+
+    if (path === '/api/r2/file' && request.method === 'GET') {
+      try {
+        const key = url.searchParams.get('key') || '';
+        if (!key) return json({ error: 'key required' }, 400, origin);
+        if (!env.PRISM_ASSETS) return json({ error: 'R2 not bound' }, 500, origin);
+        const obj = await env.PRISM_ASSETS.get(key);
+        if (!obj) return json({ error: 'Not found' }, 404, origin);
+        const headers = {
+          'Content-Type': obj.httpMetadata && obj.httpMetadata.contentType || 'application/octet-stream',
+          'Access-Control-Allow-Origin': origin || '*',
+          'Cache-Control': 'public, max-age=3600'
+        };
+        return new Response(obj.body, { headers });
+      } catch(e) { return json({ error: e.message }, 500, origin); }
+    }
 
     if (path === '/api/r2/upload' && request.method === 'POST') {
       try {
@@ -8332,8 +10094,109 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     ctx.waitUntil((async () => {
       try {
         const hour = new Date().getUTCHours();
+        // ── Daily KV→Drive backup (runs on the first cron after each new UTC day) ──
+        try {
+          const bkCfg = await env.PRISM_KV.get('kb:backup:config', 'json');
+          if (!bkCfg || bkCfg.enabled !== false) {
+            const today = new Date().toISOString().slice(0, 10);
+            const lastBk = await env.PRISM_KV.get('kb:backup:last', 'json');
+            if (!lastBk || (lastBk.date || '') !== today) {
+              ctx.waitUntil(backupStoresToDrive(env).catch(() => {}));
+            }
+          }
+        } catch (bke) {}
         const slot = hour >= 7 && hour < 9 ? 'morning' : hour >= 12 && hour < 14 ? 'lunchtime' : 'evening';
-        if (env.PRISM_KV) await env.PRISM_KV.put('cron:last-run', JSON.stringify({ ts: new Date().toISOString(), slot }), { expirationTtl: 86400 * 7 });
+        if (env.PRISM_KV) await env.PRISM_KV.put('cron:last-run', JSON.stringify({ ts: new Date().toISOString(), slot, autonomous: true }), { expirationTtl: 86400 * 7 });
+
+        // ── The autonomous pipeline ─────────────────────────────
+        const cfg = env.PRISM_KV ? await env.PRISM_KV.get('socialising:autonomy', 'json') : null;
+        if (!cfg || !cfg.enabled) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const countKey = 'socialising:count:' + today;
+        const count = parseInt((env.PRISM_KV && await env.PRISM_KV.get(countKey)) || '0');
+        if (count >= (cfg.maxPerDay || 3)) return;
+
+        // 1. Pick a relevant headline from the approved feeds
+        const kws = (env.PRISM_KV && await env.PRISM_KV.get('news:keywords', 'json')) || ['mental health', 'addiction', 'recovery', 'nhs', 'trauma'];
+        const feeds = ['https://www.theguardian.com/society/rss', 'https://feeds.bbci.co.uk/news/health/rss.xml'];
+        let pick = null;
+        for (const f of feeds) {
+          try {
+            const text = await fetch(f, { headers: { 'User-Agent': 'Argentica/1.0' } }).then(r => r.text());
+            const items = text.match(/<item>[\s\S]*?<\/item>/g) || [];
+            for (const it of items.slice(0, 20)) {
+              const title = ((it.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/) || [])[1] || '').trim();
+              const link = ((it.match(/<link>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/link>/) || [])[1] || '').trim();
+              if (title && kws.some(kw => title.toLowerCase().includes(String(kw).toLowerCase()))) { pick = { title, link }; break; }
+            }
+          } catch (e) {}
+          if (pick) break;
+        }
+        if (!pick) return;
+
+        // 2. Draft in Simon's voice
+        const TAGS = '\n\n#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nhello@identitypartners.uk | www.identitypartners.uk/contact';
+        globalThis.__weekTheme = '';
+        try {
+          const themes = await env.PRISM_KV.get('themes:weeks', 'json') || [];
+          const now2 = new Date(); const dow = (now2.getUTCDay() + 6) % 7;
+          const monday = new Date(now2); monday.setUTCDate(now2.getUTCDate() - dow); monday.setUTCHours(0, 0, 0, 0);
+          const mondayISO = monday.toISOString().slice(0, 10);
+          const th = themes.find(t2 => t2.week === mondayISO);
+          if (th && th.name) globalThis.__weekTheme = ' THIS WEEKS THEME is "' + th.name + '" — make the post speak to it directly.';
+        } catch (e2) {}
+        const draft = await orchestrate([
+          { role: 'system', content: 'You write as Simon Johnson of Identity Partners: intelligent, direct, humane, intellectually curious British professional prose. British English only. No em dashes. Never use multifaceted, nuanced, profound, tapestry, landscape, intersection, delve, ever-evolving. No clinical claims, no testimonials of outcomes, no client-identifiable content, never respond to people in crisis. 60 to 90 words.' },
+          { role: 'user', content: 'Write a short social media post reacting to this headline: "' + pick.title + '".' + (globalThis.__weekTheme || '') + ' Source credit at the end. No hashtags or contact details; they are appended automatically.' }
+        ], env, { profile: 'balanced' });
+        if (!draft || !draft.content) return;
+
+        // 3. Generate a canvas
+        let imageUrl = null;
+        try {
+          const cv = await fetch('https://prism-api.identitypartners.workers.dev/api/canvas/generate', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              topic: pick.title,
+              text: (draft.content || pick.title).slice(0, 400),   // refracted, theme-aware draft goes ON the canvas
+              template: 'semantic-teal', platform: 'instagram', skipQueue: true, skipQA: false   // Vision QA ON
+            })
+          }).then(r => r.json());
+          imageUrl = cv.url || null;
+        } catch (e) {}
+
+        // 4. Post it
+        const text = draft.content.trim() + TAGS + (pick.link ? '\n' + pick.link : '');
+        const platforms = cfg.platforms || ['bluesky', 'linkedin', 'telegram'];
+        const item = { id: 'mm-' + Date.now() + '-auto', text, platforms, imageUrl, source: 'autonomous:cron-' + slot, status: 'pending', createdAt: new Date().toISOString(), scheduledFor: null };
+        if (env.PRISM_KV) {
+          const q = await env.PRISM_KV.get('mm:queue', 'json') || [];
+          q.push(item);
+          await env.PRISM_KV.put('mm:queue', JSON.stringify(q));
+        }
+        const appr = await fetch('https://prism-api.identitypartners.workers.dev/api/mm/approve', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId: item.id })
+        }).then(r => r.json()).catch(() => ({}));
+
+        if (env.PRISM_KV) {
+          await env.PRISM_KV.put(countKey, String(count + 1));
+          const log = await env.PRISM_KV.get('socialising:log', 'json') || [];
+          log.unshift({ ts: new Date().toISOString(), slot, headline: pick.title, text: text.slice(0, 160), platforms, results: appr.results || {}, errors: appr.errors || {}, source: 'cron' });
+          await env.PRISM_KV.put('socialising:log', JSON.stringify(log.slice(0, 100)));
+        }
+
+        // 5. Tell Simon what happened
+        try {
+          const tgToken = k(env, ['telegram_token', 'TELEGRAM_TOKEN']) || '';
+          const chatId = k(env, ['telegram_chat_id', 'TELEGRAM_CHAT_ID']) || '';
+          if (tgToken && chatId) {
+            await fetch('https://api.telegram.org/bot' + tgToken + '/sendMessage', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, text: 'Argentica posted autonomously (' + slot + '): "' + pick.title + '"\n\n' + draft.content.slice(0, 200) })
+            });
+          }
+        } catch (e) {}
       } catch {}
     })());
   },

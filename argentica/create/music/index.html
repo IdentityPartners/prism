@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Music</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<style>
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+@media(max-width:900px){.mgrid{grid-template-columns:1fr;}}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+.chip{border:1px solid var(--teal,#0f3b3a);border-radius:16px;padding:4px 12px;font-size:12px;cursor:pointer;background:transparent;}
+.chip.on{background:var(--teal,#0f3b3a);color:#fff;}
+.mtrack{border-top:1px solid rgba(15,59,58,.15);padding:12px 0;display:flex;align-items:center;gap:12px;}
+.mtrack audio{flex:1;height:36px;}
+.merr{background:#fdecec;border:1px solid #d9534f;border-radius:8px;padding:10px 12px;font-size:13px;margin-top:12px;display:none;}
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="music">
+  <div class="arg-pagehead">
+    <h1>Music</h1>
+    <div class="sub">Instrumental beds for the podcast, reels and refract assets. Powered by Lyria on the Gemini key.</div>
+  </div>
+
+  <div class="mgrid">
+    <div class="card">
+      <h3>Compose</h3>
+      <label style="font-size:12px;">Presets</label>
+      <div class="chips" id="m-presets"></div>
+
+      <label style="font-size:12px;margin-top:14px;display:block;">Genre</label>
+      <div class="chips" id="m-genres"></div>
+
+      <label style="font-size:12px;margin-top:14px;display:block;">Mood</label>
+      <div class="chips" id="m-moods"></div>
+
+      <label style="font-size:12px;margin-top:14px;display:block;">Prompt</label>
+      <textarea id="m-prompt" rows="3" style="width:100%;" placeholder="e.g. calm piano underscore, reflective, 60 seconds"></textarea>
+
+      <div class="row mt" style="flex-wrap:wrap;gap:8px;align-items:center;">
+        <label style="font-size:12px;">Model</label>
+        <select id="m-model">
+          <option value="lyria-3.5">Lyria 3.5 (best — vocals, lyrics, up to 3 min)</option>
+          <option value="lyria-3-pro-preview">Lyria 3 Pro (full compositions)</option>
+          <option value="lyria-3-clip-preview">Lyria 3 Clip (fastest, 30s)</option>
+          <option value="lyria-002">Lyria 2 (default API model)</option>
+        </select>
+      </div>
+      <div class="row mt" style="flex-wrap:wrap;gap:8px;align-items:center;">
+        <label style="font-size:12px;">Length</label>
+        <select id="m-secs">
+          <option value="30">30s clip</option>
+          <option value="60" selected>60s</option>
+          <option value="120">2 min</option>
+          <option value="180">3 min</option>
+        </select>
+        <button id="m-run">Generate</button>
+        <button id="m-draft" class="ghost" title="Ask Tay to write a richer prompt">Tay: refine prompt</button>
+      </div>
+      <div class="muted mt" id="m-status"></div>
+      <div class="merr" id="m-err"></div>
+      <audio id="m-audio" controls style="width:100%;margin-top:14px;display:none;"></audio>
+      <div class="row mt" id="m-actions" style="display:none;gap:8px;">
+        <button id="m-save" class="ghost">Save to Library</button>
+        <a id="m-dl" class="ghost" download="argentica-music.wav" style="text-decoration:none;padding:6px 14px;border:1px solid #0f3b3a;border-radius:6px;">Download</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Free tracks <span class="muted" style="font-size:11px;">(Openverse — copyright-free, commercial-safe)</span></h3>
+      <div class="row">
+        <input type="text" id="ov-q" placeholder="Search — e.g. calm piano, ambient, podcast intro…">
+        <button id="ov-run">Search</button>
+      </div>
+      <div class="muted mt" style="font-size:11px;">Creative-Commons audio (FMA, Jamendo, ccMixter and more) — cleared for commercial use and modification. Attribution details shown per track.</div>
+      <div id="ov-list" class="mt"></div>
+    </div>
+
+    <div class="card">
+      <h3>Library</h3>
+      <div class="muted" id="m-lib-empty">Saved generations appear here.</div>
+      <div id="m-lib"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('music');
+const { api, esc } = ARG;
+
+const PRESETS = {
+  'Podcast underscore':'warm ambient piano and soft strings, gentle and unobtrusive, loopable, professional podcast background bed',
+  'Reel hook':'upbeat minimal electronic pulse, confident and modern, short-form social media energy, clean mix',
+  'Guided breathing':'very slow sustained pads, airy, spacious reverb, meditation and breathwork pace, no percussion',
+  'Trauma-informed calm':'soft felt piano, warm cello underneath, compassionate and grounded, slow tempo, hopeful resolution',
+  'Documentary':'sparse piano motif with subtle strings, contemplative, academic documentary tone',
+  'Advert bed':'bright optimistic plucked strings and light percussion, aspirational, 30-second advert energy'
+};
+const GENRES = ['Piano','Ambient','Strings','Electronic','Lo-fi','Jazz','Classical','Folk'];
+const MOODS = ['Calm','Reflective','Warm','Hopeful','Uplifting','Grounded','Focused','Compassionate'];
+
+let sel = { preset:'', genre:'', mood:'' };
+let lastBlob = null, lastUrl = null, lastPrompt = '';
+
+function chips(id, items, key) {
+  const el = document.getElementById(id);
+  el.innerHTML = items.map(x => '<button class="chip" data-v="' + esc(x) + '">' + esc(x) + '</button>').join('');
+  el.addEventListener('click', e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    sel[key] = sel[key] === b.dataset.v ? '' : b.dataset.v;
+    [...el.children].forEach(c => c.classList.toggle('on', c.dataset.v === sel[key]));
+    buildPrompt();
+  });
+}
+chips('m-presets', Object.keys(PRESETS), 'preset');
+chips('m-genres', GENRES, 'genre');
+chips('m-moods', MOODS, 'mood');
+
+function buildPrompt() {
+  const parts = [];
+  if (sel.preset) parts.push(PRESETS[sel.preset]);
+  if (sel.genre) parts.push(sel.genre.toLowerCase() + '-led instrumentation');
+  if (sel.mood) parts.push(sel.mood.toLowerCase() + ' mood');
+  const secs = document.getElementById('m-secs').value;
+  if (parts.length) {
+    parts.push(secs + ' seconds, instrumental only, no vocals');
+    document.getElementById('m-prompt').value = parts.join(', ');
+  }
+}
+document.getElementById('m-secs').addEventListener('change', buildPrompt);
+
+function showErr(msg) {
+  const el = document.getElementById('m-err');
+  el.style.display = 'block';
+  el.textContent = msg;
+}
+
+document.getElementById('m-run').addEventListener('click', async () => {
+  const prompt = document.getElementById('m-prompt').value.trim();
+  const status = document.getElementById('m-status');
+  document.getElementById('m-err').style.display = 'none';
+  if (!prompt) { ARG.toast('Describe the music first.'); return; }
+  const secs = parseInt(document.getElementById('m-secs').value, 10);
+  status.textContent = 'Composing… Lyria can take up to a minute.';
+  document.getElementById('m-run').disabled = true;
+  try {
+    const res = await fetch('/api/music/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: document.getElementById('m-model').value, prompt: prompt + ', approximately ' + secs + ' seconds, instrumental only, no vocals' })
+    });
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('audio/')) {
+      lastBlob = await res.blob();
+      if (lastUrl) URL.revokeObjectURL(lastUrl);
+      lastUrl = URL.createObjectURL(lastBlob);
+      const audio = document.getElementById('m-audio');
+      audio.src = lastUrl; audio.style.display = 'block';
+      document.getElementById('m-actions').style.display = 'flex';
+      document.getElementById('m-dl').href = lastUrl;
+      lastPrompt = prompt;
+      status.textContent = 'Playing — generated with ' + (res.headers.get('X-Model-Used') || 'Lyria') + '.';
+    } else {
+      const d = await res.json().catch(() => ({ error: 'HTTP ' + res.status }));
+      status.textContent = 'Could not generate.';
+      showErr(d.error + (d.hint ? ' — ' + d.hint : ''));
+    }
+  } catch (e) { status.textContent = 'Failed.'; showErr(e.message); }
+  document.getElementById('m-run').disabled = false;
+});
+
+document.getElementById('m-draft').addEventListener('click', async () => {
+  const base = document.getElementById('m-prompt').value.trim() || 'calm instrumental bed for a therapy practice';
+  document.getElementById('m-status').textContent = 'Tay is refining the prompt…';
+  try {
+    const r = await api('/api/chat/stream', { method: 'POST', body: JSON.stringify({
+      message: 'Rewrite this into one rich, concrete music-generation prompt (instruments, tempo, texture, mood, length). Only output the prompt itself, nothing else: "' + base + '"',
+      providerOverride: 'mistral'
+    })});
+    const txt = await r.text();
+    const m = [...txt.matchAll(/data: (\{[\s\S]*?\})\n/g)].map(x => JSON.parse(x[1])).filter(x => x.text).map(x => x.text).join('');
+    if (m) { document.getElementById('m-prompt').value = m.trim().replace(/^"|"$/g, ''); document.getElementById('m-status').textContent = 'Prompt refined.'; }
+    else document.getElementById('m-status').textContent = 'No refinement came back — kept yours.';
+  } catch (e) { document.getElementById('m-status').textContent = 'Refine failed: ' + e.message; }
+});
+
+document.getElementById('m-save').addEventListener('click', async () => {
+  if (!lastBlob) return;
+  document.getElementById('m-status').textContent = 'Uploading to R2…';
+  try {
+    const b64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result.split(',')[1]); fr.readAsDataURL(lastBlob); });
+    const r = await api('/api/r2/upload', { method: 'POST', body: JSON.stringify({ key: 'music/' + Date.now() + '.wav', content: b64, contentType: 'audio/wav' })});
+    const d = await r.json();
+    const rec = { id: 'mus-' + Date.now(), prompt: lastPrompt, key: d.key || '', url: '/api/r2/file?key=' + encodeURIComponent(d.key || ''), created: new Date().toISOString() };
+    const lib = JSON.parse(localStorage.getItem('arg-music') || '[]');
+    lib.unshift(rec);
+    localStorage.setItem('arg-music', JSON.stringify(lib.slice(0, 30)));
+    document.getElementById('m-status').textContent = 'Saved to Library.';
+    renderLib();
+  } catch (e) { document.getElementById('m-status').textContent = 'Save failed: ' + e.message; }
+});
+
+function renderLib() {
+  const lib = JSON.parse(localStorage.getItem('arg-music') || '[]');
+  document.getElementById('m-lib-empty').style.display = lib.length ? 'none' : 'block';
+  document.getElementById('m-lib').innerHTML = lib.map(t =>
+    '<div class="mtrack"><div style="flex:1;min-width:0;"><div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(t.prompt) + '</div><div class="muted" style="font-size:11px;">' + new Date(t.created).toLocaleString('en-GB') + '</div></div><audio controls preload="none" src="' + esc(t.url) + '" style="max-width:220px;height:32px;"></audio></div>'
+  ).join('');
+}
+renderLib();
+
+// ── Openverse free tracks ──
+document.getElementById('ov-run').addEventListener('click', () => ovSearch(1));
+document.getElementById('ov-q').addEventListener('keydown', e => { if (e.key === 'Enter') ovSearch(1); });
+async function ovSearch(page) {
+  const q = document.getElementById('ov-q').value.trim() || 'calm instrumental';
+  const el = document.getElementById('ov-list');
+  el.innerHTML = '<div class="muted">Searching Openverse…</div>';
+  try {
+    const d = await api('/music/openverse?q=' + encodeURIComponent(q) + '&page=' + (page || 1));
+    if (d.error) { el.innerHTML = '<div class="muted">' + esc(d.error) + '</div>'; return; }
+    let saveKey = '';
+    el.innerHTML = (d.tracks || []).map(t =>
+      '<div class="mtrack"><div style="flex:1; min-width:0;">' +
+      '<div style="font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + esc(t.title) + '</div>' +
+      '<div class="muted" style="font-size:11px;">' + esc(t.creator) + ' · ' + esc(t.license.toUpperCase()) + ' · ' + Math.round((t.duration || 0) / 1000) + 's' +
+      (t.foreign ? ' · <a href="' + esc(t.foreign) + '" target="_blank" rel="noopener">source</a>' : '') + '</div></div>' +
+      '<audio controls preload="none" src="' + esc(t.url) + '" style="max-width:200px; height:32px;"></audio>' +
+      '<button class="ghost small" data-save="' + esc(t.url) + '" data-title="' + esc(t.title) + '" data-lic="' + esc(t.creator + ' / ' + t.license + ' via Openverse') + '">Save</button></div>'
+    ).join('') + ((d.total || 0) > 12 * (page || 1) ? '<div class="mt"><button class="ghost small" id="ov-more">More</button></div>' : '');
+    el.querySelectorAll('[data-save]').forEach(b => b.addEventListener('click', async () => {
+      b.disabled = true; b.textContent = 'Saving…';
+      try {
+        const r = await fetch(b.dataset.save);
+        const blob = await r.blob();
+        const b64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
+        const ext = (b.dataset.save.split('.').pop() || 'mp3').split('?')[0].slice(0, 4);
+        saveKey = 'music/openverse-' + Date.now() + '.' + ext;
+        await api('/r2/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: saveKey, content: b64, contentType: blob.type || 'audio/mpeg' }) });
+        const lib = JSON.parse(localStorage.getItem('arg-music') || '[]');
+        lib.unshift({ id: 'mus-' + Date.now(), prompt: b.dataset.title + ' — ' + b.dataset.lic, url: '/api/r2/file?key=' + encodeURIComponent(saveKey), created: new Date().toISOString() });
+        localStorage.setItem('arg-music', JSON.stringify(lib.slice(0, 30)));
+        b.textContent = 'Saved';
+        renderLib();
+      } catch (e) { b.textContent = 'Failed'; }
+    }));
+    const more = document.getElementById('ov-more');
+    if (more) more.addEventListener('click', () => ovSearch((page || 1) + 1));
+  } catch (e) { el.innerHTML = '<div class="muted">Search failed: ' + esc(e.message) + '</div>'; }
+}
+</script>
+</body>
+</html>

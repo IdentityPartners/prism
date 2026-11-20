@@ -288,7 +288,7 @@ All stored as Cloudflare Worker secrets unless noted.
 
 **Google:** `google_client_id` (944507774917-ja5tb5s78don3v5ud9jljk46lsep5v0u.apps.googleusercontent.com), `google_client_secret`, `google_redirect_uri`
 
-**Infrastructure:** `railway_token` (rlwy_acct_kXRv0oatMPiyhIOVDxMpJv2wZVldD0t1AG4cs2bl — stored in CF secrets), `github_token` (renewed 11 Nov 2026, stored in CF secrets), `cloudflare_token`, `msgraph_client`, `msgraph_secret`, `msgraph_tenant`, `azure_storage_account`, `azure_storage_sas`, `nylas_api_key`, `nylas_app_key`
+**Infrastructure:** `railway_token` (REDACTED (rotate this token; it was exposed in a public repo) — stored in CF secrets), `github_token` (renewed 11 Nov 2026, stored in CF secrets), `cloudflare_token`, `msgraph_client`, `msgraph_secret`, `msgraph_tenant`, `azure_storage_account`, `azure_storage_sas`, `nylas_api_key`, `nylas_app_key`
 
 **KV-stored tokens:** `oauth:linkedin:tokens` — valid, expires ~5 January 2027. `google:oauth:token` — access token auto-refreshes from refresh token.
 

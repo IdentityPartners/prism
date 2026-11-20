@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Email</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  .mail-shell { display: grid; grid-template-columns: 300px 1fr; gap: 0; border: 1px solid rgba(15,59,58,.18); border-radius: 10px; overflow: hidden; min-height: 560px; background: #fff; }
+  .mail-list { border-right: 1px solid rgba(15,59,58,.12); overflow-y: auto; max-height: 72vh; }
+  .mail-item { padding: 12px 14px; border-bottom: 1px solid rgba(15,59,58,.08); cursor: pointer; }
+  .mail-item:hover { background: rgba(15,59,58,.04); }
+  .mail-item.on { background: rgba(15,59,58,.08); border-left: 3px solid #0f3b3a; }
+  .mail-item.unread .mi-sub { font-weight: 700; }
+  .mi-from { font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+  .mi-date { font-size: 11px; color: #6b675f; font-weight: 400; white-space: nowrap; }
+  .mi-sub { font-size: 13px; margin: 2px 0; }
+  .mi-snippet { font-size: 12px; color: #6b675f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dot-unread { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #0f3b3a; margin-right: 6px; }
+  .mail-read { padding: 18px 22px; overflow-y: auto; max-height: 72vh; }
+  .mail-read iframe { width: 100%; min-height: 380px; border: none; background: #fff; }
+  .folder-btn { display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: none; cursor: pointer; font-size: 13px; border-radius: 6px; font-family: inherit; }
+  .folder-btn.on { background: #0f3b3a; color: #fff; }
+  .compose-pane { position: fixed; inset: 0; background: rgba(28,26,23,.45); display: none; align-items: center; justify-content: center; z-index: 200; }
+  .compose-pane.open { display: flex; }
+  .compose-box { background: #fff; border-radius: 12px; width: 640px; max-width: 95vw; max-height: 85vh; overflow-y: auto; padding: 20px 22px; }
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="email">
+  <div class="arg-pagehead spread">
+    <div>
+      <h1>Email</h1>
+      <div class="sub" id="account-sub">Nylas-connected mailbox — proper client, not a CSV.</div>
+    </div>
+    <div class="row" style="gap:6px;">
+      <button class="ghost small" id="connect-btn" style="display:none;">Connect mailbox</button>
+      <button class="ghost small" id="refresh">Refresh</button>
+      <button class="small" id="compose-btn">Compose</button>
+    </div>
+  </div>
+
+  <div class="card" id="connect-card" style="display:none;">
+    <h3>Connect your mailbox</h3>
+    <div class="muted">Argentica reads and sends through Nylas. Connect hello@identitypartners.uk (or any provider) once and this becomes a full client: folders, threads, read panes, replies. The connection screen is hosted by the provider — Argentica never sees your password.</div>
+    <button class="mt" id="connect-btn2">Start connection</button>
+  </div>
+
+  <div class="mail-shell" id="mail-shell" style="display:none;">
+    <div>
+      <div style="padding:10px 12px; border-bottom:1px solid rgba(15,59,58,.12);">
+        <button class="folder-btn on" data-folder="INBOX">Inbox</button>
+        <button class="folder-btn" data-folder="DRAFTS">Drafts</button>
+        <button class="folder-btn" data-folder="SENT">Sent</button>
+        <button class="folder-btn" data-folder="ARCHIVE">Archive</button>
+      </div>
+      <div class="mail-list" id="mail-list"></div>
+    </div>
+    <div class="mail-read" id="mail-read">
+      <div class="muted">Select a message.</div>
+    </div>
+  </div>
+</div>
+
+<div class="compose-pane" id="compose-pane">
+  <div class="compose-box">
+    <h3 id="compose-title">New message</h3>
+    <div class="grid" style="gap:8px;">
+      <input type="text" id="m-to" placeholder="To (comma-separated)">
+      <input type="text" id="m-subject" placeholder="Subject">
+      <textarea id="m-body" style="min-height:200px;" placeholder="Write your message…"></textarea>
+    </div>
+    <div class="row mt spread">
+      <button class="ghost small" id="m-cancel">Discard</button>
+      <button class="small" id="m-send">Send</button>
+    </div>
+    <div class="muted mt" id="m-status" style="font-size:12px;"></div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('email');
+const { api, esc } = ARG;
+
+let folder = 'INBOX';
+let messages = [];
+let replyTo = null;
+
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  const today = new Date();
+  if (dt.toDateString() === today.toDateString()) return dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+async function checkStatus() {
+  try {
+    const st = await api('/nylas/status');
+    if (st.connected) {
+      document.getElementById('account-sub').textContent = 'Connected: ' + st.email;
+      document.getElementById('connect-card').style.display = 'none';
+      document.getElementById('mail-shell').style.display = 'grid';
+      return true;
+    }
+  } catch (e) {}
+  document.getElementById('account-sub').textContent = 'No mailbox connected yet.';
+  document.getElementById('connect-card').style.display = 'block';
+  document.getElementById('mail-shell').style.display = 'none';
+  return false;
+}
+
+async function loadMail() {
+  const list = document.getElementById('mail-list');
+  if (!(await checkStatus())) return;
+  list.innerHTML = '<div class="muted" style="padding:14px;">Loading…</div>';
+  try {
+    const d = await api('/nylas/inbox?folder=' + encodeURIComponent(folder) + '&limit=30');
+    if (d.status !== 'ok') {
+      list.innerHTML = '<div class="muted" style="padding:14px;">Could not load: ' + esc(d.error || d.status) + '</div>';
+      return;
+    }
+    messages = d.messages || [];
+    list.innerHTML = messages.map((m, i) =>
+      '<div class="mail-item' + (m.unread ? ' unread' : '') + '" data-i="' + i + '">' +
+      '<div class="mi-from"><span>' + (m.unread ? '<span class="dot-unread"></span>' : '') + esc(m.fromName || m.from || '(unknown)') + '</span><span class="mi-date">' + fmtDate(m.date) + '</span></div>' +
+      '<div class="mi-sub">' + esc(m.subject) + '</div>' +
+      '<div class="mi-snippet">' + esc(m.snippet || '') + '</div>' +
+      '</div>').join('') || '<div class="muted" style="padding:14px;">Empty.</div>';
+    list.querySelectorAll('.mail-item').forEach(el => el.addEventListener('click', () => openMessage(+el.dataset.i)));
+  } catch (e) {
+    list.innerHTML = '<div class="muted" style="padding:14px;">Failed: ' + esc(e.message) + '</div>';
+  }
+}
+
+async function openMessage(i) {
+  const m = messages[i];
+  if (!m) return;
+  document.querySelectorAll('.mail-item').forEach(el => el.classList.toggle('on', +el.dataset.i === i));
+  const pane = document.getElementById('mail-read');
+  pane.innerHTML = '<div class="muted">Loading message…</div>';
+  try {
+    const d = await api('/nylas/message/' + encodeURIComponent(m.id));
+    const msg = d.message || {};
+    const bodyHtml = (msg.body || '').replace(/<script[\s\S]*?<\/script>/gi, '');
+    const frm = (msg.from && msg.from[0]) || {};
+    replyTo = m;
+    document.getElementById('compose-title').textContent = 'Reply';
+    pane.innerHTML =
+      '<div class="spread"><strong>' + esc(msg.subject || m.subject) + '</strong></div>' +
+      '<div class="muted" style="font-size:12px; margin:4px 0 14px;">' + esc(frm.name || '') + ' &lt;' + esc(frm.email || m.from || '') + '&gt; — ' + new Date(msg.date || m.date || Date.now()).toLocaleString('en-GB') + '</div>' +
+      '<iframe id="msg-frame" sandbox="allow-same-origin"></iframe>' +
+      '<div class="row mt"><button class="small" id="reply-btn">Reply</button><button class="ghost small" id="fwd-btn">Forward</button></div>';
+    const frame = document.getElementById('msg-frame');
+    frame.contentDocument.open(); frame.contentDocument.write(bodyHtml || '<pre style="font-family:inherit;white-space:pre-wrap;">' + esc(msg.snippet || '(empty body)') + '</pre>'); frame.contentDocument.close();
+    frame.style.height = Math.min(600, frame.contentDocument.body.scrollHeight + 30) + 'px';
+    document.getElementById('reply-btn').addEventListener('click', () => openCompose('reply'));
+    document.getElementById('fwd-btn').addEventListener('click', () => openCompose('forward'));
+  } catch (e) {
+    pane.innerHTML = '<div class="badge rose">Could not load: ' + esc(e.message) + '</div>';
+  }
+}
+
+function openCompose(mode) {
+  const to = document.getElementById('m-to');
+  const subj = document.getElementById('m-subject');
+  const body = document.getElementById('m-body');
+  if (mode === 'reply' && replyTo) {
+    to.value = replyTo.from || '';
+    subj.value = 'Re: ' + (replyTo.subject || '').replace(/^Re:\s*/i, '');
+    body.value = '\n\n—\nIdentity Partners\nhello@identitypartners.uk | www.identitypartners.uk/contact';
+  } else if (mode === 'forward' && replyTo) {
+    to.value = '';
+    subj.value = 'Fwd: ' + (replyTo.subject || '');
+    body.value = '\n\n--- Forwarded ---\nFrom: ' + (replyTo.from || '') + '\nSubject: ' + (replyTo.subject || '') + '\n\n' + (replyTo.snippet || '');
+  } else {
+    replyTo = null;
+    to.value = ''; subj.value = ''; body.value = '';
+    document.getElementById('compose-title').textContent = 'New message';
+  }
+  document.getElementById('compose-title').textContent = mode === 'reply' ? 'Reply' : mode === 'forward' ? 'Forward' : 'New message';
+  document.getElementById('m-status').textContent = '';
+  document.getElementById('compose-pane').classList.add('open');
+  to.focus();
+}
+
+document.getElementById('compose-btn').addEventListener('click', () => openCompose('new'));
+document.getElementById('m-cancel').addEventListener('click', () => document.getElementById('compose-pane').classList.remove('open'));
+document.getElementById('m-send').addEventListener('click', async () => {
+  const st = document.getElementById('m-status');
+  const to = document.getElementById('m-to').value.split(',').map(s => s.trim()).filter(Boolean).map(e => ({ email: e }));
+  if (!to.length) { st.textContent = 'Add at least one recipient.'; return; }
+  st.textContent = 'Sending…';
+  try {
+    const payload = { to, subject: document.getElementById('m-subject').value, body: document.getElementById('m-body').value };
+    if (replyTo) payload.reply_to_message_id = replyTo.id;
+    const d = await api('/nylas/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (d.success === false) throw new Error(d.error || 'send failed');
+    st.textContent = 'Sent.';
+    setTimeout(() => { document.getElementById('compose-pane').classList.remove('open'); if (folder === 'SENT') loadMail(); }, 800);
+  } catch (e) { st.textContent = 'Failed: ' + e.message; }
+});
+
+document.querySelectorAll('.folder-btn').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.folder-btn').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+  folder = b.dataset.folder;
+  loadMail();
+}));
+document.getElementById('refresh').addEventListener('click', loadMail);
+async function connect() {
+  location.href = 'https://prism-api.identitypartners.workers.dev/comms/nylas/auth';
+}
+document.getElementById('connect-btn').addEventListener('click', connect);
+document.getElementById('connect-btn2').addEventListener('click', connect);
+
+loadMail();
+</script>
+</body>
+</html>

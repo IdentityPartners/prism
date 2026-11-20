@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Monetisation</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  .mtab { padding: 6px 14px; border: 1px solid rgba(15,59,58,.25); border-radius: 6px; background: none; cursor: pointer; font-size: 13px; font-family: inherit; }
+  .mtab.on { background: #0f3b3a; color: #fff; }
+  .pchip { border: 1px solid rgba(15,59,58,.3); border-radius: 14px; padding: 3px 11px; font-size: 12px; cursor: pointer; background: none; font-family: inherit; }
+  .pchip.on { background: #0f3b3a; color: #fff; border-color: #0f3b3a; }
+  .prof-card { border: 1px solid rgba(15,59,58,.18); border-radius: 8px; background: #fff; overflow: hidden; }
+  .prof-card .hdr { padding: 8px 12px; background: rgba(247,243,233,.7); border-bottom: 1px solid rgba(15,59,58,.12); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #0f3b3a; display: flex; justify-content: space-between; gap: 8px; }
+  .prof-card .body { padding: 12px; font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; max-height: 320px; overflow-y: auto; }
+  .kit-row { display: flex; gap: 10px; align-items: center; border-top: 1px solid rgba(15,59,58,.1); padding: 10px 0; }
+  .state-badge { font-size: 11px; border-radius: 10px; padding: 1px 9px; }
+  .state-todo { background: rgba(15,59,58,.08); color: #0f3b3a; }
+  .state-created { background: #e7f3e7; color: #1e7a34; }
+  .state-verified { background: #0f3b3a; color: #fff; }
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="monetisation">
+  <div class="arg-pagehead spread">
+    <div>
+      <h1>Monetisation</h1>
+      <div class="sub">One master profile, proliferated across the 125-platform registry — accounts created, verified and posted to, all from here.</div>
+    </div>
+    <div class="row" style="gap:6px;">
+      <button class="mtab on" data-tab="proliferate">Profiles</button>
+      <button class="mtab" data-tab="signup">Signup kit</button>
+      <button class="mtab" data-tab="post">Post</button>
+      <button class="mtab" data-tab="registry">Registry</button>
+    </div>
+  </div>
+
+  <div id="tab-proliferate">
+    <div class="card">
+      <h3>Master profile</h3>
+      <div class="grid two" style="gap:10px;">
+        <input type="text" id="p-name" value="Identity Partners" placeholder="Display name">
+        <input type="text" id="p-tagline" value="Understand your past. Appreciate the present. Define your future." placeholder="Tagline">
+      </div>
+      <textarea id="p-short-bio" rows="2" style="width:100%; margin-top:10px;" placeholder="Short bio (compact platforms)">Non-clinical listening, coaching, mentoring and relational practice for addiction, trauma and mental health recovery.</textarea>
+      <textarea id="p-full-bio" rows="4" style="width:100%; margin-top:8px;" placeholder="Full bio (detailed platforms)">Identity Partners offers non-clinical listening, coaching, mentoring and relational practice. We work with individuals navigating addiction recovery, trauma, and mental health challenges. Our approach is evidence-informed, person-centred, and grounded in lived experience. We believe that understanding your past, appreciating the present, and defining your future is the foundation of lasting change.</textarea>
+      <div class="grid two" style="gap:10px; margin-top:8px;">
+        <textarea id="p-services" rows="3" placeholder="Services & rates">Initial Consultation: Free
+Individual Sessions: £50/hour
+Group Sessions: £25/session
+Monthly Package: £150/month</textarea>
+        <textarea id="p-keywords" rows="3" placeholder="Keywords">addiction recovery, trauma-informed, mental health, coaching, mentoring, listening, wellbeing, recovery</textarea>
+      </div>
+      <label class="muted" style="margin-top:14px; display:block; font-size:12px;">Platforms to generate for</label>
+      <div class="row mt" id="platform-selector" style="flex-wrap:wrap; gap:6px;"></div>
+      <div class="row mt" style="gap:8px;">
+        <button id="prolif-run">Generate platform profiles</button>
+        <button class="ghost" id="prolif-load">Load saved</button>
+      </div>
+      <div class="muted mt" id="prolif-status" style="font-size:12px;"></div>
+    </div>
+    <div id="generated-profiles-grid" class="grid two mt"></div>
+  </div>
+
+  <div id="tab-signup" style="display:none;">
+    <div class="card">
+      <h3>Headless creation — Bluesky</h3>
+      <div class="muted" style="font-size:12px;">Bluesky is the one platform with an open account-creation API, so Argentica can create the account for you end-to-end. You choose the handle, email and password; the account is created and recorded in the kit below.</div>
+      <div class="grid two mt" style="gap:10px;">
+        <input type="text" id="bsky-handle" placeholder="yourchoice.bsky.social">
+        <input type="text" id="bsky-email" placeholder="Email for the account">
+      </div>
+      <input type="password" id="bsky-pass" placeholder="Password (choose one)" style="width:100%; margin-top:8px;">
+      <button class="mt" id="bsky-create">Create Bluesky account</button>
+      <div class="muted mt" id="bsky-status" style="font-size:12px;"></div>
+    </div>
+    <div class="card mt">
+      <h3>Signup kit — every platform</h3>
+      <div class="muted" style="font-size:12px; margin-bottom:10px;">For platforms without open signup APIs, the kit holds everything for a two-minute manual signup: the direct signup link, what verification that platform demands, your generated profile ready to paste, and a status you control. Platforms with their own posting APIs are marked — once a profile exists, the Post tab can publish to it.</div>
+      <div id="kit-list"></div>
+    </div>
+  </div>
+
+  <div id="tab-registry" style="display:none;">
+    <div class="card" style="padding:0; height: calc(100vh - 210px); overflow: hidden;">
+      <iframe src="/argentica/commercial/platforms/?embed=1" style="width:100%; height:100%; border: none;"></iframe>
+    </div>
+  </div>
+
+  <div id="tab-post" style="display:none;">
+    <div class="card">
+      <h3>Post to platform profiles</h3>
+      <textarea id="post-content" rows="5" style="width:100%;" placeholder="Paste content, or generate from Refract…"></textarea>
+      <div class="row mt" id="post-platform-selector" style="flex-wrap:wrap; gap:6px;"></div>
+      <div class="row mt" style="gap:8px;">
+        <button id="post-now">Post now</button>
+        <button class="ghost" id="post-queue">Add to queue</button>
+      </div>
+      <div class="mt" id="postiz-channels"><span class="muted">Checking Postiz channels…</span></div>
+      <div class="mt" id="post-results"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('monetisation');
+const { api, esc } = ARG;
+
+const PLATFORMS = [
+  { name:'Bluesky', category:'Social', signup:'https://bsky.social/signup', verify:'Email only', posting:'Direct API (posting configured)', requirements:'300 chars max. Casual, engaging tone.' },
+  { name:'Instagram', category:'Social', signup:'https://www.instagram.com/accounts/emailsignup/', verify:'Email or phone', posting:'Via Buffer (configured)', requirements:'Caption up to 2200 chars. Hashtags important. Visual-first.' },
+  { name:'Facebook', category:'Social', signup:'https://www.facebook.com/r.php', verify:'Email or phone', posting:'Via Buffer (configured)', requirements:'Longer form OK. Community-focused tone.' },
+  { name:'X/Twitter', category:'Social', signup:'https://x.com/i/flow/signup', verify:'Email or phone, then captcha', posting:'Via Buffer (configured)', requirements:'280 chars. Punchy, direct.' },
+  { name:'LinkedIn', category:'Professional', signup:'https://www.linkedin.com/signup/cold-join', verify:'Email, sometimes ID check', posting:'Direct API (posting configured)', requirements:'Professional tone. Up to 3000 chars. Thought leadership.' },
+  { name:'Telegram', category:'Messaging', signup:'https://web.telegram.org', verify:'Phone number', posting:'Bot API (posting configured)', requirements:'Up to 4096 chars. Can use Markdown.' },
+  { name:'Substack', category:'Newsletter', signup:'https://substack.com/signup', verify:'Email', posting:'Substack API (needs Substack key)', requirements:'Newsletter format. Longer form. Personal voice.' },
+  { name:'Medium', category:'Publishing', signup:'https://medium.com/new-account', verify:'Email, then captcha', posting:'Medium API (needs integration token)', requirements:'Article format. 500-2000 words. Thoughtful, evidence-based.' },
+  { name:'Tumblr', category:'Blog', signup:'https://www.tumblr.com/register', verify:'Email, then captcha', posting:'Tumblr API (needs app key)', requirements:'Blog post format. Creative, personal.' },
+  { name:'Fiverr', category:'Freelance', signup:'https://www.fiverr.com/join', verify:'Email or Google; manual review for sellers', posting:'No posting API', requirements:'Service description. Clear deliverables and pricing.' },
+  { name:'Upwork', category:'Freelance', signup:'https://www.upwork.com/nx/signup/', verify:'Email; manual profile review', posting:'No posting API', requirements:'Professional profile. Skills and experience focused.' },
+  { name:'Bark', category:'Services', signup:'https://www.bark.com/en/gb/join/', verify:'Email or phone; manual review', posting:'No posting API', requirements:'Service listing. Local focus. Clear pricing.' },
+  { name:'Noomii', category:'Coaching', signup:'https://www.noomii.com/coach-signup', verify:'Email; manual review', posting:'No posting API', requirements:'Coaching profile. Specialisms and approach.' },
+  { name:'Life Coach Directory', category:'Coaching', signup:'https://www.lifecoachdirectory.org.uk/joinus.html', verify:'Email; manual review', posting:'No posting API', requirements:'Directory listing. Qualifications and approach.' },
+  { name:'MentorCruise', category:'Mentoring', signup:'https://mentorcruise.com/mentorship/apply/', verify:'Email; manual review', posting:'No posting API', requirements:'Mentor profile. Experience and what you offer.' },
+  { name:'Mighty Networks', category:'Community', signup:'https://www.mightynetworks.com/plans', verify:'Email; paid plan required', posting:'No posting API', requirements:'Community description. Who it is for and what they get.' },
+  { name:'Whop', category:'Community', signup:'https://whop.com/signup', verify:'Email', posting:'Whop API (needs key)', requirements:'Product/community listing. Benefits and pricing.' }
+];
+
+const sel = new Set(PLATFORMS.map(p => p.name));
+
+document.querySelectorAll('.mtab').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.mtab').forEach(x => x.classList.toggle('on', x === b));
+  ['proliferate', 'signup', 'post', 'registry'].forEach(t => document.getElementById('tab-' + t).style.display = t === b.dataset.tab ? 'block' : 'none');
+}));
+
+function chips() {
+  const el = document.getElementById('platform-selector');
+  el.innerHTML = PLATFORMS.map(p => '<button class="pchip' + (sel.has(p.name) ? ' on' : '') + '" data-p="' + esc(p.name) + '">' + esc(p.name) + '</button>').join('');
+  el.querySelectorAll('.pchip').forEach(c => c.addEventListener('click', () => {
+    sel.has(c.dataset.p) ? sel.delete(c.dataset.p) : sel.add(c.dataset.p);
+    chips();
+  }));
+}
+chips();
+
+document.getElementById('prolif-run').addEventListener('click', async () => {
+  const st = document.getElementById('prolif-status');
+  const platforms = PLATFORMS.filter(p => sel.has(p.name));
+  if (!platforms.length) { ARG.toast('Select at least one platform.'); return; }
+  st.textContent = 'Generating ' + platforms.length + ' profiles…';
+  try {
+    const d = await api('/monetisation/proliferate', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        profile: {
+          name: document.getElementById('p-name').value,
+          tagline: document.getElementById('p-tagline').value,
+          bio: document.getElementById('p-full-bio').value,
+          shortBio: document.getElementById('p-short-bio').value,
+          services: document.getElementById('p-services').value,
+          keywords: document.getElementById('p-keywords').value
+        },
+        platforms: platforms.map(p => ({ name: p.name, requirements: p.requirements, description: p.category }))
+      }) });
+    st.textContent = (d.generated || 0) + ' of ' + platforms.length + ' generated.';
+    renderProfiles(d.results || []);
+  } catch (e) { st.textContent = 'Failed: ' + e.message; }
+});
+
+async function loadSaved() {
+  try {
+    const d = await api('/monetisation/profiles');
+    const entries = Object.entries(d.profiles || {}).map(([platform, v]) => ({ platform, content: v.content, status: 'saved' }));
+    renderProfiles(entries);
+  } catch (e) {}
+}
+document.getElementById('prolif-load').addEventListener('click', loadSaved);
+
+function renderProfiles(results) {
+  const grid = document.getElementById('generated-profiles-grid');
+  grid.innerHTML = results.filter(r => r.content).map(r =>
+    '<div class="prof-card"><div class="hdr"><span>' + esc(r.platform) + '</span><span class="muted" style="font-weight:400; text-transform:none;">' + esc(r.status || '') + '</span></div>' +
+    '<div class="body" id="pc-' + esc(r.platform.replace(/\W/g, '')) + '">' + esc(r.content) + '</div>' +
+    '<div class="row" style="padding:8px 12px;"><button class="ghost small" onclick="copyProfile(\'' + esc(r.platform.replace(/\W/g, '')) + '\')">Copy</button></div></div>'
+  ).join('') || '<div class="muted">Nothing generated yet.</div>';
+  window._profiles = results;
+}
+
+window.copyProfile = id => {
+  const el = document.getElementById('pc-' + id);
+  if (el) { navigator.clipboard.writeText(el.innerText).then(() => ARG.toast('Copied.')); }
+};
+
+// ── Signup kit ──
+async function loadKit() {
+  const el = document.getElementById('kit-list');
+  let st = {};
+  try { st = (await api('/monetisation/signup-status')).status || {}; } catch (e) {}
+  el.innerHTML = PLATFORMS.map(p => {
+    const s = st[p.name] || { state: 'todo' };
+    const state = s.state || 'todo';
+    return '<div class="kit-row">' +
+      '<span class="state-badge state-' + state + '">' + state + '</span>' +
+      '<div style="flex:1; min-width:0;"><strong>' + esc(p.name) + '</strong> <span class="muted" style="font-size:11px;">' + esc(p.category) + ' · verify: ' + esc(p.verify) + '</span>' +
+      (state !== 'todo' && s.handle ? '<div class="muted" style="font-size:11px;">' + esc(s.handle) + '</div>' : '') +
+      '<div class="muted" style="font-size:11px;">' + esc(p.posting) + '</div></div>' +
+      '<button class="ghost small" onclick="cycleState(\'' + esc(p.name) + '\',\'' + state + '\')">' + (state === 'verified' ? 'Reset' : 'Mark ' + (state === 'todo' ? 'created' : 'verified')) + '</button>' +
+      '<a class="ghost small" href="' + esc(p.signup) + '" target="_blank" rel="noopener" style="text-decoration:none; padding:6px 12px; border:1px solid #0f3b3a; border-radius:6px;">Open signup</a>' +
+      '</div>';
+  }).join('');
+  window._kitStatus = st;
+}
+
+window.cycleState = async (platform, state) => {
+  const next = state === 'todo' ? 'created' : state === 'created' ? 'verified' : 'todo';
+  try { await api('/monetisation/signup-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform, state: next }) }); } catch (e) {}
+  loadKit();
+};
+
+document.getElementById('bsky-create').addEventListener('click', async () => {
+  const st = document.getElementById('bsky-status');
+  const handle = document.getElementById('bsky-handle').value.trim();
+  const email = document.getElementById('bsky-email').value.trim();
+  const pass = document.getElementById('bsky-pass').value;
+  if (!handle || !email || !pass) { st.textContent = 'Handle, email and password are all needed.'; return; }
+  st.textContent = 'Creating…';
+  try {
+    const d = await api('/monetisation/create-account', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform: 'bluesky', handle, email, password: pass }) });
+    st.textContent = d.success ? 'Created: ' + d.handle + ' (DID ' + (d.did || '') + ') — recorded in the kit.' : 'Refused: ' + (d.error || 'unknown');
+    if (d.success) { document.getElementById('bsky-pass').value = ''; loadKit(); }
+  } catch (e) { st.textContent = 'Failed: ' + e.message; }
+});
+
+// ── Post tab ──
+const POSTABLE = [
+  { id: 'bluesky', label: 'Bluesky (direct)' },
+  { id: 'telegram', label: 'Telegram (direct)' },
+  { id: 'tumblr', label: 'Tumblr (direct)' },
+  { id: 'substack', label: 'Substack (draft via API/email)' },
+  { id: 'instagram', label: 'Instagram (Buffer)' },
+  { id: 'facebook', label: 'Facebook (Buffer)' },
+  { id: 'x', label: 'X (Buffer)' },
+  { id: 'postiz', label: 'Postiz (all connected channels)' }
+];
+document.getElementById('post-platform-selector').innerHTML = POSTABLE.map(p =>
+  '<label class="row" style="gap:4px; font-size:13px;"><input type="checkbox" value="' + p.id + '"' + (p.id === 'bluesky' ? ' checked' : '') + '> ' + esc(p.label) + '</label>').join('');
+
+document.getElementById('post-now').addEventListener('click', async () => {
+  const content = document.getElementById('post-content').value.trim();
+  const platforms = [...document.querySelectorAll('#post-platform-selector input:checked')].map(c => c.value);
+  const out = document.getElementById('post-results');
+  if (!content || !platforms.length) { ARG.toast('Content and at least one platform.'); return; }
+  out.innerHTML = '<div class="muted">Posting…</div>';
+  try {
+    if (platforms.includes('postiz')) {
+      const pz = await api('/postiz/post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, type: 'now' }) });
+      out.innerHTML = pz.success
+        ? '<div class="badge teal">Postiz:</div> <span class="muted" style="font-size:12px;">' + esc((pz.channels || []).join(', ')) + '</span><br>'
+        : '<div class="badge rose">Postiz:</div> <span class="muted" style="font-size:12px;">' + esc(pz.error || 'failed') + '</span><br>';
+    }
+    const rest = platforms.filter(p => p !== 'postiz');
+    if (!rest.length) return;
+    const d = await api('/monetisation/post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform: rest.length === 1 ? rest[0] : 'all', content }) });
+    out.innerHTML += '<div class="badge teal">Sent.</div> <span class="muted" style="font-size:12px;">' + esc(JSON.stringify(d.results || {})) + '</span>';
+  } catch (e) { out.innerHTML += '<div class="badge rose">Failed: ' + esc(e.message) + '</div>'; }
+});
+document.getElementById('post-queue').addEventListener('click', async () => {
+  const content = document.getElementById('post-content').value.trim();
+  const platforms = [...document.querySelectorAll('#post-platform-selector input:checked')].map(c => c.value);
+  if (!content || !platforms.length) { ARG.toast('Content and at least one platform.'); return; }
+  try {
+    await api('/social/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, platforms }) });
+    ARG.toast('Queued.');
+  } catch (e) { ARG.toast('Could not queue: ' + e.message); }
+});
+
+loadKit();
+loadSaved();
+
+// Postiz channel status
+(async function loadPostiz() {
+  try {
+    const d = await api('/postiz/integrations');
+    const el = document.getElementById('postiz-channels');
+    if (!el) return;
+    el.innerHTML = d.success
+      ? (d.integrations || []).map(i => '<span class="badge teal">' + esc(i.name) + ' · ' + esc(i.identifier || '') + '</span>').join(' ') || '<span class="muted">No channels connected in Postiz yet.</span>'
+      : '<span class="muted">' + esc(d.error || 'Postiz unreachable') + '</span>';
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

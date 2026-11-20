@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Canvas</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  .tpl-btn { border: 2px solid var(--line); border-radius: 8px; padding: 0; background: #fff; cursor: pointer; overflow: hidden; text-align: left; }
+  .tpl-btn.active { border-color: var(--teal); }
+  .tpl-btn img, .tpl-btn svg { width: 100%; aspect-ratio: 1; display: block; }
+  .tpl-btn .lbl { padding: 5px 7px; font-size: 11.5px; color: var(--teal); display: block; }
+  #size-row button { min-width: 74px; }
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="canvas">
+  <div class="arg-pagehead">
+    <h1>Canvas</h1>
+    <div class="sub">Branded post images. Pick a template, a palette, a photo theme and a platform size — then generate.</div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>Content</h3>
+      <textarea id="topic" style="min-height:70px;" placeholder="The line or topic — e.g. today's ONS figures on alcohol deaths, or a quote about recovery"></textarea>
+
+      <label class="muted" style="margin-top:12px;">Palette</label>
+      <div class="row" id="palette-row" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
+
+      <label class="muted">Photo theme <span class="muted" style="font-size:11px;">(for photographic templates)</span></label>
+      <div class="row" id="photo-row" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
+
+      <label class="muted">Platform size</label>
+      <div class="row" id="size-row" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
+
+      <button id="gen">Generate</button>
+      <div class="muted mt" id="gen-status"></div>
+    </div>
+
+    <div class="card">
+      <h3>Templates — click to select</h3>
+      <div id="tpl-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:10px;"></div>
+    </div>
+  </div>
+
+  <div class="card mt">
+    <h3>Choose your own photo <span class="muted" style="font-size:11px;">Pexels · Unsplash · Pixabay · Openverse · Wikimedia</span></h3>
+    <div class="row">
+      <input type="text" id="photo-q" placeholder="Search all five sources — e.g. calm seascape, forest path, London skyline…">
+      <button id="photo-run">Search</button>
+    </div>
+    <div id="photo-grid" class="mt" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:8px;"></div>
+    <div class="muted mt" id="photo-note">A chosen photo is composed client-side with the IP logo, your text, the tags and the footer — fully branded, at your chosen platform size.</div>
+  </div>
+
+  <div class="card mt" id="result-card" style="display:none;">
+    <h3>Result</h3>
+    <div class="row" style="align-items:flex-start; flex-wrap:wrap;">
+      <img id="result-img" style="max-width:340px; border-radius:8px; border:1px solid var(--line);">
+      <div style="flex:1; min-width:220px;">
+        <div class="muted" id="result-note"></div>
+        <div class="row mt" style="flex-wrap:wrap; gap:8px;">
+          <button class="small" id="export-png">Export PNG at chosen size</button>
+          <button class="ghost small" id="send-publish">Send to Publishing</button>
+          <button class="ghost small" id="open-full">Open full size</button>
+        </div>
+        <div class="muted mt" id="export-status"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('canvas');
+const { api, esc } = ARG;
+
+const PALETTES = { teal: '#0f3b3a', rose: '#5c2d3f', ivory: '#f7f3e9', dark: '#111111' };
+const ACCENTS = { teal: '#7ecfcd', rose: '#d4899a', ivory: '#5c2d3f', dark: '#ddd0c8' };
+const PHOTO_THEMES = ['calm seascape', 'forest path', 'open sky', 'city skyline', 'still water', 'sunrise'];
+const SIZES = [
+  ['Instagram post', 1080, 1080], ['Instagram portrait', 1080, 1350], ['Instagram story', 1080, 1920],
+  ['Facebook post', 1200, 630], ['X post', 1600, 900], ['LinkedIn', 1200, 627]
+];
+
+const TEMPLATES = [
+  { id: 'block', label: 'Quote card', kind: 'quote' },
+  { id: 'stat', label: 'Statistic', kind: 'stat' },
+  { id: 'news-reaction', label: 'News reaction', kind: 'news' },
+  { id: 'myth-vs-fact', label: 'Myth vs fact', kind: 'myth' },
+  { id: 'data-infographic', label: 'Data infographic', kind: 'data' },
+  { id: 'awareness-day', label: 'Awareness day', kind: 'awareness' },
+  { id: 'service-explainer', label: 'Service explainer', kind: 'service' },
+  { id: 'testimonial', label: 'Testimonial', kind: 'quote' },
+  { id: 'semantic', label: 'Photographic', kind: 'photo' },
+  { id: 'dual-partnership', label: 'Side by side', kind: 'dual' },
+  { id: 'img-landscape', label: 'Photo + caption', kind: 'photo' }
+];
+
+let activeTemplate = 'block', activePalette = 'teal', activePhoto = 'calm seascape', activeSize = 0;
+let lastUrl = null, lastPngUrl = null;
+
+// ── previews: a distinct client-side SVG sketch per template kind ──
+function previewSVG(t) {
+  const bg = t.kind === 'photo' ? '#55524a' : PALETTES[activePalette];
+  const fg = activePalette === 'ivory' ? '#1c1a17' : '#ffffff';
+  const ac = ACCENTS[activePalette];
+  const W = 1080, H = 1080;
+  const parts = [`<rect width="${W}" height="${H}" fill="${bg}"/>`];
+  const text = (x, y, w, h, fill, op) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="${fill}" opacity="${op || 0.9}"/>`;
+  const logo = `<circle cx="90" cy="90" r="34" fill="${ac}" opacity="0.9"/><circle cx="130" cy="90" r="34" fill="${fg}" opacity="0.25"/>`;
+  switch (t.kind) {
+    case 'quote': parts.push(logo, text(120, 380, 840, 40, fg, 0.85), text(120, 450, 760, 40, fg, 0.85), text(120, 520, 820, 40, fg, 0.85), text(120, 620, 500, 26, ac, 0.95)); break;
+    case 'stat': parts.push(logo, `<text x="540" y="560" font-family="Georgia" font-size="300" font-weight="bold" fill="${fg}" text-anchor="middle">42%</text>`, text(340, 640, 400, 26, ac, 0.95)); break;
+    case 'news': parts.push(logo, text(120, 300, 840, 34, ac, 0.95), text(120, 380, 840, 46, fg, 0.9), text(120, 460, 700, 46, fg, 0.9), text(120, 620, 400, 22, fg, 0.5)); break;
+    case 'myth': parts.push(`<rect x="90" y="200" width="410" height="680" rx="16" fill="${fg}" opacity="0.12"/><rect x="580" y="200" width="410" height="680" rx="16" fill="${ac}" opacity="0.22"/>`, text(130, 260, 200, 24, fg, 0.7), text(620, 260, 200, 24, fg, 0.7), text(130, 330, 300, 34, fg, 0.5), text(130, 390, 300, 34, fg, 0.5), text(620, 330, 300, 34, fg, 0.5), text(620, 390, 300, 34, fg, 0.5)); break;
+    case 'data': parts.push(logo, text(120, 300, 840, 30, fg, 0.85), [200, 380, 560, 740].map((x, i) => `<rect x="${x}" y="${700 - i * 90}" width="120" height="${i * 90 + 120}" rx="8" fill="${ac}" opacity="${0.5 + i * 0.15}"/>`).join('')); break;
+    case 'awareness': parts.push(logo, `<circle cx="540" cy="430" r="180" fill="${ac}" opacity="0.3"/>`, text(340, 660, 400, 34, fg, 0.9), text(420, 720, 240, 22, ac, 0.95)); break;
+    case 'service': parts.push(logo, text(120, 340, 840, 40, fg, 0.85), text(120, 420, 840, 40, fg, 0.85), [0,1,2].map(i => `<rect x="${120 + i * 290}" y="540" width="240" height="180" rx="12" fill="${fg}" opacity="${0.12 + i * 0.06}"/>`).join('')); break;
+    case 'dual': parts.push(`<rect x="90" y="200" width="420" height="680" rx="16" fill="${fg}" opacity="0.16"/>`, text(580, 340, 400, 34, fg, 0.85), text(580, 410, 400, 34, fg, 0.85), text(580, 500, 300, 22, ac, 0.95)); break;
+    case 'photo': parts.push(`<rect width="${W}" height="${H}" fill="#3d5a5a"/>`, `<circle cx="820" cy="260" r="90" fill="#f7e8c9" opacity="0.8"/>`, `<path d="M0 780 Q270 640 540 780 T1080 780 L1080 1080 L0 1080 Z" fill="#22434a"/>`, `<rect x="90" y="840" width="700" height="60" rx="12" fill="#000" opacity="0.35"/>`, `<text x="120" y="880" font-family="Georgia" font-size="36" fill="#fff">Caption over photo</text>`); break;
+  }
+  return 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}">${parts.join('')}</svg>`);
+}
+
+function templateId() {
+  const p = activePalette === 'dark' ? 'dark' : activePalette;
+  switch (activeTemplate) {
+    case 'block': return 'block-' + (p === 'dark' ? 'teal' : p);
+    case 'stat': return 'stat';
+    case 'testimonial': return 'testimonial-' + (p === 'dark' ? 'teal' : p);
+    case 'myth-vs-fact': return 'myth-vs-fact-' + (p === 'ivory' ? 'ivory' : 'teal');
+    case 'awareness-day': return activePalette === 'rose' ? 'awareness-day-rose' : 'awareness-day';
+    case 'semantic': return 'semantic-' + p;
+    default: return activeTemplate;
+  }
+}
+
+function renderControls() {
+  const pr = document.getElementById('palette-row');
+  pr.innerHTML = Object.entries(PALETTES).map(([k, c]) =>
+    '<button class="ghost small" data-k="' + k + '"' + (k === activePalette ? ' style="background:' + c + '; color:#fff; border-color:' + c + '"' : ' style="border-color:' + c + '"') + '>' + k + '</button>').join('');
+  pr.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { activePalette = b.dataset.k; renderControls(); renderGallery(); }));
+
+  const ph = document.getElementById('photo-row');
+  ph.innerHTML = PHOTO_THEMES.map((t, i) =>
+    '<button class="ghost small" data-i="' + i + '"' + (i === activePhoto ? ' style="background:var(--teal); color:#fff;"' : '') + '>' + esc(t) + '</button>').join('');
+  ph.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { activePhoto = +b.dataset.i; renderControls(); }));
+
+  const sr = document.getElementById('size-row');
+  sr.innerHTML = SIZES.map(([name, w, h], i) =>
+    '<button class="ghost small" data-i="' + i + '"' + (i === activeSize ? ' style="background:var(--teal); color:#fff;"' : '') + ' title="' + w + '×' + h + '">' + esc(name) + '</button>').join('');
+  sr.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { activeSize = +b.dataset.i; renderControls(); }));
+}
+
+function renderGallery() {
+  const grid = document.getElementById('tpl-grid');
+  grid.innerHTML = TEMPLATES.map(t =>
+    '<button class="tpl-btn' + (t.id === activeTemplate ? ' active' : '') + '" data-id="' + t.id + '">' +
+    '<img src="' + previewSVG(t) + '" alt="">' +
+    '<span class="lbl">' + t.label + '</span></button>'
+  ).join('');
+  grid.querySelectorAll('.tpl-btn').forEach(b => b.addEventListener('click', () => {
+    activeTemplate = b.dataset.id;
+    grid.querySelectorAll('.tpl-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+  }));
+}
+
+document.getElementById('gen').addEventListener('click', async () => {
+  const btn = document.getElementById('gen');
+  const status = document.getElementById('gen-status');
+  const topic = document.getElementById('topic').value.trim();
+  if (!topic) { ARG.toast('Give it a line or a topic first.'); return; }
+  btn.disabled = true;
+  status.textContent = 'Rendering…';
+  try {
+    if (chosenPhoto) {
+      const [name, w, h] = SIZES[activeSize];
+      status.textContent = 'Composing with your photo at ' + w + '×' + h + '…';
+      const canvas = await composeBranded(chosenPhoto.url, topic, w, h);
+      const png64 = canvas.toDataURL('image/png').split(',')[1];
+      const up = await api('/r2/upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'canvas/composed-' + Date.now() + '.png', content: png64, mimeType: 'image/png', fileName: 'canvas.png' })
+      });
+      lastUrl = up.url;
+      lastPngUrl = up.url;
+      document.getElementById('result-img').src = '/api/r2/file?key=' + encodeURIComponent(up.key);
+      document.getElementById('result-card').style.display = 'block';
+      document.getElementById('result-note').textContent = 'Composed with your photo (' + (chosenPhoto.photographer || chosenPhoto.source) + '), branded with logo, tags and footer, at ' + name + ' size.';
+      status.textContent = 'Canvas ready.';
+      btn.disabled = false;
+      return;
+    }
+    const photoT = TEMPLATES.find(t => t.id === activeTemplate).kind === 'photo';
+    const data = await api('/canvas/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topic: photoT ? activePhoto + ' ' + topic : topic,
+        text: topic,
+        template: templateId(),
+        platform: 'instagram', skipQueue: true, skipQA: true
+      })
+    });
+    const url = data.url || (data.urls && data.urls[0]);
+    if (url) {
+      lastUrl = url;
+      lastPngUrl = null;
+      const key = url.replace(/^https:\/\/[^/]+\//, '');
+      document.getElementById('result-img').src = '/api/r2/file?key=' + encodeURIComponent(key);
+      document.getElementById('result-card').style.display = 'block';
+      document.getElementById('result-note').textContent = 'Generated as SVG. Export a PNG at your chosen platform size before publishing — Instagram and Facebook prefer PNG.';
+      status.textContent = 'Canvas ready.';
+    } else {
+      status.textContent = 'Nothing came back: ' + esc(data.error || 'try again.');
+    }
+  } catch (e) { status.textContent = 'Generation failed: ' + esc(e.message); }
+  btn.disabled = false;
+});
+
+document.getElementById('export-png').addEventListener('click', async () => {
+  const status = document.getElementById('export-status');
+  if (!lastUrl) return;
+  const [name, w, h] = SIZES[activeSize];
+  status.textContent = 'Rasterising at ' + w + '×' + h + '…';
+  try {
+    const key = lastUrl.replace(/^https:\/\/[^/]+\//, '');
+    const svgText = await fetch('/api/r2/file?key=' + encodeURIComponent(key)).then(r => r.text());
+    const blobUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml' }));
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = blobUrl; });
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+    const scale = Math.max(w, h) / Math.max(img.width, img.height);
+    ctx.drawImage(img, (w - img.width * scale) / 2, (h - img.height * scale) / 2, img.width * scale, img.height * scale);
+    const png64 = canvas.toDataURL('image/png').split(',')[1];
+    const up = await api('/r2/upload', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'canvas/png-' + Date.now() + '-' + w + 'x' + h + '.png', content: png64, mimeType: 'image/png', fileName: 'canvas.png' })
+    });
+    lastPngUrl = up.url;
+    status.textContent = 'PNG exported at ' + name + ' (' + w + '×' + h + ') and saved. Publishing will use it.';
+    ARG.toast('PNG ready.');
+  } catch (e) { status.textContent = 'Export failed: ' + esc(e.message); }
+});
+
+document.getElementById('send-publish').addEventListener('click', () => {
+  if (!lastUrl) { ARG.toast('Generate a canvas first.'); return; }
+  sessionStorage.setItem('arg:canvas-url', lastPngUrl || lastUrl);
+  location.href = '/argentica/commercial/publishing/';
+});
+document.getElementById('open-full').addEventListener('click', () => {
+  if (lastUrl) window.open(lastUrl, '_blank');
+});
+
+// ── Photo picker across all five sources ─────────────────
+let chosenPhoto = null;
+const photoGrid = document.getElementById('photo-grid');
+document.getElementById('photo-run').addEventListener('click', async () => {
+  const q = document.getElementById('photo-q').value.trim();
+  if (!q) { ARG.toast('What are we looking for?'); return; }
+  photoGrid.innerHTML = '<div class="muted">Searching five sources…</div>';
+  try {
+    const d = await api('/image-search/multi', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, limit: 5, sources: ['pexels', 'unsplash', 'pixabay', 'openverse', 'wikimedia'] })
+    });
+    const results = d.results || [];
+    document.getElementById('photo-note').textContent = results.length + ' results from ' + [...new Set(results.map(r => r.source))].join(', ');
+    photoGrid.innerHTML = results.map((r, i) =>
+      '<button class="tpl-btn" data-i="' + i + '"><img src="' + esc(r.thumbnail || r.url) + '" alt=""><span class="lbl">' + esc((r.photographer || r.source || '').slice(0, 20)) + '</span></button>'
+    ).join('') || '<div class="muted">Nothing found — try another phrase.</div>';
+    window._photos = results;
+    photoGrid.querySelectorAll('.tpl-btn').forEach(b => b.addEventListener('click', () => {
+      photoGrid.querySelectorAll('.tpl-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      chosenPhoto = window._photos[+b.dataset.i];
+      ARG.toast('Photo chosen — it will be branded and used for the canvas.');
+    }));
+  } catch (e) { photoGrid.innerHTML = '<div class="muted">Search failed: ' + esc(e.message) + '</div>'; }
+});
+
+// ── Client-side branded composer (used when a photo is chosen) ──
+function wrapText(ctx, text, maxWidth) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let line = '';
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+async function composeBranded(photoUrl, text, w, h) {
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const c = canvas.getContext('2d');
+  // photo, cover-fit
+  const img = await new Promise((res, rej) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = rej; i.src = photoUrl; });
+  const k = Math.max(w / img.width, h / img.height);
+  c.drawImage(img, (w - img.width * k) / 2, (h - img.height * k) / 2, img.width * k, img.height * k);
+  // brand overlay
+  const grad = c.createLinearGradient(0, h * 0.3, 0, h);
+  grad.addColorStop(0, 'rgba(15,59,58,0.25)');
+  grad.addColorStop(1, 'rgba(15,59,58,0.88)');
+  c.fillStyle = grad;
+  c.fillRect(0, 0, w, h);
+  // logo
+  const logo = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = '/shared/assets/logo-square.png'; });
+  c.drawImage(logo, w * 0.05, h * 0.05, w * 0.09, w * 0.09);
+  // text
+  const fs = Math.round(w / 22);
+  c.font = fs + 'px Georgia, serif';
+  c.fillStyle = '#ffffff';
+  c.textAlign = 'center';
+  const lines = wrapText(c, text, w * 0.82).slice(0, 6);
+  lines.forEach((ln, i) => c.fillText(ln, w / 2, h * 0.62 + (i - (lines.length - 1) / 2) * fs * 1.35));
+  // tags
+  c.font = Math.round(fs * 0.42) + 'px sans-serif';
+  c.fillStyle = 'rgba(255,255,255,0.85)';
+  c.fillText('#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing', w / 2, h * 0.9);
+  // footer
+  c.fillText('hello@identitypartners.uk | www.identitypartners.uk/contact', w / 2, h * 0.95);
+  return canvas;
+}
+
+renderControls();
+renderGallery();
+</script>
+</body>
+</html>
