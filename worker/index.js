@@ -2117,6 +2117,46 @@ async function buildSensorContext(body, env) {
       if (desc) context += '[Attached image ' + (i + 1) + ' — described by vision: ' + desc.slice(0, 2500) + ']\n';
     } catch (e) { /* vision unavailable — page falls back to OCR text already inline */ }
   }
+  // Tay's third sense: if the message contains URLs, pull the live page content via Browserless
+  const lastUser0 = (body.messages || []).filter(m => m.role === 'user').pop();
+  if (lastUser0) {
+    const urls = String(lastUser0.content).match(/https?:\/\/[^\s)\]]+/g) || [];
+    if (urls.length) {
+      const BLT = k(env, ['railway_browserless_token','RAILWAY_BROWSERless_TOKEN'.toUpperCase(),'RAILWAY_BROWSERLESS_TOKEN','browserless_railway_token']) || '';
+      if (BLT) {
+        const targets = urls.slice(0, 2);
+        const fn = `export default async ({ page, context }) => {
+          const got = [];
+          for (const u of context.urls) {
+            try {
+              await page.goto(u, { waitUntil: 'domcontentloaded', timeout: 35000 });
+              await new Promise(r => setTimeout(r, 1200));
+              const info = await page.evaluate(() => {
+                const t = document.title || '';
+                const pick = document.querySelector('article') || document.querySelector('main') || document.body;
+                const text = (pick ? pick.innerText : '').replace(/\s+/g, ' ').trim();
+                return { t, text: text.slice(0, 4500) };
+              });
+              got.push({ u, title: info.t, text: info.text });
+            } catch (e) { got.push({ u, error: String(e).slice(0, 120) }); }
+          }
+          return { data: { pages: got }, type: 'application/json' };
+        }`;
+        try {
+          const br = await fetch((k(env,['browserless_railway_url']) || 'https://browserless-production-e49c65ef.up.railway.app') + '/function?token=' + encodeURIComponent(BLT), {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: fn, context: { urls: targets } })
+          });
+          const d = await br.json().catch(() => ({}));
+          const pages = (d.data && d.data.pages) || [];
+          for (const pg of pages) {
+            if (pg.error) continue;
+            context += '[Live page visited — ' + (pg.title || '') + ' (' + pg.u + ')]: ' + (pg.text || '(no readable text)') + '\n';
+          }
+        } catch (e) { /* page sense unavailable */ }
+      }
+    }
+  }
   if (body.webSearch) {
     const lastUser = (body.messages || []).filter(m => m.role === 'user').pop();
     const q = lastUser ? String(lastUser.content).slice(0, 300) : '';
@@ -4020,8 +4060,9 @@ export default {
       try {
         const body = await request.json();
         const messages = (body.messages || []).filter(m => m?.role && m?.content);
-        // Senses: vision descriptions + live web results, appended to the last user message
-        if ((Array.isArray(body.images) && body.images.length) || body.webSearch) {
+        // Senses: vision descriptions + live page visits + web results, appended to the last user message
+        const hasUrls = (body.messages || []).some(m => m.role === 'user' && /https?:\/\//.test(String(m.content || '')));
+        if ((Array.isArray(body.images) && body.images.length) || body.webSearch || hasUrls) {
           const sensorCtx = await buildSensorContext(body, env);
           if (sensorCtx && messages.length) {
             const last = messages[messages.length - 1];
