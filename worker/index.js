@@ -10335,6 +10335,31 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     ctx.waitUntil((async () => {
       try {
         const hour = new Date().getUTCHours();
+        // ── Threads token upkeep: weekly refresh attempt; track 60-day expiry ──
+        try {
+          let to = null;
+          try { to = JSON.parse(await env.PRISM_KV.get('threads:oauth') || 'null'); } catch (e) {}
+          if (to && to.access_token) {
+            const ageDays = (Date.now() - new Date(to.obtainedAt || 0).getTime()) / 86400000;
+            const lastTry = await env.PRISM_KV.get('threads:refresh:lastTry', 'text') || '';
+            const today = new Date().toISOString().slice(0, 10);
+            if (ageDays > 1 && lastTry !== today) {
+              try {
+                const rr = await fetch('https://graph.threads.net/refresh_access_token?grant_type=th_refresh_token&access_token=' + encodeURIComponent(to.access_token));
+                const rd = await rr.json().catch(() => ({}));
+                await env.PRISM_KV.put('threads:refresh:lastTry', today);
+                if (rd.access_token) {
+                  to.access_token = rd.access_token; to.obtainedAt = new Date().toISOString(); to.lastRefresh = new Date().toISOString();
+                  await env.PRISM_KV.put('threads:oauth', JSON.stringify(to));
+                  await env.PRISM_KV.put('threads:refresh:status', JSON.stringify({ ok: true, at: new Date().toISOString() }));
+                } else {
+                  await env.PRISM_KV.put('threads:refresh:status', JSON.stringify({ ok: false, error: String(rd.error && rd.error.message || '').slice(0, 120), at: new Date().toISOString() }));
+                }
+              } catch (e2) {}
+            }
+          }
+        } catch (tke) {}
+
         // ── Daily KV→Drive backup (runs on the first cron after each new UTC day) ──
         try {
           const bkCfg = await env.PRISM_KV.get('kb:backup:config', 'json');
