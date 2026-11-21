@@ -8018,6 +8018,75 @@ data: ${JSON.stringify(data)}
                 } catch (e) { errors.tumblr = e.message; }
               }
             } else if (['instagram','facebook','x'].includes(platform)) {
+              // ── Instagram & Facebook: DIRECT Graph API first (carousel JSON per docs), Buffer as fallback ──
+              const metaTok = k(env, ['meta_user_token','META_USER_TOKEN','fb_user_token']) || '';
+              if ((platform === 'instagram' || platform === 'facebook') && metaTok) {
+                try {
+                  let ids = null;
+                  try { ids = JSON.parse(await env.PRISM_KV.get('meta:ids') || 'null'); } catch (e) {}
+                  if (!ids || !ids.ig || !ids.page) {
+                    const acc = await fetch('https://graph.facebook.com/v21.0/me/accounts?fields=access_token,connected_instagram_account{id,username}&access_token=' + encodeURIComponent(metaTok)).then(r => r.json());
+                    const pg = (acc.data || []).find(p => p.connected_instagram_account) || {};
+                    ids = { ig: pg.connected_instagram_account && pg.connected_instagram_account.id, page: pg.id, pageName: pg.name, pageToken: pg.access_token };
+                    if (env.PRISM_KV && ids.ig) await env.PRISM_KV.put('meta:ids', JSON.stringify(ids));
+                  }
+                  if (platform === 'instagram' && ids && ids.ig) {
+                    const media = (await itemMediaUrls(item, env)).filter(Boolean);
+                    const text = (item.text || '').slice(0, 2200);
+                    let creation = null;
+                    if (media.length > 1) {
+                      const children = [];
+                      for (const u of media.slice(0, 10)) {
+                        const c = await fetch('https://graph.facebook.com/v21.0/' + ids.ig + '/media', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ image_url: u, is_carousel_item: true, access_token: metaTok }) }).then(r => r.json());
+                        if (c.id) children.push(c.id);
+                      }
+                      const par = await fetch('https://graph.facebook.com/v21.0/' + ids.ig + '/media', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ media_type: 'CAROUSEL', children: children.join(','), caption: text, access_token: metaTok }) }).then(r => r.json());
+                      creation = par.id;
+                    } else if (media.length === 1) {
+                      const c = await fetch('https://graph.facebook.com/v21.0/' + ids.ig + '/media', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ image_url: media[0], caption: text, access_token: metaTok }) }).then(r => r.json());
+                      creation = c.id;
+                    }
+                    if (creation) {
+                      // wait for container READY, then publish
+                      let ready = false;
+                      for (let i = 0; i < 10 && !ready; i++) {
+                        await new Promise(r => setTimeout(r, 3000));
+                        const st = await fetch('https://graph.facebook.com/v21.0/' + creation + '?fields=status_code&access_token=' + encodeURIComponent(metaTok)).then(r => r.json());
+                        ready = st.status_code === 'FINISHED';
+                      }
+                      if (ready) {
+                        const pub = await fetch('https://graph.facebook.com/v21.0/' + ids.ig + '/media_publish', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ creation_id: creation, access_token: metaTok }) }).then(r => r.json());
+                        if (pub.id) { results.instagram = { success: true, postId: pub.id, via: 'direct-api' }; }
+                        else { results.instagram = { success: false, error: JSON.stringify(pub).slice(0,140), via: 'direct-api' }; }
+                      } else { results.instagram = { success: false, error: 'container not ready in time', via: 'direct-api' }; }
+                    } else if (media.length) {
+                      results.instagram = { success: false, error: 'container creation failed', via: 'direct-api' };
+                    }
+                  } else if (platform === 'facebook' && ids && ids.page) {
+                    const media = (await itemMediaUrls(item, env)).filter(Boolean);
+                    const ptok = ids.pageToken || metaTok;
+                    if (media.length) {
+                      // unpublished photos then a multi-photo feed post
+                      const fbids = [];
+                      for (const u of media.slice(0, 8)) {
+                        const ph = await fetch('https://graph.facebook.com/v21.0/' + ids.page + '/photos', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url: u, published: false, access_token: ptok }) }).then(r => r.json());
+                        if (ph.id) fbids.push(ph.id);
+                      }
+                      if (fbids.length) {
+                        const feed = await fetch('https://graph.facebook.com/v21.0/' + ids.page + '/feed', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message: item.text || '', attached_media: JSON.stringify(fbids.map(id => ({ media_fbid: id }))), access_token: ptok }) }).then(r => r.json();
+                        );
+                        results.facebook = feed.id ? { success: true, postId: feed.id, via: 'direct-api' } : { success: false, error: JSON.stringify(feed).slice(0,140), via: 'direct-api' };
+                      }
+                    } else {
+                      const feed = await fetch('https://graph.facebook.com/v21.0/' + ids.page + '/feed', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message: item.text || '', access_token: ptok }) }).then(r => r.json());
+                      results.facebook = feed.id ? { success: true, postId: feed.id, via: 'direct-api' } : { success: false, error: JSON.stringify(feed).slice(0,140), via: 'direct-api' };
+                    }
+                  }
+                } catch (directErr) { errors[platform + '-direct'] = String(directErr).slice(0, 140); }
+              }
+              const directOk = results[platform] && results[platform].success;
+              if (directOk) { /* direct API won — skip Buffer */ }
+              else {
               const bufferKey = k(env, ['buffer_api_key','BUFFER_API_KEY','buffer']) || '';
               const channelMap = { instagram: k(env,['buffer_ig_channel','BUFFER_IG_CHANNEL']), facebook: k(env,['buffer_fb_channel','BUFFER_FB_CHANNEL']), x: k(env,['buffer_x_channel','BUFFER_X_CHANNEL']) };
               let channelId = channelMap[platform];
@@ -8058,6 +8127,7 @@ data: ${JSON.stringify(data)}
                   results[platform] = { success: ok, postId: ok ? created.post.id : undefined, error: created && created.message };
                 }
               } else { errors[platform] = bufferKey ? 'Buffer channel ID not configured — run Fetch Buffer channels' : 'Buffer not connected'; }
+              }
             } else if (platform === 'substack') {
               const resendKey = k(env, ['resend_api_key','RESEND_API_KEY','resend']) || '';
               const substackEmail = k(env, ['substack_email','SUBSTACK_EMAIL']) || 'zemiopat@substack.com';
