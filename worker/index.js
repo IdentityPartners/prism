@@ -2490,7 +2490,7 @@ export default {
       } catch (e) { return json({ error: e.message }, 500, origin); }
     }
 
-    if (path.startsWith('/api/threads/') && !path.startsWith('/api/threads/oauth/') && !path.startsWith('/api/threads/publish') && request.method === 'GET') {
+    if (path.startsWith('/api/threads/') && !path.startsWith('/api/threads/oauth/') && !path.startsWith('/api/threads/publish') && path !== '/api/threads/callback' && path !== '/api/threads/callback-try' && request.method === 'GET') {
       try {
         const id = path.replace('/api/threads/', '');
         const raw = await env.PRISM_KV?.get(`thread:${id}`).catch(() => null);
@@ -2516,7 +2516,7 @@ export default {
     }
 
 
-    if (path.startsWith('/api/threads/') && !path.startsWith('/api/threads/oauth/') && request.method === 'DELETe'.toUpperCase()) {
+    if (path.startsWith('/api/threads/') && !path.startsWith('/api/threads/oauth/') && !path.startsWith('/api/threads/publish') && path !== '/api/threads/callback' && request.method === 'DELETE') {
       try {
         const id = path.replace('/api/threads/', '');
         await env.PRISM_KV?.delete(`thread:${id}`).catch(() => {});
