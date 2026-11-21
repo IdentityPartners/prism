@@ -58,7 +58,7 @@
   <div class="arg-pagehead spread">
     <div>
       <h1>Publishing calendar</h1>
-      <div class="sub">The social pipeline on one grid — same view as Comms, placed here for planning work. Click any day to add an event.</div>
+      <div class="sub">The publishing pipeline in overview — a month at a time. For the week-by-week shape of what goes out, use Weekly Cadence. Click any day to add an event.</div>
       <div id="theme-banner" style="display:none; margin-top:8px; align-items:center; gap:10px;">
         <span style="background:#5c2d3f; color:#f7f3e9; border-radius:10px; padding:3px 12px; font-size:12.5px; font-family:'Inter',sans-serif;">This week's theme</span>
         <span id="theme-name" style="font-family:'Caveat',cursive; font-size:20px; color:#5c2d3f;"></span>
@@ -70,8 +70,8 @@
       <h3 id="cal-month" style="margin:0; min-width:170px; text-align:center;"></h3>
       <button class="ghost small" id="cal-next">&#8594;</button>
       <div class="view-pills" style="margin-left:14px;">
-        <button id="view-week" class="on">Week</button>
-        <button id="view-month">Month</button>
+        <button id="view-week">Week</button>
+        <button id="view-month" class="on">Month</button>
       </div>
     </div>
   </div>
@@ -117,7 +117,7 @@ const { api, esc } = ARG;
 let view = new Date();
 let diary = [], social = [];
 let pickedDate = null;
-let viewMode = 'week';
+let viewMode = 'month';  // Publishing calendar: pipeline overview by default
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 // ── Themed weeks ──
