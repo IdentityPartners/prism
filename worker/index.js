@@ -7995,6 +7995,28 @@ data: ${JSON.stringify(data)}
                   } else { errors.linkedin = 'Could not fetch LinkedIn profile'; }
                 } else { errors.linkedin = 'No LinkedIn access token'; }
               } else { errors.linkedin = 'LinkedIn not connected'; }
+            } else if (platform === 'tumblr') {
+              let oauth = null;
+              try { oauth = env.PRISM_KV ? JSON.parse(await env.PRISM_KV.get('tumblr:oauth') || 'null') : null; } catch (e) {}
+              if (!oauth || !oauth.access_token) { errors.tumblr = 'Tumblr not connected — complete the one-time authorise step (see Platforms page)'; }
+              else {
+                try {
+                  const media = await itemMediaUrls(item, env);
+                  const blogName = k(env, ['tumblr_blog','TUMBLR_BLOG']) || 'identitypartners';
+                  const params = new URLSearchParams();
+                  if (media.length) { params.set('type','photo'); params.set('source', media[0]); if (item.text) params.set('caption', item.text); }
+                  else { params.set('type','text'); params.set('body', item.text || ''); }
+                  params.set('state','published');
+                  const resp = await fetch('https://api.tumblr.com/v2/blog/' + blogName + '.tumblr.com/post', {
+                    method:'POST',
+                    headers:{ 'Authorization':'Bearer ' + oauth.access_token, 'Content-Type':'application/x-www-form-urlencoded' },
+                    body: params.toString()
+                  });
+                  const data = await resp.json().catch(() => ({}));
+                  const ok = resp.ok && (data.response||{}).id;
+                  results.tumblr = { success: !!ok, postId: ok ? data.response.id : undefined, error: resp.ok ? undefined : ((data.meta||{}).msg || ('HTTP ' + resp.status)) };
+                } catch (e) { errors.tumblr = e.message; }
+              }
             } else if (['instagram','facebook','x'].includes(platform)) {
               const bufferKey = k(env, ['buffer_api_key','BUFFER_API_KEY','buffer']) || '';
               const channelMap = { instagram: k(env,['buffer_ig_channel','BUFFER_IG_CHANNEL']), facebook: k(env,['buffer_fb_channel','BUFFER_FB_CHANNEL']), x: k(env,['buffer_x_channel','BUFFER_X_CHANNEL']) };
@@ -8221,22 +8243,63 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     }
 
     // ── Tumblr posting ────────────────────────────────────────────────────────
+    // ── Tumblr OAuth2 connect flow ──
+    // Step 1: open /api/oauth/tumblr/authorize — redirects to Tumblr's consent screen
+    if (path === '/api/oauth/tumblr/authorize' && request.method === 'GET') {
+      const consumerKey = k(env, ['tumblr_key','TUMBLR_KEY','Tumblr_OAuth_consumer_key']) || '';
+      if (!consumerKey) return json({success:false,error:'tumblr_key secret not set'},400,origin);
+      const state = 'ts-' + Math.random().toString(36).slice(2, 10);
+      if (env.PRISM_KV) await env.PRISM_KV.put('tumblr:oauthstate', state, { expirationTtl: 600 });
+      const cb = 'https://arch.identitypartners.uk/api/oauth/tumblr/callback';
+      return new Response(null, { status: 302, headers: { Location:
+        'https://www.tumblr.com/oauth2/authorize?client_id=' + encodeURIComponent(consumerKey) +
+        '&redirect_uri=' + encodeURIComponent(cb) +
+        '&response_type=code&scope=' + encodeURIComponent('basic offline_access write') +
+        '&state=' + encodeURIComponent(state) }});
+    }
+    // Step 2: callback — exchange the code for tokens, store in KV
+    if (path === '/api/oauth/tumblr/callback' && request.method === 'GET') {
+      try {
+        const code = url.searchParams.get('code') || '';
+        const state = url.searchParams.get('state') || '';
+        const errParam = url.searchParams.get('error') || url.searchParams.get('error_description') || '';
+        if (errParam) return new Response('<h3 style="font-family:Georgia,serif;color:#5c2d3f">Tumblr connect failed</h3><p>' + errParam + '</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        const saved = env.PRISM_KV ? await env.PRISM_KV.get('tumblr:oauthstate').catch(() => null) : null;
+        if (!code || !state || state !== saved) return new Response('<h3 style="font-family:Georgia,serif;color:#5c2d3f">Connect failed</h3><p>State mismatch — start again from Argentica.</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        const consumerKey = k(env, ['tumblr_key','TUMBLR_KEY','Tumblr_OAuth_consumer_key']) || '';
+        const consumerSecret = k(env, ['tumblr_secret','TUMBLR_SECRET','Tumblr_OAuth_consumer_secret']) || '';
+        if (!consumerKey || !consumerSecret) return new Response('<h3>Connect failed</h3><p>Consumer secret not stored yet.</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        const cb = 'https://arch.identitypartners.uk/api/oauth/tumblr/callback';
+        const tokRes = await fetch('https://www.tumblr.com/oauth2/token', {
+          method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ grant_type: 'authorization_code', code, client_id: consumerKey, client_secret: consumerSecret, redirect_uri: cb }).toString()
+        });
+        const tok = await tokRes.json().catch(() => ({}));
+        if (!tok.access_token) return new Response('<h3>Connect failed</h3><p>' + (JSON.stringify(tok).slice(0,200)) + '</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        if (env.PRISM_KV) await env.PRISM_KV.put('tumblr:oauth', JSON.stringify({ access_token: tok.access_token, token_type: tok.token_type || 'bearer', refresh_token: tok.refresh_token || '', scope: tok.scope || '', obtainedAt: new Date().toISOString(), expiresIn: tok.expires_in || null }));
+        return new Response('<div style="font-family:Georgia,serif;max-width:520px;margin:80px auto;color:#2b2117"><h2 style="color:#5c2d3f">Tumblr connected</h2><p>Identity Partners can now post. You can close this tab.</p></div>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      } catch (e) { return new Response('<h3>Connect failed</h3><p>' + e.message + '</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } }); }
+    }
+
+    // ── Tumblr publish (OAuth2 access token from KV) ──
     if (path === '/api/social/tumblr' && request.method === 'POST') {
       try {
         const body = await request.json();
-        const consumerKey = k(env, ['tumblr_key','TUMBLR_KEY','Tumblr_OAuth_consumer_key']) || '';
-        const consumerSecret = k(env, ['tumblr_secret','TUMBLR_SECRET','Tumblr_OAuth_consumer_secret']) || '';
-        if (!consumerKey) return json({success:false,error:'Tumblr keys not configured'},400,origin);
-        const blogName = body.blog || 'identitypartners';
-        const text = body.text || '';
-        const title = body.title || '';
-        // Tumblr OAuth 1.0a is complex — use the v2 API with OAuth token if available
-        const oauthToken = k(env, ['tumblr_oauth_token','TUMBLR_OAUTH_TOKEN']) || '';
-        const oauthSecret = k(env, ['tumblr_oauth_secret','TUMBLR_OAUTH_SECRET']) || '';
-        if (!oauthToken) return json({success:false,error:'Tumblr OAuth token not set. Use Settings to connect Tumblr.'},400,origin);
-        const resp = await fetch('https://api.tumblr.com/v2/blog/'+blogName+'.tumblr.com/post',{method:'POST',headers:{'Authorization':'Bearer '+oauthToken,'Content-Type':'application/json'},body:JSON.stringify({type:'text',title,body:text})});
-        const data = await resp.json();
-        return json({success:resp.ok,post_id:data.response?.id,error:data.meta?.msg},200,origin);
+        const blogName = body.blog || k(env, ['tumblr_blog','TUMBLR_BLOG']) || 'identitypartners';
+        let oauth = null;
+        try { oauth = env.PRISM_KV ? JSON.parse(await env.PRISM_KV.get('tumblr:oauth') || 'null') : null; } catch (e) {}
+        if (!oauth || !oauth.access_token) return json({success:false,error:'Tumblr not connected — open https://arch.identitypartners.uk/api/oauth/tumblr/authorize once to authorise Argentica.'},400,origin);
+        const params = new URLSearchParams();
+        if (body.imageUrl) { params.set('type', 'photo'); params.set('source', body.imageUrl); if (body.text) params.set('caption', body.text); }
+        else { params.set('type', 'text'); params.set('body', body.text || ''); if (body.title) params.set('title', body.title); }
+        params.set('state', body.draft ? 'draft' : 'published');
+        const resp = await fetch('https://api.tumblr.com/v2/blog/' + blogName + '.tumblr.com/post', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + oauth.access_token, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString()
+        });
+        const data = await resp.json().catch(() => ({}));
+        return json({success:resp.ok, post_id:(data.response||{}).id, error:(data.meta||{}).msg, url:((data.response||{}).id ? ('https://' + blogName + '.tumblr.com/post/' + data.response.id) : undefined)},200,origin);
       } catch(e) { return json({success:false,error:e.message},500,origin); }
     }
 
