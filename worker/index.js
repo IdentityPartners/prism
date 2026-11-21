@@ -6361,7 +6361,7 @@ data: ${JSON.stringify(data)}
         const assignment = env.PRISM_KV ? await env.PRISM_KV.get('agent-assignment:' + agentId, 'json').catch(() => null) : null;
         const histKey = 'agent-chat:' + agentId + ':history';
         const hist = env.PRISM_KV ? (await env.PRISM_KV.get(histKey, 'json') || []) : [];
-        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({\"text\": \"the post copy with tags and footer\", \"platforms\": [\"bluesky\",\"linkedin\",\"telegram\",\"instagram\",\"facebook\",\"tumblr\",\"x\"]}) — queues a post for Simon's approval. Always include the tags and footer in the text.\nTOOL: post_now({\"text\": \"the post copy with tags and footer\", \"platforms\": [...]}) — posts immediately and autonomously, within the daily cap and blocked-word rules Simon has set. Use it when the task says to publish; use queue_post when the task says to prepare or draft. Never post client-identifiable content, clinical claims, outcome testimonials, or responses to people in crisis.\nTOOL: create_canvas({\"topic\": \"a line or topic\", \"template\": \"block-teal\"}) — generates a branded canvas and queues it for approval. Valid templates: block-teal, block-rose, block-ivory, stat (statistics with source), news-reaction (news articles), research (new research/studies), testimonial-teal/rose/ivory (client/practitioner quotes), myth-vs-fact-teal, myth-vs-fact-ivory, data-infographic, awareness-day, awareness-day-rose, service-explainer, semantic-teal/rose/dark (image + text), dual-partnership (two-panel, partnership imagery), dual-children (symbiotic/partnership photos), img-landscape, img-sunrise, img-sunset, img-seascape, img-cityscape, img-aurora, img-space, img-stars (vista backgrounds: constellations, night sky, scapes). Choose the template that MATCHES THE CONTENT TYPE: news goes to news-reaction, new research to research, a striking statistic to stat, quotation/testimonial to testimonial, reflective or thematic prose to semantic on a vista background, partnership themes to dual-partnership. Carousels: use type=carousel with slides. Brand backgrounds prefer seascapes, beachscapes, cityscapes, constellations, night skies, and symbiotic imagery (hands, children together, interlocking forms) — all sourced fresh from Unsplash/Pexels/Pixabay/Openverse/Wikimedia each time, never a small fixed pool.\nTOOL: search_news({\"query\": \"keywords\"}) — scans today's approved outlets (Guardian society, BBC health) and returns matching headlines.\nTOOL: save_note({\"title\": \"...\", \"content\": \"...\"}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
+        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({\"text\": \"the post copy with tags and footer\", \"platforms\": [\"bluesky\",\"linkedin\",\"telegram\",\"instagram\",\"facebook\",\"tumblr\",\"x\"]}) — queues a post. PLATFORM GROUPS: you may pass groups instead of individual channels — \"longform\" expands to substack, bluesky, linkedin; \"feed\" expands to x, instagram, facebook, tumblr, threads (e.g. \"platforms\": [\"longform\",\"instagram\"]). Reflective or essay-like prose goes to longform, short-form social nuggets go to feed. for Simon's approval. Always include the tags and footer in the text.\nTOOL: post_now({\"text\": \"the post copy with tags and footer\", \"platforms\": [...]}) — posts immediately and autonomously, within the daily cap and blocked-word rules Simon has set. Use it when the task says to publish; use queue_post when the task says to prepare or draft. Never post client-identifiable content, clinical claims, outcome testimonials, or responses to people in crisis.\nTOOL: create_canvas({\"topic\": \"a line or topic\", \"template\": \"block-teal\"}) — generates a branded canvas and queues it for approval. Valid templates: block-teal, block-rose, block-ivory, stat (statistics with source), news-reaction (news articles), research (new research/studies), testimonial-teal/rose/ivory (client/practitioner quotes), myth-vs-fact-teal, myth-vs-fact-ivory, data-infographic, awareness-day, awareness-day-rose, service-explainer, semantic-teal/rose/dark (image + text), dual-partnership (two-panel, partnership imagery), dual-children (symbiotic/partnership photos), img-landscape, img-sunrise, img-sunset, img-seascape, img-cityscape, img-aurora, img-space, img-stars (vista backgrounds: constellations, night sky, scapes). Choose the template that MATCHES THE CONTENT TYPE: news goes to news-reaction, new research to research, a striking statistic to stat, quotation/testimonial to testimonial, reflective or thematic prose to semantic on a vista background, partnership themes to dual-partnership. Carousels: use type=carousel with slides. Brand backgrounds prefer seascapes, beachscapes, cityscapes, constellations, night skies, and symbiotic imagery (hands, children together, interlocking forms) — all sourced fresh from Unsplash/Pexels/Pixabay/Openverse/Wikimedia each time, never a small fixed pool.\nTOOL: search_news({\"query\": \"keywords\"}) — scans today's approved outlets (Guardian society, BBC health) and returns matching headlines.\nTOOL: save_note({\"title\": \"...\", \"content\": \"...\"}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
         const messages = [{ role: 'system', content: systemPrompt }];
         hist.filter(m => m.role !== 'system').slice(-20).forEach(m => messages.push({ role: m.role, content: m.content }));
         messages.push({ role: 'user', content: userMessage });
@@ -6370,6 +6370,31 @@ data: ${JSON.stringify(data)}
           'gemini-3.8-flash': { profile: 'balanced', providerOverride: 'gemini', modelOverride: 'gemini-3.8-flash' },
           'deepseek-chat': { profile: 'balanced', providerOverride: 'deepseek', modelOverride: 'deepseek-chat' },
         };
+        // ── Platform grouping schema ──
+        // Canonical groups; user-defined cadence groups (KV cadence:groups) are merged on top.
+        const BUILTIN_GROUPS = {
+          longform: ['substack', 'bluesky', 'linkedin'],
+          feed: ['x', 'instagram', 'facebook', 'tumblr', 'threads']
+        };
+        async function resolveGroups() {
+          let groups = { ...BUILTIN_GROUPS };
+          try {
+            const g = env.PRISM_KV ? JSON.parse(await env.PRISM_KV.get('cadence:groups') || 'null') : null;
+            if (Array.isArray(g)) for (const grp of g) if (grp.name && Array.isArray(grp.channels)) groups[grp.name.toLowerCase()] = grp.channels.map(c => String(c).toLowerCase());
+          } catch (e) {}
+          return groups;
+        }
+        function expandPlatforms(list, groups) {
+          const out = [];
+          for (const p of (list || [])) {
+            const key = String(p).toLowerCase();
+            if (groups[key]) { for (const c of groups[key]) if (!out.includes(c)) out.push(c); }
+            else if (!out.includes(key)) out.push(key);
+          }
+          return out;
+        }
+        const GROUPS = await resolveGroups();
+
         const modelOpts = modelMap[agent.model] || { profile: 'balanced' };
         const result = await orchestrate(messages, env, modelOpts);
         let reply = result.content || 'No response.';
@@ -6397,7 +6422,8 @@ data: ${JSON.stringify(data)}
                   const blocked = (cfg.blockWords || []).some(w => w && text.toLowerCase().includes(String(w).toLowerCase()));
                   if (blocked) { toolCalls.push({ tool: toolName, error: 'content contains a blocked word' }); }
                   else {
-                    const platforms = (Array.isArray(args.platforms) ? args.platforms : cfg.platforms).filter(p => cfg.platforms.includes(p));
+                    const askedFor = Array.isArray(args.platforms) ? args.platforms : cfg.platforms;
+                    const platforms = [...new Set(expandPlatforms(askedFor, GROUPS))].filter(p => cfg.platforms.includes(p));
                     const item = {
                       id: 'mm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
                       text, platforms,
@@ -6430,7 +6456,7 @@ data: ${JSON.stringify(data)}
               const item = {
                 id: 'mm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
                 text: args.text || '',
-                platforms: Array.isArray(args.platforms) ? args.platforms : ['bluesky'],
+                platforms: expandPlatforms(Array.isArray(args.platforms) ? args.platforms : ['bluesky'], GROUPS),
                 imageUrl: args.imageUrl || null,
                 source: 'agent:' + agentId,
                 status: 'pending',
