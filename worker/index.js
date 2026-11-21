@@ -8500,13 +8500,76 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       } catch (e) { return new Response('<h3>Connect failed</h3><p>' + e.message + '</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } }); }
     }
 
+    // ── Tumblr helpers: token with auto-refresh ──
+    async function tumblrFreshToken(env) {
+      let to = null;
+      try { to = JSON.parse(await env.PRISM_KV.get('tumblr:oauth') || 'null'); } catch (e) {}
+      if (!to || !to.access_token) return null;
+      const ageMin = (Date.now() - new Date(to.obtainedAt || 0).getTime()) / 60000;
+      if (ageMin < 50 && to.refresh_token !== undefined) return to; // young enough
+      if (!to.refresh_token) return ageMin < 50 ? to : null;
+      try {
+        const clientId = k(env, ['tumblr_key','TUMBLR_KEY']) || '';
+        const clientSecret = k(env, ['tumblr_secret','TUMBLR_SECRET']) || '';
+        const rr = await fetch('https://api.tumblr.com/v2/oauth2/token', {
+          method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ grant_type: 'refresh_token', client_id: clientId, client_secret: clientSecret, refresh_token: to.refresh_token }).toString()
+        });
+        const rd = await rr.json().catch(() => ({}));
+        if (rd.access_token) {
+          to = { access_token: rd.access_token, token_type: rd.token_type || 'bearer', refresh_token: rd.refresh_token || to.refresh_token, scope: rd.scope || to.scope, obtainedAt: new Date().toISOString() };
+          if (env.PRISM_KV) await env.PRISM_KV.put('tumblr:oauth', JSON.stringify(to));
+        }
+      } catch (e) {}
+      return to;
+    }
+
+    // POST /api/tumblr/brand — apply avatar, header and settings from the R2 brand assets
+    if (path === '/api/tumblr/brand' && request.method === 'POST') {
+      try {
+        const to = await tumblrFreshToken(env);
+        if (!to || !to.access_token) return json({success:false,error:'Tumblr not connected'},400,origin);
+        const tok = to.access_token;
+        const blog = k(env, ['tumblr_blog','TUMBLR_BLOG']) || 'identitypartners';
+        const blogHost = blog + '.tumblr.com';
+        const out = {};
+        // avatar
+        try {
+          const avBytes = await fetch(R2_PUBLIC + 'brand/avatar.png').then(r => r.arrayBuffer());
+          const fd = new FormData();
+          fd.append('avatar', new Blob([avBytes], { type: 'image/png' }), 'avatar.png');
+          const r = await fetch('https://api.tumblr.com/v2/blog/' + blogHost + '/avatar', { method: 'POST', headers: { Authorization: 'Bearer ' + tok }, body: fd });
+          out.avatar = { status: r.status, body: (await r.text()).slice(0, 120) };
+        } catch (e) { out.avatar = { error: e.message }; }
+        // header
+        try {
+          const hdBytes = await fetch(R2_PUBLIC + 'brand/banner.png').then(r => r.arrayBuffer());
+          const fd = new FormData();
+          fd.append('header', new Blob([hdBytes], { type: 'image/png' }), 'banner.png');
+          const r = await fetch('https://api.tumblr.com/v2/blog/' + blogHost + '/header', { method: 'POST', headers: { Authorization: 'Bearer ' + tok }, body: fd });
+          out.header = { status: r.status, body: (await r.text()).slice(0, 120) };
+        } catch (e) { out.header = { error: e.message }; }
+        // settings
+        try {
+          const r = await fetch('https://api.tumblr.com/v2/blog/' + blogHost + '/settings', {
+            method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              title: 'Identity Partners',
+              description: 'Understand your past. Appreciate the present. Define your future. Addiction recovery, trauma and mental health — a relational practice. hello@identitypartners.uk · www.identitypartners.uk'
+            }).toString()
+          });
+          out.settings = { status: r.status, body: (await r.text()).slice(0, 160) };
+        } catch (e) { out.settings = { error: e.message }; }
+        return json({ success: true, blog: blogHost, out }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+
     // ── Tumblr publish (OAuth2 access token from KV) ──
     if (path === '/api/social/tumblr' && request.method === 'POST') {
       try {
         const body = await request.json();
         const blogName = body.blog || k(env, ['tumblr_blog','TUMBLR_BLOG']) || 'identitypartners';
-        let oauth = null;
-        try { oauth = env.PRISM_KV ? JSON.parse(await env.PRISM_KV.get('tumblr:oauth') || 'null') : null; } catch (e) {}
+        const oauth = (typeof tumblrFreshToken === 'function') ? await tumblrFreshToken(env) : null;
         if (!oauth || !oauth.access_token) return json({success:false,error:'Tumblr not connected — open https://arch.identitypartners.uk/api/oauth/tumblr/authorize once to authorise Argentica.'},400,origin);
         const params = new URLSearchParams();
         if (body.imageUrl) { params.set('type', 'photo'); params.set('source', body.imageUrl); if (body.text) params.set('caption', body.text); }
