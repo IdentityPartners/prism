@@ -32,6 +32,7 @@ export default {
         method: request.method,
         headers: h,
         body,
+        redirect: 'manual', // pass OAuth redirects (302 + Location) through untouched
       });
     }
     return env.ASSETS.fetch(request);
