@@ -7824,7 +7824,7 @@ data: ${JSON.stringify(data)}
       const cfg = env.PRISM_KV ? await env.PRISM_KV.get('socialising:autonomy', 'json') : null;
       const today = new Date().toISOString().slice(0, 10);
       const count = env.PRISM_KV ? parseInt(await env.PRISM_KV.get('socialising:count:' + today) || '0') : 0;
-      return json({ config: cfg || { enabled: false, maxPerDay: 3, platforms: ['bluesky', 'linkedin', 'telegram', 'instagram', 'facebook', 'x'] }, postedToday: count }, 200, origin);
+      return json({ config: cfg || { enabled: false, maxPerDay: 3, platforms: ['bluesky', 'linkedin', 'telegram', 'instagram', 'facebook', 'tumblr', 'x'] }, postedToday: count }, 200, origin);
     }
     if (path === '/api/social/autonomy' && request.method === 'POST') {
       try {
