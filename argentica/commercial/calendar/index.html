@@ -51,6 +51,38 @@
   .view-pills { display: flex; gap: 6px; align-items: center; }
   .view-pills button { padding: 5px 13px; border-radius: 999px; font-size: 12px; background: transparent; color: var(--ink-soft); border: 1px solid var(--line); }
   .view-pills button.on { background: var(--t1, #e2ebea); color: #5c2d3f; border-color: transparent; }
+
+  /* ── Plan view: multi-week planning rows with a theme column ── */
+  .cal-plan { display: flex; flex-direction: column; gap: 10px; }
+  .plan-row { display: grid; grid-template-columns: 210px repeat(7, 1fr); gap: 6px; }
+  .plan-theme { background: var(--paper); border: 1.5px dashed #a88792; border-radius: 8px; padding: 8px 10px; cursor: pointer;
+    transition: border-color .12s, background .12s; min-height: 62px; display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+  .plan-theme:hover { border-color: #5c2d3f; background: #fffdf6; }
+  .plan-theme.set { border-style: solid; }
+  .plan-theme .pw { font-size: 10.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.1em; font-family: 'Inter', sans-serif; }
+  .plan-theme .pn { font-family: 'EB Garamond', Georgia, serif; font-size: 17px; color: #5c2d3f; line-height: 1.15; }
+  .plan-theme .ps { font-family: 'Caveat', cursive; font-size: 15px; color: #7a4254; line-height: 1.1; }
+  .plan-theme .px { font-size: 10.5px; color: #0f3b3a; }
+  .plan-day { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; min-height: 62px; padding: 4px 6px; font-size: 10.5px; }
+  .plan-day .dnum { font-size: 10px; color: var(--ink-soft); text-align: right; }
+  .plan-day.today { border-color: #5c2d3f; }
+
+  /* ── Theme modal (proper sized popup, not prompt()) ── */
+  .theme-modal { position: fixed; inset: 0; background: rgba(43, 33, 23, 0.34); z-index: 420; display: none;
+    align-items: center; justify-content: center; }
+  .theme-modal .panel { background: var(--paper, #f7f3e9); border: 1px solid var(--line, #d8cfc0); border-radius: 12px;
+    padding: 22px 24px; width: min(640px, 94vw); max-height: 88vh; overflow-y: auto; box-shadow: 0 18px 50px rgba(43,33,23,.25); }
+  .theme-modal h3 { margin: 0 0 2px; font-family: 'EB Garamond', Georgia, serif; color: #5c2d3f; }
+  .theme-modal .wk { font-size: 12px; color: var(--ink-soft); margin-bottom: 14px; }
+  .theme-modal label { display: block; font-size: 12px; color: var(--ink-soft); margin: 12px 0 4px; }
+  .theme-modal input[type=text] { width: 100%; box-sizing: border-box; padding: 7px 10px; border: 1px solid var(--line, #d8cfc0);
+    border-radius: 6px; background: #fffdf6; font-family: 'EB Garamond', Georgia, serif; font-size: 16px; color: #3a2b28; }
+  .theme-modal .ex-row { display: grid; grid-template-columns: 130px 1fr; gap: 8px; align-items: center; margin: 5px 0; }
+  .theme-modal .ex-row input[type=checkbox] { accent-color: #5c2d3f; }
+  .theme-modal .ex-row .pname { font-size: 12.5px; color: #3a2b28; }
+  .theme-modal .ex-row input[type=text] { font-family: 'Inter', sans-serif; font-size: 13px; }
+  .theme-modal .ex-row input[type=text]:disabled { opacity: 0.35; }
+  .theme-modal .modal-actions { display: flex; justify-content: space-between; margin-top: 18px; gap: 8px; }
 </style>
 </head>
 <body>
@@ -72,6 +104,7 @@
       <div class="view-pills" style="margin-left:14px;">
         <button id="view-week">Week</button>
         <button id="view-month" class="on">Month</button>
+        <button id="view-plan">Plan</button>
       </div>
     </div>
   </div>
@@ -79,7 +112,8 @@
   <div class="card">
     <div class="cal-week" id="cal-week"></div>
     <div class="cal-grid" id="cal-grid" style="display:none;"></div>
-    <div class="cal-legend">
+    <div class="cal-plan" id="cal-plan" style="display:none;"></div>
+    <div class="cal-legend" id="cal-legend" style="display:flex;">
       <span class="row" style="gap:5px;"><span class="cal-ev diary" style="display:inline-block; width:22px;">&nbsp;</span> Diary</span>
       <span class="row" style="gap:5px;"><span class="cal-ev soc-posted" style="display:inline-block; width:22px;">&nbsp;</span> Posted</span>
       <span class="row" style="gap:5px;"><span class="cal-ev soc-queued" style="display:inline-block; width:22px;">&nbsp;</span> Queued</span>
@@ -109,6 +143,27 @@
   </div>
 </div>
 
+<div class="theme-modal" id="theme-modal">
+  <div class="panel">
+    <h3>Week theme</h3>
+    <div class="wk" id="tm-week"></div>
+    <label>Primary theme</label>
+    <input type="text" id="tm-primary" list="tm-suggestions" placeholder="e.g. Boundaries, Recovery capital, Sober joy...">
+    <datalist id="tm-suggestions"></datalist>
+    <label>Secondary theme (optional companion thread)</label>
+    <input type="text" id="tm-secondary" list="tm-suggestions" placeholder="e.g. a lighter note, a counterpoint...">
+    <label>Single-week per-platform exceptions &mdash; tick a platform to give it its own theme this week</label>
+    <div id="tm-exceptions"></div>
+    <div class="modal-actions">
+      <div><button class="ghost" id="tm-clear" style="color:#8a3b3b;">Clear this week</button></div>
+      <div class="row" style="gap:8px; justify-content:flex-end;">
+        <button class="ghost" id="tm-cancel">Cancel</button>
+        <button id="tm-save">Save theme</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="/shared/argentica.js"></script>
 <script>
 ARG.buildShell('pubcalendar');
@@ -129,7 +184,7 @@ async function loadThemes() {
   if (!banner) return;
   const cur = THEMES.find(t => t.week === mondayISO(new Date()));
   banner.style.display = 'flex';
-  document.getElementById('theme-name').textContent = cur ? cur.name : 'no theme set this week';
+  document.getElementById('theme-name').textContent = cur ? (cur.name + (cur.secondary ? '  \u00b7  + ' + cur.secondary : '')) : 'no theme set this week';
   banner.querySelector('span').style.background = cur ? '' : 'rgba(0,0,0,.08)';
 }
 async function kvGet(key) {
@@ -216,15 +271,23 @@ function renderMonth() {
 }
 
 function render() {
-  document.getElementById('cal-week').style.display = viewMode === 'week' ? '' : 'none';
-  document.getElementById('cal-grid').style.display = viewMode === 'month' ? '' : 'none';
-  if (viewMode === 'week') renderWeek(); else renderMonth();
+  const modes = ['week', 'month', 'plan'];
+  modes.forEach(mv => document.getElementById('cal-' + (mv === 'week' ? 'week' : mv === 'month' ? 'grid' : 'plan')).style.display = viewMode === mv ? '' : 'none');
+  document.getElementById('cal-legend').style.display = viewMode === 'plan' ? 'none' : 'flex';
+  if (viewMode === 'week') renderWeek(); else if (viewMode === 'month') renderMonth(); else renderPlan();
+  document.getElementById('cal-month').style.minWidth = viewMode === 'plan' ? '110px' : '170px';
 }
 
-document.getElementById('cal-prev').addEventListener('click', () => { if (viewMode === 'week') view.setDate(view.getDate() - 7); else view.setMonth(view.getMonth() - 1); render(); });
-document.getElementById('cal-next').addEventListener('click', () => { if (viewMode === 'week') view.setDate(view.getDate() + 7); else view.setMonth(view.getMonth() + 1); render(); });
-document.getElementById('view-week').addEventListener('click', () => { viewMode = 'week'; document.getElementById('view-week').classList.add('on'); document.getElementById('view-month').classList.remove('on'); render(); });
-document.getElementById('view-month').addEventListener('click', () => { viewMode = 'month'; document.getElementById('view-month').classList.add('on'); document.getElementById('view-week').classList.remove('on'); render(); });
+function setView(mv) {
+  viewMode = mv;
+  ['week', 'month', 'plan'].forEach(id => document.getElementById('view-' + id).classList.toggle('on', id === mv));
+  render();
+}
+document.getElementById('cal-prev').addEventListener('click', () => { if (viewMode === 'week') view.setDate(view.getDate() - 7); else if (viewMode === 'plan') view.setDate(view.getDate() - 28); else view.setMonth(view.getMonth() - 1); render(); });
+document.getElementById('cal-next').addEventListener('click', () => { if (viewMode === 'week') view.setDate(view.getDate() + 7); else if (viewMode === 'plan') view.setDate(view.getDate() + 28); else view.setMonth(view.getMonth() + 1); render(); });
+document.getElementById('view-week').addEventListener('click', () => setView('week'));
+document.getElementById('view-month').addEventListener('click', () => setView('month'));
+document.getElementById('view-plan').addEventListener('click', () => setView('plan'));
 
 // ── Themed week management ──
 async function saveThemes() {
@@ -233,23 +296,88 @@ async function saveThemes() {
   ARG.toast('Week themes saved — the drafting agents will follow them.');
   loadThemes();
 }
-function manageThemes() {
-  const line = 'Week themes:\n' + THEMES.map((t, i) => (i + 1) + '. ' + t.week + ' — ' + t.name).join('\n') + '\n\nType:\nADD <monday date YYYY-MM-DD> <theme name>\nDEL <number>\nOK to finish';
-  const resp = prompt(line);
-  if (!resp) return;
-  const r = resp.trim();
-  if (/^ADD\s+/i.test(r)) {
-    const m2 = r.match(/^ADD\s+(\d{4}-\d{2}-\d{2})\s+(.+)$/i);
-    if (!m2) { ARG.toast('Format: ADD 2026-11-23 Theme name'); return manageThemes(); }
-    THEMES = THEMES.filter(t => t.week !== m2[1]);
-    THEMES.push({ week: m2[1], name: m2[2].trim() });
-    THEMES.sort((a, b) => a.week.localeCompare(b.week));
-    saveThemes();
-  } else if (/^DEL\s+\d+$/i.test(r)) {
-    const i = parseInt(r.split(/\s+/)[1], 10) - 1;
-    if (i >= 0 && i < THEMES.length) { THEMES.splice(i, 1); saveThemes(); }
+const PLATFORMS = ['substack', 'linkedin', 'x', 'threads', 'bluesky', 'instagram', 'facebook', 'tumblr'];
+
+function themeFor(weekISO) { return THEMES.find(t => t.week === weekISO) || null; }
+
+function renderPlan() {
+  const grid = document.getElementById('cal-plan');
+  const start = new Date(view);
+  start.setHours(12, 0, 0, 0);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const today = new Date();
+  document.getElementById('cal-month').textContent =
+    start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' \u2013 ' +
+    new Date(start.getFullYear(), start.getMonth(), start.getDate() + 27).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  let html = '<div class="plan-row">' + ['<div class="cal-whead" style="color:#5c2d3f;">Theme</div>'].concat(DAYS.map(d => '<div class="cal-whead">' + d + '</div>')).join('') + '</div>';
+  for (let w = 0; w < 4; w++) {
+    const base = new Date(start); base.setDate(start.getDate() + w * 7);
+    const wISO = base.toISOString().slice(0, 10);
+    const t = themeFor(wISO);
+    let themeCell = '<div class="plan-theme' + (t && t.name ? ' set' : '') + '" onclick="openThemeModal(\'' + wISO + '\')">';
+    themeCell += '<div class="pw">' + base.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' &middot; click to plan</div>';
+    themeCell += t && t.name ? '<div class="pn">' + esc(t.name) + '</div>'
+      + (t.secondary ? '<div class="ps">+ ' + esc(t.secondary) + '</div>' : '')
+      + (t.exceptions && Object.keys(t.exceptions).length ? '<div class="px">exceptions: ' + Object.keys(t.exceptions).join(', ') + '</div>' : '')
+      : '<div class="pn" style="color:#a88792;">\u2014 no theme set \u2014</div>';
+    themeCell += '</div>';
+    let daysHtml = '';
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(base); d.setDate(base.getDate() + i);
+      const iso = d.toISOString().slice(0, 10);
+      daysHtml += '<div class="plan-day' + (d.toDateString() === today.toDateString() ? ' today' : '') + '"><div class="dnum">' + d.getDate() + '</div>' + chipsFor(iso) + cadenceChipsFor(i) + '</div>';
+    }
+    html += '<div class="plan-row">' + themeCell + daysHtml + '</div>';
   }
+  grid.innerHTML = html;
 }
+
+let modalWeek = null;
+function openThemeModal(weekISO) {
+  modalWeek = weekISO;
+  const d = new Date(weekISO + 'T12:00:00');
+  document.getElementById('tm-week').textContent = 'Week of ' + d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const t = themeFor(weekISO) || {};
+  document.getElementById('tm-primary').value = t.name || '';
+  document.getElementById('tm-secondary').value = t.secondary || '';
+  const suggestions = [...new Set(THEMES.map(x => x.name).filter(Boolean))];
+  document.getElementById('tm-suggestions').innerHTML = suggestions.map(n => '<option value="' + esc(n) + '">').join('');
+  const ex = t.exceptions || {};
+  document.getElementById('tm-exceptions').innerHTML = PLATFORMS.map(p =>
+    '<div class="ex-row"><label class="row" style="gap:6px;margin:0;align-items:center;"><input type="checkbox" id="tm-ex-' + p + '" ' + (ex[p] ? 'checked' : '') + ' onchange="document.getElementById(\'tm-exx-' + p + '\').disabled=!this.checked"><span class="pname">' + p + '</span></label>' +
+    '<input type="text" id="tm-exx-' + p + '" placeholder="own theme for this week" value="' + esc(ex[p] || '') + '" ' + (ex[p] ? '' : 'disabled') + '></div>').join('');
+  document.getElementById('theme-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('tm-primary').focus(), 50);
+}
+window.openThemeModal = openThemeModal;
+
+document.getElementById('tm-cancel').addEventListener('click', () => { document.getElementById('theme-modal').style.display = 'none'; });
+document.getElementById('theme-modal').addEventListener('click', e => { if (e.target.id === 'theme-modal') e.currentTarget.style.display = 'none'; });
+document.getElementById('tm-clear').addEventListener('click', () => {
+  THEMES = THEMES.filter(t => t.week !== modalWeek);
+  saveThemes();
+  document.getElementById('theme-modal').style.display = 'none';
+});
+document.getElementById('tm-save').addEventListener('click', () => {
+  const primary = document.getElementById('tm-primary').value.trim();
+  const secondary = document.getElementById('tm-secondary').value.trim();
+  const exceptions = {};
+  PLATFORMS.forEach(p => {
+    const on = document.getElementById('tm-ex-' + p) && document.getElementById('tm-ex-' + p).checked;
+    const val = document.getElementById('tm-exx-' + p).value.trim();
+    if (on && val) exceptions[p] = val;
+  });
+  if (!primary) { ARG.toast('Give the week a primary theme.'); return; }
+  THEMES = THEMES.filter(t => t.week !== modalWeek);
+  THEMES.push({ week: modalWeek, name: primary, secondary: secondary || '', exceptions: exceptions });
+  THEMES.sort((a, b) => a.week.localeCompare(b.week));
+  saveThemes();
+  document.getElementById('theme-modal').style.display = 'none';
+});
+document.getElementById('tm-primary').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('tm-save').click(); });
+
+function manageThemes() { setView('plan'); }
+
 
 // ── click day to add ──
 window.cellClick = iso => {

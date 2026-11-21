@@ -54,6 +54,40 @@
     <div class="cad-grid" id="cad-grid"></div>
   </div>
 
+  <div class="card" style="margin-bottom:16px;">
+    <h3>Voices &amp; accounts registry</h3>
+    <div class="muted" style="margin-bottom:10px;">Register account voices (e.g. a trauma-focused Tumblr, a sobriety Bluesky). Agents can then address a specific voice with the "from" field. Multi-blogging for Tumblr works today; Bluesky needs an app-password secret per account (bluesky_<voice handle>); Substack publications are deliverable by email once created.</div>
+    <div id="voices" class="item-list"><div class="muted">No voices yet. The main accounts post as Identity Partners by default.</div></div>
+    <div class="row mt" style="gap:8px;">
+      <button class="ghost small" onclick="loadVoices();openVoiceModal()">+ Register a voice</button>
+    </div>
+  </div>
+
+  <div style="position:fixed;inset:0;background:rgba(43,33,23,.34);z-index:420;display:none;align-items:center;justify-content:center;" id="voice-modal">
+    <div style="background:#f7f3e9;border:1px solid #d8cfc0;border-radius:12px;padding:22px 24px;width:min(560px,94vw);max-height:88vh;overflow-y:auto;box-shadow:0 18px 50px rgba(43,33,23,.25);">
+      <h3 style="margin:0 0 2px;font-family:'EB Garamond',Georgia,serif;color:#5c2d3f;" id="vm-heading">Register a voice</h3>
+      <div class="muted" style="font-size:12px;margin-bottom:12px;">An account persona agents can post as via the "from" field.</div>
+      <label class="muted" style="display:block;font-size:12px;margin:10px 0 4px;">Voice id</label>
+      <input type="text" id="vm-id" placeholder="e.g. trauma, sobriety, nd" oninput="this.value=this.value.toLowerCase().replace(/\s+/g,'-')" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d8cfc0;border-radius:6px;background:#fffdf6;font-family:'EB Garamond',Georgia,serif;font-size:16px;color:#3a2b28;">
+      <label class="muted" style="display:block;font-size:12px;margin:10px 0 4px;">Platform</label>
+      <select id="vm-platform" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d8cfc0;border-radius:6px;background:#fffdf6;">
+        <option value="tumblr">Tumblr (multi-blogging works today)</option>
+        <option value="bluesky">Bluesky (app-password secret per account)</option>
+        <option value="substack">Substack (publication, email delivery)</option>
+        <option value="threads">Threads</option>
+      </select>
+      <label class="muted" style="display:block;font-size:12px;margin:10px 0 4px;">Human label</label>
+      <input type="text" id="vm-label" placeholder="e.g. IP Trauma" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d8cfc0;border-radius:6px;background:#fffdf6;font-family:'EB Garamond',Georgia,serif;font-size:16px;color:#3a2b28;">
+      <label class="muted" style="display:block;font-size:12px;margin:10px 0 4px;">Identity on that platform (Tumblr blog name, Bluesky handle, Substack pub)</label>
+      <input type="text" id="vm-identity" placeholder="e.g. identitypartnerstrauma" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d8cfc0;border-radius:6px;background:#fffdf6;font-family:'EB Garamond',Georgia,serif;font-size:16px;color:#3a2b28;">
+      <label class="muted" style="display:block;font-size:12px;margin:10px 0 4px;">Tone notes</label>
+      <input type="text" id="vm-tone" placeholder="e.g. quieter, more embodied, less clinical" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d8cfc0;border-radius:6px;background:#fffdf6;font-size:13px;color:#3a2b28;">
+      <label class="muted" style="display:block;font-size:12px;margin:10px 0 4px;">Topics this voice owns (comma separated)</label>
+      <input type="text" id="vm-topics" placeholder="e.g. trauma, ptsd, dissociation" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #d8cfc0;border-radius:6px;background:#fffdf6;font-size:13px;color:#3a2b28;">
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;" id="vm-actions"></div>
+    </div>
+  </div>
+
   <div class="grid two">
     <div class="card">
       <h3>Channel groups &amp; themes</h3>
@@ -209,6 +243,65 @@ async function saveAll() {
   await kvSet('cadence:groups', groups);
   ARG.toast('Cadence saved — planned slots now show on both Calendars.');
 }
+
+// ── Voices registry ──
+let VOICES = [];
+async function loadVoices() {
+  VOICES = (await kvGet('voices:registry')) || [];
+  renderVoices();
+}
+function renderVoices() {
+  const v = document.getElementById('voices');
+  if (!VOICES.length) { v.innerHTML = '<div class="muted">No voices yet. The main accounts post as Identity Partners by default.</div>'; return; }
+  v.innerHTML = VOICES.map((x, i) => '<div class="item" style="cursor:pointer;" onclick="openVoiceModal(\'' + esc(x.id) + '\')"><div><b>' + esc(x.label) + '</b> <span class="badge">' + esc(x.platform) + '</span> <span class="muted">' + esc(x.identity || '') + '</span><div class="muted" style="font-size:12px;">' + esc(x.tone || '') + (x.topics ? ' &middot; topics: ' + esc(x.topics) : '') + '</div></div><div class="handnote" style="font-family:\'EB Garamond\',serif;font-size:14px;color:#7a4254;">' + esc(x.id) + '</div></div>').join('');
+}
+let vmEditing = null;
+function openVoiceModal(id) {
+  vmEditing = id || null;
+  const v = id ? VOICES.find(x => x.id === id) : null;
+  document.getElementById('vm-heading').textContent = v ? 'Edit voice: ' + v.label : 'Register a voice';
+  document.getElementById('vm-id').value = v ? v.id : '';
+  document.getElementById('vm-id').readOnly = !!v;
+  document.getElementById('vm-platform').value = v ? v.platform : 'tumblr';
+  document.getElementById('vm-label').value = v ? v.label : '';
+  document.getElementById('vm-identity').value = v ? (v.identity || '') : '';
+  document.getElementById('vm-tone').value = v ? (v.tone || '') : '';
+  document.getElementById('vm-topics').value = v ? (v.topics || '') : '';
+  document.getElementById('vm-actions').innerHTML =
+    (v ? '<button class="ghost" style="color:#8a3b3b;margin-right:auto;" onclick="removeVoice(\'' + v.id + '\')">Remove voice</button>' : '') +
+    '<button class="ghost" onclick="closeVoiceModal()">Cancel</button>' +
+    '<button onclick="saveVoiceModal()">' + (v ? 'Save changes' : 'Save voice') + '</button>';
+  document.getElementById('voice-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('vm-id').focus(), 50);
+}
+window.openVoiceModal = openVoiceModal;
+function closeVoiceModal() { document.getElementById('voice-modal').style.display = 'none'; }
+window.closeVoiceModal = closeVoiceModal;
+function saveVoiceModal() {
+  const id = document.getElementById('vm-id').value.trim().toLowerCase();
+  if (!id) { ARG.toast('Give the voice a short id.'); return; }
+  const rec = {
+    id: id,
+    platform: document.getElementById('vm-platform').value,
+    label: document.getElementById('vm-label').value.trim() || id,
+    identity: document.getElementById('vm-identity').value.trim(),
+    tone: document.getElementById('vm-tone').value.trim(),
+    topics: document.getElementById('vm-topics').value.trim()
+  };
+  const existing = VOICES.findIndex(v => v.id === id);
+  if (existing >= 0) VOICES[existing] = rec; else VOICES.push(rec);
+  kvSet('voices:registry', VOICES).then(renderVoices);
+  closeVoiceModal();
+  ARG.toast('Voice "' + id + '" saved. Agents can now post with from: "' + id + '" on ' + rec.platform + '.');
+}
+function removeVoice(id) {
+  VOICES = VOICES.filter(v => v.id !== id);
+  kvSet('voices:registry', VOICES).then(renderVoices);
+  closeVoiceModal();
+  ARG.toast('Voice "' + id + '" removed.');
+}
+window.removeVoice = removeVoice;
+loadVoices();
 
 loadAll();
 </script>

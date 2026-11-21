@@ -6361,7 +6361,7 @@ data: ${JSON.stringify(data)}
         const assignment = env.PRISM_KV ? await env.PRISM_KV.get('agent-assignment:' + agentId, 'json').catch(() => null) : null;
         const histKey = 'agent-chat:' + agentId + ':history';
         const hist = env.PRISM_KV ? (await env.PRISM_KV.get(histKey, 'json') || []) : [];
-        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({"text": "the post copy with tags and footer", "platforms": [...], "format": "auto"}) — queues a post for approval. PLATFORM GROUPS (pass a group name or individual channels, mixing is fine): "longform" = substack + bluesky (warm-but-intellectual: essays, reflective prose, reading); "pro" = linkedin (orphaned, pro-to-pro: practice news, professional development, sector commentary); "analogue" = facebook + tumblr (community-archive energy: human interest, recovery culture, human stories); "social" = x + threads + instagram (short-form social nuggets). FORMAT slots ("format" arg): "image" single graphic; "carousel" multi-slide (strongest reach on instagram); "story" full-bleed vertical (instagram + facebook stories); "reel" (coming once the video path exists); "auto" lets the system choose by content type. Carousel-worthy content (steps, arguments, lists, anything multi-part) should carry format=carousel when instagram is among the platforms.TOOL: save_note({"title": "...", "content": "..."}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
+        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({"text": "the post copy with tags and footer", "platforms": [...], "format": "auto", "from": ""}) — queues a post for approval. PLATFORM GROUPS are TYPES, not pairings (pass a group name or individual channels, mixing is fine): "longform" = substack ONLY (essays, reflective prose, full-length pieces; Bluesky is NOT longform); "pro" = linkedin ONLY (orphaned, pro-to-pro: practice news, professional development, sector commentary); "shortform" = x + threads + bluesky (one-idea nuggets respecting caps: x 280, bluesky 300, threads 500 characters); "images" = instagram + facebook + tumblr (image-first posts, carousels and stories). WRITING CONVENTIONS by type: longform = patient, essayistic, intellectually warm; pro = professional, peer-to-peer; shortform = plain speech, one idea, surface-level-perfect; images = strong caption plus visual, human interest. FORMAT slots ("format" arg): "image" single graphic; "carousel" multi-slide (strongest reach on instagram); "story" full-bleed vertical (instagram + facebook stories); "reel" (pending the video path); "auto" lets the system choose by content type. LISTICLE DOCTRINE: the best-performing non-shortform content on the internet is the listicle, from Instagram carousels to LinkedIn articles. When content is multi-part (steps, reasons, tips, arguments), default to format=carousel and write each slide as a list item. "from" (optional) = a voice id from the voices registry, to post as a registered condition-specific account instead of the main Identity Partners account.\nTOOL: post_now({"text": "...", "platforms": [...]}) — attempts immediate posting; only works when autonomy is switched on.\nTOOL: create_canvas({"topic": "...", "template": "..."}) — renders a brand canvas graphic; templates include myth-vs-fact, data-infographic, awareness-day, news-reaction, research, service-explainer, quote, stat, testimonial, img-seascape, img-sunrise, img-cityscape and dual-partnership.\nTOOL: search_news({"topic": "..."}) — fetches current headlines from the approved sources.\nTOOL: save_note({"title": "...", "content": "..."}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
         const messages = [{ role: 'system', content: systemPrompt }];
         hist.filter(m => m.role !== 'system').slice(-20).forEach(m => messages.push({ role: m.role, content: m.content }));
         messages.push({ role: 'user', content: userMessage });
@@ -6461,6 +6461,8 @@ data: ${JSON.stringify(data)}
                 text: args.text || '',
                 platforms: expandPlatforms(Array.isArray(args.platforms) ? args.platforms : ['bluesky'], GROUPS),
                 format: args.format || 'auto', // auto | image | carousel | story | reel | text
+                from: args.from || '', // optional voice id from voices:registry
+                urls: Array.isArray(args.urls) ? args.urls : null,
                 imageUrl: args.imageUrl || null,
                 source: 'agent:' + agentId,
                 status: 'pending',
@@ -8032,7 +8034,19 @@ data: ${JSON.stringify(data)}
               else {
                 try {
                   const media = await itemMediaUrls(item, env);
-                  const blogName = k(env, ['tumblr_blog','TUMBLR_BLOG']) || 'identitypartners';
+                  let blogName = k(env, ['tumblr_blog','TUMBLR_BLOG']) || 'identitypartners';
+                  // ── Voices routing: post as a registered condition-specific account if item.from is set ──
+                  let voiceNote = '';
+                  if (item.from && env.PRISM_KV) {
+                    try {
+                      const voices = await env.PRISM_KV.get('voices:registry', 'json') || [];
+                      const v = voices.find(x => x && (x.id === item.from || x.label === item.from));
+                      if (v && v.platform === 'tumblr' && v.identity) {
+                        blogName = String(v.identity).replace(/^https?:\/\//, '').replace(/\.tumblr\.com.*$/, '');
+                        voiceNote = ' as voice ' + v.id;
+                      }
+                    } catch (e) {}
+                  }
                   const params = new URLSearchParams();
                   if (media.length) { params.set('type','photo'); params.set('source', media[0]); if (item.text) params.set('caption', item.text); }
                   else { params.set('type','text'); params.set('body', item.text || ''); }
@@ -8044,7 +8058,7 @@ data: ${JSON.stringify(data)}
                   });
                   const data = await resp.json().catch(() => ({}));
                   const ok = resp.ok && (data.response||{}).id;
-                  results.tumblr = { success: !!ok, postId: ok ? data.response.id : undefined, error: resp.ok ? undefined : ((data.meta||{}).msg || ('HTTP ' + resp.status)) };
+                  results.tumblr = { success: !!ok, postId: ok ? data.response.id : undefined, voice: voiceNote || undefined, error: resp.ok ? undefined : ((data.meta||{}).msg || ('HTTP ' + resp.status)) };
                 } catch (e) { errors.tumblr = e.message; }
               }
             } else if (['instagram','facebook','x'].includes(platform)) {
