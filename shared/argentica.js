@@ -104,7 +104,9 @@
         { label: 'Refract', href: '/argentica/commercial/refract/', key: 'refract' },
         { label: 'Marketing team', href: '/argentica/commercial/team/', key: 'team' },
         { label: 'Monetisation', href: '/argentica/commercial/monetisation/', key: 'monetisation' },
-        { label: 'Platforms', href: '/argentica/commercial/platforms/', key: 'platforms' }
+        { label: 'Platforms', href: '/argentica/commercial/platforms/', key: 'platforms' },
+        { label: 'Publishing calendar', href: '/argentica/commercial/calendar/', key: 'pubcalendar' },
+        { label: 'Weekly cadence', href: '/argentica/commercial/cadence/', key: 'cadence' }
       ]
     },
     comms: {

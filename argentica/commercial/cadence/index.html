@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Weekly Cadence</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  .cad-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+  .cad-col { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-height: 210px; }
+  .cad-col h4 { margin: 0 0 8px; font-family: 'EB Garamond', Georgia, serif; font-size: 15px; color: #5c2d3f; }
+  .cad-slot { background: #f7f3e9; border: 1px dashed #a88792; border-radius: 8px; padding: 7px 9px; margin-bottom: 7px; font-size: 12px; position: relative; }
+  .cad-slot .t { font-family: 'Caveat', cursive; font-size: 16px; color: #5c2d3f; }
+  .cad-slot .m { color: var(--ink-soft); font-size: 11px; margin-top: 2px; }
+  .cad-slot .x { position: absolute; top: 4px; right: 7px; cursor: pointer; color: #a88792; opacity: .6; }
+  .cad-slot:hover .x { opacity: 1; }
+  .cad-add { width: 100%; border: 1px dashed var(--line); background: transparent; color: var(--ink-soft); font-size: 12px; padding: 5px; border-radius: 7px; }
+  .cad-add:hover { background: #f0e9e0; }
+  .grp { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--paper); }
+  .grp h3 { margin: 0 0 4px; font-family: 'EB Garamond', Georgia, serif; color: #5c2d3f; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 999px;
+    padding: 4px 12px; font-size: 12px; cursor: pointer; background: transparent; color: var(--ink-soft); }
+  .chip.on { background: var(--t1, #e2ebea); color: #5c2d3f; border-color: transparent; }
+  .chip.exempt.on { background: #efe3e7; color: #7a4254; }
+  .tpl-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 4px; border-bottom: 1px solid var(--line); }
+  .tpl-item:last-child { border-bottom: none; }
+  .tpl-name { font-family: 'EB Garamond', Georgia, serif; font-size: 15px; color: #5c2d3f; }
+  .handnote { font-family: 'Caveat', cursive; font-size: 19px; color: #5c2d3f; }
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="cadence">
+  <div class="arg-pagehead">
+    <h1>Weekly Cadence</h1>
+    <div class="sub">Define what goes out, when, and to where. Saved templates can be reused. Planned slots appear as dashed entries on the Calendars.</div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="spread" style="margin-bottom:10px;">
+      <div>
+        <h3 style="margin:0;">The week</h3>
+        <div class="muted">Click a day to add a slot. Drag nothing — keep it simple.</div>
+      </div>
+      <div class="row" style="gap:8px;">
+        <select id="tpl-load" style="width:auto;"><option value="">Load a template…</option></select>
+        <button class="ghost small" onclick="saveTemplateUI()">&#128190; Save as template</button>
+        <button class="small" onclick="saveAll()">Save cadence</button>
+      </div>
+    </div>
+    <div class="cad-grid" id="cad-grid"></div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>Channel groups &amp; themes</h3>
+      <div class="muted" style="margin-bottom:10px;">Different groups (e.g. Substack, Bluesky, LinkedIn) can carry a different theme — or be exempt from the week's theme entirely. Slots inherit their group's theme unless overridden.</div>
+      <div id="groups"></div>
+      <button class="ghost small mt" onclick="addGroupUI()">+ New group</button>
+    </div>
+    <div class="card">
+      <h3>Templates</h3>
+      <div class="muted" style="margin-bottom:10px;">A template is a snapshot of the week's slots plus group definitions. Loading one replaces the editor below — press Save cadence to apply it.</div>
+      <div id="templates" class="item-list"><div class="muted">No templates saved yet.</div></div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('cadence');
+const { api, esc } = ARG;
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const CHANNELS = ['x', 'instagram', 'facebook', 'tumblr', 'bluesky', 'linkedin', 'substack', 'threads', 'telegram'];
+
+let slots = [];   // {day, time, channels:[], contentType, note, theme(optional override)}
+let groups = [];  // {name, channels:[], theme, secondaryTheme, exemptChannels:[]}
+let templates = {};// {name: {slots, groups}}
+let weekThemes = []; // from /api/themes
+
+async function kvGet(key) {
+  try { const r = await api('/kv/get?key=' + encodeURIComponent(key)); return typeof r.value === 'string' ? JSON.parse(r.value) : (r.value || null); }
+  catch (e) { return null; }
+}
+async function kvSet(key, val) {
+  return api('/kv/set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, value: val }) });
+}
+
+async function loadAll() {
+  slots = (await kvGet('cadence:slots')) || [];
+  groups = (await kvGet('cadence:groups')) || [];
+  templates = (await kvGet('cadence:templates')) || {};
+  try { const d = await api('/themes'); weekThemes = (d.themes || []).map(t => t.name); } catch (e) { weekThemes = []; }
+  render(); renderGroups(); renderTemplates();
+}
+
+function render() {
+  const g = document.getElementById('cad-grid');
+  let html = '';
+  DAYS.forEach(day => {
+    const daySlots = slots.filter(s => s.day === day);
+    html += '<div class="cad-col"><h4>' + day + '</h4>' +
+      daySlots.map((s, i) => {
+        const gi = slots.indexOf(s);
+        return '<div class="cad-slot"><span class="x" onclick="delSlot(' + gi + ')">&times;</span>' +
+          '<div class="t">' + esc(s.time || '\u2014') + ' ' + esc(s.contentType || '') + '</div>' +
+          '<div class="m">' + esc((s.channels || []).join(', ')) + (s.theme ? ' &middot; theme: ' + esc(s.theme) : '') + '</div>' +
+          (s.note ? '<div class="m" style="font-family:\'Caveat\',cursive; font-size:15px; color:#7a4254;">' + esc(s.note) + '</div>' : '') +
+          '</div>';
+      }).join('') +
+      '<button class="cad-add" onclick="addSlotUI(\'' + day + '\')">+ slot</button></div>';
+  });
+  g.innerHTML = html;
+}
+
+function addSlotUI(day) {
+  const time = prompt('Time for ' + day + ' (e.g. 09:00 — blank for none)');
+  if (time === null) return;
+  const contentType = prompt('Content type (post, carousel, news-reaction, research, stat, testimonial, seascape…)');
+  if (!contentType) return;
+  const chanLine = prompt('Channels — comma separated: ' + CHANNELS.join(', ') + '\nOr type a GROUP name you have defined (e.g. Longform)');
+  if (!chanLine) return;
+  const themeOverride = prompt('Optional theme override for this slot (blank = inherit the week/group theme)');
+  const note = prompt('Optional note (shown on the calendar in the hand)');
+  slots.push({ day, time: time.trim(), contentType: contentType.trim(), channels: chanLine.trim(), theme: (themeOverride || '').trim(), note: (note || '').trim() });
+  render();
+}
+
+function delSlot(i) { slots.splice(i, 1); render(); }
+
+// ── Groups ──
+function renderGroups() {
+  const g = document.getElementById('groups');
+  if (!groups.length) { g.innerHTML = '<div class="muted">No groups yet — e.g. "Longform" (Substack, Bluesky, LinkedIn) vs "Feed" (X, Instagram, Facebook, Tumblr).</div>'; return; }
+  g.innerHTML = groups.map((grp, i) => {
+    const chips = CHANNELS.map(c => '<span class="chip' + (grp.channels.includes(c) ? ' on' : '') + '" onclick="toggleGroupChan(' + i + ',\'' + c + '\')">' + c + '</span>').join('');
+    const exempt = CHANNELS.map(c => '<span class="chip exempt' + ((grp.exemptChannels || []).includes(c) ? ' on' : '') + '" onclick="toggleGroupExempt(' + i + ',\'' + c + '\')">' + c + '</span>').join('');
+    const themeOpts = ['(inherit week theme)'].concat(weekThemes);
+    const secOpts = ['(none)'].concat(weekThemes);
+    return '<div class="grp" style="margin-bottom:12px;">' +
+      '<div class="spread"><h3><span onclick="renameGroup(' + i + ')" style="cursor:text;" title="Click to rename">' + esc(grp.name) + '</span></h3>' +
+      '<button class="ghost small" onclick="delGroup(' + i + ')">Remove</button></div>' +
+      '<h3 style="display:none;"></h3>' +
+      '<div class="muted">Channels in this group:</div><div class="chips">' + chips + '</div>' +
+      '<div class="muted">Exempted channels (never carry the week theme):</div><div class="chips">' + exempt + '</div>' +
+      '<div class="row" style="gap:10px; flex-wrap:wrap;">' +
+      '<label class="muted" style="font-size:12px;">Theme<select onchange="setGroupTheme(' + i + ', this.value)" style="width:auto;">' +
+        themeOpts.map(t => '<option' + (t === (grp.theme || '(inherit week theme)') ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></label>' +
+      '<label class="muted" style="font-size:12px;">Secondary theme<select onchange="setGroupSecondary(' + i + ', this.value)" style="width:auto;">' +
+        secOpts.map(t => '<option' + (t === (grp.secondaryTheme || '(none)') ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></label>' +
+      '</div></div>';
+  }).join('');
+}
+function addGroupUI() {
+  const name = prompt('Group name (e.g. Longform, Feed)');
+  if (!name) return;
+  groups.push({ name: name.trim(), channels: [], theme: '', secondaryTheme: '', exemptChannels: [] });
+  renderGroups();
+}
+function renameGroup(i) {
+  const n = prompt('New name', groups[i].name); if (n) { groups[i].name = n.trim(); renderGroups(); }
+}
+function delGroup(i) { groups.splice(i, 1); renderGroups(); }
+function toggleGroupChan(i, c) { const s = groups[i].channels; s.includes(c) ? s.splice(s.indexOf(c), 1) : s.push(c); renderGroups(); }
+function toggleGroupExempt(i, c) { const s = (groups[i].exemptChannels = groups[i].exemptChannels || []); s.includes(c) ? s.splice(s.indexOf(c), 1) : s.push(c); renderGroups(); }
+function setGroupTheme(i, v) { groups[i].theme = v === '(inherit week theme)' ? '' : v; }
+function setGroupSecondary(i, v) { groups[i].secondaryTheme = v === '(none)' ? '' : v; }
+
+// ── Templates ──
+function renderTemplates() {
+  const t = document.getElementById('templates');
+  const names = Object.keys(templates);
+  const sel = document.getElementById('tpl-load');
+  sel.innerHTML = '<option value="">Load a template…</option>' + names.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('');
+  if (!names.length) { t.innerHTML = '<div class="muted">No templates saved yet.</div>'; return; }
+  t.innerHTML = names.map(n =>
+    '<div class="tpl-item"><div class="tpl-name">' + esc(n) + '</div>' +
+    '<div class="row" style="gap:6px;">' +
+    '<button class="ghost small" onclick="loadTemplate(\'' + esc(n) + '\')">Load</button>' +
+    '<button class="ghost small" onclick="delTemplate(\'' + esc(n) + '\')">&times;</button></div></div>').join('');
+}
+function saveTemplateUI() {
+  const name = prompt('Save current week as template named:');
+  if (!name) return;
+  templates[name.trim()] = { slots: JSON.parse(JSON.stringify(slots)), groups: JSON.parse(JSON.stringify(groups)) };
+  persistTemplates().then(() => { renderTemplates(); ARG.toast('Template saved: ' + name.trim()); });
+}
+function loadTemplate(name) {
+  const t = templates[name];
+  if (!t) return;
+  if (!confirm('Load "' + name + '" into the editor? Unsaved changes will be replaced.')) return;
+  slots = JSON.parse(JSON.stringify(t.slots || []));
+  groups = JSON.parse(JSON.stringify(t.groups || []));
+  render(); renderGroups();
+  ARG.toast('Loaded "' + name + '" — press Save cadence to apply it.');
+}
+function delTemplate(name) {
+  if (!confirm('Delete template "' + name + '"?')) return;
+  delete templates[name];
+  persistTemplates().then(renderTemplates);
+}
+async function persistTemplates() { await kvSet('cadence:templates', templates); }
+
+async function saveAll() {
+  await kvSet('cadence:slots', slots);
+  await kvSet('cadence:groups', groups);
+  ARG.toast('Cadence saved — planned slots now show on both Calendars.');
+}
+
+loadAll();
+</script>
+</body>
+</html>

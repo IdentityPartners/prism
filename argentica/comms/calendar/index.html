@@ -9,21 +9,48 @@
 <title>Argentica — Calendar</title>
 <link rel="stylesheet" href="/shared/argentica.css">
 <style>
+  .cal-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .cal-title { font-family: 'EB Garamond', Georgia, serif; font-size: 22px; color: #5c2d3f; }
+  .cal-title small { display: block; font-family: 'Inter', sans-serif; font-size: 12px; color: var(--ink-soft); letter-spacing: 0.02em; }
+  .cal-note { font-family: 'Caveat', cursive; font-size: 20px; color: #5c2d3f; line-height: 1.25; }
+  .cal-note em { color: #7a4254; }
+
+  /* week columns, journal style */
+  .cal-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+  .cal-whead { font-size: 10.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.14em;
+    text-align: left; padding: 0 2px 5px; font-family: 'Inter', sans-serif; }
+  .cal-wcell { min-height: 330px; background: var(--paper); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 8px 10px; cursor: pointer; transition: border-color .12s; display: flex; flex-direction: column; gap: 4px; }
+  .cal-wcell:hover { border-color: #a88792; }
+  .cal-wcell.today { border-color: #5c2d3f; border-width: 1.5px; background: #fffdf6; }
+  .cal-wcell .dnum { font-family: 'EB Garamond', Georgia, serif; font-size: 19px; color: #5c2d3f; text-align: right; line-height: 1; }
+  .cal-wcell .dday { font-size: 10px; color: var(--ink-soft); letter-spacing: 0.06em; }
+
+  .cal-ev { border-radius: 5px; padding: 2.5px 7px; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cal-ev.diary { background: rgba(92, 45, 63, 0.07); color: #5c2d3f; border-left: 2px solid #5c2d3f; }
+  .cal-ev.soc-posted { background: var(--t1, #e2ebea); color: #0f3b3a; }
+  .cal-ev.soc-queued { background: #f0e9e0; color: #5c2d3f; }
+  .cal-ev.soc-sched { background: #efe3e7; color: #5c2d3f; }
+  .cal-ev.cadence { background: transparent; border: 1px dashed #a88792; color: #5c2d3f;
+    font-family: 'Caveat', cursive; font-size: 15px; padding: 1px 7px 2px; }
+
+  .cal-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 14px; font-size: 12px; color: var(--ink-soft); }
+  .cal-legend .row { gap: 6px; }
+
+  /* month view fallback */
   .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
   .cal-head { text-align: center; font-size: 11px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.08em; padding: 4px 0; }
-  .cal-cell { min-height: 84px; background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; font-size: 11.5px; position: relative; }
-  .cal-cell.other { opacity: 0.4; }
-  .cal-cell.today { border-color: var(--teal); border-width: 2px; }
+  .cal-cell { min-height: 84px; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; font-size: 11.5px; position: relative; cursor: pointer; }
+  .cal-cell.other { opacity: 0.42; }
+  .cal-cell.today { border-color: #5c2d3f; border-width: 2px; }
   .cal-cell .dnum { font-size: 11px; color: var(--ink-soft); }
-  .cal-ev { border-radius: 4px; padding: 1px 5px; margin-top: 3px; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: rgba(15,59,58,0.1); color: var(--teal); }
-  .cal-ev.soc-posted { background: rgba(61,139,110,0.18); color: #2c6e52; }
-  .cal-ev.soc-queued { background: rgba(15,59,58,0.08); color: var(--teal); }
-  .cal-ev.soc-sched { background: rgba(92,45,63,0.12); color: var(--rose); }
-  .cal-ev.postiz { background: rgba(15,59,58,0.16); color: #0f3b3a; }
-  .cal-cell { cursor: pointer; }
-  .cal-adder { position: fixed; inset: 0; background: rgba(28,26,23,0.45); z-index: 400; display: none; align-items: center; justify-content: center; }
-  .cal-adder .panel { background: #fff; border-radius: 10px; padding: 18px; width: min(360px, 90vw); }
+
+  .cal-adder { position: fixed; inset: 0; background: rgba(43, 33, 23, 0.28); z-index: 400; display: none; align-items: center; justify-content: center; }
+  .cal-adder .panel { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 18px; width: min(360px, 90vw); }
   .cal-adder input, .cal-adder select { width: 100%; margin: 4px 0 10px; }
+  .view-pills { display: flex; gap: 6px; align-items: center; }
+  .view-pills button { padding: 5px 13px; border-radius: 999px; font-size: 12px; background: transparent; color: var(--ink-soft); border: 1px solid var(--line); }
+  .view-pills button.on { background: var(--t1, #e2ebea); color: #5c2d3f; border-color: transparent; }
 </style>
 </head>
 <body>
@@ -31,27 +58,33 @@
   <div class="arg-pagehead spread">
     <div>
       <h1>Calendar</h1>
-      <div class="sub">Your diary and the social pipeline on one grid. Click any day to add an event — entries live in Argentica.</div>
+      <div class="sub">Diary and the social pipeline on one grid. Click any day to add an event.</div>
       <div id="theme-banner" style="display:none; margin-top:8px; align-items:center; gap:10px;">
-        <span style="background:var(--teal, #0f3b3a); color:#fff; border-radius:10px; padding:3px 12px; font-size:12.5px; font-family:Georgia,serif;">This week's theme</span>
-        <b id="theme-name" style="font-family:Georgia,serif; font-size:15px;"></b>
-        <button class="ghost small" style="margin-left:8px;" onclick="manageThemes()">✎ Themes</button>
+        <span style="background:#5c2d3f; color:#f7f3e9; border-radius:10px; padding:3px 12px; font-size:12.5px; font-family:'Inter',sans-serif;">This week's theme</span>
+        <span id="theme-name" style="font-family:'Caveat',cursive; font-size:20px; color:#5c2d3f;"></span>
+        <button class="ghost small" style="margin-left:8px;" onclick="manageThemes()">&#9998; Themes</button>
       </div>
     </div>
     <div class="row" style="gap:6px;">
-      <button class="ghost small" id="cal-prev">←</button>
-      <h3 id="cal-month" style="margin:0; min-width:150px; text-align:center;"></h3>
-      <button class="ghost small" id="cal-next">→</button>
+      <button class="ghost small" id="cal-prev">&#8592;</button>
+      <h3 id="cal-month" style="margin:0; min-width:170px; text-align:center;"></h3>
+      <button class="ghost small" id="cal-next">&#8594;</button>
+      <div class="view-pills" style="margin-left:14px;">
+        <button id="view-week" class="on">Week</button>
+        <button id="view-month">Month</button>
+      </div>
     </div>
   </div>
 
   <div class="card">
-    <div class="cal-grid" id="cal-grid"></div>
-    <div class="row mt" style="gap:14px;">
-      <span class="row" style="gap:5px;"><span class="cal-ev" style="display:inline-block; width:22px;">&nbsp;</span> Diary</span>
+    <div class="cal-week" id="cal-week"></div>
+    <div class="cal-grid" id="cal-grid" style="display:none;"></div>
+    <div class="cal-legend">
+      <span class="row" style="gap:5px;"><span class="cal-ev diary" style="display:inline-block; width:22px;">&nbsp;</span> Diary</span>
       <span class="row" style="gap:5px;"><span class="cal-ev soc-posted" style="display:inline-block; width:22px;">&nbsp;</span> Posted</span>
       <span class="row" style="gap:5px;"><span class="cal-ev soc-queued" style="display:inline-block; width:22px;">&nbsp;</span> Queued</span>
       <span class="row" style="gap:5px;"><span class="cal-ev soc-sched" style="display:inline-block; width:22px;">&nbsp;</span> Scheduled</span>
+      <span class="row" style="gap:5px;"><span class="cal-ev cadence" style="display:inline-block; width:22px;">&nbsp;</span> Cadence (planned)</span>
     </div>
   </div>
 </div>
@@ -64,10 +97,10 @@
     <label class="muted" style="font-size:12px;">Time</label>
     <select id="adder-time">
       <option value="">All day</option>
-      <option value="09:00">09:00</option><option value="10:00">10:00</option><option value="11:00">11:00</option>
-      <option value="12:00">12:00</option><option value="13:00">13:00</option><option value="14:00">14:00</option>
-      <option value="15:00">15:00</option><option value="16:00">16:00</option><option value="17:00">17:00</option>
-      <option value="18:00">18:00</option><option value="19:00">19:00</option>
+      <option value="08:00">08:00</option><option value="09:00">09:00</option><option value="10:00">10:00</option>
+      <option value="11:00">11:00</option><option value="12:00">12:00</option><option value="13:00">13:00</option>
+      <option value="14:00">14:00</option><option value="15:00">15:00</option><option value="16:00">16:00</option>
+      <option value="17:00">17:00</option><option value="18:00">18:00</option><option value="19:00">19:00</option>
     </select>
     <div class="row" style="justify-content:flex-end; gap:8px;">
       <button class="ghost" id="adder-cancel">Cancel</button>
@@ -82,10 +115,10 @@ ARG.buildShell('calendar');
 const { api, esc } = ARG;
 
 let view = new Date();
-let diary = [];
-let social = [];
-let postiz = [];
+let diary = [], social = [];
 let pickedDate = null;
+let viewMode = 'week';
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 // ── Themed weeks ──
 let THEMES = [];
@@ -96,9 +129,104 @@ async function loadThemes() {
   if (!banner) return;
   const cur = THEMES.find(t => t.week === mondayISO(new Date()));
   banner.style.display = 'flex';
-  document.getElementById('theme-name').textContent = cur ? cur.name : '(none set)';
+  document.getElementById('theme-name').textContent = cur ? cur.name : 'no theme set this week';
   banner.querySelector('span').style.background = cur ? '' : 'rgba(0,0,0,.08)';
 }
+async function kvGet(key) {
+  try { const r = await api('/kv/get?key=' + encodeURIComponent(key)); return typeof r.value === 'string' ? JSON.parse(r.value) : (r.value || null); }
+  catch (e) { return null; }
+}
+
+// ── Cadence slots (planned weekly cadence) ──
+let cadenceSlots = [];
+async function loadCadence() { cadenceSlots = (await kvGet('cadence:slots')) || []; }
+
+async function load() {
+  loadThemes(); loadCadence();
+  try {
+    const cal = await api('/calendar/events?from=' + new Date().toISOString().slice(0,10) + '&to=' + new Date(Date.now() + 90*24*3600*1000).toISOString().slice(0,10));
+    diary = (cal.events || []);
+  } catch (e) { diary = []; }
+  try {
+    const q = await api('/mm/queue');
+    social = (q.queue || []).filter(i => i.status === 'pending' || i.status === 'scheduled' || i.status === 'posted');
+  } catch (e) { social = []; }
+  render();
+}
+
+function chipsFor(iso) {
+  const evs = diary.filter(e => (e.starts_at || '').slice(0, 10) === iso);
+  const socs = social.filter(s => (s.createdAt || s.scheduledFor || '').slice(0, 10) === iso);
+  let html = evs.map(e => '<div class="cal-ev diary" title="' + esc(e.title) + '">' + esc((e.starts_at || '').slice(11, 16)) + ' ' + esc(String(e.title || '').slice(0, 22)) + '</div>').join('');
+  html += socs.map(s => {
+    const cls = s.status === 'posted' ? 'soc-posted' : s.status === 'scheduled' ? 'soc-sched' : 'soc-queued';
+    const label = s.status === 'posted' ? 'posted' : s.status === 'scheduled' ? 'sched' : 'queued';
+    return '<div class="cal-ev ' + cls + '" title="' + esc(String(s.text || '').slice(0, 80)) + '">' + label + ' &middot; ' + esc((s.platforms || []).join('/').slice(0, 14)) + '</div>';
+  }).join('');
+  return html;
+}
+
+function cadenceChipsFor(dowIdx) {
+  const dayName = DAYS[dowIdx];
+  return cadenceSlots.filter(s => s.day === dayName)
+    .map(s => '<div class="cal-ev cadence" title="Cadence: ' + esc(s.channels || '') + '">' + esc(s.note || s.contentType) + ' &rarr; ' + esc((s.channels || '').replace(/,/g, '/')) + '</div>').join('');
+}
+
+function renderWeek() {
+  const grid = document.getElementById('cal-week');
+  const base = new Date(view);
+  const dow = (base.getDay() + 6) % 7;
+  base.setDate(base.getDate() - dow);
+  const today = new Date();
+  document.getElementById('cal-month').textContent = base.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }) + ' \u2013 ' +
+    new Date(base.getFullYear(), base.getMonth(), base.getDate() + 6).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  let html = DAYS.map(d => '<div class="cal-whead">' + d + '</div>').join('');
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(base); d.setDate(base.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    const isToday = d.toDateString() === today.toDateString();
+    html += '<div class="cal-wcell' + (isToday ? ' today' : '') + '" onclick="cellClick(\'' + iso + '\')">' +
+      '<div class="dday">' + d.toLocaleDateString('en-GB', { weekday: 'short' }) + '</div>' +
+      '<div class="dnum">' + d.getDate() + '</div>' +
+      chipsFor(iso) + cadenceChipsFor(i) +
+      '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+function renderMonth() {
+  const grid = document.getElementById('cal-grid');
+  const y = view.getFullYear(), m = view.getMonth();
+  document.getElementById('cal-month').textContent = view.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const first = new Date(y, m, 1);
+  const start = new Date(first);
+  start.setDate(1 - ((first.getDay() + 6) % 7));
+  const today = new Date();
+  let html = DAYS.map(d => '<div class="cal-head">' + d + '</div>').join('');
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    const inMonth = d.getMonth() === m;
+    const isToday = d.toDateString() === today.toDateString();
+    html += '<div class="cal-cell' + (inMonth ? '' : ' other') + (isToday ? ' today' : '') + '" onclick="cellClick(\'' + iso + '\')">' +
+      '<div class="dnum">' + d.getDate() + '</div>' + chipsFor(iso) +
+      '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+function render() {
+  document.getElementById('cal-week').style.display = viewMode === 'week' ? '' : 'none';
+  document.getElementById('cal-grid').style.display = viewMode === 'month' ? '' : 'none';
+  if (viewMode === 'week') renderWeek(); else renderMonth();
+}
+
+document.getElementById('cal-prev').addEventListener('click', () => { if (viewMode === 'week') view.setDate(view.getDate() - 7); else view.setMonth(view.getMonth() - 1); render(); });
+document.getElementById('cal-next').addEventListener('click', () => { if (viewMode === 'week') view.setDate(view.getDate() + 7); else view.setMonth(view.getMonth() + 1); render(); });
+document.getElementById('view-week').addEventListener('click', () => { viewMode = 'week'; document.getElementById('view-week').classList.add('on'); document.getElementById('view-month').classList.remove('on'); render(); });
+document.getElementById('view-month').addEventListener('click', () => { viewMode = 'month'; document.getElementById('view-month').classList.add('on'); document.getElementById('view-week').classList.remove('on'); render(); });
+
+// ── Themed week management ──
 async function saveThemes() {
   try { await api('/themes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ themes: THEMES }) }); }
   catch (e) { ARG.toast('Could not save themes.'); return; }
@@ -123,62 +251,7 @@ function manageThemes() {
   }
 }
 
-async function load() {
-  loadThemes();
-  try {
-    const cal = await api('/calendar/events?from=' + new Date().toISOString().slice(0,10) + '&to=' + new Date(Date.now() + 60*24*3600*1000).toISOString().slice(0,10));
-    diary = (cal.events || []);
-  } catch (e) { diary = []; }
-  try {
-    const z = await api('/zoho/events');
-    diary = diary.concat((z.today || []).concat(z.week || []).concat(z.next_week || []));
-  } catch (e) {}
-  try {
-    const q = await api('/mm/queue');
-    social = (q.queue || []).filter(i => i.status === 'pending' || i.status === 'scheduled' || i.status === 'posted');
-  } catch (e) { social = []; }
-  try {
-    const pz = await api('/postiz/posts');
-    postiz = (pz.posts || []);
-  } catch (e) { postiz = []; }
-  render();
-}
-
-function render() {
-  const grid = document.getElementById('cal-grid');
-  const y = view.getFullYear(), m = view.getMonth();
-  document.getElementById('cal-month').textContent = view.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-  const first = new Date(y, m, 1);
-  const start = new Date(first);
-  start.setDate(1 - ((first.getDay() + 6) % 7)); // Monday start
-  const today = new Date();
-  let html = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => '<div class="cal-head">' + d + '</div>').join('');
-  for (let i = 0; i < 42; i++) {
-    const d = new Date(start); d.setDate(start.getDate() + i);
-    const iso = d.toISOString().slice(0, 10);
-    const inMonth = d.getMonth() === m;
-    const isToday = d.toDateString() === today.toDateString();
-    const evs = diary.filter(e => (e.starts_at || '').slice(0, 10) === iso);
-    const socs = social.filter(s => (s.createdAt || s.scheduledFor || '').slice(0, 10) === iso);
-    html += '<div class="cal-cell' + (inMonth ? '' : ' other') + (isToday ? ' today' : '') + '" onclick="cellClick(\'' + iso + '\')">' +
-      '<div class="dnum">' + d.getDate() + '</div>' +
-      evs.map(e => '<div class="cal-ev" title="' + esc(e.title) + '">' + esc((e.starts_at || '').slice(11, 16)) + ' ' + esc(String(e.title || '').slice(0, 18)) + '</div>').join('') +
-      postiz.filter(s => (s.date || s.publishDate || '').slice(0, 10) === iso).map(s =>
-        '<div class="cal-ev postiz" title="Postiz scheduled">' + esc((s.state || 'scheduled').toLowerCase()) + ' \u00b7 ' + esc(String(s.content || '').slice(0, 14)) + '</div>').join('') +
-      socs.map(s => {
-        const cls = s.status === 'posted' ? 'soc-posted' : s.status === 'scheduled' ? 'soc-sched' : 'soc-queued';
-        const label = s.status === 'posted' ? 'posted' : s.status === 'scheduled' ? 'sched' : 'queued';
-        return '<div class="cal-ev ' + cls + '" title="' + esc(String(s.text || '').slice(0, 80)) + '">' + label + ' · ' + esc((s.platforms || []).join('/').slice(0, 12)) + '</div>';
-      }).join('') +
-      '</div>';
-  }
-  grid.innerHTML = html;
-}
-
-document.getElementById('cal-prev').addEventListener('click', () => { view.setMonth(view.getMonth() - 1); render(); });
-document.getElementById('cal-next').addEventListener('click', () => { view.setMonth(view.getMonth() + 1); render(); });
-
-// ── Click a day to add an event ────────────────
+// ── click day to add ──
 window.cellClick = iso => {
   pickedDate = iso;
   document.getElementById('adder-date').textContent = new Date(iso).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
