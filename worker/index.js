@@ -8317,7 +8317,10 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         try { oauth = env.PRISM_KV ? JSON.parse(await env.PRISM_KV.get('threads:oauth') || 'null') : null; } catch (e) {}
         if (!oauth || !oauth.access_token) return json({success:false,error:'Threads not connected — open https://arch.identitypartners.uk/api/threads/oauth/authorize once.'},400,origin);
         const at = oauth.access_token;
-        const uid = oauth.user_id || 'me';
+        let uid = oauth.user_id || '';
+        if (!uid) {
+          try { const me = await fetch('https://graph.threads.net/v1.0/me?fields=id&access_token=' + encodeURIComponent(at)).then(r => r.json()); if (me.id) { uid = me.id; oauth.user_id = me.id; if (env.PRISM_KV) await env.PRISM_KV.put('threads:oauth', JSON.stringify(oauth)); } } catch (e) {}
+        }
         let container;
         if (body.imageUrl) {
           const cr = await fetch('https://graph.threads.net/v1.0/' + uid + '/threads?media_type=IMAGE&image_url=' + encodeURIComponent(body.imageUrl) + (body.text ? '&caption=' + encodeURIComponent(body.text) : '') + '&access_token=' + encodeURIComponent(at), { method: 'POST' });
