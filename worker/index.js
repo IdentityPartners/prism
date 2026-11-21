@@ -8073,8 +8073,7 @@ data: ${JSON.stringify(data)}
                         if (ph.id) fbids.push(ph.id);
                       }
                       if (fbids.length) {
-                        const feed = await fetch('https://graph.facebook.com/v21.0/' + ids.page + '/feed', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message: item.text || '', attached_media: JSON.stringify(fbids.map(id => ({ media_fbid: id }))), access_token: ptok }) }).then(r => r.json();
-                        );
+                        const feed = await fetch('https://graph.facebook.com/v21.0/' + ids.page + '/feed', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message: item.text || '', attached_media: JSON.stringify(fbids.map(id => ({ media_fbid: id }))), access_token: ptok }) }).then(r => r.json());
                         results.facebook = feed.id ? { success: true, postId: feed.id, via: 'direct-api' } : { success: false, error: JSON.stringify(feed).slice(0,140), via: 'direct-api' };
                       }
                     } else {
