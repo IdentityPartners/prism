@@ -8270,7 +8270,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         const consumerSecret = k(env, ['tumblr_secret','TUMBLR_SECRET','Tumblr_OAuth_consumer_secret']) || '';
         if (!consumerKey || !consumerSecret) return new Response('<h3>Connect failed</h3><p>Consumer secret not stored yet.</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
         const cb = 'https://arch.identitypartners.uk/api/oauth/tumblr/callback';
-        const tokRes = await fetch('https://www.tumblr.com/oauth2/token', {
+        const tokRes = await fetch('https://api.tumblr.com/v2/oauth2/token', {
           method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ grant_type: 'authorization_code', code, client_id: consumerKey, client_secret: consumerSecret, redirect_uri: cb }).toString()
         });
