@@ -8059,9 +8059,19 @@ data: ${JSON.stringify(data)}
                 }
               } else { errors[platform] = bufferKey ? 'Buffer channel ID not configured — run Fetch Buffer channels' : 'Buffer not connected'; }
             } else if (platform === 'substack') {
+              const resendKey = k(env, ['resend_api_key','RESEND_API_KEY','resend']) || '';
               const substackEmail = k(env, ['substack_email','SUBSTACK_EMAIL']) || 'zemiopat@substack.com';
-              // Substack posts via email — log as queued, actual send requires email route
-              results.substack = { success: true, note: 'Queued for email send to ' + substackEmail };
+              if (!resendKey) { results.substack = { success: false, note: 'No resend_api_key — cannot email the piece' }; }
+              else {
+                try {
+                  const fromA = k(env, ['resend_from','RESEND_FROM']) || 'Argentica <onboarding@resend.dev>';
+                  const resp = await fetch('https://api.resend.com/emails', { method: 'POST',
+                    headers: { Authorization: 'Bearer ' + resendKey, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ from: fromA, to: [substackEmail], subject: 'Substack draft — ' + (item.text || '').slice(0, 70), reply_to: k(env, ['email_from','EMAIL_FROM']) || 'hello@identitypartners.uk', text: (item.text || '') + (item.imageUrl ? '\n\nImage: ' + item.imageUrl : '') }) });
+                  const sd = await resp.json().catch(() => ({}));
+                  results.substack = { success: resp.ok, note: resp.ok ? 'Sent to ' + substackEmail + ' for Substack' : ('Resend: ' + (sd.message || resp.status)) };
+                } catch (e) { results.substack = { success: false, note: e.message }; }
+              }
             } else {
               errors[platform] = 'Platform not yet implemented';
             }
@@ -8243,6 +8253,95 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     }
 
     // ── Tumblr posting ────────────────────────────────────────────────────────
+    // ── Threads OAuth + publishing ──
+    // Step 1: open /api/threads/oauth/authorize — redirects to Threads' consent screen
+    if (path === '/api/threads/oauth/authorize' && request.method === 'GET') {
+      const clientId = k(env, ['threads_client_id','THREADS_CLIENT_ID']) || '';
+      if (!clientId) return json({success:false,error:'threads_client_id secret not set'},400,origin);
+      const state = 'ths-' + Math.random().toString(36).slice(2, 10);
+      if (env.PRISM_KV) await env.PRISM_KV.put('threads:oauthstate', state, { expirationTtl: 600 });
+      const cb = 'https://arch.identitypartners.uk/api/threads/oauth/callback';
+      return new Response(null, { status: 302, headers: { Location:
+        'https://threads.net/oauth/authorize?client_id=' + encodeURIComponent(clientId) +
+        '&redirect_uri=' + encodeURIComponent(cb) +
+        '&scope=' + encodeURIComponent('threads_basic,threads_content_write') +
+        '&response_type=code&state=' + encodeURIComponent(state) }});
+    }
+    // Step 2: callback — exchange the code for a long-lived token, store in KV
+    if (path === '/api/threads/oauth/callback' && request.method === 'GET') {
+      try {
+        const code = url.searchParams.get('code') || '';
+        const state = url.searchParams.get('state') || '';
+        const errParam = url.searchParams.get('error_message') || url.searchParams.get('error') || '';
+        if (errParam) return new Response('<h3 style="font-family:Georgia,serif;color:#5c2d3f">Threads connect failed</h3><p>' + errParam + '</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        const saved = env.PRISM_KV ? await env.PRISM_KV.get('threads:oauthstate').catch(() => null) : null;
+        if (!code || !state || state !== saved) return new Response('<h3>Connect failed</h3><p>State mismatch — start again from Argentica.</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        const clientId = k(env, ['threads_client_id','THREADS_CLIENT_ID']) || '';
+        const clientSecret = k(env, ['threads_client_secret','THREADS_CLIENT_SECRET']) || '';
+        if (!clientId || !clientSecret) return new Response('<h3>Connect failed</h3><p>Client id/secret not stored yet.</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        const cb = 'https://arch.identitypartners.uk/api/threads/oauth/callback';
+        const tokRes = await fetch('https://graph.threads.net/oauth/access_token', {
+          method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, redirect_uri: cb, code }).toString()
+        });
+        const tok = await tokRes.json().catch(() => ({}));
+        if (!tok.access_token) return new Response('<h3>Connect failed</h3><p>' + JSON.stringify(tok).slice(0,200) + '</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        // upgrade to a long-lived (60-day) token
+        let longTok = tok;
+        try {
+          const lr = await fetch('https://graph.threads.net/oauth/access_token?grant_type=th_exchange_token&client_secret=' + encodeURIComponent(clientSecret) + '&access_token=' + encodeURIComponent(tok.access_token));
+          const ld = await lr.json().catch(() => ({}));
+          if (ld.access_token) longTok = ld;
+        } catch (e) {}
+        if (env.PRISM_KV) await env.PRISM_KV.put('threads:oauth', JSON.stringify({ access_token: longTok.access_token, user_id: tok.user_id, token_type: longTok.token_type || '', expires_in: longTok.expires_in || null, obtainedAt: new Date().toISOString() }));
+        return new Response('<div style="font-family:Georgia,serif;max-width:520px;margin:80px auto;color:#2b2117"><h2 style="color:#5c2d3f">Threads connected</h2><p>Identity Partners can now post. You can close this tab.</p></div>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      } catch (e) { return new Response('<h3>Connect failed</h3><p>' + e.message + '</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } }); }
+    }
+    // Publish to Threads (text, or image via canvas URL)
+    if (path === '/api/threads/publish' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        let oauth = null;
+        try { oauth = env.PRISM_KV ? JSON.parse(await env.PRISM_KV.get('threads:oauth') || 'null') : null; } catch (e) {}
+        if (!oauth || !oauth.access_token) return json({success:false,error:'Threads not connected — open https://arch.identitypartners.uk/api/threads/oauth/authorize once.'},400,origin);
+        const at = oauth.access_token;
+        const uid = oauth.user_id || 'me';
+        let container;
+        if (body.imageUrl) {
+          const cr = await fetch('https://graph.threads.net/v1.0/' + uid + '/threads?media_type=IMAGE&image_url=' + encodeURIComponent(body.imageUrl) + (body.text ? '&caption=' + encodeURIComponent(body.text) : '') + '&access_token=' + encodeURIComponent(at), { method: 'POST' });
+          container = await cr.json().catch(() => ({}));
+          if (!container.id) return json({success:false,error:'Container create failed: ' + JSON.stringify(container).slice(0,180)},200,origin);
+          const pr = await fetch('https://graph.threads.net/v1.0/' + container.id + '/threads_publish?access_token=' + encodeURIComponent(at), { method: 'POST' });
+          const pd = await pr.json().catch(() => ({}));
+          return json({success:pr.ok, post:pd, error: pr.ok ? undefined : JSON.stringify(pd).slice(0,160)},200,origin);
+        } else {
+          const cr = await fetch('https://graph.threads.net/v1.0/' + uid + '/threads?text=' + encodeURIComponent(body.text || '') + '&access_token=' + encodeURIComponent(at), { method: 'POST' });
+          container = await cr.json().catch(() => ({}));
+          if (!container.id) return json({success:false,error:'Container create failed: ' + JSON.stringify(container).slice(0,180)},200,origin);
+          const pr = await fetch('https://graph.threads.net/v1.0/' + container.id + '/threads_publish?access_token=' + encodeURIComponent(at), { method: 'POST' });
+          const pd = await pr.json().catch(() => ({}));
+          return json({success:pr.ok, post:pd, error: pr.ok ? undefined : JSON.stringify(pd).slice(0,160)},200,origin);
+        }
+      } catch (e) { return json({success:false,error:e.message},500,origin); }
+    }
+
+    // ── Email send via Resend ──
+    if (path === '/api/email/send' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const resendKey = k(env, ['resend_api_key','RESEND_API_KEY','resend']) || '';
+        if (!resendKey) return json({success:false,error:'resend_api_key not set'},400,origin);
+        const fromEmail = k(env, ['resend_from','RESEND_FROM','email_from']) || 'Argentica <onboarding@resend.dev>';
+        const to = Array.isArray(body.to) ? body.to : [body.to];
+        const resp = await fetch('https://api.resend.com/emails', {
+          method: 'POST', headers: { Authorization: 'Bearer ' + resendKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: body.from || fromEmail, to, subject: body.subject || '(no subject)', text: body.text || '', html: body.html || undefined, reply_to: body.replyTo || undefined })
+        });
+        const data = await resp.json().catch(() => ({}));
+        return json({success:resp.ok, id:data.id, error:data.message},200,origin);
+      } catch (e) { return json({success:false,error:e.message},500,origin); }
+    }
+
     // POST /api/outlook/probe — can the existing MSGraph app read the mailbox?
     if (path === '/api/outlook/probe' && request.method === 'POST') {
       try {
