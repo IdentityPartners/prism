@@ -8255,6 +8255,18 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     // ── Tumblr posting ────────────────────────────────────────────────────────
     // ── Threads OAuth + publishing ──
     // Step 1: open /api/threads/oauth/authorize — redirects to Threads' consent screen
+    if (path === '/api/threads/callback-try' && request.method === 'GET') {
+      const clientId = k(env, ['threads_client_id','THREADS_CLIENT_ID']) || '';
+      if (!clientId) return json({success:false,error:'threads_client_id secret not set'},400,origin);
+      const state = 'ths-' + Math.random().toString(36).slice(2, 10);
+      if (env.PRISM_KV) await env.PRISM_KV.put('threads:oauthstate', state, { expirationTtl: 600 });
+      const cb = 'https://arch.identitypartners.uk/api/threads/callback';
+      return new Response(null, { status: 302, headers: { Location:
+        'https://threads.net/oauth/authorize?client_id=' + encodeURIComponent(clientId) +
+        '&redirect_uri=' + encodeURIComponent(cb) +
+        '&scope=' + encodeURIComponent('threads_basic,threads_content_write') +
+        '&response_type=code&state=' + encodeURIComponent(state) }});
+    }
     if (path === '/api/threads/oauth/authorize' && request.method === 'GET') {
       const clientId = k(env, ['threads_client_id','THREADS_CLIENT_ID']) || '';
       if (!clientId) return json({success:false,error:'threads_client_id secret not set'},400,origin);
@@ -8268,7 +8280,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         '&response_type=code&state=' + encodeURIComponent(state) }});
     }
     // Step 2: callback — exchange the code for a long-lived token, store in KV
-    if (path === '/api/threads/oauth/callback' && request.method === 'GET') {
+    if ((path === '/api/threads/oauth/callback' || path === '/api/threads/callback') && request.method === 'GET') {
       try {
         const code = url.searchParams.get('code') || '';
         const state = url.searchParams.get('state') || '';
@@ -8279,7 +8291,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         const clientId = k(env, ['threads_client_id','THREADS_CLIENT_ID']) || '';
         const clientSecret = k(env, ['threads_client_secret','THREADS_CLIENT_SECRET']) || '';
         if (!clientId || !clientSecret) return new Response('<h3>Connect failed</h3><p>Client id/secret not stored yet.</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-        const cb = 'https://arch.identitypartners.uk/api/threads/oauth/callback';
+        const cb = path === '/api/threads/callback' ? 'https://arch.identitypartners.uk/api/threads/callback' : 'https://arch.identitypartners.uk/api/threads/oauth/callback';
         const tokRes = await fetch('https://graph.threads.net/oauth/access_token', {
           method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, redirect_uri: cb, code }).toString()
