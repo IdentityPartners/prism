@@ -8243,6 +8243,42 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     }
 
     // ── Tumblr posting ────────────────────────────────────────────────────────
+    // POST /api/outlook/probe — can the existing MSGraph app read the mailbox?
+    if (path === '/api/outlook/probe' && request.method === 'POST') {
+      try {
+        const tenantId = k(env, ['msgraph_tenant', 'MSGRAPH_TENANT']) || '';
+        const clientId = k(env, ['msgraph_client', 'MSGRAPH_CLIENT']) || '';
+        const clientSecret = k(env, ['msgraph_secret', 'MSGRAPH_SECRET']) || '';
+        if (!tenantId || !clientId || !clientSecret) return json({error: 'MSGraph credentials not configured'}, 400, origin);
+        const tokenResp = await fetch('https://login.microsoftonline.com/' + tenantId + '/oauth2/v2.0/token', {
+          method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: 'grant_type=client_credentials&client_id=' + clientId + '&client_secret=' + encodeURIComponent(clientSecret) + '&scope=' + encodeURIComponent('https://graph.microsoft.com/.default')
+        });
+        const tokenData = await tokenResp.json();
+        if (!tokenData.access_token) return json({success:false, error: 'token: ' + JSON.stringify(tokenData).slice(0,200)}, 200, origin);
+        const at = tokenData.access_token;
+        const out = { token: true, scopes: tokenData.scope };
+        const email = k(env, ['msgraph_user_email','msgraph_user','onedrive_email','MSGRAPH_USER_EMAIL','MSGRAPH_USER']) || '';
+        out.configuredUser = email;
+        // try app-only mailbox read
+        const tries = [
+          ['users/{email}/messages',   'https://graph.microsoft.com/v1.0/users/' + email + '/messages?$top=3&$select=subject,from,receivedDateTime,isRead'],
+          ['users/{email}/folders',    'https://graph.microsoft.com/v1.0/users/' + email + '/mailFolders'],
+          ['me/messages',              'https://graph.microsoft.com/v1.0/me/messages?$top=3&$select=subject,from,receivedDateTime'],
+        ];
+        out.attempts = [];
+        for (const [label, u] of tries) {
+          try {
+            const r = await fetch(u, { headers: { Authorization: 'Bearer ' + at } });
+            const body = await r.text();
+            out.attempts.push({ label, status: r.status, sample: body.slice(0, 220) });
+            if (r.ok) break;
+          } catch (e) { out.attempts.push({ label, error: e.message }); }
+        }
+        return json({ success: true, ...out }, 200, origin);
+      } catch (e) { return json({ error: e.message }, 500, origin); }
+    }
+
     // ── Tumblr OAuth2 connect flow ──
     // Step 1: open /api/oauth/tumblr/authorize — redirects to Tumblr's consent screen
     if (path === '/api/oauth/tumblr/authorize' && request.method === 'GET') {
