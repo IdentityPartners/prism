@@ -5202,6 +5202,8 @@ data: ${JSON.stringify(data)}
         const DGKEY = k(env, ['deepgram_api_key','DEEPGRAM_API_KEY']) || '4e223a4cde01180063efa977df7a40f01c4894d1';
         const CARTKEY = k(env, ['cartesia_api_key','CARTESIA_API_KEY']) || '';
         const GKEY = k(env, ['gemini_free_key','GEMINI_FREE_KEY','gemini_api_key','GEMINI_API_KEY']) || '';
+        const SMKEY = k(env, ['smallest_ai_api_key','SMALLEST_AI_API_KEY']) || '';
+        const FISHKEY = k(env, ['fish_audio_api_key','FISH_AUDIO_API_KEY']) || '';
 
         if (!text) return json({error:'No text'}, 400, origin);
 
@@ -5209,6 +5211,30 @@ data: ${JSON.stringify(data)}
           const resp = await fetch(`https://api.deepgram.com/v1/speak?model=${voice}`, {
             method:'POST', headers:{'Authorization':'Token '+DGKEY, 'Content-Type':'application/json'},
             body:JSON.stringify({text})
+          });
+          if (resp.ok) {
+            const audio = await resp.arrayBuffer();
+            return new Response(audio, {headers:{'Content-Type':'audio/mpeg','Access-Control-Allow-Origin':origin}});
+          }
+        }
+
+        if (provider === 'smallest' && SMKEY) {
+          const resp = await fetch('https://waves.smallest.ai/api/v1/lightning-v3.1/get_speech', {
+            method:'POST', headers:{'Authorization':'Bearer '+SMKEY, 'Content-Type':'application/json'},
+            body:JSON.stringify({text, voice_id: body.voice_id || 'magnus', sample_rate: 44100, output_format: 'wav'})
+          });
+          if (resp.ok) {
+            const audio = await resp.arrayBuffer();
+            return new Response(audio, {headers:{'Content-Type':'audio/wav','Access-Control-Allow-Origin':origin}});
+          }
+        }
+
+        if (provider === 'fish' && FISHKEY) {
+          const ref = body.reference_id || 'alloy';   // Fish voice reference; also accepts any model ref from fish.audio library
+          const refTxt = (body.text || '').slice(0, 2000);
+          const resp = await fetch('https://api.fish.audio/model', {
+            method:'POST', headers:{'Authorization':'Bearer '+FISHKEY, 'Content-Type':'application/json'},
+            body:JSON.stringify({ text: refTxt, reference_id: ref, normalize: true, format: 'mp3' })
           });
           if (resp.ok) {
             const audio = await resp.arrayBuffer();
@@ -6805,7 +6831,7 @@ data: ${JSON.stringify(data)}
             weekThemeNote = '\nThis week\u2019s theme is "' + thW.name + '"' + (thW.secondary ? ' with secondary thread "' + thW.secondary + '"' : '') + '. Make content speak to it unless Simon asks otherwise. Per-platform overrides may exist in the plan.';
           }
         } catch (eW) {}
-        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact${weekThemeNote}\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({"text": "the post copy with tags and footer", "platforms": [...], "format": "auto", "from": ""}) — queues a post for approval. PLATFORM GROUPS are TYPES, not pairings (pass a group name or individual channels, mixing is fine): "longform" = substack ONLY (essays, reflective prose, full-length pieces; Bluesky is NOT longform); "pro" = linkedin ONLY (orphaned, pro-to-pro: practice news, professional development, sector commentary); "shortform" = x + threads + bluesky (one-idea nuggets respecting caps: x 280, bluesky 300, threads 500 characters); "images" = instagram + facebook + tumblr (image-first posts, carousels and stories). WRITING CONVENTIONS by type: longform = patient, essayistic, intellectually warm; pro = professional, peer-to-peer; shortform = plain speech, one idea, surface-level-perfect; images = strong caption plus visual, human interest. FORMAT slots ("format" arg): "image" single graphic; "carousel" multi-slide (strongest reach on instagram); "story" full-bleed vertical (instagram + facebook stories); "reel" short brand video (title + list lines animated on parchment; render via the reel studio, agents should propose them for listicle-style content); "auto" lets the system choose by content type. LISTICLE DOCTRINE: the best-performing non-shortform content on the internet is the listicle, from Instagram carousels to LinkedIn articles. When content is multi-part (steps, reasons, tips, arguments), default to format=carousel and write each slide as a list item. "from" (optional) = a voice id from the voices registry, to post as a registered condition-specific account instead of the main Identity Partners account.\nTOOL: post_now({"text": "...", "platforms": [...]}) — attempts immediate posting; only works when autonomy is switched on.\nTOOL: create_canvas({"topic": "...", "template": "..."}) — renders a brand canvas graphic; templates include myth-vs-fact, data-infographic, awareness-day, news-reaction, research, service-explainer, quote, stat, testimonial, img-seascape, img-sunrise, img-cityscape and dual-partnership.\nTOOL: search_news({"topic": "..."}) — fetches current headlines from the approved sources.\nTOOL: save_note({"title": "...", "content": "..."}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
+        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nTags (choose 2-4, ONLY ones relevant to the specific post; never blanket-tag): #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing. #Addiction goes ONLY on posts genuinely about addiction. Tag relevance beats tag volume every time.\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact${weekThemeNote}\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({"text": "the post copy with tags and footer", "platforms": [...], "format": "auto", "from": ""}) — queues a post for approval. PLATFORM GROUPS are TYPES, not pairings (pass a group name or individual channels, mixing is fine): "longform" = substack ONLY (essays, reflective prose, full-length pieces; Bluesky is NOT longform); "pro" = linkedin ONLY (orphaned, pro-to-pro: practice news, professional development, sector commentary); "shortform" = x + threads + bluesky (one-idea nuggets respecting caps: x 280, bluesky 300, threads 500 characters); "images" = instagram + facebook + tumblr (image-first posts, carousels and stories). WRITING CONVENTIONS by type: longform = patient, essayistic, intellectually warm; pro = professional, peer-to-peer; shortform = plain speech, one idea, surface-level-perfect; images = strong caption plus visual, human interest. FORMAT slots ("format" arg): "image" single graphic; "carousel" multi-slide (strongest reach on instagram); "story" full-bleed vertical (instagram + facebook stories); "reel" short brand video (title + list lines animated on parchment; render via the reel studio, agents should propose them for listicle-style content); "auto" lets the system choose by content type. LISTICLE DOCTRINE: the best-performing non-shortform content on the internet is the listicle, from Instagram carousels to LinkedIn articles. When content is multi-part (steps, reasons, tips, arguments), default to format=carousel and write each slide as a list item. "from" (optional) = a voice id from the voices registry, to post as a registered condition-specific account instead of the main Identity Partners account.\nTOOL: post_now({"text": "...", "platforms": [...]}) — attempts immediate posting; only works when autonomy is switched on.\nTOOL: create_canvas({"topic": "...", "template": "..."}) — renders a brand canvas graphic; templates include myth-vs-fact, data-infographic, awareness-day, news-reaction, research, service-explainer, quote, stat, testimonial, img-seascape, img-sunrise, img-cityscape and dual-partnership.\nTOOL: search_news({"topic": "..."}) — fetches current headlines from the approved sources.\nTOOL: save_note({"title": "...", "content": "..."}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
         const messages = [{ role: 'system', content: systemPrompt }];
         hist.filter(m => m.role !== 'system').slice(-20).forEach(m => messages.push({ role: m.role, content: m.content }));
         messages.push({ role: 'user', content: userMessage });
@@ -11124,7 +11150,8 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         if (!pick) return;
 
         // 2. Draft in Simon's voice
-        const TAGS = '\n\n#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nhello@identitypartners.uk | www.identitypartners.uk/contact';
+        const WEBFOOT = '\nhello@identitypartners.uk | www.identitypartners.uk/contact';
+        globalThis.__tagNote = ' Append after the post, on a new line, 2-4 hashtags ONLY where genuinely relevant to this post (from #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing). #Addiction only if the piece is actually about addiction. Then the footer line hello@identitypartners.uk | www.identitypartners.uk/contact. No other links or tags.';
         globalThis.__weekTheme = '';
         try {
           const themes = await env.PRISM_KV.get('themes:weeks', 'json') || [];
@@ -11140,7 +11167,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         } catch (e2) {}
         const draft = await orchestrate([
           { role: 'system', content: 'You write as Simon Johnson of Identity Partners: intelligent, direct, humane, intellectually curious British professional prose. British English only. No em dashes. Never use multifaceted, nuanced, profound, tapestry, landscape, intersection, delve, ever-evolving. No clinical claims, no testimonials of outcomes, no client-identifiable content, never respond to people in crisis. 60 to 90 words.' },
-          { role: 'user', content: 'Write a short social media post reacting to this headline: "' + pick.title + '".' + (globalThis.__weekTheme || '') + ' Source credit at the end. No hashtags or contact details; they are appended automatically.' }
+          { role: 'user', content: 'Write a short social media post reacting to this headline: "' + pick.title + '".' + (globalThis.__weekTheme || '') + (globalThis.__tagNote || '') + ' Source credit at the end.' }
         ], env, { profile: 'balanced' });
         if (!draft || !draft.content) return;
 
@@ -11159,7 +11186,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         } catch (e) {}
 
         // 4. Post it
-        const text = draft.content.trim() + TAGS + (pick.link ? '\n' + pick.link : '');
+        const text = draft.content.trim() + (pick.link ? '\n' + pick.link : '');
         const platforms = cfg.platforms || ['bluesky', 'linkedin', 'telegram'];
         const item = { id: 'mm-' + Date.now() + '-auto', text, platforms, imageUrl, source: 'autonomous:cron-' + slot, status: 'pending', createdAt: new Date().toISOString(), scheduledFor: null };
         if (env.PRISM_KV) {
