@@ -296,6 +296,8 @@ function filterPages(q) { renderTree(q); }
 function goHome() {
   if (currentPageId) saveCurrent();
   currentPageId = null;
+  var tEl = document.getElementById('wiki-title');
+  if (tEl) { tEl.textContent = 'Knowledge base'; tEl.contentEditable = 'false'; tEl.style.cursor = 'default'; tEl.style.fontFamily = "var(--font-heading, 'EB Garamond', Georgia, serif)"; }
   renderTree();
   var toolbar = document.getElementById('wiki-toolbar');
   var editorWrap = document.getElementById('wiki-editor-wrap');
@@ -312,7 +314,7 @@ function goHome() {
   });
   order.sort(function(a,b){ var un=function(x){return x?0:1;}; return un(a)-un(b) || a.localeCompare(b); });
   var total = pages.length;
-  var html = '<h1>Knowledge Base</h1><div class="sub">' + total + ' pages &middot; ' + order.filter(function(x){return x;}).length + ' sections. Pick a section to browse it, or use the tree on the left.</div>';
+  var html = '<h1>Knowledge base</h1><div class="sub">' + total + ' page' + (total===1?'':'s') + ' in ' + order.filter(function(x){return x;}).length + ' section' + (order.filter(function(x){return x;}).length===1?'':'s') + '. Create a page to begin building your knowledge base.</div>';
   order.forEach(function(sec){
     var list = secs[sec].slice().sort(function(a,b){ return (a.idx||0)-(b.idx||0); });
     var card = document.createElement('div');
@@ -554,7 +556,8 @@ function openPage(id) {
   var toolbar = document.getElementById('wiki-toolbar');
   var editorWrap = document.getElementById('wiki-editor-wrap');
   toolbar.style.display = 'flex'; editorWrap.style.display = 'block';
-  document.getElementById('wiki-title').textContent = page.title;
+  var tEl2 = document.getElementById('wiki-title');
+  tEl2.textContent = page.title; tEl2.contentEditable = 'true'; tEl2.style.cursor = 'text'; tEl2.style.fontFamily = '';
   if (quill) { quill.root.innerHTML = page.content || ''; updateWordCount(); }
   document.querySelectorAll('#kb-home').forEach(function(el){ el.remove(); });
   renderTree();
