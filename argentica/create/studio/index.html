@@ -36,7 +36,9 @@
       <input type="text" id="ss-title" placeholder="e.g. What support looks like">
       <label class="muted" style="font-size:12px;margin:10px 0 6px;display:block;">Background (constant throughout)</label>
       <div id="ss-pals"></div>
-      <label class="muted" style="font-size:12px;margin:14px 0 6px;display:block;">Scenes</label>
+      <label class="muted" style="font-size:12px;margin:14px 0 4px;display:block;">Frosted photo background (optional — stock imagery veiled in your palette)</label>
+      <input type="text" id="ss-photo" placeholder="e.g. dawn over a calm sea (leave blank for plain palette)">
+      <label class="muted" style="font-size:12px;margin:10px 0 6px;display:block;">Scenes</label>
       <div id="ss-scenes"></div>
       <button class="ghost small" onclick="ssAdd()">+ Add a scene</button>
       <label class="muted" style="font-size:12px;margin:14px 0 4px;display:block;">Caption for the post</label>
@@ -91,7 +93,8 @@ window.delScene = i => { scenes.splice(i, 1); renderScenes(); };
 let currentPreview = null;
 window.ssRender = async queue => {
   const title = document.getElementById('ss-title').value.trim();
-  const body = { title, bg, scenes: scenes.filter(s => s.caption || s.pose), caption: document.getElementById('ss-caption').value.trim(), queue, platforms: ['instagram'] };
+  const photo = document.getElementById('ss-photo').value.trim();
+  const body = { title, bg, ...(photo ? { photo } : {}), scenes: scenes.filter(s => s.caption || s.pose), caption: document.getElementById('ss-caption').value.trim(), queue, platforms: ['instagram'] };
   if (!body.scenes.length && !title) { ARG.toast('Give it a title or at least one scene.'); return; }
   const st = document.getElementById('ss-status');
   st.textContent = queue ? 'Rendering the reel video (about 15–30 seconds)…' : 'Rendering preview…';
