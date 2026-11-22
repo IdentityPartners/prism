@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Asset library</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  .asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-top: 14px; }
+  .asset-tile { background: var(--paper, #f0e9e0); border: 1px solid var(--line, #d8cfc0); border-radius: 10px; padding: 14px; text-align: center; }
+  .asset-tile img { max-width: 120px; max-height: 120px; border-radius: 6px; }
+  .asset-tile .name { margin-top: 8px; font-size: 12.5px; color: #3a2b28; }
+  .asset-tile a { display: block; margin-top: 6px; font-size: 11.5px; color: #7a4254; }
+  .asset-tile .checker { background-image: linear-gradient(45deg, #e8e0d5 25%, transparent 25%, transparent 75%, #e8e0d5 75%), linear-gradient(45deg, #e8e0d5 25%, #fffdf6 25%, #fffdf6 75%, #e8e0d5 75%); background-size: 18px 18px; background-position: 0 0, 9px 9px; border-radius: 6px; padding: 8px; }
+  .swatch { display: inline-flex; align-items: center; gap: 8px; margin: 4px 6px 4px 0; padding: 6px 12px 6px 8px; border: 1px solid var(--line, #d8cfc0); border-radius: 999px; font-size: 12px; background: #fffdf6; }
+  .swatch .dot { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(0,0,0,.12); }
+  .doc-card { background: #fffdf6; border: 1px solid var(--line, #d8cfc0); border-radius: 10px; padding: 20px 24px; margin-top: 14px; }
+  .doc-card h2 { font-family: 'EB Garamond', Georgia, serif; color: #5c2d3f; margin: 0 0 6px; }
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="assets">
+  <div class="arg-pagehead">
+    <div>
+      <h1>Asset library</h1>
+      <div class="sub">The brand's source of truth: the pack, the marks, the palette. Knowledge base stays for study; this is where assets live.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Brand pack — protocol</h3>
+    <div id="brand-pack" class="muted">Loading…</div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3>Logo &amp; marks</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:4px;">The transparent version (no white plate) is the one used on canvases and dark grounds.</div>
+    <div class="asset-grid" id="logos"></div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3>Palette</h3>
+    <div id="palette"></div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('assets');
+const { api, esc } = ARG;
+
+async function kvGet(key) {
+  try { const r = await api('/kv/get?key=' + encodeURIComponent(key)); return typeof r.value === 'string' ? JSON.parse(r.value) : (r.value || null); }
+  catch (e) { return null; }
+}
+
+async function loadBrandPack() {
+  const p = await kvGet('assets:brand-pack');
+  const el = document.getElementById('brand-pack');
+  if (!p) { el.textContent = 'No brand pack stored yet.'; return; }
+  el.outerHTML = '<div class="doc-card" id="brand-pack"><h2>' + esc(p.title || 'Brand pack') + '</div><div style="margin-top:10px;">' + (p.content || '') + '</div></div>';
+}
+
+const LOGOS = [
+  ['Square (original)', '/shared/assets/logo-square.png', false],
+  ['Square (transparent)', '/shared/assets/logo-transparent.png', true],
+  ['Rect left', '/shared/assets/logo-rect-left.png', false],
+  ['Rect right', '/shared/assets/logo-rect-right.png', false],
+  ['Hero tag', '/shared/assets/logo-hero-tag.png', false],
+  ['Favicon 192', '/shared/assets/favicon-192.png', false]
+];
+function loadLogos() {
+  document.getElementById('logos').innerHTML = LOGOS.map(([name, src, transparent]) =>
+    '<div class="asset-tile">' +
+    '<div class="' + (transparent ? 'checker' : '') + '"><img src="' + src + '" alt="' + esc(name) + '"></div>' +
+    '<div class="name">' + esc(name) + (transparent ? ' · no white plate' : '') + '</div>' +
+    '<a href="' + src + '" download target="_blank">Download</a></div>').join('');
+}
+
+const PALETTE = [
+  ['Parchment Dawn', '#f7f3e9'], ['Surface Glow', '#f0e9e0'], ['Deep Red (anchor)', '#5c2d3f'],
+  ['Dusty Rose', '#a88792'], ['Rose Line', '#7a4254'], ['Deep Teal (sparing)', '#0f3b3a'],
+  ['Pale Teal (T1)', '#e2ebea'], ['Powder Berry (T2)', '#efe3e7']
+];
+function loadPalette() {
+  document.getElementById('palette').innerHTML = PALETTE.map(([name, hex]) =>
+    '<span class="swatch"><span class="dot" style="background:' + hex + '"></span>' + esc(name) + ' <span class="muted">' + hex + '</span></span>').join('');
+}
+
+loadBrandPack();
+loadLogos();
+loadPalette();
+</script>
+</body>
+</html>
