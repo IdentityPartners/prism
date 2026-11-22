@@ -8483,17 +8483,50 @@ data: ${JSON.stringify(data)}
                 const liToken = JSON.parse(liTokenRaw);
                 const accessToken = liToken.access_token || liToken.accessToken || '';
                 if (accessToken) {
-                  // Get person URN
+                  // Get person URN (company page override supported via KV linkedin:author:urn)
                   const meResp = await fetch('https://api.linkedin.com/v2/userinfo', { headers: {'Authorization':'Bearer '+accessToken} });
                   if (meResp.ok) {
                     const me = await meResp.json();
-                    const urn = 'urn:li:person:' + me.sub;
+                    let urn = 'urn:li:person:' + me.sub;
+                    let authorNote = 'person';
+                    if (env.PRISM_KV) {
+                      const orgUrn = await env.PRISM_KV.get('linkedin:author:urn');
+                      if (orgUrn && /^urn:li:organization:/.test(orgUrn)) { urn = orgUrn; authorNote = 'organization'; }
+                    }
+                    // ── Post shape: image if we have a canvas, article if we have a link, text otherwise ──
+                    let media = null, mediaCategory = 'NONE';
+                    if (item.imageUrl) {
+                      try {
+                        const pngUrl = await svgToPngUrl(item.imageUrl, env);
+                        const bytes = pngUrl ? new Uint8Array(await (await fetch(pngUrl)).arrayBuffer()) : null;
+                        if (bytes && bytes.byteLength > 1000) {
+                          const reg = await fetch('https://api.linkedin.com/v2/assets?action=registerUpload', {
+                            method: 'POST',
+                            headers: {'Authorization':'Bearer '+accessToken,'Content-Type':'application/json','X-Restli-Protocol-Version':'2.0.0'},
+                            body: JSON.stringify({ registerUploadRequest: { owner: urn, recipes: ['urn:li:digitalmediaRecipe:feed-share-image'], supportedUploadMechanism: ['SYNCHRONOUS_UPLOAD'] } })
+                          }).then(r => r.json());
+                          const uploadUrl = reg && reg.value && reg.value.uploadMechanism && reg.value.uploadMechanism['com.linkedin.digitalmedia.uploading.Mechanism'].uploadUrl;
+                          const asset = reg && reg.value && reg.value.asset;
+                          if (uploadUrl && asset) {
+                            const up = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': 'image/png' }, body: bytes });
+                            if (up.ok) { media = [{ status: 'READY', description: { text: (item.text || '').slice(0, 200) }, media: asset, title: { text: (item.text || '').slice(0, 150) } }]; mediaCategory = 'IMAGE'; }
+                          }
+                        }
+                      } catch (e) { /* fall through to text */ }
+                    }
+                    if (mediaCategory === 'NONE') {
+                      const linkMatch = String(item.text || '').match(/https?:\/\/[^\s)]+/);
+                      if (linkMatch) {
+                        media = [{ status: 'READY', originalUrl: linkMatch[0], title: { text: (item.text || '').slice(0, 150) } }];
+                        mediaCategory = 'ARTICLE';
+                      }
+                    }
                     const liPostResp = await fetch('https://api.linkedin.com/v2/ugcPosts', {
                       method: 'POST',
                       headers: {'Authorization':'Bearer '+accessToken,'Content-Type':'application/json','X-Restli-Protocol-Version':'2.0.0'},
-                      body: JSON.stringify({ author: urn, lifecycleState: 'PUBLISHED', specificContent: { 'com.linkedin.ugc.ShareContent': { shareCommentary: { text: item.text }, shareMediaCategory: 'NONE' } }, visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' } })
+                      body: JSON.stringify({ author: urn, lifecycleState: 'PUBLISHED', specificContent: { 'com.linkedin.ugc.ShareContent': { shareCommentary: { text: item.text }, shareMediaCategory: mediaCategory, ...(media ? { media } : {}) } }, visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' } })
                     });
-                    results.linkedin = { success: liPostResp.ok, status: liPostResp.status };
+                    results.linkedin = { success: liPostResp.ok, status: liPostResp.status, author: authorNote, mediaCategory };
                   } else { errors.linkedin = 'Could not fetch LinkedIn profile'; }
                 } else { errors.linkedin = 'No LinkedIn access token'; }
               } else { errors.linkedin = 'LinkedIn not connected'; }
@@ -10481,6 +10514,44 @@ When asked to approve items, respond with the item IDs to approve. When asked to
 
 
     // ── LinkedIn posting ──────────────────────────────────────────────────────
+    if (path === '/api/linkedin/organizations' && request.method === 'GET') {
+      try {
+        const raw = await env.PRISM_KV.get('oauth:linkedin:tokens');
+        if (!raw) return json({ connected: false, error: 'LinkedIn not connected' }, 200, origin);
+        const accessToken = (JSON.parse(raw).access_token) || '';
+        const current = (await env.PRISM_KV.get('linkedin:author:urn')) || '';
+        const out = { connected: true, currentAuthor: current || 'personal profile', scopes: '', organizations: [], errors: [] };
+        try {
+          const me = await fetch('https://api.linkedin.com/v2/userinfo', { headers: { Authorization: 'Bearer ' + accessToken } }).then(r => r.json());
+          out.person = me.name || me.sub || '';
+        } catch (e) {}
+        try {
+          const ac = await fetch('https://api.linkedin.com/rest/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&projection=(elements*(organization~))', {
+            headers: { Authorization: 'Bearer ' + accessToken, 'LinkedIn-Version': '202501', 'X-Restli-Protocol-Version': '2.0.0' }
+          });
+          const t = await ac.text();
+          if (ac.ok) {
+            const d = JSON.parse(t);
+            for (const el of (d.elements || [])) {
+              const org = el['organization~'] || {};
+              out.organizations.push({ name: org.localizedName || '(unnamed)', urn: (el.organization || '').replace('urn:li:organization:', 'urn:li:organization:') || el.organization, id: (el.organization || '').split(':').pop() });
+            }
+          } else out.errors.push('organizationAcls HTTP ' + ac.status + ': ' + t.slice(0, 200));
+        } catch (e) { out.errors.push(e.message); }
+        return json(out, 200, origin);
+      } catch (e) { return json({ error: e.message }, 500, origin); }
+    }
+    if (path === '/api/linkedin/author' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        if (body.urn === '' || /^urn:li:organization:[a-z0-9]+$/i.test(String(body.urn))) {
+          if (body.urn === '') { await env.PRISM_KV.delete('linkedin:author:urn'); }
+          else { await env.PRISM_KV.put('linkedin:author:urn', String(body.urn)); }
+          return json({ success: true, author: body.urn || 'personal profile' }, 200, origin);
+        }
+        return json({ success: false, error: 'Expected a company URN like urn:li:organization:1234567, or empty string for personal' }, 400, origin);
+      } catch (e) { return json({ error: e.message }, 500, origin); }
+    }
     if (path === '/api/linkedin/post' && request.method === 'POST') {
       try {
         const body = await request.json();
