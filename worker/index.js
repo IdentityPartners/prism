@@ -1233,6 +1233,7 @@ async function generateCanvasHtml(text, templateId, env, imgIn, opts) {
     'block-teal2':  { type:'block',  bg:C.teal2, fg:C.ivory, accent:C.grey,  border:C.rose2 },
     'block-rose2':  { type:'block',  bg:C.rose2, fg:C.ivory, accent:C.grey,  border:C.teal2 },
     'block-split':  { type:'block-split', bg1:C.teal, bg2:C.rose, fg:C.ivory },
+    'stat':          { type:'stat', bg:C.teal, fg:C.ivory, accent:C.rose },
     'img-sunrise':  { type:'image', query:'sunrise golden hour sky dramatic', overlay:'rgba(15,59,58,0.55)' },
     'img-sunset':   { type:'image', query:'sunset orange sky clouds beautiful', overlay:'rgba(92,45,63,0.55)' },
     'img-landscape':{ type:'image', query:'landscape mountains valley nature serene', overlay:'rgba(15,59,58,0.5)' },
@@ -1372,7 +1373,7 @@ async function generateCanvasHtml(text, templateId, env, imgIn, opts) {
   } else if (tmpl.type==='testimonial') {
     const lines=wrapText(safeText,30), lineH=62, startY=startYL(lines.length, lineH, Math.max(240,520-(lines.length*lineH)/2)), attrY=startY+lines.length*lineH+50;
     svg=svgO+`<rect width="${W}" height="${H}" fill="${tmpl.bg}"/><rect x="0" y="0" width="${W}" height="12" fill="${tmpl.accent}" opacity="0.9"/><rect x="0" y="${H-12}" width="${W}" height="12" fill="${tmpl.accent}" opacity="0.9"/>`+ipLogoLegacy(30,30)+`<text x="100" y="260" font-family="'Playfair Display',Georgia,serif" font-size="180" fill="${tmpl.accent}" opacity="0.15">&#x201C;</text><text x="980" y="${H-80}" font-family="'Playfair Display',Georgia,serif" font-size="180" fill="${tmpl.accent}" opacity="0.15">&#x201D;</text>`+quoteText(lines,startY,lineH,fgL,tXL,tAnchorL)+`<line x1="340" y1="${attrY}" x2="740" y2="${attrY}" stroke="${tmpl.accent}" stroke-width="3" opacity="0.7"/><text x="540" y="${attrY+44}" font-family="'Playfair Display',Georgia,serif" font-size="22" fill="${tmpl.accent}" text-anchor="middle" opacity="0.9">&#x2014; Identity Partners</text>`+ipWordmark(540,attrY+90)+ipFooterLegacy(540,H-28)+`</svg>`;
-  } else if (templateId === 'stat') {
+  } else if (tmpl.type === 'stat') {
     // Real statistic canvas: giant figure + supporting line (was aliased to quote card before)
     const parts = String(text||'').trim().split(/\s+(.+)/);
     const figure = (parts[0] || '').slice(0, 8);
