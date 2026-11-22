@@ -809,7 +809,7 @@ async function callModel(provider, model, key, messages, env) {
 // generateCarousel(slides, env)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const LOGO_URL = 'https://prism.identitypartners.uk/shared/assets/logo-square.png';
+const LOGO_URL = 'https://arch.identitypartners.uk/shared/assets/logo-transparent.png'; // brand logo, background removed (was white plate)
 const R2_PUBLIC = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/';
 
 // ── Brand colours ─────────────────────────────────────────────────────────────
@@ -850,11 +850,8 @@ function tspanBlock(lines, x, startY, dy, extraAttrs='') {
 
 // Real IP logo PNG — replaces the old ipGrid() coloured rectangles
 function ipLogo(x=32, y=0, fg) {
-  const ink = fg || C.ivory;
-  // Drawn monogram: no raster asset, so no white plate on any background
-  const cx = x + 30, cy = y + 36;
-  return `<circle cx="${cx}" cy="${cy}" r="31" fill="none" stroke="${ink}" stroke-width="2.5" opacity="0.9"/>` +
-    `<text x="${cx}" y="${cy+11}" text-anchor="middle" font-family="'Playfair Display',Georgia,serif" font-size="34" font-weight="700" fill="${ink}">IP</text>`;
+  // Simon's actual brand logo — transparent PNG, composites cleanly on any background
+  return `<image href="${LOGO_URL}" x="${x}" y="${y}" width="72" height="72" preserveAspectRatio="xMidYMid meet"/>`;
 }
 
 // Footer strip — logo + URL + email + handles
@@ -1268,6 +1265,18 @@ async function generateCanvasHtml(text, templateId, env, imgIn, opts) {
   const tmpl = TEMPLATES[templateId] || TEMPLATES['block-teal'];
   const safeText = escX(text||'');
   const W=1080, H=1080;
+  // ── Layout controls (route body): position / align / ink — honoured by all quote-family branches ──
+  const posOptL = String((opts&&opts.position)||'middle').toLowerCase();
+  const alignOptL = ['left','center','right'].includes(String((opts&&opts.align)||'center').toLowerCase()) ? String(opts.align).toLowerCase() : 'center';
+  const inkOptL = (opts && /^#?[0-9a-fA-F]{6}$/.test(String(opts.ink||''))) ? (String(opts.ink).startsWith('#') ? opts.ink : '#' + opts.ink) : null;
+  const tXL = alignOptL === 'left' ? 105 : alignOptL === 'right' ? W-105 : 540;
+  const tAnchorL = alignOptL === 'left' ? 'start' : alignOptL === 'right' ? 'end' : 'middle';
+  const startYL = (n, lineH, defaultMid) => {
+    if (posOptL === 'top') return 300;
+    if (posOptL === 'bottom') return H - 300 - (n-1)*lineH;
+    return defaultMid;
+  };
+  const fgL = inkOptL || tmpl.fg;
 
   // Route new template types to dedicated renderers
   if (tmpl.type === 'new') {
@@ -1313,16 +1322,16 @@ async function generateCanvasHtml(text, templateId, env, imgIn, opts) {
   function ipWordmark(cx,y) { return `<text x="${cx-100}" y="${y}" font-family="'Playfair Display',Georgia,serif" font-size="30" font-weight="600" fill="${C.tealLight}" text-anchor="middle">Identity</text><text x="${cx+100}" y="${y}" font-family="'Playfair Display',Georgia,serif" font-size="30" font-weight="600" fill="${C.roseLight}" text-anchor="middle">Partners</text>`; }
   function ipTagline(cx,y) { return `<text x="${cx}" y="${y}" font-family="'Playfair Display',Georgia,serif" font-size="16" fill="${C.grey}" text-anchor="middle" opacity="0.85">Understand your past · Appreciate the present · Define your future</text>`; }
   function ipFooterLegacy(cx,y) { return `<text x="${cx}" y="${y}" font-family="Arial,sans-serif" font-size="15" fill="${C.grey}" text-anchor="middle" opacity="0.8">www.identitypartners.uk · hello@identitypartners.uk · @identitypartners</text>`; }
-  function quoteText(lines,startY,lineH,fg) { return lines.map((l,i)=>`<text x="540" y="${startY+i*lineH}" font-family="'Playfair Display',Georgia,serif" font-size="48" fill="${fg}" text-anchor="middle">${l}</text>`).join(''); }
+  function quoteText(lines,startY,lineH,fg,x,tAnchor) { return lines.map((l,i)=>`<text x="${x||540}" y="${startY+i*lineH}" font-family="'Playfair Display',Georgia,serif" font-size="48" fill="${fg}" text-anchor="${tAnchor||'middle'}">${l}</text>`).join(''); }
 
   let svg = '';
 
   if (tmpl.type==='block') {
-    const lines=wrapText(safeText,28), lineH=68, startY=Math.max(220,540-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+40;
-    svg=svgO+`<rect width="${W}" height="${H}" fill="${tmpl.bg}"/><rect x="0" y="0" width="${W}" height="12" fill="${tmpl.border}" opacity="0.9"/><rect x="0" y="${H-12}" width="${W}" height="12" fill="${tmpl.border}" opacity="0.9"/>`+ipLogoLegacy(30,30)+`<text x="80" y="210" font-family="'Playfair Display',Georgia,serif" font-size="110" fill="${tmpl.fg}" opacity="0.08">&#x201C;</text>`+quoteText(lines,startY,lineH,tmpl.fg)+`<line x1="380" y1="${attrY}" x2="700" y2="${attrY}" stroke="${tmpl.accent}" stroke-width="2" opacity="0.6"/>`+ipWordmark(540,attrY+48)+ipTagline(540,attrY+82)+ipFooterLegacy(540,H-28)+`</svg>`;
+    const lines=wrapText(safeText,28), lineH=68, startY=startYL(lines.length, lineH, Math.max(220,540-(lines.length*lineH)/2)), attrY=startY+lines.length*lineH+40;
+    svg=svgO+`<rect width="${W}" height="${H}" fill="${tmpl.bg}"/><rect x="0" y="0" width="${W}" height="12" fill="${tmpl.border}" opacity="0.9"/><rect x="0" y="${H-12}" width="${W}" height="12" fill="${tmpl.border}" opacity="0.9"/>`+ipLogoLegacy(30,30)+`<text x="80" y="210" font-family="'Playfair Display',Georgia,serif" font-size="110" fill="${fgL}" opacity="0.08">&#x201C;</text>`+quoteText(lines,startY,lineH,fgL,tXL,tAnchorL)+`<line x1="${tXL-160}" y1="${attrY}" x2="${tXL+160}" y2="${attrY}" stroke="${tmpl.accent}" stroke-width="2" opacity="0.6"/>`+ipWordmark(tXL,attrY+48)+ipTagline(tXL,attrY+82)+ipFooterLegacy(540,H-28)+`</svg>`;
   } else if (tmpl.type==='block-split') {
-    const lines=wrapText(safeText,26), lineH=64, startY=Math.max(200,540-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+40;
-    svg=svgO+`<rect width="${W}" height="${H}" fill="${tmpl.bg1}"/><rect x="540" y="0" width="540" height="${H}" fill="${tmpl.bg2}"/><line x1="540" y1="0" x2="540" y2="${H}" stroke="${C.grey}" stroke-width="2" opacity="0.4"/>`+ipLogoLegacy(30,30)+quoteText(lines,startY,lineH,tmpl.fg)+ipWordmark(540,attrY+48)+ipTagline(540,attrY+82)+ipFooterLegacy(540,H-28)+`</svg>`;
+    const lines=wrapText(safeText,26), lineH=64, startY=startYL(lines.length, lineH, Math.max(200,540-(lines.length*lineH)/2)), attrY=startY+lines.length*lineH+40;
+    svg=svgO+`<rect width="${W}" height="${H}" fill="${tmpl.bg1}"/><rect x="540" y="0" width="540" height="${H}" fill="${tmpl.bg2}"/><line x1="540" y1="0" x2="540" y2="${H}" stroke="${C.grey}" stroke-width="2" opacity="0.4"/>`+ipLogoLegacy(30,30)+quoteText(lines,startY,lineH,fgL,tXL,tAnchorL)+ipWordmark(tXL,attrY+48)+ipTagline(tXL,attrY+82)+ipFooterLegacy(540,H-28)+`</svg>`;
   } else if (tmpl.type==='image') {
     const imgData = imgIn || await fetchPexelsImage(tmpl.query) || await semanticImageSearch(tmpl.query, env);
     // ── Layout controls: position (top/middle/bottom), align (left/center/right), ink colour ──
@@ -1361,10 +1370,22 @@ async function generateCanvasHtml(text, templateId, env, imgIn, opts) {
       +ipWordmark(270,attrY+44)+`<text x="270" y="${attrY+74}" font-family="Arial,sans-serif" font-size="13" fill="${C.rose2}" text-anchor="middle" opacity="0.85">Understand · Appreciate · Define</text>`
       +ipFooterLegacy(270,H-26)+`</svg>`;
   } else if (tmpl.type==='testimonial') {
-    const lines=wrapText(safeText,30), lineH=62, startY=Math.max(240,520-(lines.length*lineH)/2), attrY=startY+lines.length*lineH+50;
-    svg=svgO+`<rect width="${W}" height="${H}" fill="${tmpl.bg}"/><rect x="0" y="0" width="${W}" height="12" fill="${tmpl.accent}" opacity="0.9"/><rect x="0" y="${H-12}" width="${W}" height="12" fill="${tmpl.accent}" opacity="0.9"/>`+ipLogoLegacy(30,30)+`<text x="100" y="260" font-family="'Playfair Display',Georgia,serif" font-size="180" fill="${tmpl.accent}" opacity="0.15">&#x201C;</text><text x="980" y="${H-80}" font-family="'Playfair Display',Georgia,serif" font-size="180" fill="${tmpl.accent}" opacity="0.15">&#x201D;</text>`+quoteText(lines,startY,lineH,tmpl.fg)+`<line x1="340" y1="${attrY}" x2="740" y2="${attrY}" stroke="${tmpl.accent}" stroke-width="3" opacity="0.7"/><text x="540" y="${attrY+44}" font-family="'Playfair Display',Georgia,serif" font-size="22" fill="${tmpl.accent}" text-anchor="middle" opacity="0.9">&#x2014; Identity Partners</text>`+ipWordmark(540,attrY+90)+ipFooterLegacy(540,H-28)+`</svg>`;
+    const lines=wrapText(safeText,30), lineH=62, startY=startYL(lines.length, lineH, Math.max(240,520-(lines.length*lineH)/2)), attrY=startY+lines.length*lineH+50;
+    svg=svgO+`<rect width="${W}" height="${H}" fill="${tmpl.bg}"/><rect x="0" y="0" width="${W}" height="12" fill="${tmpl.accent}" opacity="0.9"/><rect x="0" y="${H-12}" width="${W}" height="12" fill="${tmpl.accent}" opacity="0.9"/>`+ipLogoLegacy(30,30)+`<text x="100" y="260" font-family="'Playfair Display',Georgia,serif" font-size="180" fill="${tmpl.accent}" opacity="0.15">&#x201C;</text><text x="980" y="${H-80}" font-family="'Playfair Display',Georgia,serif" font-size="180" fill="${tmpl.accent}" opacity="0.15">&#x201D;</text>`+quoteText(lines,startY,lineH,fgL,tXL,tAnchorL)+`<line x1="340" y1="${attrY}" x2="740" y2="${attrY}" stroke="${tmpl.accent}" stroke-width="3" opacity="0.7"/><text x="540" y="${attrY+44}" font-family="'Playfair Display',Georgia,serif" font-size="22" fill="${tmpl.accent}" text-anchor="middle" opacity="0.9">&#x2014; Identity Partners</text>`+ipWordmark(540,attrY+90)+ipFooterLegacy(540,H-28)+`</svg>`;
+  } else if (templateId === 'stat') {
+    // Real statistic canvas: giant figure + supporting line (was aliased to quote card before)
+    const parts = String(text||'').trim().split(/\s+(.+)/);
+    const figure = (parts[0] || '').slice(0, 8);
+    const label = (parts[1] || parts[0] || '').trim();
+    svg=svgO+`<rect width="${W}" height="${H}" fill="${inkOptL ? C.ivory : C.teal}"/>`+
+      `<rect x="0" y="0" width="${W}" height="12" fill="${C.rose}" opacity="0.9"/><rect x="0" y="${H-12}" width="${W}" height="12" fill="${C.rose}" opacity="0.9"/>`+
+      ipLogoLegacy(30, 30, inkOptL ? C.rose : C.ivory)+
+      `<text x="${tXL}" y="700" text-anchor="${tAnchorL}" font-family="'Playfair Display',Georgia,serif" font-size="${figure.length > 5 ? 300 : 380}" font-weight="900" fill="${inkOptL ? C.rose : C.ivory}">${escX(figure)}</text>`+
+      `<line x1="${tXL-180}" y1="760" x2="${tXL+180}" y2="760" stroke="${inkOptL ? C.rose : C.ivory}" stroke-width="3" opacity="0.75"/>`+
+      wrapText(label, 60).map((l,i)=>`<text x="${tXL}" y="${820+i*47}" font-family="'Inter',Arial,sans-serif" font-size="34" fill="${inkOptL ? C.teal : C.ivory}" text-anchor="${tAnchorL}" opacity="0.92">${escX(l)}</text>`).join('')+
+      ipWordmark(540, H-140)+ipFooterLegacy(540,H-28)+`</svg>`;
   } else {
-    svg=svgO+`<rect width="${W}" height="${H}" fill="${C.teal}"/>`+ipLogoLegacy(30,30)+quoteText(wrapText(safeText,28),300,68,C.ivory)+ipFooterLegacy(540,H-28)+`</svg>`;
+    svg=svgO+`<rect width="${W}" height="${H}" fill="${C.teal}"/>`+ipLogoLegacy(30,30)+quoteText(wrapText(safeText,28),startYL(1, 68, 300),68,fgL||C.ivory,tXL,tAnchorL)+ipFooterLegacy(540,H-28)+`</svg>`;
   }
 
   return svg || `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080"><rect width="1080" height="1080" fill="${C.teal}"/><text x="540" y="540" fill="white" text-anchor="middle" font-size="40">Canvas Error</text></svg>`;
@@ -11097,7 +11118,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           'service-explainer': 'service-explainer',
           'semantic':          `semantic-${variant}`,
           'quote':             `block-${variant==='rose'?'rose':variant==='ivory'?'ivory':'teal'}`,
-          'stat':              `block-teal`,
+          'stat':              'stat',
           'testimonial':       `testimonial-${variant==='rose'?'rose':variant==='ivory'?'ivory':'teal'}`,
           'dual':              'dual-partnership',
           'image':             'img-landscape',
