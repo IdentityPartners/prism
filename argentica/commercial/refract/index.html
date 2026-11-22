@@ -43,7 +43,7 @@
 ARG.buildShell('refract');
 const { api, esc } = ARG;
 
-const TAGS = '\n\n#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nhello@identitypartners.uk | www.identitypartners.uk/contact';
+const FOOTER = '\nhello@identitypartners.uk | www.identitypartners.uk/contact'; // relevance beats volume: no blanket hashtags
 
 const VOICE = 'You write as Simon Johnson of Identity Partners: intelligent, direct, humane, intellectually curious British professional prose. British English only. Never use the words multifaceted, nuanced, profound, tapestry, landscape, intersection, delve, ever-evolving. Never use em dashes. No corporate hedging. Write for the reader directly, plainly, with warmth.';
 
@@ -60,6 +60,20 @@ const TARGETS = [
   { key: 'substack', label: 'Substack', platforms: ['substack'], hint: 'intro paragraph' },
   { key: 'tumblr', label: 'Tumblr', platforms: ['tumblr'], hint: 'blog post' }
 ];
+
+let WEEK_THEME = '';
+async function loadWeekTheme() {
+  try {
+    const th = await api('/themes');
+    const list = (th && th.themes) || [];
+    const now = new Date(); const dow = (now.getDay() + 6) % 7;
+    const mon = new Date(now); mon.setDate(now.getDate() - dow); mon.setHours(0,0,0,0);
+    const iso = mon.toISOString().slice(0, 10);
+    const cur = list.find(t => t.week === iso);
+    if (cur && cur.name) WEEK_THEME = 'THIS WEEK THEME is "' + cur.name + '"' + (cur.secondary ? ' with secondary thread "' + cur.secondary + '"' : '') + '. Let the week theme colour tone and examples, but never force it: if the input clearly sets its own subject, follow the input.\n\n';
+  } catch (e) {}
+}
+await loadWeekTheme();
 
 function updateWC() {
   const t = document.getElementById('refract-input').value.trim();
@@ -81,7 +95,8 @@ function assetCard(plat, hint, body, queueKey) {
   return '<div class="asset mt">' +
     '<div class="asset-hdr"><span class="asset-plat">' + esc(plat) + '</span><span class="muted" style="font-size:11px;">' + esc(hint) + ' · editable</span></div>' +
     '<div class="asset-body" contenteditable="true" data-q="' + esc(queueKey) + '">' + esc(body) + '</div>' +
-    '<div class="asset-actions"><button class="ghost small" onclick="queueAsset(this)">Queue for ' + esc(plat) + '</button></div>' +
+    '<div class="asset-actions"><button class="ghost small" onclick="queueAsset(this)">Queue for ' + esc(plat) + '</button>' +
+    '<button class="ghost small" style="margin-left:6px;" onclick="queueAsset(this, true)" title="Exactly as shown: no footer, no tags, nothing added">Queue untouched</button></div>' +
     '</div>';
 }
 
@@ -91,7 +106,7 @@ document.getElementById('refract-run').addEventListener('click', async () => {
   const outEl = document.getElementById('refract-out');
   if (!input) { ARG.toast('Paste something to refract first.'); return; }
   const words = input.split(/\s+/).filter(Boolean).length;
-  const prompt = (words >= 400 ? FULL_PROMPT : CORE_PROMPT) + input;
+  const prompt = (words >= 400 ? FULL_PROMPT : CORE_PROMPT).replace('Input:\n', (WEEK_THEME || '') + 'Input:\n') + input;
   const btn = document.getElementById('refract-run');
   btn.disabled = true;
   status.textContent = 'Tay is refracting ' + words + ' words' + (words >= 400 ? ' into the full asset set…' : ' into the core set…');
@@ -169,13 +184,14 @@ async function renderQuoteCards() {
   }
 }
 
-window.queueAsset = async btn => {
+window.queueAsset = async (btn, untouched) => {
   const body = btn.closest('.asset').querySelector('.asset-body');
   const key = body.dataset.q.split('::')[0];
   const t = TARGETS.find(x => x.key === key);
   try {
-    await api('/mm/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: (body.innerText || '').trim() + TAGS, platforms: t.platforms, source: 'refract' }) });
-    ARG.toast('Queued for ' + t.label + '.');
+    const text = (body.innerText || '').trim() + (untouched ? '' : FOOTER);
+    await api('/mm/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, platforms: t.platforms, source: untouched ? 'refract-verbatim' : 'refract' }) });
+    ARG.toast('Queued for ' + t.label + (untouched ? ' untouched.' : '.'));
   } catch (e) { ARG.toast('Could not queue: ' + e.message); }
 };
 
@@ -186,11 +202,11 @@ window.queueAll = async () => {
     const key = b.dataset.q.split('::')[0];
     const t = TARGETS.find(x => x.key === key);
     if (!t || !(b.innerText || '').trim()) continue;
-    try { await api('/mm/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: b.innerText.trim() + TAGS, platforms: t.platforms, source: 'refract' }) }); n++; } catch (e) {}
+    try { await api('/mm/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: b.innerText.trim() + FOOTER, platforms: t.platforms, source: 'refract' }) }); n++; } catch (e) {}
   }
   if (window._quoteUrls && window._quoteUrls.length) {
     for (const u of window._quoteUrls) {
-      try { await api('/mm/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: TAGS, platforms: ['instagram', 'facebook'], imageUrl: u, source: 'refract' }) }); n++; } catch (e) {}
+      try { await api('/mm/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: FOOTER, platforms: ['instagram', 'facebook'], imageUrl: u, source: 'refract' }) }); n++; } catch (e) {}
     }
   }
   ARG.toast(n + ' assets queued.');
@@ -199,7 +215,7 @@ window.queueAll = async () => {
 window.queueQuotes = async () => {
   let n = 0;
   for (const u of (window._quoteUrls || [])) {
-    try { await api('/mm/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: TAGS, platforms: ['instagram', 'facebook'], imageUrl: u, source: 'refract' }) }); n++; } catch (e) {}
+    try { await api('/mm/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: FOOTER, platforms: ['instagram', 'facebook'], imageUrl: u, source: 'refract' }) }); n++; } catch (e) {}
   }
   ARG.toast(n + ' quote cards queued.');
 };
