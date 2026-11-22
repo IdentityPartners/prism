@@ -10526,17 +10526,22 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           out.person = me.name || me.sub || '';
         } catch (e) {}
         try {
-          const ac = await fetch('https://api.linkedin.com/rest/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&count=20', {
-            headers: { Authorization: 'Bearer ' + accessToken, 'LinkedIn-Version': '202501', 'X-Restli-Protocol-Version': '2.0.0' }
-          });
-          const t = await ac.text();
-          if (ac.ok) {
+          let ac = null, t = '';
+          for (const ver of ['202506', '202505', '202501', '202411']) {
+            const tryR = await fetch('https://api.linkedin.com/rest/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&count=20', {
+              headers: { Authorization: 'Bearer ' + accessToken, 'LinkedIn-Version': ver, 'X-Restli-Protocol-Version': '2.0.0' }
+            });
+            t = await tryR.text();
+            if (tryR.ok) { ac = tryR; break; }
+            if (!/NONEXISTENT_VERSION|version/i.test(t.slice(0, 200))) break;
+          }
+          if (ac && ac.ok) {
             const d = JSON.parse(t);
             for (const el of (d.elements || [])) {
               const org = el['organization~'] || {};
               out.organizations.push({ name: org.localizedName || '(unnamed)', urn: (el.organization || '').replace('urn:li:organization:', 'urn:li:organization:') || el.organization, id: (el.organization || '').split(':').pop() });
             }
-          } else out.errors.push('organizationAcls HTTP ' + ac.status + ': ' + t.slice(0, 200));
+          } else out.errors.push('organizationAcls' + (ac ? ' HTTP ' + ac.status : '') + ': ' + t.slice(0, 200));
         } catch (e) { out.errors.push(e.message); }
         return json(out, 200, origin);
       } catch (e) { return json({ error: e.message }, 500, origin); }
