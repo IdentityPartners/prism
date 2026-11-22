@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — Stick studio</title>
+<link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  .scene-row { display: grid; grid-template-columns: 170px 1fr 34px; gap: 8px; align-items: center; margin: 8px 0; }
+  .scene-row input[type=text] { width: 100%; box-sizing: border-box; }
+  .studio-grid { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .studio-grid { grid-template-columns: 1fr; } }
+  .preview-frame { width: 100%; max-width: 406px; aspect-ratio: 1080/1920; border: 1px solid var(--line, #d8cfc0); border-radius: 12px; overflow: hidden; margin: 0 auto; background: #f7f3e9; }
+  .preview-frame iframe { width: 1080px; height: 1920px; border: 0; transform: scale(0.375); transform-origin: 0 0; }
+  .subscene { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+  .pal-chip { display: inline-block; width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line, #d8cfc0); vertical-align: middle; margin-right: 5px; cursor: pointer; }
+  .pal-chip.on { outline: 2px solid #5c2d3f; outline-offset: 1px; }
+</style>
+</head>
+<body>
+<div class="arg-page" data-key="studio">
+  <div class="arg-pagehead spread">
+    <div>
+      <h1>Stick studio</h1>
+      <div class="sub">Brand-styled stick figure scenes, rendered to a real reel video. Captions in EB Garamond, figures in deep berry, your palette throughout.</div>
+    </div>
+  </div>
+
+  <div class="studio-grid">
+    <div class="card">
+      <h3>The story</h3>
+      <label class="muted" style="font-size:12px;margin:10px 0 4px;display:block;">Title (first frame)</label>
+      <input type="text" id="ss-title" placeholder="e.g. What support looks like">
+      <label class="muted" style="font-size:12px;margin:10px 0 6px;display:block;">Background (constant throughout)</label>
+      <div id="ss-pals"></div>
+      <label class="muted" style="font-size:12px;margin:14px 0 6px;display:block;">Scenes</label>
+      <div id="ss-scenes"></div>
+      <button class="ghost small" onclick="ssAdd()">+ Add a scene</button>
+      <label class="muted" style="font-size:12px;margin:14px 0 4px;display:block;">Caption for the post</label>
+      <textarea id="ss-caption" rows="3" placeholder="Post caption with tags and footer"></textarea>
+      <div class="row mt" style="gap:8px;">
+        <button onclick="ssRender(false)">Preview the video</button>
+        <button class="ghost" onclick="ssRender(true)">Render &amp; queue as reel</button>
+      </div>
+      <div id="ss-status" class="muted" style="margin-top:10px;font-size:12px;"></div>
+    </div>
+    <div class="card">
+      <h3>Preview</h3>
+      <div class="muted" style="font-size:12px;margin-bottom:8px;">Plays live. Poses: alone · together · walk-toward · walk-apart · sit · embrace · reach · wave · listen</div>
+      <div class="preview-frame"><iframe id="ss-frame" sandbox="allow-scripts allow-same-origin" src="about:blank"></iframe></div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/argentica.js"></script>
+<script>
+ARG.buildShell('studio');
+const { api, esc } = ARG;
+const POSES = ['alone','together','walk-toward','walk-apart','sit','embrace','reach','wave','listen'];
+const PALS = [
+  ['parchment', 'Parchment', '#f7f3e9'],
+  ['duskberry', 'Dusk berry', '#efe3e7'],
+  ['paleteal',  'Pale teal',  '#e2ebea'],
+  ['berry',     'Berry',      '#a88792']
+];
+let scenes = [{ pose: 'walk-toward', caption: 'Two people arrive, carrying the same question.' }, { pose: 'listen', caption: 'One sits. One stays. Nobody reaches for easy answers.' }, { pose: 'embrace', caption: 'Being seen is where recovery starts.' }];
+let bg = 'parchment';
+
+function renderPals() {
+  document.getElementById('ss-pals').innerHTML = PALS.map(([id, label, hex]) =>
+    '<span class="pal-chip' + (bg === id ? ' on' : '') + '" style="background:' + hex + '" title="' + label + '" onclick="setBg(\'' + id + '\')"></span>').join('') +
+    '<span class="muted" style="font-size:12px;margin-left:6px;" id="ss-pallabel"></span>';
+  document.getElementById('ss-pallabel').textContent = (PALS.find(p => p[0] === bg) || [])[1] || '';
+}
+window.setBg = id => { bg = id; renderPals(); };
+function renderScenes() {
+  const el = document.getElementById('ss-scenes');
+  el.innerHTML = scenes.map((s, i) =>
+    '<div class="scene-row"><select onchange="setPose(' + i + ', this.value)">' + POSES.map(p => '<option value="' + p + '"' + (s.pose === p ? ' selected' : '') + '>' + p + '</option>').join('') + '</select>' +
+    '<input type="text" value="' + esc(s.caption) + '" placeholder="Caption for this scene" oninput="setCap(' + i + ', this.value)">' +
+    '<button class="ghost small" onclick="delScene(' + i + ')" title="Remove">&times;</button></div>').join('');
+}
+window.setPose = (i, p) => { scenes[i].pose = p; renderScenes(); };
+window.setCap = (i, c) => { scenes[i].caption = c; };
+window.ssAdd = () => { if (scenes.length >= 8) { ARG.toast('Eight scenes is the maximum for one reel.'); return; } scenes.push({ pose: 'alone', caption: '' }); renderScenes(); };
+window.delScene = i => { scenes.splice(i, 1); renderScenes(); };
+
+let currentPreview = null;
+window.ssRender = async queue => {
+  const title = document.getElementById('ss-title').value.trim();
+  const body = { title, bg, scenes: scenes.filter(s => s.caption || s.pose), caption: document.getElementById('ss-caption').value.trim(), queue, platforms: ['instagram'] };
+  if (!body.scenes.length && !title) { ARG.toast('Give it a title or at least one scene.'); return; }
+  const st = document.getElementById('ss-status');
+  st.textContent = queue ? 'Rendering the reel video (about 15–30 seconds)…' : 'Rendering preview…';
+  try {
+    const r = await api('/reel/stick', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (r.success) {
+      currentPreview = r;
+      document.getElementById('ss-frame').src = r.pageUrl;
+      st.innerHTML = queue
+        ? 'Rendered! In the <a href="/argentica/commercial/publishing/">publishing queue</a> as a reel. Video: <a href="' + esc(r.videoUrl) + '" target="_blank">MP4 (' + Math.round((r.bytes||0)/1000) + ' KB)</a>'
+        : 'Rendered. <a href="' + esc(r.videoUrl) + '" target="_blank">Download / watch the MP4 (' + Math.round((r.bytes||0)/1000) + ' KB)</a>, then "Render &amp; queue" to send it to publishing.';
+      if (queue) ARG.toast('Reel queued.');
+    } else {
+      st.textContent = 'Could not render: ' + (r.error || 'unknown error') + (r.detail ? ' — ' + r.detail : '');
+    }
+  } catch (e) { st.textContent = 'Could not render: ' + e.message; }
+};
+
+renderPals();
+renderScenes();
+</script>
+</body>
+</html>

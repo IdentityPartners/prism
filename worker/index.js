@@ -1751,6 +1751,12 @@ async function itemMediaUrls(item, env) {
 }
 
 // ── Reels: brand-animated page → MP4 recording → R2 → IG REELS / FB video_reels ──────────────
+const REEL_BG = {
+  parchment: { top: '#f7f3e9', mid: '#f0e9e0', foot: '#efe3e7', ink: '#5c2d3f', soft: '#7a4254', line: '#a88792' },
+  duskberry: { top: '#efe3e7', mid: '#e9d7de', foot: '#efe3e7', ink: '#5c2d3f', soft: '#7a4254', line: '#a88792' },
+  paleteal:  { top: '#e2ebea', mid: '#d8e7e5', foot: '#e2ebea', ink: '#0f3b3a', soft: '#2d5b57', line: '#84a8a4' },
+  berry:     { top: '#a88792', mid: '#b395a0', foot: '#a88792', ink: '#2d1a1f', soft: '#f7f3e9', line: '#f0e9e0' }
+};
 function reelPageHtml(spec, mode) {
   const title = String(spec.title || 'Identity Partners');
   const lines = (Array.isArray(spec.lines) ? spec.lines : []).map(l => String(l).slice(0, 400)).filter(Boolean);
@@ -1758,13 +1764,14 @@ function reelPageHtml(spec, mode) {
   const S = 2.8; // seconds per scene
   const scenes = lines.length + 2;
   const total = scenes * S;
+  const PAL = REEL_BG[String(spec.bg || 'parchment').toLowerCase()] || REEL_BG.parchment;
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600&family=Inter:wght@400;600&display=swap');
 html,body{margin:0;width:1080px;height:1920px;background:#f7f3e9;overflow:hidden}
 canvas{display:block}
 </style></head><body><canvas id="c" width="1080" height="1920"></canvas>
 <script>
-const SPEC = ${JSON.stringify({ title, lines, kicker, total, S })};
+const SPEC = ${JSON.stringify({ title, lines, kicker, total, S, ink: PAL.ink, soft: PAL.soft, line: PAL.line, top: PAL.top, mid: PAL.mid, foot: PAL.foot })};
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
 const MODE = new URLSearchParams(location.search).get('mode') || 'play';
@@ -1772,7 +1779,7 @@ const easeOut = x => 1 - Math.pow(1 - x, 3);
 function drawReel(t) {
   const W = 1080, H = 1920;
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#f7f3e9'); g.addColorStop(0.6, '#f0e9e0'); g.addColorStop(1, '#efe3e7');
+  g.addColorStop(0, SPEC.top); g.addColorStop(0.6, SPEC.mid); g.addColorStop(1, SPEC.foot);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   const fadeIn = 0.5, fadeOut = 0.5;
   const sceneAlpha = (i) => {
@@ -1793,43 +1800,44 @@ function drawReel(t) {
   sceneText(0, () => {
     ctx.textBaseline = 'alphabetic';
     ctx.font = '600 30px Inter, sans-serif';
-    ctx.fillStyle = '#7a4254';
+    ctx.fillStyle = SPEC.soft;
     // letterspaced kicker
     let kx = 100; for (const ch of SPEC.kicker.toUpperCase()) { ctx.fillText(ch, kx, 320); kx += ctx.measureText(ch).width + 10; }
-    ctx.fillStyle = '#a88792'; ctx.fillRect(100, 350, kx - 110, 3);
-    ctx.font = '600 100px "EB Garamond", Georgia, serif';
-    ctx.fillStyle = '#5c2d3f';
-    wrap(ctx, SPEC.title, 100, 520, 880, 112);
+    ctx.fillStyle = SPEC.line; ctx.fillRect(100, 350, kx - 110, 3);
+    ctx.font = '600 66px "EB Garamond", Georgia, serif';
+    ctx.fillStyle = SPEC.ink;
+    wrap(ctx, SPEC.title, 100, 500, 880, 78);
   });
   // lines
   SPEC.lines.forEach((l, i) => {
     sceneText(i + 1, () => {
-      ctx.font = '400 104px "EB Garamond", Georgia, serif';
-      ctx.fillStyle = '#a88792';
+      ctx.font = '400 68px "EB Garamond", Georgia, serif';
+      ctx.fillStyle = SPEC.line;
       ctx.fillText(String(i + 1) + '.', 100, 700);
-      ctx.font = '600 82px "EB Garamond", Georgia, serif';
-      ctx.fillStyle = '#5c2d3f';
-      wrap(ctx, l, 100, 790, 880, 96);
+      ctx.font = '600 54px "EB Garamond", Georgia, serif';
+      ctx.fillStyle = SPEC.ink;
+      wrap(ctx, l, 175, 700, 805, 66);
     });
   });
   // outro
   sceneText(SPEC.lines.length + 1, () => {
     ctx.textAlign = 'center';
-    ctx.font = '600 96px "EB Garamond", Georgia, serif';
-    ctx.fillStyle = '#5c2d3f';
-    wrapCentered(ctx, SPEC.title, 540, 820, 860, 106);
+    ctx.font = '600 62px "EB Garamond", Georgia, serif';
+    ctx.fillStyle = SPEC.ink;
+    wrapCentered(ctx, SPEC.title, 540, 900, 820, 76);
     ctx.font = '400 34px Inter, sans-serif';
-    ctx.fillStyle = '#7a4254';
-    ctx.fillText('hello@identitypartners.uk', 540, 900);
+    ctx.fillStyle = SPEC.soft;
+    ctx.fillText('hello@identitypartners.uk', 540, 990);
     ctx.textAlign = 'left';
   });
   // footer
-  ctx.font = '600 26px Inter, sans-serif'; ctx.fillStyle = '#a88792';
+  ctx.font = '600 26px Inter, sans-serif'; ctx.fillStyle = SPEC.line;
   ctx.fillText('Identity Partners', 100, H - 70);
   ctx.font = '400 26px Inter, sans-serif';
+  ctx.fillStyle = SPEC.line;
   ctx.fillText('Understand the past \u00B7 Appreciate the present \u00B7 Define your future', 100, H - 34);
   // progress bar
-  ctx.fillStyle = '#5c2d3f';
+  ctx.fillStyle = SPEC.ink;
   ctx.fillRect(0, 0, Math.min(1, t / SPEC.total) * W, 10);
 }
 function wrap(c, text, x, y, maxW, lh) {
@@ -1882,6 +1890,206 @@ async function boot() {
   } else {
     const t0 = performance.now();
     const loop = () => { drawReel(((performance.now() - t0) / 1000) % SPEC.total); requestAnimationFrame(loop); };
+    loop();
+  }
+}
+boot();
+</script></body></html>`;
+}
+
+
+// ── Stick Studio: brand stick-figure scenes rendered to MP4 ──
+const STICK_POSES = ['alone', 'together', 'walk-toward', 'walk-apart', 'sit', 'embrace', 'reach', 'wave', 'listen'];
+function stickPageHtml(spec) {
+  const title = String(spec.title || '');
+  const scenes = (Array.isArray(spec.scenes) ? spec.scenes : [])
+    .map(x => ({ pose: STICK_POSES.includes(String(x.pose).toLowerCase()) ? String(x.pose).toLowerCase() : 'alone', caption: String(x.caption || '').slice(0, 220) }))
+    .filter(x => x.caption || x.pose)
+    .slice(0, 8);
+  const S = 3.2; const total = (scenes.length + (title ? 1 : 0)) * S;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600&family=Inter:wght@400;600&display=swap');
+html,body{margin:0;width:1080px;height:1920px;background:#f7f3e9;overflow:hidden}
+canvas{display:block}
+</style></head><body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+const SPEC = ${JSON.stringify({ title, scenes, total, S, ink: spec._pal.ink, soft: spec._pal.soft, line: spec._pal.line, top: spec._pal.top, mid: spec._pal.mid, foot: spec._pal.foot })};
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const MODE = new URLSearchParams(location.search).get('mode') || 'play';
+const easeOut = x => 1 - Math.pow(1 - x, 3);
+function drawGroundShadow(x, y, sc) {
+  ctx.fillStyle = 'rgba(63,42,38,0.08)';
+  ctx.beginPath(); ctx.ellipse(x, y + 6, 70 * sc, 12 * sc, 0, 0, Math.PI * 2); ctx.fill();
+}
+function drawFigure(x, groundY, sc, pose, t, facing, alpha) {
+  ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, groundY); ctx.scale(facing * sc, sc);
+  const swing = Math.sin(t * 3) * 0.35;
+  const bob = Math.sin(t * 2.2) * 2;
+  ctx.translate(0, (pose === 'sit' ? -45 : 0) + bob * 0.4);
+  ctx.strokeStyle = SPEC.ink; ctx.lineWidth = 9; ctx.lineCap = 'round';
+  const hipY = -150, shY = -250, headY = -285;
+  if (pose === 'sit') {
+    // torso upright, legs bent forward
+    ctx.beginPath(); ctx.moveTo(0, hipY - 95); ctx.lineTo(0, hipY); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, headY, 34, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, hipY - 85); ctx.lineTo(52, hipY - 45); ctx.stroke(); // near arm resting
+    ctx.beginPath(); ctx.moveTo(0, hipY - 85); ctx.lineTo(-40, hipY - 40 + Math.sin(t * 2) * 4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, hipY); ctx.lineTo(78, hipY); ctx.lineTo(78, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, hipY); ctx.lineTo(48, hipY + 12); ctx.lineTo(48, 0); ctx.stroke();
+  } else {
+    const legA = pose === 'walk-toward' || pose === 'walk-apart' ? swing : Math.sin(t * 2.2) * 0.06;
+    // legs
+    ctx.beginPath(); ctx.moveTo(0, hipY); ctx.lineTo(Math.sin(legA) * 55, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, hipY); ctx.lineTo(-Math.sin(legA) * 55, 0); ctx.stroke();
+    // torso with slight lean
+    const lean = pose === 'listen' ? 6 : pose === 'reach' ? 10 : 0;
+    ctx.beginPath(); ctx.moveTo(0, hipY); ctx.lineTo(lean, hipY - 100); ctx.stroke();
+    // head
+    ctx.beginPath(); ctx.arc(lean, headY, 34, 0, Math.PI * 2); ctx.stroke();
+    // arms
+    let a1 = -0.5, a2 = 0.5;
+    if (pose === 'reach') { a1 = -1.35; a2 = 0.7; }
+    if (pose === 'wave') { a1 = -2.3 + Math.sin(t * 6) * 0.25; a2 = 0.6; }
+    if (pose === 'embrace') { a1 = -1.1; a2 = 1.1; }
+    if (pose === 'listen') { a1 = -0.3; a2 = 0.9; }
+    const shX = lean, shYY = hipY - 85;
+    ctx.beginPath(); ctx.moveTo(shX, shYY); ctx.lineTo(shX + Math.sin(a1) * 85, shYY + Math.cos(a1) * 85); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(shX, shYY); ctx.lineTo(shX + Math.sin(a2) * 85, shYY + Math.cos(a2) * 85); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawScenery(alpha) {
+  ctx.save(); ctx.globalAlpha = alpha;
+  // horizon line + a low sun arc
+  ctx.strokeStyle = SPEC.line; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(120, 1420); ctx.lineTo(960, 1420); ctx.stroke();
+  ctx.beginPath(); ctx.arc(540, 1420, 90, Math.PI, 0); ctx.stroke();
+  ctx.restore();
+}
+function captionCard(text, alpha) {
+  if (!text) return;
+  ctx.save(); ctx.globalAlpha = alpha;
+  ctx.font = '600 54px "EB Garamond", Georgia, serif';
+  ctx.fillStyle = SPEC.ink;
+  const words = String(text).split(' ');
+  let yy = 300, line = '';
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > 820 && line) { ctx.fillText(line, 130, yy); yy += 68; line = w; } else line = test;
+  }
+  if (line) ctx.fillText(line, 130, yy);
+  ctx.restore();
+}
+function drawStick(t) {
+  const W = 1080, H = 1920;
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, SPEC.top); g.addColorStop(0.6, SPEC.mid); g.addColorStop(1, SPEC.foot);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const fadeIn = 0.5, fadeOut = 0.5;
+  let idx = 0;
+  const sceneWin = (st) => {
+    if (t < st - fadeIn || t > st + SPEC.S + fadeOut) return 0;
+    if (t < st) return easeOut((t - (st - fadeIn)) / fadeIn);
+    if (t > st + SPEC.S) return 1 - easeOut((t - st - SPEC.S) / fadeOut);
+    return 1;
+  };
+  // progress bar
+  ctx.fillStyle = SPEC.ink; ctx.fillRect(0, 0, Math.min(1, t / SPEC.total) * W, 10);
+  if (SPEC.title) {
+    const a = sceneWin(0);
+    if (a > 0) {
+      ctx.save(); ctx.globalAlpha = a;
+      ctx.textAlign = 'center';
+      ctx.font = '600 72px "EB Garamond", Georgia, serif'; ctx.fillStyle = SPEC.ink;
+      ctx.fillText(SPEC.title, 540, 760);
+      ctx.font = '400 26px Inter, sans-serif'; ctx.fillStyle = SPEC.soft;
+      ctx.fillText('hello@identitypartners.uk', 540, 830);
+      ctx.textAlign = 'left'; ctx.restore();
+    }
+    idx = 1;
+  }
+  for (const sc of SPEC.scenes) {
+    const st = idx * SPEC.S; idx++;
+    const a = sceneWin(st); if (a <= 0) continue;
+    const local = Math.min(1, Math.max(0, (t - st) / SPEC.S));
+    captionCard(sc.caption, a);
+    drawScenery(a);
+    const gy = 1420, sc1 = 1.55;
+    if (sc.pose === 'alone') {
+      drawGroundShadow(540, gy, sc1);
+      drawFigure(540, gy, sc1, 'stand', t, 1, a);
+    } else if (sc.pose === 'together') {
+      drawGroundShadow(400, gy, sc1); drawGroundShadow(680, gy, sc1);
+      drawFigure(400, gy, sc1, 'stand', t, 1, a);
+      drawFigure(680, gy, sc1, 'stand', t, -1, a);
+    } else if (sc.pose === 'walk-toward') {
+      const x1 = 200 + local * 240, x2 = 880 - local * 240;
+      drawGroundShadow(x1, gy, sc1); drawGroundShadow(x2, gy, sc1);
+      drawFigure(x1, gy, sc1, 'walk-toward', t, 1, a);
+      drawFigure(x2, gy, sc1, 'walk-toward', t, -1, a);
+    } else if (sc.pose === 'walk-apart') {
+      const x1 = 440 - local * 240, x2 = 640 + local * 240;
+      drawGroundShadow(x1, gy, sc1); drawGroundShadow(x2, gy, sc1);
+      drawFigure(x1, gy, sc1, 'walk-apart', t, 1, a);
+      drawFigure(x2, gy, sc1, 'walk-apart', t, -1, a);
+    } else if (sc.pose === 'sit') {
+      drawGroundShadow(420, gy, sc1); drawGroundShadow(660, gy, sc1);
+      drawFigure(420, gy, sc1, 'sit', t, 1, a);
+      drawFigure(660, gy, sc1, 'sit', t, -1, a);
+    } else if (sc.pose === 'embrace') {
+      drawGroundShadow(500, gy, sc1 * 1.05); drawGroundShadow(580, gy, sc1 * 1.05);
+      drawFigure(495, gy, sc1, 'embrace', t, 1, a);
+      drawFigure(585, gy, sc1, 'embrace', t, -1, a);
+    } else if (sc.pose === 'reach') {
+      drawGroundShadow(360, gy, sc1); drawGroundShadow(720, gy, sc1);
+      drawFigure(360, gy, sc1, 'reach', t, 1, a);
+      drawFigure(720, gy, sc1, 'stand', t, -1, a * 0.9);
+    } else if (sc.pose === 'wave') {
+      drawGroundShadow(540, gy, sc1);
+      drawFigure(540, gy, sc1, 'wave', t, 1, a);
+    } else if (sc.pose === 'listen') {
+      drawGroundShadow(430, gy, sc1); drawGroundShadow(650, gy, sc1);
+      drawFigure(430, gy, sc1, 'sit', t, 1, a);
+      drawFigure(660, gy, sc1, 'listen', t, -1, a);
+    }
+  }
+  // footer
+  ctx.font = '600 26px Inter, sans-serif'; ctx.fillStyle = SPEC.line;
+  ctx.fillText('Identity Partners', 100, H - 70);
+  ctx.font = '400 26px Inter, sans-serif';
+  ctx.fillText('Understand the past \u00B7 Appreciate the present \u00B7 Define your future', 100, H - 34);
+}
+async function boot() {
+  try { await Promise.all([document.fonts.load('600 72px "EB Garamond"'), document.fonts.load('600 26px Inter'), document.fonts.ready]); } catch (e) {}
+  if (MODE === 'encode') {
+    try {
+      await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.5/build/mp4-muxer.min.js'; sc.onload = res; sc.onerror = () => rej(new Error('mp4-muxer CDN load failed')); document.head.appendChild(sc); });
+      const MM = window.Mp4Muxer;
+      const fps = 24;
+      const muxer = new MM.Muxer({ target: new MM.ArrayBufferTarget(), video: { codec: 'avc', width: 1080, height: 1920, frameRate: fps }, fastStart: 'in-memory' });
+      const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => { window.__mp4err = String(e); } });
+      enc.configure({ codec: 'avc1.640028', width: 1080, height: 1920, bitrate: 5000000, framerate: fps, avc: { format: 'avc' } });
+      const frames = Math.round(SPEC.total * fps);
+      for (let f = 0; f < frames; f++) {
+        drawStick(f / fps);
+        const frame = new VideoFrame(cv, { timestamp: Math.round(f * 1e6 / fps), duration: Math.round(1e6 / fps) });
+        enc.encode(frame, { keyFrame: f % (fps * 2) === 0 });
+        frame.close();
+        if (enc.encodeQueueSize > 12) await new Promise(r => setTimeout(r, 15));
+      }
+      await enc.flush(); muxer.finalize();
+      const bytes = new Uint8Array(muxer.target.buffer);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 32768) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
+      window.__mp4b64 = btoa(bin);
+    } catch (e) { window.__mp4err = String(e && e.message || e); }
+  } else if (MODE === 'preview') {
+    drawStick(1.0);
+    window.__previewReady = true;
+  } else {
+    const t0 = performance.now();
+    const loop = () => { drawStick(((performance.now() - t0) / 1000) % SPEC.total); requestAnimationFrame(loop); };
     loop();
   }
 }
@@ -2623,6 +2831,7 @@ export default {
         const reelId = path.slice('/reel/page/'.length).replace(/[^a-zA-Z0-9-]/g, '');
         const spec = reelId ? await env.PRISM_KV.get('reel:' + reelId, 'json') : null;
         if (!spec) return new Response('<!doctype html><meta charset="utf-8"><title>Reel not found</title><p>Reel not found.</p>', { status: 404, headers: { 'Content-Type': 'text/html;charset=utf-8' } });
+        if (spec.kind === 'stick') { spec._pal = REEL_BG[String(spec.bg || 'parchment').toLowerCase()] || REEL_BG.parchment; return new Response(stickPageHtml(spec), { headers: { 'Content-Type': 'text/html;charset=utf-8' } }); }
         return new Response(reelPageHtml(spec), { headers: { 'Content-Type': 'text/html;charset=utf-8' } });
       } catch (e) { return new Response('reel page error: ' + e.message, { status: 500 }); }
     }
@@ -8723,6 +8932,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         const body = await request.json();
         const spec = {
           title: String(body.title || '').slice(0, 200),
+          bg: REEL_BG[String(body.bg || 'parchment').toLowerCase()] ? String(body.bg).toLowerCase() : 'parchment',
           kicker: String(body.kicker || body.subtitle || '').slice(0, 80),
           lines: (Array.isArray(body.lines) ? body.lines : []).map(l => String(l)).filter(Boolean).slice(0, 8),
           createdAt: new Date().toISOString()
@@ -8742,6 +8952,45 @@ When asked to approve items, respond with the item IDs to approve. When asked to
             platforms, format: 'reel',
             videoUrl: mp4.url, imageUrl: null, urls: null,
             source: 'reel-studio', status: 'pending',
+            createdAt: new Date().toISOString(), scheduledFor: null
+          };
+          const q = await env.PRISM_KV.get('mm:queue', 'json') || [];
+          q.unshift(item);
+          await env.PRISM_KV.put('mm:queue', JSON.stringify(q.slice(0, 200)));
+          queuedItemId = item.id;
+        }
+        return json({ success: true, reelId, pageUrl, videoUrl: mp4.url, bytes: mp4.bytes || 0, queuedItemId }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path === '/api/reel/stick' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const palKey = REEL_BG[String(body.bg || 'parchment').toLowerCase()] ? String(body.bg).toLowerCase() : 'parchment';
+        const spec0 = {
+          kind: 'stick',
+          title: String(body.title || '').slice(0, 160),
+          bg: palKey,
+          scenes: (Array.isArray(body.scenes) ? body.scenes : []).map(x => ({ pose: String(x.pose || 'alone').toLowerCase(), caption: String(x.caption || '').slice(0, 220) })).slice(0, 8),
+          createdAt: new Date().toISOString()
+        };
+        const pal = REEL_BG[palKey];
+        spec0._pal = { ink: pal.ink, soft: pal.soft, line: pal.line, top: pal.top, mid: pal.mid, foot: pal.foot };
+        const clean = JSON.parse(JSON.stringify(spec0)); delete clean._pal;
+        if (!clean.scenes.length && !clean.title) return json({ success: false, error: 'A title and at least one scene are required.' }, 400, origin);
+        const reelId = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        await env.PRISM_KV.put('reel:' + reelId, JSON.stringify(clean));
+        const pageUrl = 'https://prism-api.identitypartners.workers.dev/reel/page/' + reelId;
+        const mp4 = await renderReelMp4(pageUrl, env);
+        if (mp4.error) return json({ success: false, pageUrl, reelId, error: mp4.error, detail: mp4.detail || '' }, 502, origin);
+        let queuedItemId = null;
+        if (body.queue) {
+          const platforms = (Array.isArray(body.platforms) ? body.platforms : ['instagram']).map(p => String(p).toLowerCase());
+          const item = {
+            id: 'mm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+            text: String(body.caption || clean.title).slice(0, 2200),
+            platforms, format: 'reel',
+            videoUrl: mp4.url, imageUrl: null, urls: null,
+            source: 'stick-studio', status: 'pending',
             createdAt: new Date().toISOString(), scheduledFor: null
           };
           const q = await env.PRISM_KV.get('mm:queue', 'json') || [];

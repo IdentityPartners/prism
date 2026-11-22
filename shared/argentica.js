@@ -94,7 +94,8 @@
         { label: 'Carousels', href: '/argentica/create/carousels/', key: 'carousels' },
         { label: 'Podcast & audio', href: '/argentica/create/podcast/', key: 'podcast' },
         { label: 'Media', href: '/argentica/create/media/', key: 'media' },
-        { label: 'Music', href: '/argentica/create/music/', key: 'music' }
+        { label: 'Music', href: '/argentica/create/music/', key: 'music' },
+        { label: 'Stick studio', href: '/argentica/create/studio/', key: 'studio' }
       ]
     },
     commercial: {
