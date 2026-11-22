@@ -1771,7 +1771,7 @@ html,body{margin:0;width:1080px;height:1920px;background:#f7f3e9;overflow:hidden
 canvas{display:block}
 </style></head><body><canvas id="c" width="1080" height="1920"></canvas>
 <script>
-const SPEC = ${JSON.stringify({ title, lines, kicker, total, S, ink: PAL.ink, soft: PAL.soft, line: PAL.line, top: PAL.top, mid: PAL.mid, foot: PAL.foot })};
+const SPEC = ${JSON.stringify({ title, lines, kicker, total, S, ink: PAL.ink, soft: PAL.soft, line: PAL.line, top: PAL.top, mid: PAL.mid, foot: PAL.foot, photoUrl: spec.photoUrl || null })};
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
 const MODE = new URLSearchParams(location.search).get('mode') || 'play';
@@ -1780,7 +1780,18 @@ function drawReel(t) {
   const W = 1080, H = 1920;
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, SPEC.top); g.addColorStop(0.6, SPEC.mid); g.addColorStop(1, SPEC.foot);
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  if (window.__bgImg) {
+    // frosted photo background: sepia/saturation filter, then a parchment veil like the Home hero
+    try {
+      const bg = window.__bgImg;
+      const sc = Math.max(W / bg.width, H / bg.height);
+      ctx.save();
+      ctx.filter = 'sepia(0.3) saturate(0.85) blur(5px)';
+      ctx.drawImage(bg, (W - bg.width * sc) / 2, (H - bg.height * sc) / 2, bg.width * sc, bg.height * sc);
+      ctx.restore();
+      ctx.globalAlpha = 0.66; ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
+    } catch (e) { ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+  } else { ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
   const fadeIn = 0.5, fadeOut = 0.5;
   const sceneAlpha = (i) => {
     const st = i * SPEC.S, en = st + SPEC.S;
@@ -1860,6 +1871,7 @@ function wrapCentered(c, text, cx, y, maxW, lh) {
 }
 async function boot() {
   try { await Promise.all([document.fonts.load('600 100px "EB Garamond"'), document.fonts.load('600 30px Inter'), document.fonts.ready]); } catch (e) {}
+  if (SPEC.photoUrl) { try { const im = new Image(); im.crossOrigin = 'anonymous'; const p = new Promise((res, rej) => { im.onload = res; im.onerror = rej; }); im.src = SPEC.photoUrl; await p; window.__bgImg = im; } catch (e) {} }
   if (MODE === 'encode') {
     try {
       await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.5/build/mp4-muxer.min.js'; sc.onload = res; sc.onerror = () => rej(new Error('mp4-muxer CDN load failed')); document.head.appendChild(sc); });
@@ -1913,7 +1925,7 @@ html,body{margin:0;width:1080px;height:1920px;background:#f7f3e9;overflow:hidden
 canvas{display:block}
 </style></head><body><canvas id="c" width="1080" height="1920"></canvas>
 <script>
-const SPEC = ${JSON.stringify({ title, scenes, total, S, ink: spec._pal.ink, soft: spec._pal.soft, line: spec._pal.line, top: spec._pal.top, mid: spec._pal.mid, foot: spec._pal.foot })};
+const SPEC = ${JSON.stringify({ title, scenes, total, S, ink: spec._pal.ink, soft: spec._pal.soft, line: spec._pal.line, top: spec._pal.top, mid: spec._pal.mid, foot: spec._pal.foot, photoUrl: spec.photoUrl || null })};
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
 const MODE = new URLSearchParams(location.search).get('mode') || 'play';
@@ -1985,7 +1997,18 @@ function drawStick(t) {
   const W = 1080, H = 1920;
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, SPEC.top); g.addColorStop(0.6, SPEC.mid); g.addColorStop(1, SPEC.foot);
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  if (window.__bgImg) {
+    // frosted photo background: sepia/saturation filter, then a parchment veil like the Home hero
+    try {
+      const bg = window.__bgImg;
+      const sc = Math.max(W / bg.width, H / bg.height);
+      ctx.save();
+      ctx.filter = 'sepia(0.3) saturate(0.85) blur(5px)';
+      ctx.drawImage(bg, (W - bg.width * sc) / 2, (H - bg.height * sc) / 2, bg.width * sc, bg.height * sc);
+      ctx.restore();
+      ctx.globalAlpha = 0.66; ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
+    } catch (e) { ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+  } else { ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
   const fadeIn = 0.5, fadeOut = 0.5;
   let idx = 0;
   const sceneWin = (st) => {
@@ -2062,6 +2085,7 @@ function drawStick(t) {
 }
 async function boot() {
   try { await Promise.all([document.fonts.load('600 72px "EB Garamond"'), document.fonts.load('600 26px Inter'), document.fonts.ready]); } catch (e) {}
+  if (SPEC.photoUrl) { try { const im = new Image(); im.crossOrigin = 'anonymous'; const p = new Promise((res, rej) => { im.onload = res; im.onerror = rej; }); im.src = SPEC.photoUrl; await p; window.__bgImg = im; } catch (e) {} }
   if (MODE === 'encode') {
     try {
       await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.5/build/mp4-muxer.min.js'; sc.onload = res; sc.onerror = () => rej(new Error('mp4-muxer CDN load failed')); document.head.appendChild(sc); });
@@ -2095,6 +2119,20 @@ async function boot() {
 }
 boot();
 </script></body></html>`;
+}
+
+async function reelPhotoUrl(query, env) {
+  try {
+    const uri = await semanticImageSearch(String(query || 'calm landscape'), env);
+    if (!uri || !uri.startsWith('data:')) return null;
+    const m = uri.match(/^data:([^;]+);base64,(.+)$/);
+    if (!m) return null;
+    const ext = m[1].includes('png') ? 'png' : 'jpg';
+    const bytes = Uint8Array.from(atob(m[2]), c => c.charCodeAt(0));
+    const key = 'reels/bg-' + Date.now() + '.' + ext;
+    await env.PRISM_ASSETS.put(key, bytes, { httpMetadata: { contentType: m[1] } });
+    return 'https://prism-api.identitypartners.workers.dev/r2/' + key;
+  } catch (e) { return null; }
 }
 
 async function uploadVideoToR2(bytes, key, env) {
@@ -2800,6 +2838,64 @@ export default {
     const path = url.pathname;
     const origin = request.headers.get('Origin') || '';
 
+    // ── Argentica password gate (trusted device: 90-day renewing cookie) ──
+    async function sha256Hex(str) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+      return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    if (path === '/api/auth/login' && request.method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const password = String(body.password || '');
+        if (password.length < 8) return json({ success: false, error: 'Password must be at least 8 characters.' }, 400, origin);
+        const master = await env.PRISM_KV.get('auth:master');
+        let first = false;
+        if (!master) {
+          await env.PRISM_KV.put('auth:master', await sha256Hex(password));
+          first = true;
+        } else if (await sha256Hex(password) !== master) {
+          return json({ success: false, error: 'Wrong password.' }, 401, origin);
+        }
+        const tokBytes = crypto.getRandomValues(new Uint8Array(32));
+        const token = [...tokBytes].map(b => b.toString(16).padStart(2, '0')).join('');
+        await env.PRISM_KV.put('auth:token:' + token, JSON.stringify({ createdAt: new Date().toISOString(), lastSeen: new Date().toISOString() }), { expirationTtl: 7776000 });
+        return json({ success: true, token, firstTime: first, expiresInDays: 90 }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path === '/api/auth/check' && request.method === 'GET') {
+      const cookie = request.headers.get('Cookie') || '';
+      const cm = cookie.match(/(?:^|;\s*)arg_auth=([a-f0-9]{64})/);
+      const token = cm ? cm[1] : (request.headers.get('X-Arg-Auth') || '').replace(/[^a-f0-9]/g, '');
+      if (!token) return json({ ok: false }, 401, origin);
+      const raw = await env.PRISM_KV.get('auth:token:' + token);
+      if (!raw) return json({ ok: false }, 401, origin);
+      // renew: 90-day sliding window from last use
+      await env.PRISM_KV.put('auth:token:' + token, JSON.stringify({ ...(JSON.parse(raw || '{}')), lastSeen: new Date().toISOString() }), { expirationTtl: 7776000 });
+      return json({ ok: true }, 200, origin);
+    }
+    if (path === '/api/auth/logout' && request.method === 'POST') {
+      const cookie = request.headers.get('Cookie') || '';
+      const cm = cookie.match(/(?:^|;\s*)arg_auth=([a-f0-9]{64})/);
+      const token = cm ? cm[1] : (request.headers.get('X-Arg-Auth') || '').replace(/[^a-f0-9]/g, '');
+      if (token) await env.PRISM_KV.delete('auth:token:' + token).catch(() => {});
+      return json({ success: true }, 200, origin);
+    }
+    if (path === '/api/auth/change' && request.method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const master = await env.PRISM_KV.get('auth:master');
+        if (!master) return json({ success: false, error: 'No password set yet — first login creates it.' }, 400, origin);
+        if (await sha256Hex(String(body.current || '')) !== master) return json({ success: false, error: 'Current password is wrong.' }, 401, origin);
+        const nu = String(body.next || '');
+        if (nu.length < 8) return json({ success: false, error: 'New password must be at least 8 characters.' }, 400, origin);
+        await env.PRISM_KV.put('auth:master', await sha256Hex(nu));
+        if (env.PRISM_KV) { /* revoke all trusted devices on password change */
+          const ls = await env.PRISM_KV.list({ prefix: 'auth:token:' });
+          for (const k of ls.keys || []) await env.PRISM_KV.delete(k.name).catch(() => {});
+        }
+        return json({ success: true, note: 'All trusted devices were signed out; log in again with the new password.' }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
     // ── Public R2 streaming (reliable public URL for videos/Graph fetches) ──
     if (path.startsWith('/r2/')) {
       try {
@@ -8992,11 +9088,16 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         const spec = {
           title: String(body.title || '').slice(0, 200),
           bg: REEL_BG[String(body.bg || 'parchment').toLowerCase()] ? String(body.bg).toLowerCase() : 'parchment',
+          photo: body.photo === false ? null : undefined,
           kicker: String(body.kicker || body.subtitle || '').slice(0, 80),
           lines: (Array.isArray(body.lines) ? body.lines : []).map(l => String(l)).filter(Boolean).slice(0, 8),
           createdAt: new Date().toISOString()
         };
         if (!spec.title || !spec.lines.length) return json({ success: false, error: 'A title and at least one line are required (listicle doctrine: each line one point).' }, 400, origin);
+        if (body.photo) {
+          const q = typeof body.photo === 'string' ? body.photo : (spec.title || 'calm dawn landscape');
+          spec.photoUrl = await reelPhotoUrl(q, env);
+        }
         const reelId = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
         await env.PRISM_KV.put('reel:' + reelId, JSON.stringify(spec));
         const pageUrl = 'https://prism-api.identitypartners.workers.dev/reel/page/' + reelId;
@@ -9036,6 +9137,10 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         spec0._pal = { ink: pal.ink, soft: pal.soft, line: pal.line, top: pal.top, mid: pal.mid, foot: pal.foot };
         const clean = JSON.parse(JSON.stringify(spec0)); delete clean._pal;
         if (!clean.scenes.length && !clean.title) return json({ success: false, error: 'A title and at least one scene are required.' }, 400, origin);
+        if (body.photo) {
+          const q = typeof body.photo === 'string' ? body.photo : (clean.title || 'calm dawn landscape');
+          clean.photoUrl = await reelPhotoUrl(q, env);
+        }
         const reelId = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
         await env.PRISM_KV.put('reel:' + reelId, JSON.stringify(clean));
         const pageUrl = 'https://prism-api.identitypartners.workers.dev/reel/page/' + reelId;

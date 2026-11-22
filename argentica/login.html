@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argentica — sign in</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600&family=Inter:wght@400;600&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: linear-gradient(180deg, #f7f3e9 0%, #f0e9e0 60%, #efe3e7 100%); font-family: 'Inter', sans-serif; color: #3a2b28;
+  display: flex; align-items: center; justify-content: center; }
+.card { background: #fffdf6; border: 1px solid #d8cfc0; border-radius: 14px; padding: 44px 40px 36px; width: min(400px, 92vw);
+  box-shadow: 0 18px 50px rgba(43,33,23,.18); text-align: center; }
+.mark { font-family: 'EB Garamond', Georgia, serif; font-size: 34px; color: #5c2d3f; letter-spacing: .02em; }
+.tagline { font-family: 'EB Garamond', Georgia, serif; font-style: italic; font-size: 15px; color: #a88792; margin: 4px 0 26px; }
+label { display: block; text-align: left; font-size: 12px; color: #7a4254; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .12em; }
+input { width: 100%; padding: 12px 14px; border: 1px solid #d8cfc0; border-radius: 8px; background: #f7f3e9;
+  font-family: 'EB Garamond', Georgia, serif; font-size: 19px; color: #3a2b28; outline: none; }
+input:focus { border-color: #5c2d3f; }
+button { width: 100%; margin-top: 22px; padding: 12px; border: 0; border-radius: 999px; background: #5c2d3f; color: #f7f3e9;
+  font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; letter-spacing: .04em; cursor: pointer; }
+button:hover { background: #7a4254; }
+.note { font-size: 12px; color: #a88792; margin-top: 16px; line-height: 1.5; }
+.err { color: #8a3b3b; font-size: 13px; margin-top: 12px; min-height: 18px; }
+.first { color: #0f3b3a; font-size: 13px; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="mark">Identity Partners</div>
+  <div class="tagline">Understand the past &middot; Appreciate the present &middot; Define your future</div>
+  <form id="f" onsubmit="return doLogin(event)">
+    <label for="pw">Password</label>
+    <input type="password" id="pw" autocomplete="current-password" autofocus>
+    <div class="err" id="err"></div>
+    <button type="submit">Sign in</button>
+  </form>
+  <div class="note" id="note">Your device is remembered for 90 days from each visit.</div>
+</div>
+<script>
+async function doLogin(e) {
+  e.preventDefault();
+  const pw = document.getElementById('pw').value;
+  document.getElementById('err').textContent = '';
+  try {
+    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
+    const d = await r.json().catch(() => ({}));
+    if (d.success) {
+      if (d.firstTime) document.getElementById('note').textContent = 'Password saved as the master password. Redirecting…';
+      location.href = '/argentica/';
+      return false;
+    }
+    document.getElementById('err').textContent = d.error || 'Sign in failed.';
+  } catch (err) {
+    document.getElementById('err').textContent = 'Could not reach the server.';
+  }
+  return false;
+}
+</script>
+</body>
+</html>
