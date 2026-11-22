@@ -10526,7 +10526,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           out.person = me.name || me.sub || '';
         } catch (e) {}
         try {
-          const ac = await fetch('https://api.linkedin.com/rest/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&projection=(elements*(organization~))', {
+          const ac = await fetch('https://api.linkedin.com/rest/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&count=20', {
             headers: { Authorization: 'Bearer ' + accessToken, 'LinkedIn-Version': '202501', 'X-Restli-Protocol-Version': '2.0.0' }
           });
           const t = await ac.text();
