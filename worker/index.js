@@ -1750,6 +1750,86 @@ async function itemMediaUrls(item, env) {
   return urls.filter(Boolean);
 }
 
+// ── Reels: brand-animated page → MP4 recording → R2 → IG REELS / FB video_reels ──────────────
+function reelPageHtml(spec) {
+  const title = String(spec.title || 'Identity Partners');
+  const lines = (Array.isArray(spec.lines) ? spec.lines : []).map(l => String(l).slice(0, 400)).filter(Boolean);
+  const kicker = String(spec.kicker || '');
+  const sceneCount = lines.length + 2;
+  const SCENE = 3.2; // seconds per scene
+  const total = sceneCount * SCENE;
+  let scenes = '';
+  let idx = 0;
+  const mk = (inner, cls) => {
+    const delay = idx * SCENE;
+    const end = total - (idx * SCENE);
+    scenes += `<div class="scene ${cls}" style="animation-delay:${delay}s;animation-duration:${end}s">${inner}</div>`;
+    idx++;
+  };
+  mk(`<div class="kick">${kicker || 'Identity Partners'}</div><h1 class="big">${title}</h1>`, 'title');
+  lines.forEach(l => mk(`<div class="li"><span class="tick">${idx}.</span><p>${l}</p></div>`, 'line'));
+  mk(`<div class="end"><h2 class="big" style="font-size:120px;">${title}</h2><p class="sub">hello@identitypartners.uk</p></div>`, 'title');
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;600&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;overflow:hidden;background:#f7f3e9;font-family:'Inter',sans-serif;color:#3a2b28}
+.reel{position:relative;width:1080px;height:1920px;background:linear-gradient(180deg,#f7f3e9 0%,#f0e9e0 60%,#efe3e7 100%);padding:120px 100px;display:flex;flex-direction:column}
+.scene{position:absolute;inset:0;padding:140px 100px;display:flex;flex-direction:column;justify-content:center;opacity:0;animation-name:rise;animation-timing-function:cubic-bezier(.2,.7,.3,1);animation-fill-mode:forwards;animation-iteration-count:1}
+@keyframes rise{0%{opacity:0;transform:translateY(60px)}8%{opacity:1;transform:translateY(0)}96%{opacity:1}100%{opacity:0}}
+.kick{font-size:30px;letter-spacing:.35em;text-transform:uppercase;color:#7a4254;margin-bottom:40px;border-bottom:2px solid #a88792;padding-bottom:24px;width:fit-content}
+h1.big,p.big{font-family:'EB Garamond',Georgia,serif;font-weight:600;color:#5c2d3f;font-size:104px;line-height:1.12}
+.li{display:flex;gap:36px;align-items:flex-start}
+.li .tick{font-family:'EB Garamond',Georgia,serif;font-size:110px;color:#a88792;line-height:1}
+.li p{font-family:'EB Garamond',Georgia,serif;font-size:84px;line-height:1.25;color:#5c2d3f}
+.end{align-items:center;text-align:center}
+.end .big{margin-bottom:30px}
+.sub{font-size:34px;color:#7a4254;letter-spacing:.12em}
+.foot{position:absolute;bottom:70px;left:100px;right:100px;display:flex;justify-content:space-between;font-size:26px;color:#a88792;letter-spacing:.08em}
+.bar{position:absolute;top:0;left:0;height:10px;background:#5c2d3f;width:0;animation:bar ${total}s linear forwards}
+@keyframes bar{to{width:100%}}
+</style></head><body><div class="reel"><div class="bar"></div>${scenes}
+<div class="foot"><span>Identity Partners</span><span>Understand the past &middot; Appreciate the present &middot; Define your future</span></div></div></body></html>`;
+}
+
+async function uploadVideoToR2(bytes, key, env) {
+  if (!env.PRISM_ASSETS) return null;
+  try {
+    await env.PRISM_ASSETS.put(key, bytes, { httpMetadata: { contentType: 'video/mp4' } });
+    return R2_PUBLIC + key;
+  } catch (e) { return null; }
+}
+
+async function renderReelMp4(pageUrl, env) {
+  const IO = k(env, ['browserless','browserless_io_key','browserless_io','BROWSERLESS']) || '';
+  if (!IO) return { error: 'No chrome.browserless.io cloud key stored. The Railway Browserless container cannot record video; the cloud v2 /mp4 endpoint is required. Push the key as the secret "browserless".' };
+  const attempts = [
+    { body: { url: pageUrl, viewport: { width: 1080, height: 1920, deviceScaleFactor: 1 }, timeout: 120000 } },
+    { body: { url: pageUrl, viewport: { width: 1080, height: 1920, deviceScaleFactor: 1 }, gotoOptions: { timeout: 60000 }, timeout: 120000 } },
+  ];
+  let lastDetail = '';
+  for (const a of attempts) {
+    try {
+      const r = await fetch('https://chrome.browserless.io/mp4?token=' + encodeURIComponent(IO), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(a.body)
+      });
+      const ct = r.headers.get('content-type') || '';
+      if (r.ok) {
+        const buf = await r.arrayBuffer();
+        if (buf && buf.byteLength > 10000) {
+          const key = 'reels/reel-' + Date.now() + '.mp4';
+          const url = await uploadVideoToR2(buf, key, env);
+          if (url) return { url, bytes: buf.byteLength };
+          return { error: 'Recording succeeded but the R2 upload failed' };
+        }
+        lastDetail = 'HTTP 200 but empty/short body (' + (buf ? buf.byteLength : 0) + ' bytes)';
+      } else {
+        lastDetail = 'HTTP ' + r.status + ' ' + ct + ' :: ' + (await r.text().catch(() => '')).slice(0, 500);
+      }
+    } catch (e) { lastDetail = e.message; }
+  }
+  return { error: 'browserless /mp4 recording failed', detail: lastDetail };
+}
+
 async function bufferGql(query, variables, env) {
   const bufferKey = k(env, ['buffer_api_key','BUFFER_API_KEY']) || '';
   if (!bufferKey) return { error: 'No Buffer API key' };
@@ -2401,6 +2481,16 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     const origin = request.headers.get('Origin') || '';
+
+    // ── Reel playback page (recorded to MP4 by the reel renderer) ──
+    if (path.startsWith('/reel/page/')) {
+      try {
+        const reelId = path.slice('/reel/page/'.length).replace(/[^a-zA-Z0-9-]/g, '');
+        const spec = reelId ? await env.PRISM_KV.get('reel:' + reelId, 'json') : null;
+        if (!spec) return new Response('<!doctype html><meta charset="utf-8"><title>Reel not found</title><p>Reel not found.</p>', { status: 404, headers: { 'Content-Type': 'text/html;charset=utf-8' } });
+        return new Response(reelPageHtml(spec), { headers: { 'Content-Type': 'text/html;charset=utf-8' } });
+      } catch (e) { return new Response('reel page error: ' + e.message, { status: 500 }); }
+    }
 
     if (request.method === 'OPTIONS') {
       if (path.startsWith('/api/postiz-proxy/')) {
@@ -6361,7 +6451,17 @@ data: ${JSON.stringify(data)}
         const assignment = env.PRISM_KV ? await env.PRISM_KV.get('agent-assignment:' + agentId, 'json').catch(() => null) : null;
         const histKey = 'agent-chat:' + agentId + ':history';
         const hist = env.PRISM_KV ? (await env.PRISM_KV.get(histKey, 'json') || []) : [];
-        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({"text": "the post copy with tags and footer", "platforms": [...], "format": "auto", "from": ""}) — queues a post for approval. PLATFORM GROUPS are TYPES, not pairings (pass a group name or individual channels, mixing is fine): "longform" = substack ONLY (essays, reflective prose, full-length pieces; Bluesky is NOT longform); "pro" = linkedin ONLY (orphaned, pro-to-pro: practice news, professional development, sector commentary); "shortform" = x + threads + bluesky (one-idea nuggets respecting caps: x 280, bluesky 300, threads 500 characters); "images" = instagram + facebook + tumblr (image-first posts, carousels and stories). WRITING CONVENTIONS by type: longform = patient, essayistic, intellectually warm; pro = professional, peer-to-peer; shortform = plain speech, one idea, surface-level-perfect; images = strong caption plus visual, human interest. FORMAT slots ("format" arg): "image" single graphic; "carousel" multi-slide (strongest reach on instagram); "story" full-bleed vertical (instagram + facebook stories); "reel" (pending the video path); "auto" lets the system choose by content type. LISTICLE DOCTRINE: the best-performing non-shortform content on the internet is the listicle, from Instagram carousels to LinkedIn articles. When content is multi-part (steps, reasons, tips, arguments), default to format=carousel and write each slide as a list item. "from" (optional) = a voice id from the voices registry, to post as a registered condition-specific account instead of the main Identity Partners account.\nTOOL: post_now({"text": "...", "platforms": [...]}) — attempts immediate posting; only works when autonomy is switched on.\nTOOL: create_canvas({"topic": "...", "template": "..."}) — renders a brand canvas graphic; templates include myth-vs-fact, data-infographic, awareness-day, news-reaction, research, service-explainer, quote, stat, testimonial, img-seascape, img-sunrise, img-cityscape and dual-partnership.\nTOOL: search_news({"topic": "..."}) — fetches current headlines from the approved sources.\nTOOL: save_note({"title": "...", "content": "..."}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
+        let weekThemeNote = '';
+        try {
+          const themeList = env.PRISM_KV ? (await env.PRISM_KV.get('themes:weeks', 'json') || []) : [];
+          const nowW = new Date(); const dowW = (nowW.getUTCDay() + 6) % 7;
+          const monW = new Date(nowW); monW.setUTCDate(nowW.getUTCDate() - dowW); monW.setUTCHours(0, 0, 0, 0);
+          const thW = themeList.find(t2 => t2.week === monW.toISOString().slice(0, 10));
+          if (thW && thW.name) {
+            weekThemeNote = '\nThis week\u2019s theme is "' + thW.name + '"' + (thW.secondary ? ' with secondary thread "' + thW.secondary + '"' : '') + '. Make content speak to it unless Simon asks otherwise. Per-platform overrides may exist in the plan.';
+          }
+        } catch (eW) {}
+        const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nMandatory tags: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact${weekThemeNote}\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({"text": "the post copy with tags and footer", "platforms": [...], "format": "auto", "from": ""}) — queues a post for approval. PLATFORM GROUPS are TYPES, not pairings (pass a group name or individual channels, mixing is fine): "longform" = substack ONLY (essays, reflective prose, full-length pieces; Bluesky is NOT longform); "pro" = linkedin ONLY (orphaned, pro-to-pro: practice news, professional development, sector commentary); "shortform" = x + threads + bluesky (one-idea nuggets respecting caps: x 280, bluesky 300, threads 500 characters); "images" = instagram + facebook + tumblr (image-first posts, carousels and stories). WRITING CONVENTIONS by type: longform = patient, essayistic, intellectually warm; pro = professional, peer-to-peer; shortform = plain speech, one idea, surface-level-perfect; images = strong caption plus visual, human interest. FORMAT slots ("format" arg): "image" single graphic; "carousel" multi-slide (strongest reach on instagram); "story" full-bleed vertical (instagram + facebook stories); "reel" short brand video (title + list lines animated on parchment; render via the reel studio, agents should propose them for listicle-style content); "auto" lets the system choose by content type. LISTICLE DOCTRINE: the best-performing non-shortform content on the internet is the listicle, from Instagram carousels to LinkedIn articles. When content is multi-part (steps, reasons, tips, arguments), default to format=carousel and write each slide as a list item. "from" (optional) = a voice id from the voices registry, to post as a registered condition-specific account instead of the main Identity Partners account.\nTOOL: post_now({"text": "...", "platforms": [...]}) — attempts immediate posting; only works when autonomy is switched on.\nTOOL: create_canvas({"topic": "...", "template": "..."}) — renders a brand canvas graphic; templates include myth-vs-fact, data-infographic, awareness-day, news-reaction, research, service-explainer, quote, stat, testimonial, img-seascape, img-sunrise, img-cityscape and dual-partnership.\nTOOL: search_news({"topic": "..."}) — fetches current headlines from the approved sources.\nTOOL: save_note({"title": "...", "content": "..."}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
         const messages = [{ role: 'system', content: systemPrompt }];
         hist.filter(m => m.role !== 'system').slice(-20).forEach(m => messages.push({ role: m.role, content: m.content }));
         messages.push({ role: 'user', content: userMessage });
@@ -8078,7 +8178,14 @@ data: ${JSON.stringify(data)}
                     const media = (await itemMediaUrls(item, env)).filter(Boolean);
                     const text = (item.text || '').slice(0, 2200);
                     let creation = null;
-                    if ((item.format === 'story') && media.length) {
+                    let reelMode = false;
+                    if (item.format === 'reel' && item.videoUrl) {
+                      // ── Reel: REELS container from the rendered MP4 …
+                      reelMode = true;
+                      const c = await fetch('https://graph.facebook.com/v21.0/' + ids.ig + '/media', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ media_type: 'REELS', video_url: item.videoUrl, caption: text, share_to_feed: true, access_token: metaTok }) }).then(r => r.json());
+                      creation = c.id;
+                      if (!creation) results.instagram = { success: false, error: JSON.stringify(c).slice(0,200), via: 'reels-api' };
+                    } else if ((item.format === 'story') && media.length) {
                       // full-bleed story: STORIES container, no caption
                       const c = await fetch('https://graph.facebook.com/v21.0/' + ids.ig + '/media', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ image_url: media[0], media_type: 'STORIES', access_token: metaTok }) }).then(r => r.json());
                       creation = c.id;
@@ -8097,7 +8204,7 @@ data: ${JSON.stringify(data)}
                     if (creation) {
                       // wait for container READY, then publish
                       let ready = false;
-                      for (let i = 0; i < 10 && !ready; i++) {
+                      for (let i = 0; i < (reelMode ? 40 : 10) && !ready; i++) {
                         await new Promise(r => setTimeout(r, 3000));
                         const st = await fetch('https://graph.facebook.com/v21.0/' + creation + '?fields=status_code&access_token=' + encodeURIComponent(metaTok)).then(r => r.json());
                         ready = st.status_code === 'FINISHED';
@@ -8113,7 +8220,25 @@ data: ${JSON.stringify(data)}
                   } else if (platform === 'facebook' && ids && ids.page) {
                     const media = (await itemMediaUrls(item, env)).filter(Boolean);
                     const ptok = ids.pageToken || metaTok;
-                    if (media.length) {
+                    if (item.format === 'reel' && item.videoUrl) {
+                      // ── FB Reel via video_reels endpoint (permission-gated) …
+                      try {
+                        const vr = await fetch('https://graph.facebook.com/v21.0/' + ids.page + '/video_reels', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ video_url: item.videoUrl, description: (item.text || '').slice(0, 2200), access_token: ptok }) }).then(r => r.json());
+                        if (vr.id) {
+                          let readyF = false; let statusTxt = '';
+                          for (let i = 0; i < 40 && !readyF; i++) {
+                            await new Promise(r => setTimeout(r, 3000));
+                            const st = await fetch('https://graph.facebook.com/v21.0/' + vr.id + '?fields=status&access_token=' + encodeURIComponent(ptok)).then(r => r.json());
+                            statusTxt = st.status || '';
+                            if (String(statusTxt).toLowerCase() === 'ready' || String(statusTxt).toLowerCase() === 'finished') readyF = true;
+                          }
+                          if (readyF) {
+                            const pub = await fetch('https://graph.facebook.com/v21.0/' + vr.id, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ access_token: ptok }) }).then(r => r.json());
+                            results.facebook = { success: !pub.error, postId: vr.id, note: pub.error ? 'ready but publish step returned: ' + JSON.stringify(pub.error).slice(0,140) : 'published via video_reels' };
+                          } else { results.facebook = { success: false, postId: vr.id, error: 'reel not ready in time (status: ' + statusTxt + ')' }; }
+                        } else { results.facebook = { success: false, error: JSON.stringify(vr).slice(0,200) }; }
+                      } catch (e) { results.facebook = { success: false, error: e.message }; }
+                    } else if (media.length) {
                       // unpublished photos then a multi-photo feed post
                       const fbids = [];
                       for (const u of media.slice(0, 8)) {
@@ -8458,6 +8583,40 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     }
 
     // ── Email send via Resend ──
+    if (path === '/api/reel/render' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const spec = {
+          title: String(body.title || '').slice(0, 200),
+          kicker: String(body.kicker || body.subtitle || '').slice(0, 80),
+          lines: (Array.isArray(body.lines) ? body.lines : []).map(l => String(l)).filter(Boolean).slice(0, 8),
+          createdAt: new Date().toISOString()
+        };
+        if (!spec.title || !spec.lines.length) return json({ success: false, error: 'A title and at least one line are required (listicle doctrine: each line one point).' }, 400, origin);
+        const reelId = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        await env.PRISM_KV.put('reel:' + reelId, JSON.stringify(spec));
+        const pageUrl = 'https://prism-api.identitypartners.workers.dev/reel/page/' + reelId;
+        const mp4 = await renderReelMp4(pageUrl, env);
+        if (mp4.error) return json({ success: false, pageUrl, reelId, error: mp4.error, detail: mp4.detail || '' }, 502, origin);
+        let queuedItemId = null;
+        if (body.queue) {
+          const platforms = (Array.isArray(body.platforms) ? body.platforms : ['instagram']).map(p => String(p).toLowerCase());
+          const item = {
+            id: 'mm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+            text: String(body.caption || spec.title).slice(0, 2200),
+            platforms, format: 'reel',
+            videoUrl: mp4.url, imageUrl: null, urls: null,
+            source: 'reel-studio', status: 'pending',
+            createdAt: new Date().toISOString(), scheduledFor: null
+          };
+          const q = await env.PRISM_KV.get('mm:queue', 'json') || [];
+          q.unshift(item);
+          await env.PRISM_KV.put('mm:queue', JSON.stringify(q.slice(0, 200)));
+          queuedItemId = item.id;
+        }
+        return json({ success: true, reelId, pageUrl, videoUrl: mp4.url, bytes: mp4.bytes || 0, queuedItemId }, 200, origin);
+      } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
     if (path === '/api/email/send' && request.method === 'POST') {
       try {
         const body = await request.json();
@@ -10589,7 +10748,11 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           const monday = new Date(now2); monday.setUTCDate(now2.getUTCDate() - dow); monday.setUTCHours(0, 0, 0, 0);
           const mondayISO = monday.toISOString().slice(0, 10);
           const th = themes.find(t2 => t2.week === mondayISO);
-          if (th && th.name) globalThis.__weekTheme = ' THIS WEEKS THEME is "' + th.name + '" — make the post speak to it directly.';
+          if (th && th.name) {
+            globalThis.__weekTheme = ' THIS WEEKS THEME is "' + th.name + '" — make the post speak to it directly.';
+            if (th.secondary) globalThis.__weekTheme += ' Secondary thread: "' + th.secondary + '" — let it underpin the piece without crowding the primary.';
+            if (th.exceptions && Object.keys(th.exceptions).length) globalThis.__weekTheme += ' (Single-week per-platform overrides exist: ' + Object.entries(th.exceptions).map(([p, v]) => p + ' uses "' + v + '"').join('; ') + ' — they are applied per channel at publish time.)';
+          }
         } catch (e2) {}
         const draft = await orchestrate([
           { role: 'system', content: 'You write as Simon Johnson of Identity Partners: intelligent, direct, humane, intellectually curious British professional prose. British English only. No em dashes. Never use multifaceted, nuanced, profound, tapestry, landscape, intersection, delve, ever-evolving. No clinical claims, no testimonials of outcomes, no client-identifiable content, never respond to people in crisis. 60 to 90 words.' },
