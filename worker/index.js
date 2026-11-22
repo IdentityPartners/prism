@@ -1751,44 +1751,142 @@ async function itemMediaUrls(item, env) {
 }
 
 // ── Reels: brand-animated page → MP4 recording → R2 → IG REELS / FB video_reels ──────────────
-function reelPageHtml(spec) {
+function reelPageHtml(spec, mode) {
   const title = String(spec.title || 'Identity Partners');
   const lines = (Array.isArray(spec.lines) ? spec.lines : []).map(l => String(l).slice(0, 400)).filter(Boolean);
-  const kicker = String(spec.kicker || '');
-  const sceneCount = lines.length + 2;
-  const SCENE = 3.2; // seconds per scene
-  const total = sceneCount * SCENE;
-  let scenes = '';
-  let idx = 0;
-  const mk = (inner, cls) => {
-    const delay = idx * SCENE;
-    const end = total - (idx * SCENE);
-    scenes += `<div class="scene ${cls}" style="animation-delay:${delay}s;animation-duration:${end}s">${inner}</div>`;
-    idx++;
-  };
-  mk(`<div class="kick">${kicker || 'Identity Partners'}</div><h1 class="big">${title}</h1>`, 'title');
-  lines.forEach(l => mk(`<div class="li"><span class="tick">${idx}.</span><p>${l}</p></div>`, 'line'));
-  mk(`<div class="end"><h2 class="big" style="font-size:120px;">${title}</h2><p class="sub">hello@identitypartners.uk</p></div>`, 'title');
+  const kicker = String(spec.kicker || 'Identity Partners');
+  const S = 2.8; // seconds per scene
+  const scenes = lines.length + 2;
+  const total = scenes * S;
   return `<!doctype html><html><head><meta charset="utf-8"><style>
-@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;600&display=swap');
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{width:1080px;height:1920px;overflow:hidden;background:#f7f3e9;font-family:'Inter',sans-serif;color:#3a2b28}
-.reel{position:relative;width:1080px;height:1920px;background:linear-gradient(180deg,#f7f3e9 0%,#f0e9e0 60%,#efe3e7 100%);padding:120px 100px;display:flex;flex-direction:column}
-.scene{position:absolute;inset:0;padding:140px 100px;display:flex;flex-direction:column;justify-content:center;opacity:0;animation-name:rise;animation-timing-function:cubic-bezier(.2,.7,.3,1);animation-fill-mode:forwards;animation-iteration-count:1}
-@keyframes rise{0%{opacity:0;transform:translateY(60px)}8%{opacity:1;transform:translateY(0)}96%{opacity:1}100%{opacity:0}}
-.kick{font-size:30px;letter-spacing:.35em;text-transform:uppercase;color:#7a4254;margin-bottom:40px;border-bottom:2px solid #a88792;padding-bottom:24px;width:fit-content}
-h1.big,p.big{font-family:'EB Garamond',Georgia,serif;font-weight:600;color:#5c2d3f;font-size:104px;line-height:1.12}
-.li{display:flex;gap:36px;align-items:flex-start}
-.li .tick{font-family:'EB Garamond',Georgia,serif;font-size:110px;color:#a88792;line-height:1}
-.li p{font-family:'EB Garamond',Georgia,serif;font-size:84px;line-height:1.25;color:#5c2d3f}
-.end{align-items:center;text-align:center}
-.end .big{margin-bottom:30px}
-.sub{font-size:34px;color:#7a4254;letter-spacing:.12em}
-.foot{position:absolute;bottom:70px;left:100px;right:100px;display:flex;justify-content:space-between;font-size:26px;color:#a88792;letter-spacing:.08em}
-.bar{position:absolute;top:0;left:0;height:10px;background:#5c2d3f;width:0;animation:bar ${total}s linear forwards}
-@keyframes bar{to{width:100%}}
-</style></head><body><div class="reel"><div class="bar"></div>${scenes}
-<div class="foot"><span>Identity Partners</span><span>Understand the past &middot; Appreciate the present &middot; Define your future</span></div></div></body></html>`;
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600&family=Inter:wght@400;600&display=swap');
+html,body{margin:0;width:1080px;height:1920px;background:#f7f3e9;overflow:hidden}
+canvas{display:block}
+</style></head><body><canvas id="c" width="1080" height="1920"></canvas>
+<script>
+const SPEC = ${JSON.stringify({ title, lines, kicker, total, S })};
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const MODE = new URLSearchParams(location.search).get('mode') || 'play';
+const easeOut = x => 1 - Math.pow(1 - x, 3);
+function drawReel(t) {
+  const W = 1080, H = 1920;
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#f7f3e9'); g.addColorStop(0.6, '#f0e9e0'); g.addColorStop(1, '#efe3e7');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const fadeIn = 0.5, fadeOut = 0.5;
+  const sceneAlpha = (i) => {
+    const st = i * SPEC.S, en = st + SPEC.S;
+    if (t < st - fadeIn || t > en + fadeOut) return 0;
+    if (t < st) return easeOut((t - (st - fadeIn)) / fadeIn);
+    if (t > en) return 1 - easeOut((t - en) / fadeOut);
+    return 1;
+  };
+  const sceneText = (i, inner) => {
+    const a = sceneAlpha(i); if (a <= 0) return;
+    const st = i * SPEC.S;
+    const rise = 60 * (1 - Math.min(1, (t - (st - fadeIn)) / (fadeIn * 2)));
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(0, (i === 0 || i === SPEC.lines.length + 1) ? 0 : -rise * 0 + 0);
+    inner(a); ctx.restore();
+  };
+  // kicker + title (scene 0)
+  sceneText(0, () => {
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = '600 30px Inter, sans-serif';
+    ctx.fillStyle = '#7a4254';
+    // letterspaced kicker
+    let kx = 100; for (const ch of SPEC.kicker.toUpperCase()) { ctx.fillText(ch, kx, 320); kx += ctx.measureText(ch).width + 10; }
+    ctx.fillStyle = '#a88792'; ctx.fillRect(100, 350, kx - 110, 3);
+    ctx.font = '600 100px "EB Garamond", Georgia, serif';
+    ctx.fillStyle = '#5c2d3f';
+    wrap(ctx, SPEC.title, 100, 520, 880, 112);
+  });
+  // lines
+  SPEC.lines.forEach((l, i) => {
+    sceneText(i + 1, () => {
+      ctx.font = '400 104px "EB Garamond", Georgia, serif';
+      ctx.fillStyle = '#a88792';
+      ctx.fillText(String(i + 1) + '.', 100, 700);
+      ctx.font = '600 82px "EB Garamond", Georgia, serif';
+      ctx.fillStyle = '#5c2d3f';
+      wrap(ctx, l, 100, 790, 880, 96);
+    });
+  });
+  // outro
+  sceneText(SPEC.lines.length + 1, () => {
+    ctx.textAlign = 'center';
+    ctx.font = '600 96px "EB Garamond", Georgia, serif';
+    ctx.fillStyle = '#5c2d3f';
+    wrapCentered(ctx, SPEC.title, 540, 820, 860, 106);
+    ctx.font = '400 34px Inter, sans-serif';
+    ctx.fillStyle = '#7a4254';
+    ctx.fillText('hello@identitypartners.uk', 540, 900);
+    ctx.textAlign = 'left';
+  });
+  // footer
+  ctx.font = '600 26px Inter, sans-serif'; ctx.fillStyle = '#a88792';
+  ctx.fillText('Identity Partners', 100, H - 70);
+  ctx.font = '400 26px Inter, sans-serif';
+  ctx.fillText('Understand the past \u00B7 Appreciate the present \u00B7 Define your future', 100, H - 34);
+  // progress bar
+  ctx.fillStyle = '#5c2d3f';
+  ctx.fillRect(0, 0, Math.min(1, t / SPEC.total) * W, 10);
+}
+function wrap(c, text, x, y, maxW, lh) {
+  const words = String(text).split(' '); let line = '', yy = y;
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (c.measureText(test).width > maxW && line) { c.fillText(line, x, yy); line = w; yy += lh; }
+    else line = test;
+  }
+  if (line) c.fillText(line, x, yy);
+}
+function wrapCentered(c, text, cx, y, maxW, lh) {
+  const words = String(text).split(' '); let line = '', yy = y;
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (c.measureText(test).width > maxW && line) { c.fillText(line, cx, yy); const old=c.textAlign; c.textAlign='left'; yy += lh; c.textAlign=old; line = w; }
+    else line = test;
+  }
+  if (line) c.fillText(line, cx, yy);
+}
+async function boot() {
+  try { await Promise.all([document.fonts.load('600 100px "EB Garamond"'), document.fonts.load('600 30px Inter'), document.fonts.ready]); } catch (e) {}
+  if (MODE === 'encode') {
+    try {
+      await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.5/build/mp4-muxer.min.js'; sc.onload = res; sc.onerror = () => rej(new Error('mp4-muxer CDN load failed')); document.head.appendChild(sc); });
+      const MM = window.Mp4Muxer;
+      const fps = 24;
+      const muxer = new MM.Muxer({ target: new MM.ArrayBufferTarget(), video: { codec: 'avc', width: 1080, height: 1920, frameRate: fps }, fastStart: 'in-memory' });
+      const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => { window.__mp4err = String(e); } });
+      enc.configure({ codec: 'avc1.640028', width: 1080, height: 1920, bitrate: 6000000, framerate: fps, avc: { format: 'avc' } });
+      const frames = Math.round(SPEC.total * fps);
+      for (let f = 0; f < frames; f++) {
+        drawReel(f / fps);
+        const frame = new VideoFrame(cv, { timestamp: Math.round(f * 1e6 / fps), duration: Math.round(1e6 / fps) });
+        enc.encode(frame, { keyFrame: f % (fps * 2) === 0 });
+        frame.close();
+        if (enc.encodeQueueSize > 12) await new Promise(r => setTimeout(r, 15));
+      }
+      await enc.flush();
+      muxer.finalize();
+      const bytes = new Uint8Array(muxer.target.buffer);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 32768) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
+      window.__mp4b64 = btoa(bin);
+      window.__mp4size = bytes.length;
+    } catch (e) { window.__mp4err = String(e && e.message || e); }
+  } else if (MODE === 'preview') {
+    drawReel(1.2);
+    window.__previewReady = true;
+  } else {
+    const t0 = performance.now();
+    const loop = () => { drawReel(((performance.now() - t0) / 1000) % SPEC.total); requestAnimationFrame(loop); };
+    loop();
+  }
+}
+boot();
+</script></body></html>`;
 }
 
 async function uploadVideoToR2(bytes, key, env) {
@@ -1800,34 +1898,46 @@ async function uploadVideoToR2(bytes, key, env) {
 }
 
 async function renderReelMp4(pageUrl, env) {
-  const IO = k(env, ['browserless','browserless_io_key','browserless_io','BROWSERLESS']) || '';
-  if (!IO) return { error: 'No chrome.browserless.io cloud key stored. The Railway Browserless container cannot record video; the cloud v2 /mp4 endpoint is required. Push the key as the secret "browserless".' };
-  const attempts = [
-    { body: { url: pageUrl, viewport: { width: 1080, height: 1920, deviceScaleFactor: 1 }, timeout: 120000 } },
-    { body: { url: pageUrl, viewport: { width: 1080, height: 1920, deviceScaleFactor: 1 }, gotoOptions: { timeout: 60000 }, timeout: 120000 } },
+  const IO = k(env, ['browserless','browserless_io_key','browserless_io','BROWSERLESS','BROWSERLESS.IO']) || '';
+  const BLT = k(env, ['railway_browserless_token']) || '';
+  const encodeUrl = pageUrl + '?mode=encode';
+  const fnEsm = `export default async ({ page, context }) => {
+    await page.setViewport({ width: 1080, height: 1920, deviceScaleFactor: 1 });
+    await page.goto(context.url, { waitUntil: 'networkidle0', timeout: 90000 });
+    await page.waitForFunction(() => window.__mp4b64 || window.__mp4err, { timeout: 240000, polling: 1000 });
+    const b64 = await page.evaluate(() => window.__mp4b64 || null);
+    const err = await page.evaluate(() => window.__mp4err || null);
+    return { data: { b64, err }, type: 'application/json' };
+  }`;
+  const fnCjs = fnEsm.replace('export default', 'module.exports =');
+  const endpoints = [
+    ['https://chrome.browserless.io', IO, fnEsm, 'cloud'],
+    [(k(env, ['browserless_railway_url']) || 'https://browserless-production-e49c65ef.up.railway.app'), BLT, fnCjs, 'railway'],
   ];
-  let lastDetail = '';
-  for (const a of attempts) {
+  let lastDetail = 'no browserless endpoint with video encoding capability available';
+  for (const [base, tok, fn, via] of endpoints) {
+    if (!tok) continue;
     try {
-      const r = await fetch('https://chrome.browserless.io/mp4?token=' + encodeURIComponent(IO), {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(a.body)
+      const br = await fetch(base + '/function?token=' + encodeURIComponent(tok), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: fn, context: { url: encodeUrl } })
       });
-      const ct = r.headers.get('content-type') || '';
-      if (r.ok) {
-        const buf = await r.arrayBuffer();
-        if (buf && buf.byteLength > 10000) {
-          const key = 'reels/reel-' + Date.now() + '.mp4';
-          const url = await uploadVideoToR2(buf, key, env);
-          if (url) return { url, bytes: buf.byteLength };
-          return { error: 'Recording succeeded but the R2 upload failed' };
-        }
-        lastDetail = 'HTTP 200 but empty/short body (' + (buf ? buf.byteLength : 0) + ' bytes)';
-      } else {
-        lastDetail = 'HTTP ' + r.status + ' ' + ct + ' :: ' + (await r.text().catch(() => '')).slice(0, 500);
-      }
-    } catch (e) { lastDetail = e.message; }
+      const txt = await br.text();
+      if (!br.ok) { lastDetail = via + ' /function HTTP ' + br.status + ': ' + txt.slice(0, 300); continue; }
+      const d = JSON.parse(txt);
+      const b64 = (d.data && d.data.b64) || d.b64;
+      const err = (d.data && d.data.err) || d.err;
+      if (err) { lastDetail = via + ' page error: ' + String(err).slice(0, 300); continue; }
+      if (!b64) { lastDetail = via + ' returned no video data'; continue; }
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      if (bytes.byteLength < 20000) { lastDetail = via + ' suspiciously small output (' + bytes.byteLength + ' bytes)'; continue; }
+      const key = 'reels/reel-' + Date.now() + '.mp4';
+      const url = await uploadVideoToR2(bytes.buffer, key, env);
+      if (url) return { url, bytes: bytes.byteLength, via };
+      lastDetail = 'recording succeeded but the R2 upload failed';
+    } catch (e) { lastDetail = via + ': ' + e.message; }
   }
-  return { error: 'browserless /mp4 recording failed', detail: lastDetail };
+  return { error: 'reel MP4 encoding failed', detail: lastDetail };
 }
 
 async function bufferGql(query, variables, env) {
