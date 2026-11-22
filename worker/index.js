@@ -2596,7 +2596,12 @@ export default {
     if (path.startsWith('/r2/')) {
       try {
         const key = decodeURIComponent(path.slice(4));
-        const obj = await env.PRISM_ASSETS.get(key, { range: request.headers.get('range') || undefined, onlyIf: request.headers.get('if-none-match') ? { etagDoesNotMatch: request.headers.get('if-none-match').replace(/"/g, '') } : undefined });
+        const rangeHdr = request.headers.get('range') || '';
+        let rangeOpt;
+        const rm = rangeHdr.match(/bytes=(\d+)-(\d*)/);
+        if (rm) rangeOpt = { offset: parseInt(rm[1], 10), ...(rm[2] ? { length: parseInt(rm[2], 10) - parseInt(rm[1], 10) + 1 } : {}) };
+        const inm = request.headers.get('if-none-match');
+        const obj = await env.PRISM_ASSETS.get(key, { ...(rangeOpt ? { range: rangeOpt } : {}), ...(inm ? { onlyIf: { etagDoesNotMatch: inm.replace(/\"/g, '') } } : {}) });
         if (!obj) return new Response('Not found', { status: 404 });
         const h = new Headers();
         obj.writeHttpMetadata(h);
