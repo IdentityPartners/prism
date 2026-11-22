@@ -1893,7 +1893,7 @@ async function uploadVideoToR2(bytes, key, env) {
   if (!env.PRISM_ASSETS) return null;
   try {
     await env.PRISM_ASSETS.put(key, bytes, { httpMetadata: { contentType: 'video/mp4' } });
-    return R2_PUBLIC + key;
+    return 'https://prism-api.identitypartners.workers.dev/r2/' + key;
   } catch (e) { return null; }
 }
 
@@ -2592,6 +2592,26 @@ export default {
     const path = url.pathname;
     const origin = request.headers.get('Origin') || '';
 
+    // ── Public R2 streaming (reliable public URL for videos/Graph fetches) ──
+    if (path.startsWith('/r2/')) {
+      try {
+        const key = decodeURIComponent(path.slice(4));
+        const obj = await env.PRISM_ASSETS.get(key, { range: request.headers.get('range') || undefined, onlyIf: request.headers.get('if-none-match') ? { etagDoesNotMatch: request.headers.get('if-none-match').replace(/"/g, '') } : undefined });
+        if (!obj) return new Response('Not found', { status: 404 });
+        const h = new Headers();
+        obj.writeHttpMetadata(h);
+        h.set('etag', obj.httpEtag);
+        h.set('accept-ranges', 'bytes');
+        h.set('access-control-allow-origin', '*');
+        const range = request.headers.get('range');
+        if (range && obj.range) {
+          h.set('content-range', 'bytes ' + obj.range.offset + '-' + (obj.range.offset + obj.range.length - 1) + '/*');
+          return new Response(obj.body, { status: 206, headers: h });
+        }
+        if (request.headers.get('if-none-match') && obj && !obj.body) return new Response(null, { status: 304 });
+        return new Response(obj.body, { status: 200, headers: h });
+      } catch (e) { return new Response('r2 error: ' + e.message, { status: 500 }); }
+    }
     // ── Reel playback page (recorded to MP4 by the reel renderer) ──
     if (path.startsWith('/reel/page/')) {
       try {
