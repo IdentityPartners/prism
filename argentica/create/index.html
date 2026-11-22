@@ -37,6 +37,22 @@
       <label class="muted">Platform size</label>
       <div class="row" id="size-row" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
 
+      <div class="row" style="gap:12px; align-items:flex-end; margin-bottom:12px; flex-wrap:wrap;">
+        <div><label class="muted" style="display:block;">Text position</label>
+          <select id="lay-pos" style="margin-top:4px;"><option value="middle">Middle</option><option value="top">Top</option><option value="bottom">Bottom</option></select></div>
+        <div><label class="muted" style="display:block;">Alignment</label>
+          <select id="lay-align" style="margin-top:4px;"><option value="center">Centre</option><option value="left">Left</option><option value="right">Right</option></select></div>
+        <div><label class="muted" style="display:block;">Font colour</label>
+          <select id="lay-ink" style="margin-top:4px;">
+            <option value="">Auto (parchment)</option>
+            <option value="f7f3e9">Parchment #f7f3e9</option>
+            <option value="5c2d3f">Deep berry #5c2d3f</option>
+            <option value="0f3b3a">Deep teal #0f3b3a</option>
+            <option value="a88792">Dusty rose #a88792</option>
+            <option value="ffffff">White</option>
+          </select></div>
+      </div>
+
       <button id="gen">Generate</button>
       <div class="muted mt" id="gen-status"></div>
     </div>
@@ -204,6 +220,9 @@ document.getElementById('gen').addEventListener('click', async () => {
         topic: photoT ? activePhoto + ' ' + topic : topic,
         text: topic,
         template: templateId(),
+        position: document.getElementById('lay-pos').value,
+        align: document.getElementById('lay-align').value,
+        ink: document.getElementById('lay-ink').value || null,
         platform: 'instagram', skipQueue: true, skipQA: true
       })
     });
