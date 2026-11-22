@@ -4195,7 +4195,7 @@ export default {
       if (!refreshToken) return null;
       
       const clientId = k(env, ['zoho_client_id','ZOHO_CLIENT_ID']) || '1000.HMH9CMYHZ9TPTN1FAXK6VTC6R8ISMZ';
-      const clientSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || 'ee56f3b903ad5c8afadeabb699aee5243fd38eec51';
+      const clientSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || '';
       
       try {
         const refreshResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {
@@ -4315,7 +4315,7 @@ export default {
         if (!calResp.ok) {
           // Try token refresh
           const refreshKey = k(env, ['zoho_client_id','ZOHO_CLIENT_ID']) || '1000.O98MYTLET4DOLL1UWEGIH1WD3K4IFL';
-          const refreshSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || '452109750327203929e77ddd72a7fb813990b0bbfc';
+          const refreshSecret = k(env, ['zoho_client_secret','ZOHO_CLIENT_SECRET']) || '';
           if (zohoToken.refresh_token && refreshKey) {
             const refreshResp = await fetch('https://accounts.zoho.eu/oauth/v2/token', {
               method: 'POST',
@@ -5199,7 +5199,7 @@ data: ${JSON.stringify(data)}
         const text = (body.text || '').substring(0, 5000);
         const voice = body.voice || 'aura-arcas-en';
         const provider = body.provider || 'deepgram';
-        const DGKEY = k(env, ['deepgram_api_key','DEEPGRAM_API_KEY']) || '4e223a4cde01180063efa977df7a40f01c4894d1';
+        const DGKEY = k(env, ['deepgram_api_key','DEEPGRAM_API_KEY']) || '';
         const CARTKEY = k(env, ['cartesia_api_key','CARTESIA_API_KEY']) || '';
         const GKEY = k(env, ['gemini_free_key','GEMINI_FREE_KEY','gemini_api_key','GEMINI_API_KEY']) || '';
         const SMKEY = k(env, ['smallest_ai_api_key','SMALLEST_AI_API_KEY']) || '';
@@ -5279,7 +5279,7 @@ data: ${JSON.stringify(data)}
         const audioB64 = body.audio || '';
         const mimeType = body.mime_type || 'audio/webm';
         const provider = body.provider || 'deepgram';
-        const DGKEY = k(env, ['deepgram_api_key','DEEPGRAM_API_KEY']) || '4e223a4cde01180063efa977df7a40f01c4894d1';
+        const DGKEY = k(env, ['deepgram_api_key','DEEPGRAM_API_KEY']) || '';
         const GKEY = k(env, ['gemini_free_key','GEMINI_FREE_KEY','gemini_api_key','GEMINI_API_KEY']) || '';
 
         if (!audioB64) return json({error:'No audio'}, 400, origin);
