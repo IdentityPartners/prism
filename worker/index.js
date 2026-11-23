@@ -9335,7 +9335,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       const state = 'li-' + Math.random().toString(36).slice(2, 12);
       if (env.PRISM_KV) await env.PRISM_KV.put('linkedin:oauthstate', state, { expirationTtl: 600 });
       const cb = 'https://arch.identitypartners.uk/api/oauth/linkedin/callback';
-      const scope = 'openid profile w_member_social w_organization_admin rw_organization_admin';
+      const scope = 'openid profile w_member_social w_organization_social rw_organization_admin';
       return new Response(null, { status: 302, headers: { Location:
         'https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=' + encodeURIComponent(clientId) +
         '&redirect_uri=' + encodeURIComponent(cb) +
