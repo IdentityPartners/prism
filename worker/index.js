@@ -5544,7 +5544,7 @@ data: ${JSON.stringify(data)}
         const pw = k(env, ['bluesky_app_password','bluesky_password','BLUESKY_PASSWORD']) || '';
         if (!h || !pw) return json({ connected: false, error: 'Bluesky handle or app password secret missing' }, 200, origin);
         const r = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
-          method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ identifier: h, password: pw })
+          method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ identifier: String(h).replace(/^@/,''), password: pw })
         });
         return json({ connected: r.ok, handle: h, status: r.status, error: r.ok ? null : (await r.text().catch(() => '')).slice(0,200) }, 200, origin);
       } catch(e) { return json({ connected: false, error: e.message }, 200, origin); }
@@ -8804,7 +8804,7 @@ data: ${JSON.stringify(data)}
               if (bskyHandle && bskyPass) {
                 const authResp = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
                   method: 'POST', headers: {'Content-Type':'application/json'},
-                  body: JSON.stringify({ identifier: bskyHandle, password: bskyPass })
+                  body: JSON.stringify({ identifier: String(bskyHandle).replace(/^@/,''), password: bskyPass })
                 });
                 if (authResp.ok) {
                   const auth = await authResp.json();
