@@ -5573,12 +5573,12 @@ data: ${JSON.stringify(data)}
           } catch(e) { failLog.push('stability:' + e.message); }
         }
 
-        // Ideogram (v3-turbo) — best-in-class for text-in-image, poster-style work
+        // Ideogram (v3) — best-in-class for text-in-image, poster-style work. Auth verified; needs credits.
         if (IDEOKEY && (!ONLY || ONLY === 'ideogram')) {
           try {
-            const resp = await fetch('https://api.ideogram.ai/v1/generate', {
-              method: 'POST', headers: { 'Authorization': 'Bearer ' + IDEOKEY, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ image_request: { prompt, aspect_ratio: aspect, model: 'v3-turbo', output_resolution: 1024 } })
+            const resp = await fetch('https://api.ideogram.ai/v1/ideogram-v3/generate', {
+              method: 'POST', headers: { 'Api-Key': IDEOKEY, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt, aspect_ratio: (aspect || '1:1').replace(':','x'), output_resolution: 1024 })
             });
             if (resp.ok) {
               const d = await resp.json();
@@ -5608,9 +5608,9 @@ data: ${JSON.stringify(data)}
         // Image Router (multi-provider router) — OpenAI-compatible shape
         if (IMRKEY && (!ONLY || ONLY === 'imagerouter')) {
           try {
-            const resp = await fetch('https://api.imagerouter.ai/v1/images/generations', {
+            const resp = await fetch('https://api.imagerouter.io/v1/openai/images/generations', {
               method: 'POST', headers: { 'Authorization': 'Bearer ' + IMRKEY, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt, n: 1, size: '1024x1024' })
+              body: JSON.stringify({ prompt: prompt, model: body.imagerouterModel || 'imagerouter/auto-image' })
             });
             if (resp.ok) {
               const d = await resp.json();
