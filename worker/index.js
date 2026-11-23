@@ -8033,7 +8033,7 @@ data: ${JSON.stringify(data)}
           if (!filePath2) return json({success:false, error:'path required'}, 400, origin);
           try {
             const meta = await fetch('https://api.github.com/repos/IdentityPartners/prism/contents/' + filePath2, {
-              headers: { Authorization: 'Bearer ' + ghToken2, Accept: 'application/vnd.github+json' }
+              headers: { Authorization: 'Bearer ' + ghToken2, Accept: 'application/vnd.github+json', 'User-Agent': 'Argentica/1.0' }
             }).then(r => r.json());
             if (!meta.content) return json({success:false, error:'File not found: ' + filePath2}, 200, origin);
             let text = meta.content;
@@ -8076,7 +8076,7 @@ data: ${JSON.stringify(data)}
           }
           try {
             const head = await fetch('https://api.github.com/repos/IdentityPartners/prism/contents/' + filePath + '?ref=' + branch, {
-              headers: { Authorization: 'Bearer ' + ghToken, Accept: 'application/vnd.github+json' }
+              headers: { Authorization: 'Bearer ' + ghToken, Accept: 'application/vnd.github+json', 'User-Agent': 'Argentica/1.0' }
             }).then(r => r.json());
             const incomingBytes = new TextEncoder().encode(content).length;
             const gErr = guardBytes(head, incomingBytes);
@@ -8085,7 +8085,7 @@ data: ${JSON.stringify(data)}
             if (head && head.sha) payload.sha = head.sha;
             const put = await fetch('https://api.github.com/repos/IdentityPartners/prism/contents/' + filePath, {
               method: 'PUT',
-              headers: { Authorization: 'Bearer ' + ghToken, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+              headers: { Authorization: 'Bearer ' + ghToken, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json', 'User-Agent': 'Argentica/1.0' },
               body: JSON.stringify(payload)
             }).then(r => r.json());
             return json({success: !!(put.content && put.content.html_url), action, url: put.content && put.content.html_url, error: put.message && !put.content ? put.message : undefined}, 200, origin);
