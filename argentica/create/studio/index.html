@@ -134,7 +134,7 @@ window.SCENE_PACKS = [
   { id: 'storm', title: 'Same storm, different boats', desc: 'Two paths through the same weather, diverging and respecting.',
     bg: 'paleteal', scenes: [
       { pose: 'together', caption: 'Same storm. Different boats.' },
-      { pose: 'walk-apart', caption: 'Recovery does not have to look like anyone else\u2019s.' },
+      { pose: 'walk-apart', caption: 'Recovery does not have to look like anyone else.' },
       { pose: 'wave', caption: 'Different roads, equal dignity. That is the whole philosophy.' } ] },
   { id: 'return', title: 'The return', desc: 'Leaving and coming back — no shame in the circle.',
     bg: 'berry', scenes: [
@@ -163,7 +163,7 @@ window.loadPack = id => {
   scenes = (pk.scenes || []).map(x => ({ pose: x.pose, caption: x.caption }));
   if (!scenes.length) scenes = [{ pose: 'alone', caption: '' }];
   renderScenes();
-  ARG.toast('Loaded \'\u201C\'' + pk.title + '\'\u201D\u201D \u2014 tweak away.');
+  ARG.toast('Loaded ' + pk.title + ' \u2014 tweak away.');
   document.getElementById('ss-photo').value = '';
   document.getElementById('ss-caption').value = '';
 };
