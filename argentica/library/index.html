@@ -103,24 +103,26 @@ async function saveStructure() {
 
 // ── Structure management: sections, subsections, units ──
 function addSection() {
-  const name = prompt('Name of the new section (e.g. Dissertation, PhD):');
-  if (!name || !name.trim()) return;
-  const id = 'sec-' + Date.now();
-  structure.sections.push({ id, name: name.trim(), modules: [ { id: 'mod-' + Date.now(), name: name.trim(), kind: 'sections', sections: ['General'] } ] });
-  saveStructure();
-  curSection = id; curModule = structure.sections.find(x => x.id === id).modules[0].id;
-  curWeek = 'General';
-  renderTabs();
+  askNew('New section', 'Name of the new section (e.g. Dissertation, PhD):', async v => {
+    const id = 'sec-' + Date.now();
+    structure.sections.push({ id, name: v, modules: [ { id: 'mod-' + Date.now(), name: v, kind: 'sections', sections: ['General'] } ] });
+    await saveStructure();
+    curSection = id; curModule = structure.sections.find(x => x.id === id).modules[0].id;
+    curWeek = 'General';
+    renderTabs();
+    ARG.toast('Section added.');
+  });
 }
 
 function addSubsection() {
-  const name = prompt('Name of the new subsection of ' + section().name + ' (weeks, themes, categories — your choice):');
-  if (!name || !name.trim()) return;
-  const id = 'mod-' + Date.now();
-  section().modules.push({ id, name: name.trim(), kind: 'sections', sections: ['General'], notebooks: [] });
-  saveStructure();
-  curModule = id; curWeek = 'General';
-  renderTabs();
+  askNew('New subsection', 'Name of the new subsection of ' + esc(section().name) + ' (weeks, themes, categories — your choice):', async v => {
+    const id = 'mod-' + Date.now();
+    section().modules.push({ id, name: v, kind: 'sections', sections: ['General'], notebooks: [] });
+    await saveStructure();
+    curModule = id; curWeek = 'General';
+    renderTabs();
+    ARG.toast('Subsection added.');
+  });
 }
 
 function addUnit(isWeek) {
@@ -130,11 +132,14 @@ function addUnit(isWeek) {
     saveStructure();
     curWeek = 'Week ' + m.weeks;
   } else {
-    const name = prompt('Name of the unit inside ' + module_().name + ' (theme, category, chapter…):');
-    if (!name || !name.trim()) return;
-    module_().sections.push(name.trim());
-    saveStructure();
-    curWeek = name.trim();
+    askNew('New unit', 'Name of the unit inside ' + esc(module_().name) + ' (theme, category, chapter…):', async v => {
+      module_().sections.push(v);
+      await saveStructure();
+      curWeek = v;
+      renderTabs();
+      ARG.toast('Unit added.');
+    });
+    return;
   }
   renderTabs();
 }
@@ -170,6 +175,17 @@ const askDelete = (label, what, onDelete) => {
     [['Cancel', 'ghost', closeMiniModal], ['Delete', '', async () => { closeMiniModal(); await onDelete(); }]]);
 };
 
+const askNew = (title, hint, onName) => {
+  openMiniModal(title,
+    '<label class="muted" style="font-size:12px;display:block;margin:0 0 4px;">' + hint + '</label>' +
+    '<input type="text" id="mini-input" value="" style="width:100%;box-sizing:border-box;">',
+    [['Cancel', 'ghost', closeMiniModal], ['Create', '', async () => {
+      const v = document.getElementById('mini-input').value.trim();
+      if (!v) { ARG.toast('Give it a name.'); return; }
+      closeMiniModal(); await onName(v);
+    }]]);
+  setTimeout(() => document.getElementById('mini-input').focus(), 40);
+};
 window.secEdit = id => { const sec = structure.sections.find(x => x.id === id); if (!sec) return;
   askRename('section "' + sec.name + '"', sec.name, async v => { sec.name = v; await saveStructure(); renderTabs(); }); };
 window.secDelete = id => { if (structure.sections.length < 2) { ARG.toast('Keep at least one section.'); return; }
@@ -282,22 +298,25 @@ function manageStructure() {
   };
   const delUnit = document.getElementById('stm-del-unit');
   if (delUnit) delUnit.onclick = async () => {
-    if (!confirm('Delete unit "' + curWeek + '"? Documents filed here will surface under General.')) return;
-    mod.sections = mod.sections.filter(u => u !== curWeek); curWeek = mod.sections[0];
-    await saveStructure(); document.getElementById('smgr-modal').style.display = 'none'; renderTabs();
+    askDelete('unit "' + esc(curWeek) + '"', 'Delete unit "' + esc(curWeek) + '"? Documents filed here will surface under General.', async () => {
+      mod.sections = mod.sections.filter(u => u !== curWeek); curWeek = mod.sections[0];
+      await saveStructure(); document.getElementById('smgr-modal').style.display = 'none'; renderTabs();
+    });
   };
   const delMod = document.getElementById('stm-del-mod');
   if (delMod) delMod.onclick = async () => {
-    if (!confirm('Delete subsection "' + mod.name + '"? Documents filed here will surface under the first remaining subsection.')) return;
-    sec.modules = sec.modules.filter(x => x.id !== mod.id); curModule = sec.modules[0].id; curWeek = unitList()[0];
-    await saveStructure(); document.getElementById('smgr-modal').style.display = 'none'; renderTabs();
+    askDelete('subsection "' + esc(mod.name) + '"', 'Delete subsection "' + esc(mod.name) + '"? Documents filed here will surface under the first remaining subsection.', async () => {
+      sec.modules = sec.modules.filter(x => x.id !== mod.id); curModule = sec.modules[0].id; curWeek = unitList()[0];
+      await saveStructure(); document.getElementById('smgr-modal').style.display = 'none'; renderTabs();
+    });
   };
   const delSec = document.getElementById('stm-del-sec');
   if (delSec) delSec.onclick = async () => {
-    if (!confirm('Delete section "' + sec.name + '" and all its subsections? Documents are kept.')) return;
-    structure.sections = structure.sections.filter(x => x.id !== sec.id);
-    curSection = structure.sections[0].id; curModule = section().modules[0].id; curWeek = unitList()[0];
-    await saveStructure(); document.getElementById('smgr-modal').style.display = 'none'; renderTabs();
+    askDelete('section "' + esc(sec.name) + '"', 'Delete section "' + esc(sec.name) + '" and all its subsections? Documents are kept.', async () => {
+      structure.sections = structure.sections.filter(x => x.id !== sec.id);
+      curSection = structure.sections[0].id; curModule = section().modules[0].id; curWeek = unitList()[0];
+      await saveStructure(); document.getElementById('smgr-modal').style.display = 'none'; renderTabs();
+    });
   };
 }
 
@@ -423,25 +442,28 @@ function assignNotebookDialog() {
   if (!all.length) { ARG.toast('No notebooks exist yet — create one with "New notebook".'); return; }
   const m = module_();
   m.notebooks = m.notebooks || [];
-  const html = all.map(nb => (m.notebooks.includes(nb.id) ? '[x] ' : '[ ] ') + (nb.icon || '📓') + ' ' + nb.name).join('\n');
-  const toggle = prompt('Type the number of a notebook to assign/unassign to "' + m.name + '" (blank to finish):\n' + all.map((nb, i) => (i + 1) + '. ' + nb.name + (m.notebooks.includes(nb.id) ? ' (assigned)' : '')).join('\n'));
-  const n = parseInt(toggle, 10);
-  if (!n || n < 1 || n > all.length) { saveStructure(); renderTabs(); return; }
-  const id = all[n - 1].id;
-  const i = m.notebooks.indexOf(id);
-  if (i >= 0) m.notebooks.splice(i, 1); else m.notebooks.push(id);
-  saveStructure(); assignNotebookDialog();
+  const listHtml = '<div style="max-height:260px;overflow-y:auto;">' + all.map(nb =>
+    '<label style="display:flex;gap:8px;align-items:center;padding:5px 0;font-size:13.5px;">' +
+    '<input type="checkbox" class="nb-assign" data-id="' + esc(nb.id) + '"' + (m.notebooks.includes(nb.id) ? ' checked' : '') + '> ' +
+    (nb.icon || '📓') + ' ' + esc(nb.name) + '</label>').join('') + '</div>';
+  openMiniModal('Assign notebooks — ' + esc(m.name), listHtml,
+    [['Cancel', 'ghost', closeMiniModal], ['Save', '', async () => {
+      m.notebooks = [...document.querySelectorAll('.nb-assign:checked')].map(c => c.dataset.id);
+      closeMiniModal(); await saveStructure(); renderTabs();
+      ARG.toast('Notebook assignments saved.');
+    }]]);
 }
 function createAndAssignNotebook() {
-  const name = prompt('Name of the new notebook:');
-  if (!name || !name.trim()) return;
-  const all = allNotebooks();
-  const nb = { id: 'nb-' + Date.now(), name: name.trim(), icon: '📓', sections: [ { id: 'sec-' + Date.now(), name: 'General', pages: [] } ] };
-  all.unshift(nb);
-  localStorage.setItem('wh-notebooks', JSON.stringify(all));
-  const m = module_(); m.notebooks = m.notebooks || []; m.notebooks.push(nb.id);
-  saveStructure(); renderTabs();
-  ARG.toast('Notebook "' + name.trim() + '" created and assigned.');
+  const then = async name => {
+    const all = allNotebooks();
+    const nb = { id: 'nb-' + Date.now(), name: name.trim(), icon: '📓', sections: [ { id: 'sec-' + Date.now(), name: 'General', pages: [] } ] };
+    all.unshift(nb);
+    localStorage.setItem('wh-notebooks', JSON.stringify(all));
+    const m = module_(); m.notebooks = m.notebooks || []; m.notebooks.push(nb.id);
+    await saveStructure(); renderTabs();
+    ARG.toast('Notebook "' + name.trim() + '" created and assigned.');
+  };
+  askNew('New notebook', 'Name of the new notebook:', then);
 }
 function unassignNb(id) { const m = module_(); m.notebooks = (m.notebooks || []).filter(x => x !== id); saveStructure(); renderTabs(); }
 
