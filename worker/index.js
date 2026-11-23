@@ -9232,8 +9232,8 @@ When asked to approve items, respond with the item IDs to approve. When asked to
       try {
         const short = k(env, ['meta_user_token','META_USER_TOKEN']) || '';
         if (!short) return json({ success: false, error: 'no meta_user_token stored' }, 400, origin);
-        const appId = k(env, ['threads_client_id','threads_app_id']) || '';
-        const appSecret = k(env, ['threads_client_secret','threads_app_secret']) || '';
+        const appId = k(env, ['meta_app_id','facebook_app_id','threads_client_id','threads_app_id']) || '';
+        const appSecret = k(env, ['meta_app_secret','facebook_app_secret','threads_client_secret','threads_app_secret']) || '';
         if (!appId || !appSecret) return json({ success: false, error: 'app credentials not stored' }, 400, origin);
         const ex = await fetch('https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=' + appId + '&client_secret=' + appSecret + '&fb_exchange_token=' + encodeURIComponent(short)).then(r => r.json());
         if (!ex.access_token) return json({ success: false, error: (ex.error && ex.error.message) || 'exchange failed', raw: ex }, 200, origin);
