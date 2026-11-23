@@ -29,14 +29,14 @@
   #hero-date { font-size:14px; color:rgba(255,255,255,.62); margin-bottom:34px; }
 
   /* search bar */
-  .searchbar { display:flex; align-items:center; gap:0; max-width:720px; margin:0 auto;
+  .searchbar { display:flex; align-items:center; flex-wrap:wrap; gap:0; max-width:720px; margin:0 auto;
     background:rgba(255,255,255,.13); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%);
     border:1px solid rgba(255,255,255,.28); border-radius:16px; padding:6px 6px 6px 18px;
     box-shadow:0 10px 42px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.22); }
   .searchbar:focus-within { border-color:rgba(255,255,255,.55); background:rgba(255,255,255,.18); }
-  .searchbar input { flex:1; background:none; border:none; outline:none; color:#fff; font-family:inherit; font-size:16.5px; padding:10px 8px 10px 0; }
+  .searchbar input { flex:1 1 260px; min-width:220px; background:none; border:none; outline:none; color:#fff; font-family:inherit; font-size:16.5px; padding:10px 8px 10px 0; }
   .searchbar input::placeholder { color:rgba(255,255,255,.55); }
-  .searchbar select { background:rgba(255,255,255,.14); color:#fff; border:none; border-radius:10px; padding:8px 9px; font-family:inherit; font-size:13px; cursor:pointer; outline:none; margin-left:8px; }
+  .searchbar select { background:rgba(255,255,255,.14); color:#fff; border:none; border-radius:10px; padding:8px 9px; font-family:inherit; font-size:13px; cursor:pointer; outline:none; margin-left:8px; flex:0 0 auto; }
   .searchbar select option { color:#1c1a17; }
   .searchbar button { background:#fff; color:#0f3b3a; border:none; border-radius:11px; padding:10px 20px; font-family:inherit; font-size:14.5px; cursor:pointer; margin-right:8px; flex-shrink:0; }
   .searchbar button:hover { background:#f0ede4; }

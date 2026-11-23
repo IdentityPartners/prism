@@ -103,6 +103,76 @@ async function saveStructure() {
   } catch (e) {}
 }
 
+// -- Reorder, migrate and promote subsections & units --
+function modShift(id, d) {
+  const ms = section().modules; const i = ms.findIndex(x => x.id === id);
+  const j = i + d; if (i < 0 || j < 0 || j >= ms.length) return;
+  [ms[i], ms[j]] = [ms[j], ms[i]];
+  saveStructure(); renderTabs();
+}
+function modMove(id) {
+  const from = section(); const mod = from.modules.find(x => x.id === id);
+  if (!mod) return;
+  const opts = structure.sections.filter(x => x.id !== from.id);
+  if (!opts.length) { ARG.toast('No other section to move to.'); return; }
+  openMiniModal('Move subsection "' + esc(mod.name) + '"', make_section_select(opts),
+    [['Cancel', 'ghost', closeMiniModal], ['Move', '', async () => {
+      const target = document.getElementById('mini-target').value;
+      from.modules = from.modules.filter(x => x.id !== id);
+      structure.sections.find(x => x.id === target).modules.push(mod);
+      if (curModule === id) { curSection = target; curModule = id; curWeek = unitList()[0]; }
+      closeMiniModal(); await saveStructure(); renderTabs();
+      ARG.toast('Subsection moved.');
+    }]]);
+}
+function modPromote(id) {
+  const from = section(); const i = from.modules.findIndex(x => x.id === id);
+  const mod = from.modules[i]; if (!mod) return;
+  structure.sections.push({ id: 'sec-' + Date.now(), name: mod.name, modules: [mod] });
+  from.modules.splice(i, 1);
+  if (curModule === id) { curSection = structure.sections[structure.sections.length - 1].id; }
+  saveStructure(); renderTabs();
+  ARG.toast('Subsection promoted to its own section.');
+}
+function make_section_select(opts) {
+  return '<label class="muted" style="font-size:12px;display:block;margin:0 0 4px;">Target section</label>' +
+    '<select id="mini-target" style="width:100%;box-sizing:border-box;">' +
+    opts.map(x => '<option value="' + esc(x.id) + '">' + esc(x.name) + '</option>').join('') + '</select>';
+}
+function unitShift(d) {
+  const m = module_(); if (m.kind !== 'sections') return;
+  const i = m.sections.indexOf(curWeek); const j = i + d;
+  if (i < 0 || j < 0 || j >= m.sections.length) return;
+  [m.sections[i], m.sections[j]] = [m.sections[j], m.sections[i]];
+  saveStructure(); renderTabs();
+}
+function unitMove() {
+  const m = module_(); if (m.kind !== 'sections') return;
+  const u = curWeek;
+  const opts = structure.sections.flatMap(sec => sec.modules.filter(mm => mm.id !== m.id && mm.kind === 'sections').map(mm => ({ sec, mm })));
+  if (!opts.length) { ARG.toast('No other unit-style subsection to move to.'); return; }
+  openMiniModal('Move unit "' + esc(u) + '"', '<label class="muted" style="font-size:12px;display:block;margin:0 0 4px;">Target subsection</label>' +
+    '<select id="mini-target" style="width:100%;box-sizing:border-box;">' +
+    opts.map(o => '<option value="' + esc(o.sec.id) + '|' + esc(o.mm.id) + '">' + esc(o.sec.name) + ' › ' + esc(o.mm.name) + '</option>').join('') + '</select>',
+    [['Cancel', 'ghost', closeMiniModal], ['Move', '', async () => {
+      const [ts, tm] = document.getElementById('mini-target').value.split('|');
+      m.sections = m.sections.filter(x => x !== u);
+      structure.sections.find(x => x.id === ts).modules.find(x => x.id === tm).sections.push(u);
+      curWeek = m.sections[0] || 'General';
+      closeMiniModal(); await saveStructure(); renderTabs();
+      ARG.toast('Unit moved.');
+    }]]);
+}
+function unitPromote() {
+  const m = module_(); if (m.kind !== 'sections') return;
+  const u = curWeek;
+  section().modules.push({ id: 'mod-' + Date.now(), name: u, kind: 'sections', sections: ['General'], notebooks: [] });
+  m.sections = m.sections.filter(x => x !== u);
+  curModule = section().modules[section().modules.length - 1].id; curWeek = 'General';
+  saveStructure(); renderTabs();
+  ARG.toast('Unit promoted to its own subsection.');
+}
+
 // ── Structure management: sections, subsections, units ──
 function addSection() {
   askNew('New section', 'Name of the new section (e.g. Dissertation, PhD):', async v => {
@@ -391,6 +461,10 @@ function renderTabs() {
   const mt = document.getElementById('module-tabs');
   mt.style.display = 'flex';
   mt.innerHTML = section().modules.map(m => '<button data-id="' + esc(m.id) + '"' + (m.id === curModule ? ' class="active"' : '') + '>' + esc(m.name) +
+    '<span title="Move up" onclick="event.stopPropagation();modShift(\'' + esc(m.id) + '\',-1)"' + pen_style + '>\u25B4</span>' +
+    '<span title="Move down" onclick="event.stopPropagation();modShift(\'' + esc(m.id) + '\',1)"' + pen_style + '>\u25BE</span>' +
+    '<span title="Move to another section" onclick="event.stopPropagation();modMove(\'' + esc(m.id) + '\')"' + pen_style + '>\u21C4</span>' +
+    '<span title="Promote to its own section" onclick="event.stopPropagation();modPromote(\'' + esc(m.id) + '\')"' + pen_style + '>\u2933</span>' +
     '<span title="Rename this subsection" onclick="event.stopPropagation();modEdit(\'' + esc(m.id) + '\')"' + pen_style + '>\u270E</span>' +
     '<span title="Delete this subsection" onclick="event.stopPropagation();modDelete(\'' + esc(m.id) + '\')"' + pen_style + '>\u2715</span></button>').join('') +
     '<button class="ghost small" style="max-width:none;" onclick="addSubsection()" title="Add a subsection to ' + esc(section().name) + '">+ Subsection</button>';
@@ -415,7 +489,7 @@ function renderTabs() {
     const leaf = (u.split('>').pop() || '').trim();
     const label = u.startsWith('Week ') ? u.replace('Week ', 'W') : leaf;
     const manage = m.kind === 'sections' && u !== 'General'
-      ? '&nbsp;<span title="Rename this unit" onclick="event.stopPropagation();unitEdit(\'' + esc(u).replace(/'/g, "\\'") + '\')" style="font-size:9px;opacity:.55;">\u270E</span><span title="Delete this unit" onclick="event.stopPropagation();unitDelete(\'' + esc(u).replace(/'/g, "\\'") + '\')" style="font-size:9px;opacity:.55;">\u2715</span>' : '';
+      ? '&nbsp;<span title="Move up" onclick="event.stopPropagation();if(curWeek===this.closest(\'button\').dataset.u){unitShift(-1);}" style="font-size:9px;opacity:.55;">\u25B4</span><span title="Move down" onclick="event.stopPropagation();if(curWeek===this.closest(\'button\').dataset.u){unitShift(1);}" style="font-size:9px;opacity:.55;">\u25BE</span><span title="Move to another subsection" onclick="event.stopPropagation();if(curWeek===this.closest(\'button\').dataset.u){unitMove();}" style="font-size:9px;opacity:.55;">\u21C4</span><span title="Promote to its own subsection" onclick="event.stopPropagation();if(curWeek===this.closest(\'button\').dataset.u){unitPromote();}" style="font-size:9px;opacity:.55;">\u2933</span><span title="Select this unit first, then use the \u21C4 tools" style="font-size:9px;opacity:.35;">\u2139</span><span title="Rename this unit" onclick="event.stopPropagation();unitEdit(\'' + esc(u).replace(/'/g, "\\'") + '\')" style="font-size:9px;opacity:.55;">\u270E</span><span title="Delete this unit" onclick="event.stopPropagation();unitDelete(\'' + esc(u).replace(/'/g, "\\'") + '\')" style="font-size:9px;opacity:.55;">\u2715</span>' : '';
     return '<button class="ghost small"' + (u === curWeek ? ' style="background:var(--rose); color:#fff; border-color:var(--rose);"' : (depth > 0 ? ' style="margin-left:' + (depth * 10) + 'px;color:var(--ink-soft);"' : '')) + ' data-u="' + esc(u) + '" title="' + esc(u) + '">' + esc(label) + manage + '</button>';
   }).join('');
   if (m.kind === 'weeks') wHtml += '<button class="ghost small" style="max-width:none;" onclick="addUnit(true)" title="Add another week">+ Week</button>';

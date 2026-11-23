@@ -47,13 +47,15 @@ a:hover { text-decoration: underline; }
   overflow-y: auto;
 }
 
-.arg-side .brand {
+.arg-side .brand, a.brand {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-bottom: 26px;
   padding: 0 6px;
+  cursor: pointer;
 }
+a.brand:active { opacity: .8; }
 
 .arg-side .brand img { width: 34px; height: 34px; object-fit: contain; }
 

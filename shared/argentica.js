@@ -152,11 +152,9 @@
     side.className = 'arg-side' + (navCollapsed ? ' collapsed' : '');
     side.innerHTML =
       '<button class="nav-toggle" title="Collapse / expand the toolbar" aria-label="Toggle toolbar">' + (navCollapsed ? '\u203A' : '\u2039') + '</button>' +
-      '<div class="brand"><img src="/shared/assets/logo-square.png" alt="Identity Partners"><div class="name">Argentica</div></div>' +
+      '<a href="/argentica/" class="brand" title="Argentica home" style="text-decoration:none;"><img src="/shared/assets/logo-square.png" alt="Identity Partners"><div class="name">Argentica</div></a>' +
       '<nav class="arg-nav">' +
-      '<div class="section">Work</div>' +
-      '<a href="/argentica/"' + (activeKey === 'home' ? ' class="active"' : '') + '>Home</a>' +
-      '<a href="/argentica/chat/"' + (activeKey === 'chat' ? ' class="active"' : '') + '>Tay (Chat)</a>' +
+      '<a href="/argentica/chat/"' + (activeKey === 'chat' ? ' class="active"' : '') + ' style="font-weight:600;">Chat</a>' +
       Object.entries(WORKSPACES).map(([id, ws]) => {
         const active = found && found.id === id;
         const home = ws.tabs[0];
@@ -166,7 +164,7 @@
           (active ? ws.tabs.map(t =>
             '<a href="' + t.href + '" style="padding-left:26px; font-size:12.5px;"' + (t.key === activeKey ? ' class="active"' : '') + '>' + t.label + '</a>'
           ).join('') : '');
-      }).join('').replace(/(<a href="[^"]+"[^>]*>)(Home|Tay \(Chat\)|Library|Research|Create|Commercial|Comms|System|[^<>]{2,20})(<\/a>)/g, function (m, a, txt, z) { return a + '<span class="navlbl">' + txt + '</span>' + z; }) +
+      }).join('').replace(/(<a href="[^"]+"[^>]*>)(Home|Chat|Library|Research|Create|Commercial|Comms|System|[^<>]{2,20})(<\/a>)/g, function (m, a, txt, z) { return a + '<span class="navlbl">' + txt + '</span>' + z; }) +
       '</nav>' +
       '<div class="arg-theme-row">' +
         '<button data-theme-btn="brand" title="Identity Partners dawn/dusk brand pack">Dawn</button>' +

@@ -47,8 +47,9 @@
       <span class="muted" id="dt-upload-note" style="font-size:12px;"></span>
     </div>
 
-    <div class="row mt">
-      <input type="text" id="dt-input" placeholder="e.g. the chat is slow today, diagnose it (attachments above go with this message)">
+    <textarea id="dt-input" rows="4" style="width:100%; box-sizing:border-box; min-height:64px;" placeholder="Describe the problem — multiple lines welcome. Attachments (above) go with this message."></textarea>
+    <div class="row" style="justify-content:flex-end; margin-top:8px; gap:8px;">
+      <span class="muted" style="font-size:12px; margin-right:auto;">Ctrl/Cmd+Enter also sends</span>
       <button id="dt-send">Send</button>
     </div>
   </div>
@@ -136,6 +137,7 @@ document.getElementById('dt-upload').addEventListener('click', async () => {
 });
 
 // ── Send ──
+document.getElementById('dt-input').addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') document.getElementById('dt-send').click(); });
 document.getElementById('dt-send').addEventListener('click', async () => {
   const input = document.getElementById('dt-input');
   const msg = input.value.trim();
