@@ -5508,6 +5508,15 @@ data: ${JSON.stringify(data)}
     }
 
     // ── Image generation ──────────────────────────────────────────────────────
+    if (path === '/api/assets/log' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        if (!body.url) return json({error:'url required'}, 400, origin);
+        await logAsset(env, body.kind || 'asset', body.url, body.meta || {});
+        return json({success:true}, 200, origin);
+      } catch(e) { return json({error:e.message}, 500, origin); }
+    }
+
     if (path === '/api/image/generate' && request.method === 'POST') {
       try {
         const body = await request.json();
@@ -11346,6 +11355,15 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           };
           const q = templateQueries[templateId] || (body.background ? (body.background + ' ' + topic) : topic);
           imgBase64 = await semanticImageSearch(q, env);
+        }
+
+        // Explicit image override from Canvas Studio V2 (dialogue-box picker)
+        if (body.imageDataUrl && /^data:image\//.test(body.imageDataUrl)) { imgBase64 = body.imageDataUrl; }
+        if (body.imageUrl) {
+          try {
+            const r = await fetch(body.imageUrl);
+            if (r.ok) imgBase64 = 'data:' + (r.headers.get('content-type')||'image/jpeg') + ';base64,' + Buffer.from(await r.arrayBuffer()).toString('base64');
+          } catch (e) {}
         }
 
         // ── Build data object for new renderers ───────────────────────────────

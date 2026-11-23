@@ -6,75 +6,87 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Argentica — Canvas</title>
+<title>Argentica — Canvas Studio</title>
 <link rel="stylesheet" href="/shared/argentica.css">
 <style>
   .tpl-btn { border: 2px solid var(--line); border-radius: 8px; padding: 0; background: #fff; cursor: pointer; overflow: hidden; text-align: left; }
-  .tpl-btn.active { border-color: var(--teal); }
+  .tpl-btn.active { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(15,59,58,0.15); }
   .tpl-btn img, .tpl-btn svg { width: 100%; aspect-ratio: 1; display: block; }
   .tpl-btn .lbl { padding: 5px 7px; font-size: 11.5px; color: var(--teal); display: block; }
   #size-row button { min-width: 74px; }
+  #tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+  .stage-shape { display: flex; gap: 14px; flex-wrap: wrap; }
+  .stage-col { flex: 1; min-width: 240px; }
+  .stage-box { border: 1.5px dashed var(--line); border-radius: 10px; padding: 10px; background: rgba(240,233,224,0.4); }
+  .stage-box h5 { margin: 0 0 8px; font-family: var(--serif, 'EB Garamond', Georgia, serif); font-size: 15px; color: var(--berry, #5c2d3f); }
+  .img-chip { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .img-chip img { width: 54px; height: 54px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+  #img-modal { position: fixed; inset: 0; background: rgba(28,26,23,0.45); display: none; align-items: flex-start; justify-content: center; z-index: 90; padding: 4vh 12px; }
+  #img-modal.open { display: flex; }
+  #img-modal .panel { background: #f7f3e9; border-radius: 14px; max-width: 780px; width: 100%; max-height: 88vh; overflow: auto; padding: 18px 20px; box-shadow: 0 18px 50px rgba(28,26,23,0.35); }
+  .ip-tabs { display: flex; gap: 6px; margin: 10px 0 14px; flex-wrap: wrap; }
+  .ip-tabs button { padding: 6px 14px; border-radius: 999px; border: 1.5px solid var(--line,#7a4254); background: transparent; cursor: pointer; font-size: 13px; color: #5c2d3f; }
+  .ip-tabs button.on { background: #5c2d3f; color: #f7f3e9; border-color: #5c2d3f; }
+  #ip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 12px; }
+  .close-x { float: right; border: none; background: none; font-size: 20px; cursor: pointer; color: #5c2d3f; }
 </style>
 </head>
 <body>
 <div class="arg-page" data-key="canvas">
   <div class="arg-pagehead">
-    <h1>Canvas</h1>
-    <div class="sub">Branded post images. Pick a template, a palette, a photo theme and a platform size — then generate.</div>
+    <h1>Canvas Studio</h1>
+    <div class="sub">Pick a template — it shapes the inputs below — then generate, save it to the Asset library or send it to Publishing.</div>
   </div>
 
-  <div class="grid two">
-    <div class="card">
-      <h3>Content</h3>
-      <textarea id="topic" style="min-height:70px;" placeholder="The line or topic — e.g. today's ONS figures on alcohol deaths, or a quote about recovery"></textarea>
-
-      <label class="muted" style="margin-top:12px;">Palette</label>
-      <div class="row" id="palette-row" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
-
-      <label class="muted">Photo theme <span class="muted" style="font-size:11px;">(for photographic templates)</span></label>
-      <div class="row" id="photo-row" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
-
-      <label class="muted">Platform size</label>
-      <div class="row" id="size-row" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
-
-      <div class="row" style="gap:12px; align-items:flex-end; margin-bottom:12px; flex-wrap:wrap;">
-        <div><label class="muted" style="display:block;">Text position</label>
-          <select id="lay-pos" style="margin-top:4px;"><option value="middle">Middle</option><option value="top">Top</option><option value="bottom">Bottom</option></select></div>
-        <div><label class="muted" style="display:block;">Alignment</label>
-          <select id="lay-align" style="margin-top:4px;"><option value="center">Centre</option><option value="left">Left</option><option value="right">Right</option></select></div>
-        <div><label class="muted" style="display:block;">Font colour</label>
-          <select id="lay-ink" style="margin-top:4px;">
-            <option value="">Auto (parchment)</option>
-            <option value="f7f3e9">Parchment #f7f3e9</option>
-            <option value="5c2d3f">Deep berry #5c2d3f</option>
-            <option value="0f3b3a">Deep teal #0f3b3a</option>
-            <option value="a88792">Dusty rose #a88792</option>
-            <option value="ffffff">White</option>
-          </select></div>
-      </div>
-
-      <button id="gen">Generate</button>
-      <div class="muted mt" id="gen-status"></div>
-      <div id="gen-will-use" style="font-size:12px;color:#7a4254;margin-top:6px;"></div>
-    </div>
-
-    <div class="card">
-      <h3>Templates — click to select</h3>
-      <div id="tpl-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:10px;"></div>
-      <div id="tpl-fields" style="margin-top:12px;"></div>
-    </div>
+  <!-- 1 · Templates across the top -->
+  <div class="card">
+    <h3>Templates</h3>
+    <div id="tpl-grid"></div>
   </div>
 
+  <!-- 2 · Stage: the input area, its shape defined by the chosen template -->
+  <div class="card mt" id="stage-card">
+    <h3 id="stage-title">Content</h3>
+    <div id="stage"></div>
+
+    <!-- image slot chip (shown for photographic templates) -->
+    <div id="stage-image" style="display:none; margin-top:12px;"></div>
+
+    <div id="extra-fields" style="margin-top:12px;"></div>
+
+    <div class="muted mt" id="gen-will-use" style="font-size:12px; color:#7a4254;"></div>
+  </div>
+
+  <!-- 3 · Finishing: palette, size, text layout -->
   <div class="card mt">
-    <h3>Choose your own photo <span class="muted" style="font-size:11px;">Pexels · Unsplash · Pixabay · Openverse · Wikimedia</span></h3>
-    <div class="row">
-      <input type="text" id="photo-q" placeholder="Search all five sources — e.g. calm seascape, forest path, London skyline…">
-      <button id="photo-run">Search</button>
+    <h3>Finishing</h3>
+    <label class="muted">Palette</label>
+    <div class="row" id="palette-row" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
+
+    <label class="muted">Platform size</label>
+    <div class="row" id="size-row" style="flex-wrap:wrap; gap:6px; margin:6px 0 12px;"></div>
+
+    <div class="row" style="gap:12px; align-items:flex-end; flex-wrap:wrap;">
+      <div><label class="muted" style="display:block;">Text position</label>
+        <select id="lay-pos" style="margin-top:4px;"><option value="middle">Middle</option><option value="top">Top</option><option value="bottom">Bottom</option></select></div>
+      <div><label class="muted" style="display:block;">Alignment</label>
+        <select id="lay-align" style="margin-top:4px;"><option value="center">Centre</option><option value="left">Left</option><option value="right">Right</option></select></div>
+      <div><label class="muted" style="display:block;">Font colour</label>
+        <select id="lay-ink" style="margin-top:4px;">
+          <option value="">Auto (parchment)</option>
+          <option value="f7f3e9">Parchment #f7f3e9</option>
+          <option value="5c2d3f">Deep berry #5c2d3f</option>
+          <option value="0f3b3a">Deep teal #0f3b3a</option>
+          <option value="a88792">Dusty rose #a88792</option>
+          <option value="ffffff">White</option>
+        </select></div>
     </div>
-    <div id="photo-grid" class="mt" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:8px;"></div>
-    <div class="muted mt" id="photo-note">A chosen photo is composed client-side with the IP logo, your text, the tags and the footer — fully branded, at your chosen platform size.</div>
+
+    <button id="gen" style="margin-top:16px;">Generate</button>
+    <div class="muted mt" id="gen-status"></div>
   </div>
 
+  <!-- 4 · Result -->
   <div class="card mt" id="result-card" style="display:none;">
     <h3>Result</h3>
     <div class="row" style="align-items:flex-start; flex-wrap:wrap;">
@@ -84,10 +96,46 @@
         <div class="row mt" style="flex-wrap:wrap; gap:8px;">
           <button class="small" id="export-png">Export PNG at chosen size</button>
           <button class="ghost small" id="send-publish">Send to Publishing</button>
+          <button class="ghost small" id="save-assets">Save to Asset library</button>
           <button class="ghost small" id="open-full">Open full size</button>
         </div>
         <div class="muted mt" id="export-status"></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Image picker dialogue -->
+<div id="img-modal">
+  <div class="panel">
+    <button class="close-x" onclick="closeImgPicker()">&times;</button>
+    <h3 style="margin-top:0;">Choose an image</h3>
+    <div class="ip-tabs">
+      <button id="ipt-search" class="on" onclick="ipTab('search')">Live sources</button>
+      <button id="ipt-ai" onclick="ipTab('ai')">AI-generated</button>
+      <button id="ipt-upload" onclick="ipTab('upload')">My images</button>
+    </div>
+
+    <div id="ip-pane-search">
+      <div class="row">
+        <input type="text" id="ip-q" placeholder="Search Pexels · Unsplash · Pixabay · Openverse · Wikimedia — e.g. forest path, calm seascape…">
+        <button id="ip-search-run">Search</button>
+      </div>
+      <div id="ip-grid"></div>
+    </div>
+
+    <div id="ip-pane-ai" style="display:none;">
+      <label class="muted" style="display:block; margin-bottom:6px;">Describe the image you want</label>
+      <textarea id="ip-ai-prompt" rows="3" style="width:100%; box-sizing:border-box;" placeholder="e.g. soft dawn light over a quiet estuary, muted parchment tones, no people"></textarea>
+      <button id="ip-ai-run" style="margin-top:8px;">Generate image</button>
+      <div class="muted mt" id="ip-ai-status"></div>
+      <div id="ip-ai-result" style="margin-top:10px;"></div>
+    </div>
+
+    <div id="ip-pane-upload" style="display:none;">
+      <input type="file" id="ip-file" accept="image/*">
+      <div class="muted mt" id="ip-upload-status">Your own images are uploaded to your library and used in the canvas.</div>
+      <div id="ip-upload-preview" class="mt"></div>
     </div>
   </div>
 </div>
@@ -99,7 +147,6 @@ const { api, esc } = ARG;
 
 const PALETTES = { teal: '#0f3b3a', rose: '#5c2d3f', ivory: '#f7f3e9', dark: '#111111' };
 const ACCENTS = { teal: '#7ecfcd', rose: '#d4899a', ivory: '#5c2d3f', dark: '#ddd0c8' };
-const PHOTO_THEMES = ['calm seascape', 'forest path', 'open sky', 'city skyline', 'still water', 'sunrise'];
 const SIZES = [
   ['Instagram post', 1080, 1080], ['Instagram portrait', 1080, 1350], ['Instagram story', 1080, 1920],
   ['Facebook post', 1200, 630], ['X post', 1600, 900], ['LinkedIn', 1200, 627]
@@ -119,10 +166,34 @@ const TEMPLATES = [
   { id: 'img-landscape', label: 'Photo + caption', kind: 'photo' }
 ];
 
-let activeTemplate = 'block', activePalette = 'teal', activePhoto = 'calm seascape', activeSize = 0;
-let lastUrl = null, lastPngUrl = null;
+// Which templates use an image, and how
+const IMAGE_SLOTS = {
+  'semantic':        { chip: 'Background image', hint: 'Fills the whole background behind your text.' },
+  'img-landscape':   { chip: 'Background photo',  hint: 'Fills the background; your caption sits over it.' },
+  'dual-partnership':{ chip: 'Side panel image',  hint: 'Fills the right-hand panel; text sits in the left parchment panel.' },
+  'awareness-day':   { chip: 'Background image',  hint: 'Soft background wash behind the campaign ring.' }
+};
 
-// ── previews: a distinct client-side SVG sketch per template kind ──
+// Stage shape per template — clicking a template reshapes the input area
+const STAGE_DEFS = {
+  'block':            { title: 'Quote card', shape: 'single', fields: [['text', 'The quote or line', 'textarea'], ['attribution', 'Attribution (optional)']] },
+  'testimonial':      { title: 'Testimonial', shape: 'single', fields: [['text', 'The testimonial', 'textarea'], ['attribution', 'Attribution — e.g. a former client (anonymised)']] },
+  'stat':             { title: 'Statistic', shape: 'single', fields: [['text', 'The number / stat + wording', 'textarea'], ['source', 'Source (e.g. ONS, 2024)']] },
+  'news-reaction':    { title: 'News reaction', shape: 'single', fields: [['headline', 'Headline being reacted to'], ['outlet', 'Outlet'], ['commentary', 'Your commentary', 'textarea'], ['date', 'Date (optional)']] },
+  'myth-vs-fact':     { title: 'Myth vs fact', shape: 'twocol', cols: [['The myth', [['myth', 'The myth', 'textarea']]], ['The fact', [['fact', 'The fact', 'textarea']]]], tail: [['source', 'Source (optional)']] },
+  'data-infographic': { title: 'Data infographic', shape: 'single', fields: [['title', 'Headline'], ['subtitle', 'Subtitle'], ['points_data', 'Data points, one per line', 'textarea'], ['source', 'Source (optional)']] },
+  'awareness-day':    { title: 'Awareness day', shape: 'single', fields: [['campaignName', 'Campaign'], ['date', 'Date'], ['message', 'Message', 'textarea']] },
+  'service-explainer':{ title: 'Service explainer', shape: 'single', fields: [['serviceName', 'Service name'], ['description', 'Description', 'textarea'], ['whoFor', 'Who it is for'], ['contact', 'Contact (optional)']] },
+  'semantic':         { title: 'Photographic', shape: 'single', fields: [['text', 'The line', 'textarea'], ['subtext', 'Sub-line (optional)']] },
+  'dual-partnership': { title: 'Side by side', shape: 'twocol', cols: [['Text panel', [['text', 'The line', 'textarea'], ['subtext', 'Sub-line (optional)']]], ['Image panel', []]] },
+  'img-landscape':   { title: 'Photo + caption', shape: 'single', fields: [['text', 'Caption', 'textarea']] }
+};
+
+let activeTemplate = 'block', activePalette = 'teal', activeSize = 0;
+let lastUrl = null, lastPngUrl = null, lastKind = 'canvas';
+let stageImage = null;   // { url | dataUrl, label }
+
+// ── Template previews ──
 function previewSVG(t) {
   const bg = t.kind === 'photo' ? '#55524a' : PALETTES[activePalette];
   const fg = activePalette === 'ivory' ? '#1c1a17' : '#ffffff';
@@ -149,32 +220,15 @@ function templateId() {
   const p = activePalette === 'dark' ? 'dark' : activePalette;
   switch (activeTemplate) {
     case 'block': return 'block-' + (p === 'dark' ? 'teal' : p);
-    case 'stat': return 'stat';
     case 'testimonial': return 'testimonial-' + (p === 'dark' ? 'teal' : p);
-    case 'myth-vs-fact': return 'myth-vs-fact-' + (p === 'ivory' ? 'ivory' : 'teal');
+    case 'myth-vs-fact': return 'myth-vs-fact-' + (activePalette === 'ivory' ? 'ivory' : 'teal');
     case 'awareness-day': return activePalette === 'rose' ? 'awareness-day-rose' : 'awareness-day';
-    case 'semantic': return 'semantic-' + p;
+    case 'semantic': return 'semantic-' + (p === 'dark' ? 'teal' : p);
     default: return activeTemplate;
   }
 }
 
-function renderControls() {
-  const pr = document.getElementById('palette-row');
-  pr.innerHTML = Object.entries(PALETTES).map(([k, c]) =>
-    '<button class="ghost small" data-k="' + k + '"' + (k === activePalette ? ' style="background:' + c + '; color:#fff; border-color:' + c + '"' : ' style="border-color:' + c + '"') + '>' + k + '</button>').join('');
-  pr.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { activePalette = b.dataset.k; renderControls(); renderGallery(); }));
-
-  const ph = document.getElementById('photo-row');
-  ph.innerHTML = PHOTO_THEMES.map((t, i) =>
-    '<button class="ghost small" data-i="' + i + '"' + (i === activePhoto ? ' style="background:var(--teal); color:#fff;"' : '') + '>' + esc(t) + '</button>').join('');
-  ph.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { activePhoto = +b.dataset.i; renderControls(); }));
-
-  const sr = document.getElementById('size-row');
-  sr.innerHTML = SIZES.map(([name, w, h], i) =>
-    '<button class="ghost small" data-i="' + i + '"' + (i === activeSize ? ' style="background:var(--teal); color:#fff;"' : '') + ' title="' + w + '×' + h + '">' + esc(name) + '</button>').join('');
-  sr.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { activeSize = +b.dataset.i; renderControls(); }));
-}
-
+// ── Templates grid (top) ──
 function renderGallery() {
   const grid = document.getElementById('tpl-grid');
   grid.innerHTML = TEMPLATES.map(t =>
@@ -184,43 +238,223 @@ function renderGallery() {
   ).join('');
   grid.querySelectorAll('.tpl-btn').forEach(b => b.addEventListener('click', () => {
     activeTemplate = b.dataset.id;
-    grid.querySelectorAll('.tpl-btn').forEach(x => x.classList.remove('active'));
-    b.classList.add('active');
-    renderTplFields();
-    updateWillUse();
+    stageImage = null;
+    renderGallery(); renderStage(); updateWillUse();
+    document.getElementById('stage-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
 }
 
-function updateWillUse() {
-  const labelSpan = document.getElementById('gen-will-use');
-  const t = TEMPLATES.find(x => x.id === activeTemplate);
-  labelSpan.textContent = 'Rendering as: ' + (t ? t.label : activeTemplate) + ' (' + templateId() + ')';
+// ── Stage: the template-shaped input area ──
+function fieldHTML(id, label, kind) {
+  if (kind === 'textarea')
+    return '<div class="stage-box" style="flex:1;"><h5>' + esc(label) + '</h5>' +
+      '<textarea id="tplf-' + id + '" rows="4" style="width:100%; box-sizing:border-box; min-height:90px;"></textarea></div>';
+  return '<div><label class="muted" style="font-size:12px; display:block; margin:8px 0 4px;">' + esc(label) + '</label>' +
+    '<input type="text" id="tplf-' + id + '" style="width:100%; box-sizing:border-box;"></div>';
 }
-const TPL_FIELD_DEFS = {
-  'myth-vs-fact':   [['myth','The myth'],['fact','The fact'],['source','Source (optional)']],
-  'data-infographic': [['title','Headline'],['subtitle','Subtitle'],['points_data','Data points, one per line'],['source','Source (optional)']],
-  'awareness-day':  [['campaignName','Campaign'],['date','Date'],['message','Message']],
-  'news-reaction':  [['outlet','Outlet'],['headline','Headline'],['commentary','Your commentary'],['date','Date (optional)']],
-  'service-explainer': [['serviceName','Service name'],['description','Description'],['whoFor','Who it is for'],['contact','Contact (optional)']]
+
+function renderStage() {
+  const def = STAGE_DEFS[activeTemplate] || { title: activeTemplate, shape: 'single', fields: [['text', 'The line', 'textarea']] };
+  document.getElementById('stage-title').textContent = def.title;
+  const st = document.getElementById('stage');
+  let html = '';
+  if (def.shape === 'twocol') {
+    html = '<div class="stage-shape">' + def.cols.map(([colTitle, fields], ci) =>
+      '<div class="stage-col"><div class="stage-box" style="height:100%;"><h5>' + esc(colTitle) + '</h5>' +
+      (fields.length ? fields.map(([id, label, k]) => fieldHTML(id, label, k)).join('')
+      : imagePanelHTML()) +
+      '</div></div>').join('') + '</div>';
+  } else {
+    html = (def.fields || []).map(([id, label, k]) => fieldHTML(id, label, k)).join('');
+  }
+  st.innerHTML = html;
+  const tail = def.tail || [];
+  document.getElementById('extra-fields').innerHTML = tail.map(([id, label]) => fieldHTML(id, label)).join('');
+
+  // image slot (for dual's second column is inline; for others a chip below)
+  const slot = IMAGE_SLOTS[activeTemplate];
+  const holder = document.getElementById('stage-image');
+  if (slot && def.shape !== 'twocol') {
+    holder.style.display = 'block';
+    renderImageChip(slot, holder);
+  } else if (def.shape === 'twocol') {
+    holder.style.display = 'none';
+    paintInlineImagePanel();
+  } else {
+    holder.style.display = 'none';
+  }
+}
+
+function imagePanelHTML() {
+  return '<div id="dual-img-panel" style="min-height:170px; display:flex; align-items:center; justify-content:center; border:1.5px dashed #7a4254; border-radius:10px; cursor:pointer; color:#5c2d3f; font-size:13px; padding:10px; background:rgba(226,235,234,0.35);" onclick="openImgPicker(\'dual\')">' +
+    (stageImage ? '<img src="' + esc(stageImage.url || stageImage.dataUrl) + '" style="max-width:100%; max-height:180px; border-radius:8px;">' : 'Click to choose the side-panel image — sources, AI or your own') + '</div>';
+}
+function paintInlineImagePanel() { const p = document.getElementById('dual-img-panel'); if (p) p.outerHTML = imagePanelHTML(); }
+
+function renderImageChip(slot, holder) {
+  holder.innerHTML =
+    '<label class="muted" style="font-size:12px; display:block; margin-bottom:4px;">' + esc(slot.chip) + ' <span style="opacity:0.7;">— ' + esc(slot.hint) + '</span></label>' +
+    '<div class="img-chip">' +
+    (stageImage ? '<img src="' + esc(stageImage.url || stageImage.dataUrl) + '"><div><b>' + esc(stageImage.label || 'Image') + '</b><br><button class="ghost small" onclick="clearStageImage()">Remove</button></div>'
+      : '<button class="small" onclick="openImgPicker(\'chip\')">Choose image…</button> <span class="muted" style="font-size:12px;">five sources, AI-generated, or your own</span>') +
+    '</div>';
+}
+window.clearStageImage = function () { stageImage = null; renderStage(); };
+
+// ── Image picker dialogue ──
+let pickCtx = 'chip';
+window.openImgPicker = function (ctx) {
+  pickCtx = ctx || 'chip';
+  document.getElementById('img-modal').classList.add('open');
 };
-function renderTplFields() {
-  const def = TPL_FIELD_DEFS[activeTemplate];
-  const el = document.getElementById('tpl-fields');
-  if (!def) { el.innerHTML = ''; return; }
-  el.innerHTML = '<div class="muted" style="font-size:12px;margin-bottom:8px;">Fields for <b>' + esc(activeTemplate) + '</b>. This template only becomes itself when these are filled; the Content line above is used as fallback.</div>' +
-    def.map(([id, label]) => {
-      if (id === 'points_data')
-        return '<label class="muted" style="font-size:12px;display:block;margin:8px 0 4px;">' + esc(label) + '</label>' +
-               '<textarea id="tplf-' + id + '" rows="4" style="width:100%;box-sizing:border-box;" placeholder="One data point per line"></textarea>';
-      return '<label class="muted" style="font-size:12px;display:block;margin:8px 0 4px;">' + esc(label) + '</label>' +
-             '<input type="text" id="tplf-' + id + '" style="width:100%;box-sizing:border-box;">';
-    }).join('');
+window.closeImgPicker = function () { document.getElementById('img-modal').classList.remove('open'); };
+window.ipTab = function (which) {
+  ['search','ai','upload'].forEach(w => {
+    document.getElementById('ipt-' + w).classList.toggle('on', w === which);
+    document.getElementById('ip-pane-' + w).style.display = (w === which) ? 'block' : 'none';
+  });
+};
+document.getElementById('img-modal').addEventListener('click', e => { if (e.target.id === 'img-modal') closeImgPicker(); });
+
+function chooseImage(img) {
+  stageImage = img;
+  closeImgPicker();
+  renderStage();
+  ARG.toast('Image set — it will be baked into the canvas.');
 }
-function tplFieldsBody() {
-  const def = TPL_FIELD_DEFS[activeTemplate];
-  if (!def) return {};
+
+// Live sources
+document.getElementById('ip-search-run').addEventListener('click', async () => {
+  const q = document.getElementById('ip-q').value.trim();
+  const grid = document.getElementById('ip-grid');
+  if (!q) { ARG.toast('What are we looking for?'); return; }
+  grid.innerHTML = '<div class="muted">Searching five sources…</div>';
+  try {
+    const d = await api('/image-search/multi', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, limit: 12, sources: ['pexels', 'unsplash', 'pixabay', 'openverse', 'wikimedia'] })
+    });
+    const results = d.results || [];
+    grid.innerHTML = results.map((r, i) =>
+      '<button class="tpl-btn" data-i="' + i + '"><img src="' + esc(r.thumbnail || r.url) + '" alt=""><span class="lbl">' + esc((r.photographer || r.source || '').slice(0, 20)) + '</span></button>'
+    ).join('') || '<div class="muted">Nothing found — try another phrase.</div>';
+    grid.querySelectorAll('.tpl-btn').forEach(b => b.addEventListener('click', () =>
+      chooseImage({ url: results[+b.dataset.i].url, label: (results[+b.dataset.i].photographer || results[+b.dataset.i].source || 'Image') })));
+  } catch (e) { grid.innerHTML = '<div class="muted">Search failed: ' + esc(e.message) + '</div>'; }
+});
+
+// AI-generated
+let aiImg = null;
+document.getElementById('ip-ai-run').addEventListener('click', async () => {
+  const prompt = document.getElementById('ip-ai-prompt').value.trim();
+  const status = document.getElementById('ip-ai-status'), holder = document.getElementById('ip-ai-result');
+  if (!prompt) { ARG.toast('Describe the image first.'); return; }
+  status.textContent = 'Generating… (this can take a while)';
+  holder.innerHTML = ''; aiImg = null;
+  try {
+    const d = await api('/image/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: prompt })
+    });
+    if (!d.url) throw new Error(d.error || 'nothing came back');
+    status.textContent = 'Ready — generated via ' + (d.provider || 'AI') + '.';
+    holder.innerHTML = '<img id="ip-ai-img" src="' + esc(d.url) + '" style="max-width:100%; border-radius:8px; border:1px solid var(--line);"><button class="small mt" id="ip-ai-use">Use this image</button>';
+    aiImg = d;
+    document.getElementById('ip-ai-use').addEventListener('click', () => chooseImage({ url: d.url, label: 'AI-generated (' + (d.provider || 'ai') + ')' }));
+  } catch (e) { status.textContent = 'Failed: ' + esc(e.message); }
+});
+
+// My images (upload → R2)
+document.getElementById('ip-file').addEventListener('change', async (ev) => {
+  const f = ev.target.files[0];
+  const status = document.getElementById('ip-upload-status'), holder = document.getElementById('ip-upload-preview');
+  if (!f) return;
+  if (f.size > 8 * 1024 * 1024) { status.textContent = 'That file is over 8 MB — please use a smaller image.'; return; }
+  status.textContent = 'Uploading…';
+  try {
+    const dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+    const up = await api('/r2/upload', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'uploads/user-' + Date.now() + '-' + f.name.replace(/[^a-zA-Z0-9.\-]/g, '_'), content: dataUrl.split(',')[1], mimeType: f.type || 'image/jpeg', fileName: f.name })
+    });
+    status.textContent = 'Uploaded to your library.';
+    holder.innerHTML = '<img src="' + esc(up.url) + '" style="max-width:100%; max-height:280px; border-radius:8px; border:1px solid var(--line);"><br><button class="small mt" id="ip-up-use">Use this image</button>';
+    document.getElementById('ip-up-use').addEventListener('click', () => chooseImage({ url: up.url, label: f.name }));
+  } catch (e) { status.textContent = 'Upload failed: ' + esc(e.message); }
+});
+
+// ── Controls ──
+function renderControls() {
+  const pr = document.getElementById('palette-row');
+  pr.innerHTML = Object.entries(PALETTES).map(([k, c]) =>
+    '<button class="ghost small" data-k="' + k + '"' + (k === activePalette ? ' style="background:' + c + '; color:#fff; border-color:' + c + '"' : ' style="border-color:' + c + '"') + '>' + k + '</button>').join('');
+  pr.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { activePalette = b.dataset.k; renderControls(); renderGallery(); }));
+
+  const sr = document.getElementById('size-row');
+  sr.innerHTML = SIZES.map(([name, w, h], i) =>
+    '<button class="ghost small" data-i="' + i + '"' + (i === activeSize ? ' style="background:var(--teal); color:#fff;"' : '') + ' title="' + w + '×' + h + '">' + esc(name) + '</button>').join('');
+  sr.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { activeSize = +b.dataset.i; renderControls(); }));
+}
+
+function updateWillUse() {
+  const t = TEMPLATES.find(x => x.id === activeTemplate);
+  document.getElementById('gen-will-use').textContent =
+    'Rendering as: ' + (t ? t.label : activeTemplate) + ' (' + templateId() + ')' + (stageImage ? ' — with your chosen image baked in' : '');
+}
+
+// ── Generate ──
+document.getElementById('gen').addEventListener('click', async () => {
+  const btn = document.getElementById('gen'), status = document.getElementById('gen-status');
+  const def = STAGE_DEFS[activeTemplate] || {};
+  const fields = stageValues();
+  const mainText = (fields.text || fields.headline || fields.title || fields.campaignName || fields.serviceName || '').trim();
+  if (!mainText) { ARG.toast('Give it something to work with first.'); return; }
+  btn.disabled = true; status.textContent = 'Rendering…';
+  try {
+    const body = {
+      topic: mainText,
+      text: fields.text || mainText,
+      template: templateId(),
+      ...fields,
+      position: document.getElementById('lay-pos').value,
+      align: document.getElementById('lay-align').value,
+      ink: document.getElementById('lay-ink').value || null,
+      platform: 'instagram', skipQueue: true, skipQA: true
+    };
+    if (stageImage) {
+      if (stageImage.dataUrl) body.imageDataUrl = stageImage.dataUrl;
+      else body.imageUrl = stageImage.url;
+    }
+    const data = await api('/canvas/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    status.textContent = '';
+    const usedNote = document.createElement('div');
+    usedNote.style.cssText = 'font-size:12px; color:#0f3b3a; margin-top:6px;';
+    usedNote.id = 'gen-will-use';
+    usedNote.textContent = 'Rendered as: ' + (data.template || templateId()) + (data.type ? ' (type: ' + data.type + ')' : '');
+    document.getElementById('gen-will-use').replaceWith(usedNote);
+    const url = data.url || (data.urls && data.urls[0]);
+    if (url) {
+      lastUrl = url; lastPngUrl = null; lastKind = 'canvas';
+      const key = url.replace(/^https:\/\/[^/]+\//, '');
+      document.getElementById('result-img').src = '/api/r2/file?key=' + encodeURIComponent(key);
+      document.getElementById('result-card').style.display = 'block';
+      document.getElementById('result-note').textContent = (data.autoFiled ? 'Saved to the Asset library automatically. ' : '') + 'SVG rendered — export a PNG at your chosen platform size before publishing, or send as-is.';
+      document.getElementById('result-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      status.textContent = 'Canvas ready.';
+    } else {
+      status.textContent = 'Nothing came back: ' + esc(data.error || 'try again.');
+    }
+  } catch (e) { status.textContent = 'Generation failed: ' + esc(e.message); }
+  btn.disabled = false;
+});
+
+function stageValues() {
+  const def = STAGE_DEFS[activeTemplate] || {};
+  const all = [].concat(def.fields || [], ...((def.cols || []).map(c => c[1])), def.tail || []);
   const out = {};
-  def.forEach(([id]) => {
+  all.forEach(([id]) => {
     const el = document.getElementById('tplf-' + id);
     if (!el) return;
     const v = el.value.trim();
@@ -230,68 +464,7 @@ function tplFieldsBody() {
   return out;
 }
 
-document.getElementById('gen').addEventListener('click', async () => {
-  const btn = document.getElementById('gen');
-  const status = document.getElementById('gen-status');
-  const topic = document.getElementById('topic').value.trim();
-  if (!topic) { ARG.toast('Give it a line or a topic first.'); return; }
-  btn.disabled = true;
-  status.textContent = 'Rendering…';
-  try {
-    if (chosenPhoto) {
-      const [name, w, h] = SIZES[activeSize];
-      status.textContent = 'Composing with your photo at ' + w + '×' + h + '…';
-      const canvas = await composeBranded(chosenPhoto.url, topic, w, h);
-      const png64 = canvas.toDataURL('image/png').split(',')[1];
-      const up = await api('/r2/upload', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'canvas/composed-' + Date.now() + '.png', content: png64, mimeType: 'image/png', fileName: 'canvas.png' })
-      });
-      lastUrl = up.url;
-      lastPngUrl = up.url;
-      document.getElementById('result-img').src = '/api/r2/file?key=' + encodeURIComponent(up.key);
-      document.getElementById('result-card').style.display = 'block';
-      document.getElementById('result-note').textContent = 'Composed with your photo (' + (chosenPhoto.photographer || chosenPhoto.source) + '), branded with logo, tags and footer, at ' + name + ' size.';
-      status.textContent = 'Canvas ready.';
-      btn.disabled = false;
-      return;
-    }
-    const photoT = TEMPLATES.find(t => t.id === activeTemplate).kind === 'photo';
-    const data = await api('/canvas/generate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        topic: photoT ? activePhoto + ' ' + topic : topic,
-        text: topic,
-        template: templateId(),
-        ...tplFieldsBody(),
-        position: document.getElementById('lay-pos').value,
-        align: document.getElementById('lay-align').value,
-        ink: document.getElementById('lay-ink').value || null,
-        platform: 'instagram', skipQueue: true, skipQA: true
-      })
-    });
-    document.getElementById('gen-status').textContent = '';
-    const usedNote = document.createElement('div');
-    usedNote.style.cssText = 'font-size:12px;color:#0f3b3a;margin-top:6px;';
-    usedNote.id = 'gen-will-use';
-    usedNote.textContent = 'Rendered as: ' + (data.template || templateId()) + (data.type ? ' (type: ' + data.type + ')' : '');
-    document.getElementById('gen-will-use').replaceWith(usedNote);
-    const url = data.url || (data.urls && data.urls[0]);
-    if (url) {
-      lastUrl = url;
-      lastPngUrl = null;
-      const key = url.replace(/^https:\/\/[^/]+\//, '');
-      document.getElementById('result-img').src = '/api/r2/file?key=' + encodeURIComponent(key);
-      document.getElementById('result-card').style.display = 'block';
-      document.getElementById('result-note').textContent = 'Generated as SVG. Export a PNG at your chosen platform size before publishing — Instagram and Facebook prefer PNG.';
-      status.textContent = 'Canvas ready.';
-    } else {
-      status.textContent = 'Nothing came back: ' + esc(data.error || 'try again.');
-    }
-  } catch (e) { status.textContent = 'Generation failed: ' + esc(e.message); }
-  btn.disabled = false;
-});
-
+// ── Export PNG ──
 document.getElementById('export-png').addEventListener('click', async () => {
   const status = document.getElementById('export-status');
   if (!lastUrl) return;
@@ -314,96 +487,38 @@ document.getElementById('export-png').addEventListener('click', async () => {
       body: JSON.stringify({ key: 'canvas/png-' + Date.now() + '-' + w + 'x' + h + '.png', content: png64, mimeType: 'image/png', fileName: 'canvas.png' })
     });
     lastPngUrl = up.url;
+    try { await api('/assets/log', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ kind:'canvas-png', url: up.url, meta:{ template: templateId(), size: name } }) }); } catch(e){}
     status.textContent = 'PNG exported at ' + name + ' (' + w + '×' + h + ') and saved. Publishing will use it.';
     ARG.toast('PNG ready.');
   } catch (e) { status.textContent = 'Export failed: ' + esc(e.message); }
 });
 
+// ── Send to publishing ──
 document.getElementById('send-publish').addEventListener('click', () => {
   if (!lastUrl) { ARG.toast('Generate a canvas first.'); return; }
   sessionStorage.setItem('arg:canvas-url', lastPngUrl || lastUrl);
   location.href = '/argentica/commercial/publishing/';
 });
-document.getElementById('open-full').addEventListener('click', () => {
-  if (lastUrl) window.open(lastUrl, '_blank');
-});
 
-// ── Photo picker across all five sources ─────────────────
-let chosenPhoto = null;
-const photoGrid = document.getElementById('photo-grid');
-document.getElementById('photo-run').addEventListener('click', async () => {
-  const q = document.getElementById('photo-q').value.trim();
-  if (!q) { ARG.toast('What are we looking for?'); return; }
-  photoGrid.innerHTML = '<div class="muted">Searching five sources…</div>';
+// ── Save to Asset library ──
+document.getElementById('save-assets').addEventListener('click', async () => {
+  if (!lastUrl) { ARG.toast('Generate a canvas first.'); return; }
+  const url = lastPngUrl || lastUrl;
   try {
-    const d = await api('/image-search/multi', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: q, limit: 5, sources: ['pexels', 'unsplash', 'pixabay', 'openverse', 'wikimedia'] })
+    await api('/assets/log', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ kind: lastKind, url, meta: { template: templateId(), savedFrom: 'Canvas Studio' } })
     });
-    const results = d.results || [];
-    document.getElementById('photo-note').textContent = results.length + ' results from ' + [...new Set(results.map(r => r.source))].join(', ');
-    photoGrid.innerHTML = results.map((r, i) =>
-      '<button class="tpl-btn" data-i="' + i + '"><img src="' + esc(r.thumbnail || r.url) + '" alt=""><span class="lbl">' + esc((r.photographer || r.source || '').slice(0, 20)) + '</span></button>'
-    ).join('') || '<div class="muted">Nothing found — try another phrase.</div>';
-    window._photos = results;
-    photoGrid.querySelectorAll('.tpl-btn').forEach(b => b.addEventListener('click', () => {
-      photoGrid.querySelectorAll('.tpl-btn').forEach(x => x.classList.remove('active'));
-      b.classList.add('active');
-      chosenPhoto = window._photos[+b.dataset.i];
-      ARG.toast('Photo chosen — it will be branded and used for the canvas.');
-    }));
-  } catch (e) { photoGrid.innerHTML = '<div class="muted">Search failed: ' + esc(e.message) + '</div>'; }
+    const r = confirm('Saved to the Asset library. Open it now?');
+    if (r) location.href = '/argentica/create/assets/';
+  } catch (e) { ARG.toast('Save failed: ' + e.message); }
 });
 
-// ── Client-side branded composer (used when a photo is chosen) ──
-function wrapText(ctx, text, maxWidth) {
-  const words = text.split(/\s+/);
-  const lines = [];
-  let line = '';
-  for (const w of words) {
-    const test = line ? line + ' ' + w : w;
-    if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
-    else line = test;
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-
-async function composeBranded(photoUrl, text, w, h) {
-  const canvas = document.createElement('canvas');
-  canvas.width = w; canvas.height = h;
-  const c = canvas.getContext('2d');
-  // photo, cover-fit
-  const img = await new Promise((res, rej) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = rej; i.src = photoUrl; });
-  const k = Math.max(w / img.width, h / img.height);
-  c.drawImage(img, (w - img.width * k) / 2, (h - img.height * k) / 2, img.width * k, img.height * k);
-  // brand overlay
-  const grad = c.createLinearGradient(0, h * 0.3, 0, h);
-  grad.addColorStop(0, 'rgba(15,59,58,0.25)');
-  grad.addColorStop(1, 'rgba(15,59,58,0.88)');
-  c.fillStyle = grad;
-  c.fillRect(0, 0, w, h);
-  // logo
-  const logo = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = '/shared/assets/logo-square.png'; });
-  c.drawImage(logo, w * 0.05, h * 0.05, w * 0.09, w * 0.09);
-  // text
-  const fs = Math.round(w / 22);
-  c.font = fs + 'px Georgia, serif';
-  c.fillStyle = '#ffffff';
-  c.textAlign = 'center';
-  const lines = wrapText(c, text, w * 0.82).slice(0, 6);
-  lines.forEach((ln, i) => c.fillText(ln, w / 2, h * 0.62 + (i - (lines.length - 1) / 2) * fs * 1.35));
-  // tags
-  c.font = Math.round(fs * 0.42) + 'px sans-serif';
-  c.fillStyle = 'rgba(255,255,255,0.85)';
-  c.fillText('#IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing', w / 2, h * 0.9);
-  // footer
-  c.fillText('hello@identitypartners.uk | www.identitypartners.uk/contact', w / 2, h * 0.95);
-  return canvas;
-}
+document.getElementById('open-full').addEventListener('click', () => { if (lastUrl) window.open(lastUrl, '_blank'); });
 
 renderControls();
 renderGallery();
+renderStage();
 updateWillUse();
 </script>
 </body>
