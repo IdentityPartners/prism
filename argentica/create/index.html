@@ -127,6 +127,18 @@
     <div id="ip-pane-ai" style="display:none;">
       <label class="muted" style="display:block; margin-bottom:6px;">Describe the image you want</label>
       <textarea id="ip-ai-prompt" rows="3" style="width:100%; box-sizing:border-box;" placeholder="e.g. soft dawn light over a quiet estuary, muted parchment tones, no people"></textarea>
+      <label class="muted" style="display:block; margin:10px 0 4px;">Image model</label>
+      <select id="ip-ai-model" style="width:100%; box-sizing:border-box; max-width:420px;">
+        <option value="auto">Auto — best available (free first, then paid)</option>
+        <option value="gemini">Gemini Flash Image — free (Google quota)</option>
+        <option value="fal">Fal fast-sdxl — your Fal credits</option>
+        <option value="pollinations|black-forest-labs/flux.1-schnell">Pollinations FLUX.1 Schnell — quick drafts (≈500 per $1)</option>
+        <option value="pollinations|tongyi-mai/z-image-turbo">Pollinations Z-Image Turbo — sharp, built-in upscale (≈250 per $1)</option>
+        <option value="pollinations|black-forest-labs/flux.2-klein-4b">Pollinations FLUX.2 Klein 4B — quality, up to 2.4 MP (≈200 per $1)</option>
+        <option value="stability">Stability SD 3.5 Core — painterly (intro credits)</option>
+        <option value="ideogram">Ideogram 3 — best for text-in-image (needs top-up)</option>
+        <option value="imagerouter">ImageRouter auto — one key, ~200 models (needs top-up)</option>
+      </select>
       <button id="ip-ai-run" style="margin-top:8px;">Generate image</button>
       <div class="muted mt" id="ip-ai-status"></div>
       <div id="ip-ai-result" style="margin-top:10px;"></div>
@@ -352,11 +364,12 @@ document.getElementById('ip-ai-run').addEventListener('click', async () => {
   status.textContent = 'Generating… (this can take a while)';
   holder.innerHTML = ''; aiImg = null;
   try {
+    const [prov, polModel] = (document.getElementById('ip-ai-model').value || 'auto').split('|');
     const d = await api('/image/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: prompt })
+      body: JSON.stringify({ prompt: prompt, model: prov || 'auto', ...(polModel ? { pollinationsModel: polModel } : {}) })
     });
-    if (!d.url) throw new Error(d.error || 'nothing came back');
+    if (!d.url) throw new Error(d.error || (d.failed ? ('attempted: ' + d.failed.join('; ')) : 'nothing came back'));
     status.textContent = 'Ready — generated via ' + (d.provider || 'AI') + '.';
     holder.innerHTML = '<img id="ip-ai-img" src="' + esc(d.url) + '" style="max-width:100%; border-radius:8px; border:1px solid var(--line);"><button class="small mt" id="ip-ai-use">Use this image</button>';
     aiImg = d;

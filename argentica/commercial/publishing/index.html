@@ -40,6 +40,8 @@
       <label class="row" style="gap:4px;"><input type="checkbox" class="auto-plat" value="instagram"> Instagram</label>
       <label class="row" style="gap:4px;"><input type="checkbox" class="auto-plat" value="facebook"> Facebook</label>
       <label class="row" style="gap:4px;"><input type="checkbox" class="auto-plat" value="x"> X</label>
+      <label class="row" style="gap:4px;"><input type="checkbox" class="auto-plat" value="threads"> Threads</label>
+      <label class="row" style="gap:4px;"><input type="checkbox" class="auto-plat" value="tumblr"> Tumblr</label>
     </div>
     <input type="text" id="auto-block" placeholder="Blocked words, comma separated (autonomous posts containing these are refused)" style="margin-top:10px;">
   </div>
@@ -55,12 +57,14 @@
         <label><input type="checkbox" class="plat" value="bluesky" checked> Bluesky</label>
         <label><input type="checkbox" class="plat" value="linkedin" checked> LinkedIn</label>
         <label><input type="checkbox" class="plat" value="telegram" checked> Telegram</label>
-        <label><input type="checkbox" class="plat" value="instagram" checked> Instagram (Buffer)</label>
-        <label><input type="checkbox" class="plat" value="facebook" checked> Facebook (Buffer)</label>
-        <label><input type="checkbox" class="plat" value="x" checked> X (Buffer)</label>
-        <label><input type="checkbox" class="plat" value="substack"> Substack</label>
+        <label><input type="checkbox" class="plat" value="instagram" checked> Instagram</label>
+        <label><input type="checkbox" class="plat" value="facebook" checked> Facebook</label>
+        <label><input type="checkbox" class="plat" value="x" checked> X</label>
+        <label><input type="checkbox" class="plat" value="threads" checked> Threads</label>
+        <label><input type="checkbox" class="plat" value="tumblr" checked> Tumblr</label>
+        <label><input type="checkbox" class="plat" value="substack"> Substack (by email)</label>
       </div>
-      <div class="muted" style="margin-bottom:10px;">Instagram, Facebook and X post through your Buffer channels. If a Buffer post fails, fetch the channel IDs from System → Status.</div>
+      <div class="muted" style="margin-bottom:10px;">Instagram and Facebook post directly via the Meta Graph API, with Buffer as automatic fallback. X posts via Buffer; Bluesky, Threads, Tumblr, Telegram and LinkedIn post direct; Substack delivers by email.</div>
       <button id="queue-btn">Queue for approval</button>
       <div class="muted mt">Mandatory on every post: #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing · hello@identitypartners.uk | www.identitypartners.uk/contact</div>
     </div>
@@ -69,10 +73,11 @@
   <div class="card mt">
     <h3>Posting rhythm</h3>
     <div class="item-list">
-      <div class="item"><div>Instagram · Facebook · X <span class="muted">(short form, via Buffer)</span></div><span class="badge teal">up to 3 a day</span></div>
-      <div class="item"><div>Bluesky · Telegram <span class="muted">(direct)</span></div><span class="badge teal">1–2 a day</span></div>
-      <div class="item"><div>LinkedIn <span class="muted">(long form, professional)</span></div><span class="badge rose">1 a day, weekdays</span></div>
-      <div class="item"><div>Substack <span class="muted">(long form, editorial)</span></div><span class="badge rose">1 a week</span></div>
+      <div class="item"><div>Images: Instagram · Facebook · Tumblr <span class="muted">(direct Graph / Tumblr API)</span></div><span class="badge teal">up to 3 a day</span></div>
+      <div class="item"><div>Shortform: X · Threads · Bluesky <span class="muted">(280 / 500 / 300 caps)</span></div><span class="badge teal">1–2 a day</span></div>
+      <div class="item"><div>LinkedIn <span class="muted">(pro, orphaned — pro-to-pro)</span></div><span class="badge rose">1 a day, weekdays</span></div>
+      <div class="item"><div>Substack <span class="muted">(longform, delivered by email)</span></div><span class="badge rose">1 a week</span></div>
+      <div class="item"><div>Telegram <span class="muted">(notifies the group chat)</span></div><span class="badge teal">with every send</span></div>
     </div>
   </div>
 

@@ -5563,6 +5563,37 @@ data: ${JSON.stringify(data)}
           } catch(e) { failLog.push('gemini:' + e.message); }
         }
 
+        const POLKEY = k(env, ['pollinations_api_key','POLLINATIONS_API_KEY','pollinations_key','pollinations_token','pollinations']) || '';
+
+        // FAL (fast-sdxl) — community models, generous
+        if (FALKEY && (!ONLY || ONLY === 'fal')) {
+          try {
+            const resp = await fetch('https://fal.run/fal-ai/fast-sdxl', {
+              method: 'POST', headers: { 'Authorization': 'Key ' + FALKEY, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: prompt, image_size: 'square_hd' })
+            });
+            if (resp.ok) {
+              const d = await resp.json();
+              const iu = (d.images && d.images[0] && (d.images[0].url || d.images[0].b64_data ? (d.images[0].url || 'data:image/png;base64,' + d.images[0].b64_data) : null)) || null;
+              if (iu) return json({success:true, url:iu, provider:'fal', model:'fast-sdxl'}, 200, origin);
+              failLog.push('fal:no-image');
+            } else failLog.push('fal:' + resp.status);
+          } catch(e) { failLog.push('fal:' + e.message); }
+        }
+        // Pollinations (gen.pollinations.ai, authenticated) — Quests + Paid balance
+        if (!ONLY || ONLY === 'pollinations') {
+          try {
+            const polModel = body.pollinationsModel || 'black-forest-labs/flux.1-schnell';
+            const headers = POLKEY ? { 'Authorization': 'Bearer ' + POLKEY } : {};
+            const resp = await fetch('https://gen.pollinations.ai/image/' + encodeURIComponent(prompt) + '?model=' + encodeURIComponent(polModel) + '&width=1024&height=1024&nologo=true', { headers });
+            if (resp.ok && (resp.headers.get('content-type')||'').includes('image')) {
+              const b64 = __argB64(await resp.arrayBuffer());
+              return json({success:true, url:'data:' + (resp.headers.get('content-type')) + ';base64,' + b64, provider:'pollinations', model:polModel}, 200, origin);
+            }
+            failLog.push('pollinations:' + resp.status + ' ' + (await resp.text().catch(() => '')).slice(0, 100));
+          } catch(e) { failLog.push('pollinations:' + e.message); }
+        }
+
         // Stability AI (sd3.5 core) — highly brandable, strong composition
         if (STABKEY && (!ONLY || ONLY === 'stability')) {
           try {
@@ -5580,7 +5611,6 @@ data: ${JSON.stringify(data)}
             failLog.push('stability:' + resp.status);
           } catch(e) { failLog.push('stability:' + e.message); }
         }
-
         // Ideogram (v3) — best-in-class for text-in-image, poster-style work. Auth verified; needs credits.
         if (IDEOKEY && (!ONLY || ONLY === 'ideogram')) {
           try {
@@ -5596,23 +5626,6 @@ data: ${JSON.stringify(data)}
             } else failLog.push('ideogram:' + resp.status);
           } catch(e) { failLog.push('ideogram:' + e.message); }
         }
-
-        // FAL (fast-sdxl) — community models, generous
-        if (FALKEY && (!ONLY || ONLY === 'fal')) {
-          try {
-            const resp = await fetch('https://fal.run/fal-ai/fast-sdxl', {
-              method: 'POST', headers: { 'Authorization': 'Key ' + FALKEY, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt: prompt, image_size: 'square_hd' })
-            });
-            if (resp.ok) {
-              const d = await resp.json();
-              const iu = (d.images && d.images[0] && (d.images[0].url || d.images[0].b64_data ? (d.images[0].url || 'data:image/png;base64,' + d.images[0].b64_data) : null)) || null;
-              if (iu) return json({success:true, url:iu, provider:'fal', model:'fast-sdxl'}, 200, origin);
-              failLog.push('fal:no-image');
-            } else failLog.push('fal:' + resp.status);
-          } catch(e) { failLog.push('fal:' + e.message); }
-        }
-
         // Image Router (multi-provider router) — OpenAI-compatible shape
         if (IMRKEY && (!ONLY || ONLY === 'imagerouter')) {
           try {
@@ -5631,7 +5644,7 @@ data: ${JSON.stringify(data)}
           } catch(e) { failLog.push('imagerouter:' + e.message); }
         }
 
-        // Pollinations fallback (always free, zero-key) — last resort only
+        // Legacy free endpoint — never fails, always the last resort
         const polUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&model=flux`;
         if (ONLY && ONLY !== 'pollinations') return json({error:'Provider ' + ONLY + ' unavailable', failed: failLog, keys: {gemini: !!GKEY, stability: !!STABKEY, ideogram: !!IDEOKEY, fal: !!FALKEY, imagerouter: !!IMRKEY}}, 502, origin);
         return json({success:true, url:polUrl, provider:'pollinations', model:'flux'}, 200, origin);
