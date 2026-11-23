@@ -60,6 +60,7 @@
     <div class="card">
       <h3>Templates — click to select</h3>
       <div id="tpl-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:10px;"></div>
+      <div id="tpl-fields" style="margin-top:12px;"></div>
     </div>
   </div>
 
@@ -184,7 +185,42 @@ function renderGallery() {
     activeTemplate = b.dataset.id;
     grid.querySelectorAll('.tpl-btn').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
+    renderTplFields();
   }));
+}
+
+const TPL_FIELD_DEFS = {
+  'myth-vs-fact':   [['myth','The myth'],['fact','The fact'],['source','Source (optional)']],
+  'data-infographic': [['title','Headline'],['subtitle','Subtitle'],['points_data','Data points, one per line'],['source','Source (optional)']],
+  'awareness-day':  [['campaignName','Campaign'],['date','Date'],['message','Message']],
+  'news-reaction':  [['outlet','Outlet'],['headline','Headline'],['commentary','Your commentary'],['date','Date (optional)']],
+  'service-explainer': [['serviceName','Service name'],['description','Description'],['whoFor','Who it is for'],['contact','Contact (optional)']]
+};
+function renderTplFields() {
+  const def = TPL_FIELD_DEFS[activeTemplate];
+  const el = document.getElementById('tpl-fields');
+  if (!def) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="muted" style="font-size:12px;margin-bottom:8px;">Fields for <b>' + esc(activeTemplate) + '</b>. This template only becomes itself when these are filled; the Content line above is used as fallback.</div>' +
+    def.map(([id, label]) => {
+      if (id === 'points_data')
+        return '<label class="muted" style="font-size:12px;display:block;margin:8px 0 4px;">' + esc(label) + '</label>' +
+               '<textarea id="tplf-' + id + '" rows="4" style="width:100%;box-sizing:border-box;" placeholder="One data point per line"></textarea>';
+      return '<label class="muted" style="font-size:12px;display:block;margin:8px 0 4px;">' + esc(label) + '</label>' +
+             '<input type="text" id="tplf-' + id + '" style="width:100%;box-sizing:border-box;">';
+    }).join('');
+}
+function tplFieldsBody() {
+  const def = TPL_FIELD_DEFS[activeTemplate];
+  if (!def) return {};
+  const out = {};
+  def.forEach(([id]) => {
+    const el = document.getElementById('tplf-' + id);
+    if (!el) return;
+    const v = el.value.trim();
+    if (id === 'points_data') out.points = v ? v.split('\n').map(x => x.trim()).filter(Boolean) : [];
+    else if (v) out[id] = v;
+  });
+  return out;
 }
 
 document.getElementById('gen').addEventListener('click', async () => {
@@ -220,6 +256,7 @@ document.getElementById('gen').addEventListener('click', async () => {
         topic: photoT ? activePhoto + ' ' + topic : topic,
         text: topic,
         template: templateId(),
+        ...tplFieldsBody(),
         position: document.getElementById('lay-pos').value,
         align: document.getElementById('lay-align').value,
         ink: document.getElementById('lay-ink').value || null,
