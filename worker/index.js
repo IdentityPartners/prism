@@ -9021,8 +9021,7 @@ Rules:
 - Never Telegraph, Times, or iNews
 
 When asked to approve items, respond with the item IDs to approve. When asked to draft content, write in Simon's voice: intelligent, direct, humane, British professional prose.`
-Optional discipline addendum (binding when present):
-" + (String(body.addendum || '').trim() ? String(body.addendum).trim() : '(none)') + "`;
+        + (String(body.addendum || '').trim() ? '\nOptional discipline addendum (binding when present):\n' + String(body.addendum).trim() : '');
 
         const llmResult = await orchestrate([
           { role: 'system', content: systemPrompt },
