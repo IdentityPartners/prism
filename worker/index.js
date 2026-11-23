@@ -9328,6 +9328,74 @@ When asked to approve items, respond with the item IDs to approve. When asked to
     }
 
     // ── Tumblr OAuth2 connect flow ──
+    // ── LinkedIn OAuth (IdentityPartners.uk app): member + organization posting ──
+    if (path === '/api/oauth/linkedin/authorize' && request.method === 'GET') {
+      const clientId = k(env, ['linkedin_client_id','LINKEDIN_CLIENT_ID']) || '';
+      if (!clientId) return json({ success: false, error: 'linkedin_client_id not stored yet — paste the secret from the app Auth tab first.' }, 400, origin);
+      const state = 'li-' + Math.random().toString(36).slice(2, 12);
+      if (env.PRISM_KV) await env.PRISM_KV.put('linkedin:oauthstate', state, { expirationTtl: 600 });
+      const cb = 'https://arch.identitypartners.uk/api/oauth/linkedin/callback';
+      const scope = 'openid profile w_member_social w_organization_admin rw_organization_admin';
+      return new Response(null, { status: 302, headers: { Location:
+        'https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=' + encodeURIComponent(clientId) +
+        '&redirect_uri=' + encodeURIComponent(cb) +
+        '&state=' + encodeURIComponent(state) +
+        '&scope=' + encodeURIComponent(scope) }});
+    }
+    if (path === '/api/oauth/linkedin/callback' && request.method === 'GET') {
+      try {
+        const code = url.searchParams.get('code') || '';
+        const state = url.searchParams.get('state') || '';
+        const errParam = url.searchParams.get('error_description') || url.searchParams.get('error') || '';
+        const fail = (msg) => new Response('<div style="font-family:Georgia,serif;max-width:520px;margin:80px auto;color:#2b2117"><h2 style="color:#5c2d3f">LinkedIn connect failed</h2><p>' + msg + '</p></div>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        if (errParam) return fail(errParam);
+        const saved = env.PRISM_KV ? await env.PRISM_KV.get('linkedin:oauthstate').catch(() => null) : null;
+        if (!code || !state || state !== saved) return fail('State mismatch — start again from Argentica (Platforms page).');
+        const clientId = k(env, ['linkedin_client_id','LINKEDIN_CLIENT_ID']) || '';
+        const clientSecret = k(env, ['linkedin_client_secret','LINKEDIN_CLIENT_SECRET']) || '';
+        if (!clientId || !clientSecret) return fail('Client ID or secret not stored yet.');
+        const cb = 'https://arch.identitypartners.uk/api/oauth/linkedin/callback';
+        const tokRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+          method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ grant_type: 'authorization_code', code, client_id: clientId, client_secret: clientSecret, redirect_uri: cb }).toString()
+        });
+        const tok = await tokRes.json().catch(() => ({}));
+        if (!tok.access_token) return fail(JSON.stringify(tok).slice(0, 220));
+        let person = null;
+        try { person = await fetch('https://api.linkedin.com/v2/userinfo', { headers: { Authorization: 'Bearer ' + tok.access_token } }).then(r => r.json()); } catch (e) {}
+        const store = {
+          access_token: tok.access_token,
+          refresh_token: tok.refresh_token || '',
+          scope: tok.scope || '',
+          expiresIn: tok.expires_in || null,
+          obtainedAt: new Date().toISOString(),
+          person: person ? (person.name || person.sub || '') : ''
+        };
+        if (env.PRISM_KV) await env.PRISM_KV.put('oauth:linkedin:tokens', JSON.stringify(store));
+        // organisation lookup — if the Identity Partners company page is admin-visible, post as the company by default
+        let orgs = [], orgNote = 'personal profile (as before)';
+        try {
+          const ac = await fetch('https://api.linkedin.com/rest/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&count=20', {
+            headers: { Authorization: 'Bearer ' + tok.access_token, 'LinkedIn-Version': '202506', 'X-Restli-Protocol-Version': '2.0.0' }
+          });
+          const t = await ac.text();
+          if (ac.ok) {
+            const d = JSON.parse(t);
+            orgs = (d.elements || []).map(el => el.organization && el.organization.split(':').pop ? el.organization : '').filter(Boolean);
+            if (env.PRISM_KV) await env.PRISM_KV.put('linkedin:organizations', JSON.stringify(orgs));
+            const identity = orgs.find(o => true); // first administered org (Settings page can flip between them)
+            if (identity) {
+              await env.PRISM_KV.put('linkedin:author:urn', 'urn:li:organization:' + identity);
+              orgNote = 'company page (urn:li:organization:' + identity + ')';
+            }
+          } else if (env.PRISM_KV) { await env.PRISM_KV.put('linkedin:orglookup:error', t.slice(0, 180)); }
+        } catch (e) {}
+        return new Response('<div style="font-family:Georgia,serif;max-width:560px;margin:80px auto;color:#2b2117"><h2 style="color:#5c2d3f">LinkedIn connected</h2><p>Signed in as <b>' + (store.person || 'you') + '</b>.</p><p>Posts will go out from the <b>' + orgNote + '</b>.</p><p style="color:#7a4254">You can close this tab and return to Argentica.</p></div>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      } catch (e) {
+        return new Response('<h3>Connect failed</h3><p>' + e.message + '</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      }
+    }
+
     // Step 1: open /api/oauth/tumblr/authorize — redirects to Tumblr's consent screen
     if (path === '/api/oauth/tumblr/authorize' && request.method === 'GET') {
       const consumerKey = k(env, ['tumblr_key','TUMBLR_KEY','Tumblr_OAuth_consumer_key']) || '';
