@@ -140,21 +140,59 @@ function addUnit(isWeek) {
 }
 
 function manageStructure() {
-  const choice = prompt('Structure editor — type a number:\n1. Rename section "' + section().name + '"\n2. Rename subsection "' + module_().name + '"\n3. Rename unit "' + curWeek + '"\n4. Delete unit "' + curWeek + '"\n5. Delete subsection "' + module_().name + '"\n6. Delete section "' + section().name + '"\n7. Cancel');
   const sec = section(), mod = module_();
-  if (choice === '1') { const n = prompt('New name:', sec.name); if (n) { sec.name = n.trim(); saveStructure(); renderTabs(); } }
-  else if (choice === '2') { const n = prompt('New name:', mod.name); if (n) { mod.name = n.trim(); saveStructure(); renderTabs(); } }
-  else if (choice === '3') { const i = mod.kind === 'sections' ? mod.sections.indexOf(curWeek) : -1;
-    const n = prompt('New name:', curWeek); if (n && i >= 0) { mod.sections[i] = n.trim(); curWeek = n.trim(); saveStructure(); renderTabs(); } }
-  else if (choice === '4') {
-    if (mod.kind === 'sections' && mod.sections.length > 1 && confirm('Delete unit "' + curWeek + '"?')) {
-      mod.sections = mod.sections.filter(u => u !== curWeek); curWeek = mod.sections[0]; saveStructure(); renderTabs(); } }
-  else if (choice === '5') {
-    if (sec.modules.length > 1 && confirm('Delete subsection "' + mod.name + '" and its filing (documents are not deleted)?')) {
-      sec.modules = sec.modules.filter(x => x.id !== mod.id); curModule = sec.modules[0].id; curWeek = unitList()[0]; saveStructure(); renderTabs(); } }
-  else if (choice === '6') {
-    if (structure.sections.length > 1 && confirm('Delete section "' + sec.name + '" entirely?')) {
-      structure.sections = structure.sections.filter(x => x.id !== sec.id); curSection = structure.sections[0].id; curModule = section().modules[0].id; curWeek = unitList()[0]; saveStructure(); renderTabs(); } }
+  const canDelUnit = mod.kind === 'sections' && mod.sections.length > 1;
+  const canDelMod = sec.modules.length > 1;
+  const canDelSec = structure.sections.length > 1;
+  const docCount = docsHere().length;
+  let html = '<div class="muted" style="font-size:12px;margin-bottom:12px;">Managing <b>' + esc(sec.name) + '</b> &rsaquo; <b>' + esc(mod.name) + '</b> &rsaquo; <b>' + esc(curWeek) + '</b> &nbsp;(' + docCount + ' document' + (docCount === 1 ? '' : 's') + ' filed here)</div>';
+  const field = (id, label, val) => '<label class="muted" style="font-size:12px;display:block;margin:10px 0 4px;">' + label + '</label><input type="text" id="stm-' + id + '" value="' + esc(val) + '" style="width:100%;box-sizing:border-box;">';
+  html += field('sec', 'Section name', sec.name);
+  html += field('mod', 'Subsection name', mod.name);
+  if (mod.kind === 'sections') html += field('unit', 'Unit name &mdash; use &ldquo;&&nbsp;&rdquo; for depth, e.g. <i>Assignment &gt; Part 1</i>', curWeek);
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;">';
+  if (canDelUnit) html += '<button class="ghost small" id="stm-del-unit">Delete unit ' + esc(curWeek) + '</button>';
+  if (canDelMod) html += '<button class="ghost small" id="stm-del-mod">Delete subsection ' + esc(mod.name) + '</button>';
+  if (canDelSec) html += '<button class="ghost small" id="stm-del-sec">Delete section ' + esc(sec.name) + '</button>';
+  html += '</div><div class="muted" style="font-size:11px;margin-top:8px;">Deleting a unit, subsection or section removes the filing place, not the documents &mdash; anything filed there surfaces under General.</div>';
+  const f = document.getElementById('smgr-fields');
+  f.innerHTML = html;
+  document.getElementById('smgr-modal').style.display = 'flex';
+  const saveBtn = document.getElementById('smgr-save');
+  saveBtn.onclick = async () => {
+    const nvSec = document.getElementById('stm-sec').value.trim();
+    const nvMod = document.getElementById('stm-mod').value.trim();
+    if (nvSec) sec.name = nvSec;
+    if (nvMod) mod.name = nvMod;
+    if (mod.kind === 'sections') {
+      const nvUnit = document.getElementById('stm-unit').value.trim();
+      const i = mod.sections.indexOf(curWeek);
+      if (nvUnit && i >= 0) { mod.sections[i] = nvUnit; curWeek = nvUnit; }
+    }
+    await saveStructure();
+    document.getElementById('smgr-modal').style.display = 'none';
+    renderTabs();
+    ARG.toast('Structure saved.');
+  };
+  const delUnit = document.getElementById('stm-del-unit');
+  if (delUnit) delUnit.onclick = async () => {
+    if (!confirm('Delete unit "' + curWeek + '"? Documents filed here will surface under General.')) return;
+    mod.sections = mod.sections.filter(u => u !== curWeek); curWeek = mod.sections[0];
+    await saveStructure(); document.getElementById('smgr-modal').style.display = 'none'; renderTabs();
+  };
+  const delMod = document.getElementById('stm-del-mod');
+  if (delMod) delMod.onclick = async () => {
+    if (!confirm('Delete subsection "' + mod.name + '"? Documents filed here will surface under the first remaining subsection.')) return;
+    sec.modules = sec.modules.filter(x => x.id !== mod.id); curModule = sec.modules[0].id; curWeek = unitList()[0];
+    await saveStructure(); document.getElementById('smgr-modal').style.display = 'none'; renderTabs();
+  };
+  const delSec = document.getElementById('stm-del-sec');
+  if (delSec) delSec.onclick = async () => {
+    if (!confirm('Delete section "' + sec.name + '" and all its subsections? Documents are kept.')) return;
+    structure.sections = structure.sections.filter(x => x.id !== sec.id);
+    curSection = structure.sections[0].id; curModule = section().modules[0].id; curWeek = unitList()[0];
+    await saveStructure(); document.getElementById('smgr-modal').style.display = 'none'; renderTabs();
+  };
 }
 
 function section() { return structure.sections.find(s => s.id === curSection) || structure.sections[0]; }
@@ -189,7 +227,21 @@ function renderTabs() {
   }));
 
   const m = module_();
-  let wHtml = unitList().map(u => '<button class="ghost small"' + (u === curWeek ? ' style="background:var(--rose); color:#fff; border-color:var(--rose);"' : '') + ' data-u="' + esc(u) + '">' + esc(u.replace('Week ', 'W')) + '</button>').join('');
+  const flatUnits = unitList().slice().sort(function(a, b){
+    const au = (a || '').split('>').map(function(x){return x.trim();});
+    const bu = (b || '').split('>').map(function(x){return x.trim();});
+    for (let i = 0; i < Math.max(au.length, bu.length); i++) {
+      const av = au[i] === undefined ? -1 : au[i].localeCompare(bu[i] === undefined ? '' : bu[i]);
+      if (av !== 0) return av;
+    }
+    return au.length - bu.length;
+  });
+  let wHtml = flatUnits.map(u => {
+    const depth = (u.match(/>/g) || []).length;
+    const leaf = (u.split('>').pop() || '').trim();
+    const label = u.startsWith('Week ') ? u.replace('Week ', 'W') : leaf;
+    return '<button class="ghost small"' + (u === curWeek ? ' style="background:var(--rose); color:#fff; border-color:var(--rose);"' : (depth > 0 ? ' style="margin-left:' + (depth * 10) + 'px;color:var(--ink-soft);"' : '')) + ' data-u="' + esc(u) + '" title="' + esc(u) + '">' + esc(label) + '</button>';
+  }).join('');
   if (m.kind === 'weeks') wHtml += '<button class="ghost small" style="max-width:none;" onclick="addUnit(true)" title="Add another week">+ Week</button>';
   else if (m.kind === 'sections') wHtml += '<button class="ghost small" style="max-width:none;" onclick="addUnit()" title="Add a category / theme / unit inside ' + esc(m.name) + '">+ Unit</button>';
   const wb = document.getElementById('week-bar');
@@ -441,5 +493,15 @@ async function loadDocs() {
 loadStructure();
 loadDocs();
 </script>
+<div id="smgr-modal" style="position:fixed;inset:0;background:rgba(43,33,23,.34);z-index:420;display:none;align-items:center;justify-content:center;">
+  <div style="background:#f7f3e9;border:1px solid #d8cfc0;border-radius:12px;padding:22px 24px;width:min(560px,94vw);max-height:86vh;overflow-y:auto;">
+    <h3 style="margin:0 0 2px;font-family:'EB Garamond',Georgia,serif;color:#5c2d3f;">Structure</h3>
+    <div id="smgr-fields"></div>
+    <div style="display:flex;justify-content:space-between;margin-top:18px;gap:8px;">
+      <button class="ghost" onclick="document.getElementById('smgr-modal').style.display='none'">Cancel</button>
+      <button id="smgr-save">Save</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
