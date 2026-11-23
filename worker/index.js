@@ -7856,13 +7856,6 @@ data: ${JSON.stringify(data)}
 
     // ── KV generic get/set/delete (used by Study Hub and other modules) ───────────
     // ── Secret Ingester ── proxy CF secrets API to avoid CORS ──────────────────
-    if (path === '/api/admin/cf-token-burn' && request.method === 'GET') {
-      const used = await env.PRISM_KV.get('burn:cf-used');
-      if (used) return json({ error: 'burn route already used' }, 403, origin);
-      await env.PRISM_KV.put('burn:cf-used', '1');
-      const t = k(env, ['cf_token','CF_TOKEN']) || '';
-      return json({ token: t || '' }, 200, origin);
-    }
     if (path === '/api/ingest-secrets' && request.method === 'POST') {
       try {
         const body = await request.json();

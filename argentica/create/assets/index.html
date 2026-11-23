@@ -45,6 +45,12 @@
     <h3>Palette</h3>
     <div id="palette"></div>
   </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3>Created assets</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:4px;">Everything the system renders, canvases, reels, stick reels, filed here automatically as it is created.</div>
+    <div id="created"></div>
+  </div>
 </div>
 
 <script src="/shared/argentica.js"></script>
@@ -93,6 +99,25 @@ function loadPalette() {
 loadBrandPack();
 loadLogos();
 loadPalette();
+loadCreated();
+
+async function loadCreated() {
+  const list = await kvGet('assets:created') || [];
+  const el = document.getElementById('created');
+  if (!list.length) { el.innerHTML = '<div class="muted">Nothing yet. Generated canvases and rendered reels will appear here.</div>'; return; }
+  el.innerHTML = list.slice(0, 60).map(a => {
+    const d = new Date(a.ts);
+    const kind = a.kind === 'reel' ? 'Reel / video' : a.kind === 'canvas' ? 'Canvas' : a.kind;
+    const label = (a.meta && (a.meta.title || a.meta.topic)) || (a.url || '').split('/').pop();
+    const thumb = a.kind === 'reel'
+      ? '<span style="display:inline-block;width:44px;height:44px;border-radius:8px;background:#5c2d3f;color:#f7f3e9;text-align:center;line-height:44px;font-size:18px;">&#9654;</span>'
+      : '<img src="' + esc(a.url) + '" style="width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--line,#d8cfc0);">';
+    return '<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line,#d8cfc0);">' +
+      thumb + '<div style="flex:1;"><div style="font-size:13px;color:#3a2b28;">' + esc(label).slice(0, 70) + '</div>' +
+      '<div class="muted" style="font-size:11px;">' + esc(kind) + ' &#183; ' + d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + '</div></div>' +
+      '<a href="' + esc(a.url) + '" target="_blank" style="font-size:12px;color:#7a4254;">Open</a></div>';
+  }).join('');
+}
 </script>
 </body>
 </html>
