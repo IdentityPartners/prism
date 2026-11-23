@@ -7909,7 +7909,8 @@ data: ${JSON.stringify(data)}
         if (userMsgAttachments && userMsgAttachments.length && msgs.length) {
           msgs[msgs.length-1].content += '\n\n[Simon attached ' + userMsgAttachments.length + ' file(s): ' + userMsgAttachments.map(a => (a.name || 'file') + ' at ' + a.url).join(' | ') + '. Use TOOL: fetch_url to read text attachments.]';
         }
-        const result = await orchestrate(msgs, env, {profile:'balanced'});
+        const result = await orchestrate(msgs, env, {profile:'balanced', providerOverride:'mistral'})
+          .catch(async () => await orchestrate(msgs, env, {profile:'balanced'}));
         let content = result.content || '';
 
         // ── Execute TOOL: action({params}) lines for real ─────────────
@@ -7921,16 +7922,29 @@ data: ${JSON.stringify(data)}
           let params = {};
           try { params = JSON.parse(tm[2]); } catch (e) { toolCalls.push({ action, error: 'bad arguments' }); continue; }
           try {
-            const r = await fetch('https://prism-api.identitypartners.workers.dev/api/devteam/execute', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action, ...params })
-            }).then(x => x.json());
-            toolCalls.push({ action, result: r });
+            let r = null, lastErr = null;
+            for (let attempt = 0; attempt < 2; attempt++) {
+              try {
+                r = await fetch('https://prism-api.identitypartners.workers.dev/api/devteam/execute', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action, ...params })
+                }).then(x => { if (!x.ok) throw new Error('HTTP ' + x.status); return x.json(); });
+                break;
+              } catch (te) { lastErr = te; }
+            }
+            if (r) toolCalls.push({ action, result: r });
+            else toolCalls.push({ action, error: 'Tool call failed: ' + (lastErr && lastErr.message) });
           } catch (e) { toolCalls.push({ action, error: e.message }); }
         }
         if (toolCalls.length) {
           content = content.replace(toolRe, '').trim();
-          content += '\n\n[Tools executed: ' + toolCalls.map(t => t.action).join(', ') + ']';
+          const marks = toolCalls.map(t => {
+            const ok = t.result && t.result.success !== false && !t.error;
+            return (ok ? '\u2714 ' : '\u274C ') + t.action + (t.error ? ' (' + t.error + ')' : '');
+          }).join(' \u00b7 ');
+          content += '\n\n[Tools executed: ' + marks + ']';
+          const failed = toolCalls.filter(t => t.error || (t.result && t.result.success === false) || !t.result);
+          content += failed.length ? '\nNote: ' + failed.length + ' tool call(s) FAILED. Do not describe their results as if they succeeded; if you need that data, call the tool again.' : '';
         }
         try {
           const h = (await env.PRISM_KV.get('devteam:history', 'json') || []);
@@ -8006,8 +8020,9 @@ data: ${JSON.stringify(data)}
           const kvVal = body.value !== undefined ? (typeof body.value === 'string' ? body.value : JSON.stringify(body.value)) : '';
           if (!kvKey) return json({success:false, error:'key required'}, 400, origin);
           if (!env.PRISM_KV) return json({success:false, error:'KV not bound'}, 500, origin);
-          const PROTECTED_KV = ['mm:queue','themes:weeks','cadence:slots','cadence:groups','cadence:templates','voices:registry','research:runs','assets:created','devteam:history'];
-          if (PROTECTED_KV.includes(kvKey) && !body.confirmedBySimon) return json({success:false, refused:true, error:'GUARD: ' + kvKey + ' holds live system data. Overwriting it wholesale is forbidden. If Simon explicitly asked for this exact write, include {"confirmedBySimon": true}.'}, 200, origin);
+          const PROTECTED_KV = ['mm:queue','themes:weeks','cadence:slots','cadence:groups','cadence:templates','voices:registry','research:runs','assets:created','devteam:history','library:tree'];
+          const isProtected = PROTECTED_KV.includes(kvKey) || kvKey.startsWith('study:');
+          if (isProtected && !body.confirmedBySimon) return json({success:false, refused:true, error:'GUARD: ' + kvKey + ' holds live system data. Overwriting it wholesale is forbidden. If Simon explicitly asked for this exact write, include {"confirmedBySimon": true}.'}, 200, origin);
           await env.PRISM_KV.put(kvKey, kvVal);
           return json({success:true, action, key:kvKey}, 200, origin);
         }
@@ -8018,7 +8033,7 @@ data: ${JSON.stringify(data)}
           let written = 0;
           for (const e of entries) {
             if (!e.key) continue;
-            if (['mm:queue','themes:weeks','cadence:slots','cadence:groups','cadence:templates','voices:registry','research:runs','assets:created','devteam:history'].includes(e.key) && !body.confirmedBySimon) { continue; }
+            if ((['mm:queue','themes:weeks','cadence:slots','cadence:groups','cadence:templates','voices:registry','research:runs','assets:created','devteam:history','library:tree'].includes(e.key) || e.key.startsWith('study:')) && !body.confirmedBySimon) { continue; }
             await env.PRISM_KV.put(e.key, e.value !== undefined ? (typeof e.value === 'string' ? e.value : JSON.stringify(e.value)) : '');
             written++;
           }
