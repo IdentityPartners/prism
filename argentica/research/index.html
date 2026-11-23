@@ -61,6 +61,12 @@
   </div>
 
   <div class="mt" id="results"></div>
+
+  <div class="card mt">
+    <h3>Past runs</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:8px;">Every search, watching-brief check and planned run is kept here — reopen one to browse its results again, or file the whole run into the Study Hub.</div>
+    <div id="past-runs"><div class="muted">Loading…</div></div>
+  </div>
 </div>
 
 <script src="/shared/argentica.js"></script>
@@ -199,6 +205,52 @@ function renderResults() {
       '<div class="item-list">' + sorted.slice(0, 80).map(resultCard).join('') + '</div></div>'
     : '<div class="card"><div class="muted">Nothing survived the filters. Loosen the dates or clear the open-access filter.</div></div>';
 }
+
+window.loadPastRuns = async () => {
+  const el = document.getElementById('past-runs');
+  try {
+    const d = await api('/research/history');
+    const runs = d.runs || [];
+    if (!runs.length) { el.innerHTML = '<div class="muted">No runs yet — every search you make from now on will appear here.</div>'; return; }
+    el.innerHTML = runs.slice(0, 30).map(r => {
+      const when = new Date(r.ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      const kind = r.kind && r.kind !== 'one-off' ? ' <span class="badge teal">' + esc(r.kind) + '</span>' : '';
+      return '<div class="item" style="gap:8px;"><div style="min-width:0;flex:1;"><div>' + esc(r.query || '(untitled query)') + kind + '</div>' +
+        '<div class="muted">' + when + ' \u00b7 ' + r.count + ' results</div></div>' +
+        '<button class="ghost small" onclick="reopenRun(\'' + esc(r.id) + '\')">Open</button>' +
+        '<button class="ghost small" onclick="filePastRun(\'' + esc(r.id) + '\')" title="File this whole run to the Study Hub">\u21B3 File</button>' +
+        '<span title="Remove from history" style="cursor:pointer;color:#a05050;font-size:12px;" onclick="delPastRun(\'' + esc(r.id) + '\')">\u2715</span></div>';
+    }).join('');
+  } catch (e) { el.innerHTML = '<div class="muted">Could not load history: ' + esc(e.message) + '</div>'; }
+};
+window.reopenRun = async id => {
+  try {
+    const d = await api('/research/history/one?id=' + encodeURIComponent(id));
+    if (!d.run) { ARG.toast('That run is no longer available.'); return; }
+    currentResults = d.run.results || [];
+    window.__lastRun = { results: currentResults, at: new Date(d.run.ts) };
+    renderResults();
+    document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+    ARG.toast('Showing ' + currentResults.length + ' results from ' + new Date(d.run.ts).toLocaleDateString('en-GB') + '.');
+  } catch (e) { ARG.toast('Could not open: ' + e.message); }
+};
+window.filePastRun = async id => {
+  try {
+    const d = await api('/research/history/one?id=' + encodeURIComponent(id));
+    if (!d.run) { ARG.toast('That run is no longer available.'); return; }
+    window.__lastRun = { results: d.run.results || [], at: new Date(d.run.ts) };
+    const m = document.getElementById('kb-file-modal');
+    m.dataset.wholeRun = '1';
+    m.dataset.title = (d.run.query || 'Search run') + ' \u2014 ' + new Date(d.run.ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' (' + (d.run.results || []).length + ' results)';
+    m.dataset.runQuery = d.run.query || '';
+    m.dataset.url = ''; m.dataset.snippet = '';
+    document.getElementById('kf-title').value = m.dataset.title;
+    m.style.display = 'flex'; kfSetDest('hub'); kfLoadHub();
+  } catch (e) { ARG.toast('Could not load: ' + e.message); }
+};
+window.delPastRun = async id => {
+  try { await api('/research/history?id=' + encodeURIComponent(id), { method: 'DELETE' }); loadPastRuns(); ARG.toast('Removed from history.'); } catch (e) { ARG.toast(e.message); }
+};
 
 window.fileWholeRun = () => {
   const run = window.__lastRun;
@@ -423,6 +475,7 @@ document.getElementById('run').addEventListener('click', async () => {
 });
 
 renderSources();
+loadPastRuns();
 </script>
 <div id="kb-file-modal" style="position:fixed;inset:0;background:rgba(43,33,23,.34);z-index:420;display:none;align-items:center;justify-content:center;">
   <div style="background:#f7f3e9;border:1px solid #d8cfc0;border-radius:12px;padding:22px 24px;width:min(560px,94vw);">
