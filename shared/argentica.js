@@ -160,8 +160,9 @@
       Object.entries(WORKSPACES).map(([id, ws]) => {
         const active = found && found.id === id;
         const home = ws.tabs[0];
+        const linkLabel = (home.label && home.label.toLowerCase().indexOf(ws.nav.toLowerCase()) === 0) ? home.label : ws.nav;
         return '<div class="section">' + ws.nav + '</div>' +
-          '<a href="' + home.href + '"' + (active ? ' class="active"' : '') + '>' + ws.nav + '</a>' +
+          '<a href="' + home.href + '"' + (active ? ' class="active"' : '') + '>' + linkLabel + '</a>' +
           (active ? ws.tabs.map(t =>
             '<a href="' + t.href + '" style="padding-left:26px; font-size:12.5px;"' + (t.key === activeKey ? ' class="active"' : '') + '>' + t.label + '</a>'
           ).join('') : '');
@@ -208,6 +209,63 @@
       });
     }
   }
+
+
+// ── Drafts: work in progress survives navigating away and back ──
+(function () {
+  var KEY = function () { return 'argdraft:' + location.pathname; };
+  function load() { try { return JSON.parse(localStorage.getItem(KEY()) || '{}'); } catch (e) { return {}; } }
+  function save(map) { try { localStorage.setItem(KEY(), JSON.stringify(map)); } catch (e) {} }
+  var t = null;
+  document.addEventListener('input', function (e) {
+    var el = e.target;
+    if (!el || el.nodeType !== 1) return;
+    var map = load();
+    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+      if (!el.id && !el.name) return;
+      map[(el.id || 'n:' + el.name)] = el.value;
+    } else if (el.isContentEditable) {
+      // Quill / richtext editors
+      map['#ce:' + (el.id || el.className.split(' ')[0] || 'anon')] = el.innerHTML;
+    } else return;
+    clearTimeout(t); t = setTimeout(function () { save(map); }, 400);
+  }, true);
+  document.addEventListener('change', function (e) {
+    var el = e.target;
+    if (el && el.tagName === 'SELECT' && el.id) { var map = load(); map[el.id] = el.value; save(map); }
+  }, true);
+  window.addEventListener('load', function () {
+    var map = load();
+    if (!Object.keys(map).length) return;
+    var restored = 0;
+    Object.keys(map).forEach(function (k) {
+      if (k.indexOf('#ce:') === 0) return;
+      var el = document.getElementById(k) || (k.indexOf('n:') === 0 ? document.querySelector('[name="' + k.slice(2) + '"]') : null);
+      if (el && map[k] && el.value !== map[k]) { el.value = map[k]; restored++; }
+    });
+    setTimeout(function () {
+      Object.keys(map).forEach(function (k) {
+        if (k.indexOf('#ce:') !== 0) return;
+        var ceId = k.slice(4);
+        var el = ceId ? document.getElementById(ceId) : document.querySelector('.ql-editor');
+        if (el && el.isContentEditable && map[k] && !el.innerHTML) { el.innerHTML = map[k]; restored++; }
+      });
+      if (restored > 0 && window.ARG && window.ARG.toast) window.ARG.toast('Draft restored from where you left off.');
+    }, 700);
+  });
+  window.ARG_drafts = { clear: function () { try { localStorage.removeItem(KEY()); } catch (e) {} }, get: load };
+})();
+
+// ── Second window: an in-system "tab" for the PWA ──
+(function () {
+  var b = document.createElement('button');
+  b.innerHTML = '&#8855;';
+  b.title = 'Open this area in a new window (kept separate, work preserved)';
+  b.style.cssText = 'position:fixed;right:66px;bottom:18px;z-index:400;width:40px;height:40px;border-radius:50%;border:1px solid #d8cfc0;background:#fffdf6;color:#5c2d3f;font-size:17px;cursor:pointer;box-shadow:0 6px 18px rgba(43,33,23,.18);';
+  b.onclick = function () { window.open(location.href, '_blank'); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { document.body.appendChild(b); });
+  else document.body.appendChild(b);
+})();
 
   window.ARG = { api, toast, esc, md, buildShell, WORKSPACES };
 

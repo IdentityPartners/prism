@@ -55,6 +55,7 @@
 
       <button id="gen">Generate</button>
       <div class="muted mt" id="gen-status"></div>
+      <div id="gen-will-use" style="font-size:12px;color:#7a4254;margin-top:6px;"></div>
     </div>
 
     <div class="card">
@@ -186,9 +187,15 @@ function renderGallery() {
     grid.querySelectorAll('.tpl-btn').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
     renderTplFields();
+    updateWillUse();
   }));
 }
 
+function updateWillUse() {
+  const labelSpan = document.getElementById('gen-will-use');
+  const t = TEMPLATES.find(x => x.id === activeTemplate);
+  labelSpan.textContent = 'Rendering as: ' + (t ? t.label : activeTemplate) + ' (' + templateId() + ')';
+}
 const TPL_FIELD_DEFS = {
   'myth-vs-fact':   [['myth','The myth'],['fact','The fact'],['source','Source (optional)']],
   'data-infographic': [['title','Headline'],['subtitle','Subtitle'],['points_data','Data points, one per line'],['source','Source (optional)']],
@@ -263,6 +270,12 @@ document.getElementById('gen').addEventListener('click', async () => {
         platform: 'instagram', skipQueue: true, skipQA: true
       })
     });
+    document.getElementById('gen-status').textContent = '';
+    const usedNote = document.createElement('div');
+    usedNote.style.cssText = 'font-size:12px;color:#0f3b3a;margin-top:6px;';
+    usedNote.id = 'gen-will-use';
+    usedNote.textContent = 'Rendered as: ' + (data.template || templateId()) + (data.type ? ' (type: ' + data.type + ')' : '');
+    document.getElementById('gen-will-use').replaceWith(usedNote);
     const url = data.url || (data.urls && data.urls[0]);
     if (url) {
       lastUrl = url;
@@ -391,6 +404,7 @@ async function composeBranded(photoUrl, text, w, h) {
 
 renderControls();
 renderGallery();
+updateWillUse();
 </script>
 </body>
 </html>
