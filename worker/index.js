@@ -1111,12 +1111,18 @@ function renderAwarenessDay(data, imgBase64) {
 function renderNewsReaction(data) {
   const W=1080, H=1080;
   const bg='#0a0f0f';
-  const headlineLines   = wrapWords(data.headline||'', 42);
-  const commentaryLines = wrapWords(data.commentary||'', 30);
   const outletY   = 90;
   const headlineY = 170;
+  const headlineLines = wrapWords(data.headline||'', 42);
   const ruleY     = headlineY + headlineLines.length*36 + 30;
   const commentY  = ruleY + 60;
+  // fit-to-frame: shrink commentary until it fits above the footer, never overflow
+  let cfs = 40, clh = 52, cChars = 30, commentaryLines = wrapWords(data.commentary||'', cChars);
+  const availH = H - commentY - 150;
+  while (commentaryLines.length * clh > availH && cfs > 18) {
+    cfs -= 2; clh = Math.round(cfs * 1.3); cChars = Math.round(cChars * 40 / cfs);
+    commentaryLines = wrapWords(data.commentary||'', cChars);
+  }
   return svgOpen(W,H,bg) +
     `<text x="60" y="${outletY}" font-family="Arial,sans-serif" font-size="20" font-weight="700" fill="${C.tealLight}" letter-spacing="2">${escX((data.outlet||'').toUpperCase())}</text>` +
     `<text x="${W-60}" y="${outletY}" text-anchor="end" font-family="Arial,sans-serif" font-size="18" fill="${C.grey}" opacity="0.6">${escX(data.date||'')}</text>` +
@@ -1126,8 +1132,8 @@ function renderNewsReaction(data) {
     `<rect x="60" y="${ruleY}" width="${W-120}" height="2" fill="${C.tealLight}" opacity="0.35" rx="1"/>` +
     `<rect x="0" y="${ruleY}" width="6" height="${H-ruleY-80}" fill="${C.tealLight}" opacity="0.55"/>` +
     `<text x="60" y="${ruleY+34}" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="${C.tealLight}" letter-spacing="3">IDENTITY PARTNERS</text>` +
-    `<text x="60" y="${commentY}" font-family="'Playfair Display',Georgia,serif" font-size="40" font-weight="700" fill="${C.ivory}">` +
-      tspanBlock(commentaryLines, 60, commentY, 52) +
+    `<text x="60" y="${commentY}" font-family="'Playfair Display',Georgia,serif" font-size="${cfs}" font-weight="700" fill="${C.ivory}">` +
+      tspanBlock(commentaryLines, 60, commentY, clh) +
     `</text>` +
     ipFooter(W,H,C.teal,C.ivory) +
     `</svg>`;
@@ -7155,7 +7161,7 @@ data: ${JSON.stringify(data)}
           const monW = new Date(nowW); monW.setUTCDate(nowW.getUTCDate() - dowW); monW.setUTCHours(0, 0, 0, 0);
           const thW = themeList.find(t2 => t2.week === monW.toISOString().slice(0, 10));
           if (thW && thW.name) {
-            weekThemeNote = '\nThis week\u2019s theme is "' + thW.name + '"' + (thW.secondary ? ' with secondary thread "' + thW.secondary + '"' : '') + '. Make content speak to it unless Simon asks otherwise. Per-platform overrides may exist in the plan.';
+            weekThemeNote = '\nEDITORIAL CONTEXT (advisory only): this week\u2019s theme is "' + thW.name + '"' + (thW.secondary ? ', secondary thread "' + thW.secondary + '"' : '') + '. Apply it ONLY to posts whose subject is genuinely, directly on-theme, and ONLY when the user has not given different subject matter. NEVER mention, invoke or blend themes into news reactions, quotes, stats, service posts or any content whose subject is the story itself. A theme must NEVER introduce topics the source material does not contain. FACTS: dates, deaths, report names, attributions and quotes must come from material retrieved in this session; never assert any such fact from memory.';
           }
         } catch (eW) {}
         const systemPrompt = `You are ${agent.name} at Identity Partners. ${agent.persona || ''}\n\n${assignment ? 'Current assignment: ' + assignment.task + ' | Status: ' + assignment.status + ' | Priority: ' + assignment.priority + '/5' : 'No current assignment.'}\n\nSimon's voice: Intelligent, direct, humane, British professional prose. Never AI phrasing, never em dashes. British English throughout.\nApproved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, Lancet, PubMed, WHO, academic journals. Never Telegraph, Times, iNews.\nTags (choose 2-4, ONLY ones relevant to the specific post; never blanket-tag): #IdentityPartners #UnderstandThePast #AppreciateThePresent #DefineYourFuture #MentalHealth #Recovery #Addiction #Wellbeing. #Addiction goes ONLY on posts genuinely about addiction. Tag relevance beats tag volume every time.\nMandatory footer: hello@identitypartners.uk | www.identitypartners.uk/contact${weekThemeNote}\n\nYou have real tools. When a task calls for action, write a tool call on its own line in exactly this format and the system will execute it:\nTOOL: queue_post({"text": "the post copy with tags and footer", "platforms": [...], "format": "auto", "from": ""}) — queues a post for approval. PLATFORM GROUPS are TYPES, not pairings (pass a group name or individual channels, mixing is fine): "longform" = substack ONLY (essays, reflective prose, full-length pieces; Bluesky is NOT longform); "pro" = linkedin ONLY (orphaned, pro-to-pro: practice news, professional development, sector commentary); "shortform" = x + threads + bluesky (one-idea nuggets respecting caps: x 280, bluesky 300, threads 500 characters); "images" = instagram + facebook + tumblr (image-first posts, carousels and stories). WRITING CONVENTIONS by type: longform = patient, essayistic, intellectually warm; pro = professional, peer-to-peer; shortform = plain speech, one idea, surface-level-perfect; images = strong caption plus visual, human interest. FORMAT slots ("format" arg): "image" single graphic; "carousel" multi-slide (strongest reach on instagram); "story" full-bleed vertical (instagram + facebook stories); "reel" short brand video (title + list lines animated on parchment; render via the reel studio, agents should propose them for listicle-style content); "auto" lets the system choose by content type. LISTICLE DOCTRINE: the best-performing non-shortform content on the internet is the listicle, from Instagram carousels to LinkedIn articles. When content is multi-part (steps, reasons, tips, arguments), default to format=carousel and write each slide as a list item. "from" (optional) = a voice id from the voices registry, to post as a registered condition-specific account instead of the main Identity Partners account.\nTOOL: post_now({"text": "...", "platforms": [...]}) — attempts immediate posting; only works when autonomy is switched on.\nTOOL: create_canvas({"topic": "...", "template": "..."}) — renders a brand canvas graphic; templates include myth-vs-fact, data-infographic, awareness-day, news-reaction, research, service-explainer, quote, stat, testimonial, img-seascape, img-sunrise, img-cityscape and dual-partnership.\nTOOL: search_news({"topic": "..."}) — fetches current headlines from the approved sources.\nTOOL: save_note({"title": "...", "content": "..."}) — files a note in Simon's library.\nUse tools when asked to produce content or monitor the news; explain in one short line what you did.\n`;
@@ -11737,8 +11743,9 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           const mondayISO = monday.toISOString().slice(0, 10);
           const th = themes.find(t2 => t2.week === mondayISO);
           if (th && th.name) {
-            globalThis.__weekTheme = ' THIS WEEKS THEME is "' + th.name + '" — make the post speak to it directly.';
-            if (th.secondary) globalThis.__weekTheme += ' Secondary thread: "' + th.secondary + '" — let it underpin the piece without crowding the primary.';
+            globalThis.__weekTheme = ' EDITORIAL CONTEXT (advisory only): this week\u2019s theme is "' + th.name + '". Apply ONLY if the headline being drafted about is genuinely, directly on-theme. For news-reaction posts the story is the subject: NEVER mention, invoke or blend the theme. A theme must never introduce topics the story does not contain.';
+            if (th.secondary) globalThis.__weekTheme += ' Secondary thread "' + th.secondary + '" exists but must not be crowbarred in.';
+            globalThis.__weekTheme += ' FACT DISCIPLINE: dates, deaths, report names, attributions and quotes must come only from the retrieved headline text; never from memory. If the story does not say it, do not say it.';
             if (th.exceptions && Object.keys(th.exceptions).length) globalThis.__weekTheme += ' (Single-week per-platform overrides exist: ' + Object.entries(th.exceptions).map(([p, v]) => p + ' uses "' + v + '"').join('; ') + ' — they are applied per channel at publish time.)';
           }
         } catch (e2) {}
