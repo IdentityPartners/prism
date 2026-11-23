@@ -5517,6 +5517,14 @@ data: ${JSON.stringify(data)}
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
 
+    // arrayBuffer → base64 without Node Buffer (chunked, spread-safe)
+    globalThis.__argB64 = globalThis.__argB64 || function (buf) {
+      const u8 = new Uint8Array(buf); let bin = '';
+      const CH = 8192;
+      for (let i = 0; i < u8.length; i += CH) bin += String.fromCharCode.apply(null, u8.subarray(i, i + CH));
+      return btoa(bin);
+    };
+
     if (path === '/api/image/generate' && request.method === 'POST') {
       try {
         const body = await request.json();
@@ -5566,7 +5574,7 @@ data: ${JSON.stringify(data)}
               method: 'POST', headers: { 'Authorization': 'Bearer ' + STABKEY, 'Accept': 'image/*' }, body: fd
             });
             if (resp.ok) {
-              const b64 = Buffer.from(await resp.arrayBuffer()).toString('base64');
+              const b64 = __argB64(await resp.arrayBuffer());
               return json({success:true, url:'data:image/png;base64,' + b64, provider:'stability', model:'sd3.5-core'}, 200, origin);
             }
             failLog.push('stability:' + resp.status);
@@ -5608,16 +5616,18 @@ data: ${JSON.stringify(data)}
         // Image Router (multi-provider router) — OpenAI-compatible shape
         if (IMRKEY && (!ONLY || ONLY === 'imagerouter')) {
           try {
+            const imrModel = body.imagerouterModel || 'imagerouter/auto-image';
             const resp = await fetch('https://api.imagerouter.io/v1/openai/images/generations', {
               method: 'POST', headers: { 'Authorization': 'Bearer ' + IMRKEY, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt: prompt, model: body.imagerouterModel || 'imagerouter/auto-image' })
+              body: JSON.stringify({ prompt: prompt, model: imrModel, response_format: 'url' })
             });
             if (resp.ok) {
               const d = await resp.json();
-              const iu = (d.data && d.data[0] && (d.data[0].url || (d.data[0].b64_json ? 'data:image/png;base64,' + d.data[0].b64_json : null))) || null;
-              if (iu) return json({success:true, url:iu, provider:'imagerouter', model:'router'}, 200, origin);
-              failLog.push('imagerouter:no-image');
-            } else failLog.push('imagerouter:' + resp.status);
+              const im = (d.data && d.data[0]) || {};
+              const iu = im.url || (im.b64_json ? 'data:image/png;base64,' + im.b64_json : null);
+              if (iu) return json({success:true, url:iu, provider:'imagerouter', model:imrModel}, 200, origin);
+              failLog.push('imagerouter:no-image ' + JSON.stringify(d).slice(0, 160));
+            } else failLog.push('imagerouter:' + resp.status + ' ' + (await resp.text().catch(() => '')).slice(0, 120));
           } catch(e) { failLog.push('imagerouter:' + e.message); }
         }
 
@@ -11438,7 +11448,11 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         if (body.imageUrl) {
           try {
             const r = await fetch(body.imageUrl);
-            if (r.ok) imgBase64 = 'data:' + (r.headers.get('content-type')||'image/jpeg') + ';base64,' + Buffer.from(await r.arrayBuffer()).toString('base64');
+            if (r.ok) {
+              const u8 = new Uint8Array(await r.arrayBuffer()); let bin = '';
+              for (let i = 0; i < u8.length; i += 8192) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 8192));
+              imgBase64 = 'data:' + (r.headers.get('content-type')||'image/jpeg') + ';base64,' + btoa(bin);
+            }
           } catch (e) {}
         }
 
