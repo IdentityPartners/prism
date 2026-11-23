@@ -5528,6 +5528,7 @@ data: ${JSON.stringify(data)}
         const IDEOKEY = k(env, ['ideogram_api_key','IDEOGRAM_API_KEY','ideogram_key','ideogram']) || '';
         const STABKEY = k(env, ['stability_api_key','STABILITY_API_KEY','stability_key','stability']) || '';
         const IMRKEY = k(env, ['imagerouter_api_key','IMAGEROUTER_API_KEY','imagerouter_key','imagerouter']) || '';
+        const failLog = [];
         const chosen = body.model || 'auto';
         const aspect = body.aspect || '1:1';
         // Explicit provider request → try only that one
@@ -5549,8 +5550,9 @@ data: ${JSON.stringify(data)}
                   return json({success:true, url:'data:'+part.inlineData.mimeType+';base64,'+part.inlineData.data, provider:'gemini', model:'gemini-3.1-flash-image'}, 200, origin);
                 }
               }
-            }
-          } catch(e) {}
+              failLog.push('gemini:no-image ' + resp.status);
+            } else failLog.push('gemini:' + resp.status);
+          } catch(e) { failLog.push('gemini:' + e.message); }
         }
 
         // Stability AI (sd3.5 core) — highly brandable, strong composition
@@ -5567,7 +5569,8 @@ data: ${JSON.stringify(data)}
               const b64 = Buffer.from(await resp.arrayBuffer()).toString('base64');
               return json({success:true, url:'data:image/png;base64,' + b64, provider:'stability', model:'sd3.5-core'}, 200, origin);
             }
-          } catch(e) {}
+            failLog.push('stability:' + resp.status);
+          } catch(e) { failLog.push('stability:' + e.message); }
         }
 
         // Ideogram (v3-turbo) — best-in-class for text-in-image, poster-style work
@@ -5581,8 +5584,9 @@ data: ${JSON.stringify(data)}
               const d = await resp.json();
               const du = (d.data && d.data[0] && (d.data[0].data_url || d.data[0].url)) || null;
               if (du) return json({success:true, url:du, provider:'ideogram', model:'v3-turbo'}, 200, origin);
-            }
-          } catch(e) {}
+              failLog.push('ideogram:no-image');
+            } else failLog.push('ideogram:' + resp.status);
+          } catch(e) { failLog.push('ideogram:' + e.message); }
         }
 
         // FAL (fast-sdxl) — community models, generous
@@ -5596,8 +5600,9 @@ data: ${JSON.stringify(data)}
               const d = await resp.json();
               const iu = (d.images && d.images[0] && (d.images[0].url || d.images[0].b64_data ? (d.images[0].url || 'data:image/png;base64,' + d.images[0].b64_data) : null)) || null;
               if (iu) return json({success:true, url:iu, provider:'fal', model:'fast-sdxl'}, 200, origin);
-            }
-          } catch(e) {}
+              failLog.push('fal:no-image');
+            } else failLog.push('fal:' + resp.status);
+          } catch(e) { failLog.push('fal:' + e.message); }
         }
 
         // Image Router (multi-provider router) — OpenAI-compatible shape
@@ -5611,13 +5616,14 @@ data: ${JSON.stringify(data)}
               const d = await resp.json();
               const iu = (d.data && d.data[0] && (d.data[0].url || (d.data[0].b64_json ? 'data:image/png;base64,' + d.data[0].b64_json : null))) || null;
               if (iu) return json({success:true, url:iu, provider:'imagerouter', model:'router'}, 200, origin);
-            }
-          } catch(e) {}
+              failLog.push('imagerouter:no-image');
+            } else failLog.push('imagerouter:' + resp.status);
+          } catch(e) { failLog.push('imagerouter:' + e.message); }
         }
 
         // Pollinations fallback (always free, zero-key) — last resort only
         const polUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&model=flux`;
-        if (ONLY && ONLY !== 'pollinations') return json({error:'Provider ' + ONLY + ' unavailable — no key or rejected. Try model:auto.'}, 502, origin);
+        if (ONLY && ONLY !== 'pollinations') return json({error:'Provider ' + ONLY + ' unavailable', failed: failLog, keys: {gemini: !!GKEY, stability: !!STABKEY, ideogram: !!IDEOKEY, fal: !!FALKEY, imagerouter: !!IMRKEY}}, 502, origin);
         return json({success:true, url:polUrl, provider:'pollinations', model:'flux'}, 200, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
