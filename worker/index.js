@@ -7886,10 +7886,18 @@ data: ${JSON.stringify(data)}
 
     // ── Dev Team routes (H1) ─────────────────────────────────────────────────────
     if (path === '/api/devteam' && request.method === 'POST') {
+      let userMsgAttachments = null;
       try {
         const body = await request.json();
         const userMsg = body.message || body.content || '';
-        const history = body.history || [];
+        if (body.attachments && Array.isArray(body.attachments) && body.attachments.length) {
+          userMsgAttachments = body.attachments;
+        }
+        let history = body.history || [];
+        try {
+          const savedH = (await env.PRISM_KV.get('devteam:history', 'json') || []);
+          history = (savedH.length >= history.length) ? savedH : history;
+        } catch (eH) {}
         const msgs = [
           {role:'system', content:'You are the Argentica Dev Team agent. Senior full-stack developer and system architect for Simon Johnson (Identity Partners). You have access to the Cloudflare Worker (prism-api.identitypartners.workers.dev), GitHub repo (IdentityPartners/prism), KV storage, D1 database, and all API integrations. You diagnose issues, implement fixes, build features, and maintain the system autonomously. You never ask Simon to do anything technical. British English throughout. No sycophancy. No AI tropes. Be direct and precise. Implement fixes, do not just describe them. Routing chain: DeepSeek -> Kimi -> Mistral -> GLM -> Cohere -> Cerebras -> Groq -> Gemini -> Pollinations.\n\nYou have REAL tools, executed automatically when you write them on their own line in this exact format:\nTOOL: health({}) — full system health check\nTOOL: kv-list({"prefix": ""}) — list KV keys\nTOOL: get_kv({"key": "..."}) — read a KV value\nTOOL: set_kv({"key": "...", "value": "..."}) — write a KV value\nTOOL: update_kv_bulk({"entries": [{"key": "...", "value": "..."}]}) — write many KV values\nTOOL: push_to_github({"path": "file/path.js", "content": "full file content", "message": "commit message", "branch": "main"}) — push a file to the repo; a push to main auto-deploys Pages and the worker\nTOOL: deploy_worker({}) — redeploy the current worker script with all bindings intact\nTOOL: test-provider({"provider": "mistral"}) — test any LLM provider\nTOOL: read_github({\"path": \"file/path.js\"}) \u2014 read the CURRENT full content of a repo file (always do this before pushing any change)\nTOOL: deploy_worker({}) \u2014 redeploy the current worker script with all bindings intact\nTOOL: test-provider({\"provider": \"mistral\"}) \u2014 test any LLM provider\nTOOL: fetch_url({\"url": \"https://...\"}) \u2014 fetch the text of any URL (useful for Simon\'s attachments)\nSAFETY RULES (binding): push_to_github REPLACES the entire file. worker/index.js is ~11,700 lines \u2014 NEVER rewrite it wholesale or from memory; if you must change it, read_github first, make a MINIMAL change to that exact content, and push the complete edited file (the system refuses pushes that would drastically shrink worker/index.js). CRITICAL: after every tool call, READ the result. If a push or deploy returned success:false, an error, or no commit URL, the change did NOT happen \u2014 say so plainly and stop; NEVER claim work is done without a successful tool result. Files under argentica/ (and anything else) pushed to main do NOT auto-deploy CF Pages \u2014 Pages deploys are a separate manual step (scripts/deploy-arch.sh); a worker/index.js push to main DOES auto-deploy the worker via CI. Note this in reports instead of claiming pages are live.'},
           ...history.slice(-10),
@@ -7898,6 +7906,9 @@ data: ${JSON.stringify(data)}
         const _dtq = msgs.filter(function(m){return m.role==='user';}).pop();
         const _dtmc = await buildMemoryContext(env, _dtq ? _dtq.content : '');
         if (_dtmc) { const _dtsi = msgs.findIndex(function(m){return m.role==='system';}); if (_dtsi>=0) msgs[_dtsi].content+=('\n\n'+_dtmc); else msgs.unshift({role:'system',content:_dtmc}); }
+        if (userMsgAttachments && userMsgAttachments.length && msgs.length) {
+          msgs[msgs.length-1].content += '\n\n[Simon attached ' + userMsgAttachments.length + ' file(s): ' + userMsgAttachments.map(a => (a.name || 'file') + ' at ' + a.url).join(' | ') + '. Use TOOL: fetch_url to read text attachments.]';
+        }
         const result = await orchestrate(msgs, env, {profile:'balanced'});
         let content = result.content || '';
 
@@ -7921,8 +7932,24 @@ data: ${JSON.stringify(data)}
           content = content.replace(toolRe, '').trim();
           content += '\n\n[Tools executed: ' + toolCalls.map(t => t.action).join(', ') + ']';
         }
-        return json({success:true, content, provider:result.provider, model:result.model, toolCalls}, 200, origin);
+        try {
+          const h = (await env.PRISM_KV.get('devteam:history', 'json') || []);
+          h.push({ role: 'user', content: userMsg, ts: new Date().toISOString(), attachments: userMsgAttachments || undefined });
+          h.push({ role: 'assistant', content, ts: new Date().toISOString() });
+          await env.PRISM_KV.put('devteam:history', JSON.stringify(h.slice(-200)));
+          return json({success:true, content, provider:result.provider, model:result.model, toolCalls}, 200, origin);
+        } catch (eP) {
+          return json({success:true, content, provider:result.provider, model:result.model, toolCalls}, 200, origin);
+        }
       } catch(e) { return json({success:false, error:e.message}, 500, origin); }
+    }
+
+    // GET /api/devteam/history — the persistent thread
+    if (path === '/api/devteam/history' && request.method === 'GET') {
+      try {
+        const h = (await env.PRISM_KV.get('devteam:history', 'json') || []);
+        return json({success:true, history: h.slice(-120)}, 200, origin);
+      } catch(e) { return json({success:false, error:e.message}, 200, origin); }
     }
 
     if (path === '/api/devteam/execute' && request.method === 'POST') {
@@ -7995,6 +8022,35 @@ data: ${JSON.stringify(data)}
           return json({success:true, action, written}, 200, origin);
         }
 
+        // Read the current content of a repo file
+        if (action === 'read_github') {
+          const ghToken2 = k(env, ['github_token','GITHUB_TOKEN']) || '';
+          const filePath2 = body.path || '';
+          if (!ghToken2) return json({success:false, error:'github_token secret not set'}, 400, origin);
+          if (!filePath2) return json({success:false, error:'path required'}, 400, origin);
+          try {
+            const meta = await fetch('https://api.github.com/repos/IdentityPartners/prism/contents/' + filePath2, {
+              headers: { Authorization: 'Bearer ' + ghToken2, Accept: 'application/vnd.github+json' }
+            }).then(r => r.json());
+            if (!meta.content) return json({success:false, error:'File not found: ' + filePath2}, 200, origin);
+            let text = meta.content;
+            if (meta.encoding === 'base64') { const bin = atob(text.replace(/\n/g,'')); text = decodeURIComponent(escape(bin)); }
+            if (text.length > 400000) text = text.slice(0, 400000) + '\n\n[TRUNCATED — file is larger]';
+            return json({success:true, action, path: filePath2, size: meta.size, content: text}, 200, origin);
+          } catch(e) { return json({success:false, error:e.message}, 200, origin); }
+        }
+
+        // Fetch any URL (text)
+        if (action === 'fetch_url') {
+          const u = body.url || '';
+          if (!/^https?:\/\//.test(u)) return json({success:false, error:'http(s) url required'}, 400, origin);
+          try {
+            const frr = await fetch(u, { headers: { 'User-Agent': 'Argentica/1.0' } });
+            const ft = await frr.text();
+            return json({success:frr.ok, action, status:frr.status, content: ft.slice(0, 60000)}, 200, origin);
+          } catch(e) { return json({success:false, error:e.message}, 200, origin); }
+        }
+
         // Push any file to the GitHub repo (a push to main auto-deploys Pages + worker)
         if (action === 'push_to_github') {
           const ghToken = k(env, ['github_token','GITHUB_TOKEN']) || '';
@@ -8004,6 +8060,10 @@ data: ${JSON.stringify(data)}
           const branch = body.branch || 'main';
           if (!ghToken) return json({success:false, error:'github_token secret not set'}, 400, origin);
           if (!filePath || !content) return json({success:false, error:'path and content required'}, 400, origin);
+          if (filePath === 'worker/index.js') {
+            const incomingLines = content.split('\n').length;
+            if (incomingLines < 5000) return json({success:false, refused:true, error:'GUARD: refusing to replace worker/index.js (~11,700 lines) with a ' + incomingLines + '-line file. Use read_github first, make a minimal edit, push the full edited file.'}, 200, origin);
+          }
           try {
             const head = await fetch('https://api.github.com/repos/IdentityPartners/prism/contents/' + filePath + '?ref=' + branch, {
               headers: { Authorization: 'Bearer ' + ghToken, Accept: 'application/vnd.github+json' }
