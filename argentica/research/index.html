@@ -236,15 +236,42 @@ function resultCard(r) {
     '<button class="ghost small" onclick="saveRes(this)" data-title="' + esc(r.title || '') + '" data-url="' + esc(r.url || '') + '">Save</button></div>';
 }
 
-window.saveRes = async btn => {
+window.saveRes = btn => {
+  // open the library filing modal: choose title + section path (Quant > Assignment > Part 1)
+  var m = document.getElementById('kb-file-modal');
+  m.dataset.title = btn.dataset.title || 'Untitled';
+  m.dataset.url = btn.dataset.url || '';
+  m.dataset.snippet = btn.closest('.item') ? (btn.closest('.item').querySelector('.muted') ? btn.closest('.item').querySelector('.muted').textContent : '') : '';
+  document.getElementById('kf-title').value = m.dataset.title;
+  // load known section paths from the knowledge base
+  (async () => {
+    try {
+      const kb = await api('/kb');
+      const paths = [...new Set((kb.pages || []).map(p => (p.section || '').trim()).filter(Boolean))].sort();
+      document.getElementById('kf-dl').innerHTML = paths.map(p => '<option value="' + esc(p) + '">').join('');
+    } catch (e) { /* empty list is fine */ }
+  })();
+  m.style.display = 'flex';
+  setTimeout(() => document.getElementById('kf-section').focus(), 60);
+};
+window.kfCancel = () => { document.getElementById('kb-file-modal').style.display = 'none'; };
+window.kfSave = async () => {
+  const m = document.getElementById('kb-file-modal');
+  const title = document.getElementById('kf-title').value.trim();
+  const section = document.getElementById('kf-section').value.trim();
+  if (!title) { ARG.toast('Give it a title.'); return; }
+  const url = m.dataset.url || '';
+  const snippet = m.dataset.snippet || '';
+  const id = 'kb-research-' + Date.now();
+  const content = '<p><a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + '</a></p>' +
+                  (snippet ? '<p>' + esc(snippet.slice(0, 600)) + '</p>' : '') +
+                  '<p class="muted">Filed from a library research run.</p>';
   try {
-    await api('/documents', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: btn.dataset.title, type: 'reference', content: btn.dataset.url, tags: ['module:dissertation', 'section:General', 'research'], moduleSource: 'dissertation' })
-    });
-    btn.textContent = 'Saved'; btn.disabled = true;
-    ARG.toast('Saved to Dissertation.');
-  } catch (e) { ARG.toast('Could not save.'); }
+    await api('/kb', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, title, section, source: 'research', format: 'html', content }) });
+    m.style.display = 'none';
+    ARG.toast('Filed to the knowledge base' + (section ? ' under ' + section : '') + '.');
+  } catch (e) { ARG.toast('Could not save: ' + e.message); }
 };
 
 async function runNews(q) {
@@ -311,5 +338,20 @@ document.getElementById('run').addEventListener('click', async () => {
 
 renderSources();
 </script>
+<div id="kb-file-modal" style="position:fixed;inset:0;background:rgba(43,33,23,.34);z-index:420;display:none;align-items:center;justify-content:center;">
+  <div style="background:#f7f3e9;border:1px solid #d8cfc0;border-radius:12px;padding:22px 24px;width:min(560px,94vw);">
+    <h3 style="margin:0 0 4px;font-family:'EB Garamond',Georgia,serif;color:#5c2d3f;">File to the knowledge base</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:12px;">Use &ldquo;&&nbsp;&rdquo; between levels for nesting, e.g. <i>Quant &gt; Assignment &gt; Part 1</i>. New paths are created as you type.</div>
+    <label class="muted" style="font-size:12px;display:block;margin:0 0 4px;">Title</label>
+    <input type="text" id="kf-title" style="width:100%;box-sizing:border-box;">
+    <label class="muted" style="font-size:12px;display:block;margin:12px 0 4px;">Section path</label>
+    <datalist id="kf-dl"></datalist>
+    <input type="text" id="kf-section" list="kf-dl" style="width:100%;box-sizing:border-box;" placeholder="e.g. Quant > Assignment > Part 1">
+    <div style="display:flex;justify-content:space-between;margin-top:18px;gap:8px;">
+      <button class="ghost" onclick="kfCancel()">Cancel</button>
+      <button onclick="kfSave()">File it</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

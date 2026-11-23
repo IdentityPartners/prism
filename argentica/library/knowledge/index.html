@@ -101,6 +101,16 @@
   </div>
   <div class="wiki-tree-body" id="wiki-tree-body"></div>
 </div>
+<div id="section-modal" style="position:fixed;inset:0;background:rgba(43,33,23,.34);z-index:420;display:none;align-items:center;justify-content:center;">
+  <div style="background:var(--paper,#f7f3e9);border:1px solid var(--line,#d8cfc0);border-radius:12px;padding:22px 24px;width:min(560px,94vw);max-height:86vh;overflow-y:auto;">
+    <h3 style="margin:0 0 4px;font-family:'EB Garamond',Georgia,serif;color:#5c2d3f;" id="sm-title">Section</h3>
+    <div id="sm-fields"></div>
+    <div style="display:flex;justify-content:space-between;margin-top:18px;gap:8px;">
+      <button class="ghost" id="sm-cancel">Cancel</button>
+      <button id="sm-apply">Apply</button>
+    </div>
+  </div>
+</div>
 <div class="wiki-main">
   <div class="wiki-hdr">
     <h2 id="wiki-title" contenteditable="true" onblur="saveTitle(this.textContent)" style="outline:none;cursor:text;">Untitled Page</h2>
@@ -237,47 +247,69 @@ function savePages() {
   });
 }
 
+function sectionPathList() {
+  var set = {};
+  pages.forEach(function(p){ if (p.section) set[p.section.trim()] = 1; });
+  return Object.keys(set).sort();
+}
+
 function renderTree(filter) {
   var body = document.getElementById('wiki-tree-body');
   body.innerHTML = '';
   var filtered = filter ? pages.filter(function(p){return p.title.toLowerCase().includes(filter.toLowerCase());}) : pages;
 
-  var groups = {};
-  var order = [];
+  // build a nested tree from ' > ' paths: Quant > Assignment > Part 1
+  var root = { name: '', children: {}, pages: [] };
   filtered.forEach(function(p){
-    var sec = (p.section || '').trim();
-    if (!order.includes(sec)) { order.push(sec); groups[sec] = []; }
-    groups[sec].push(p);
+    var parts = (p.section || '').split('>').map(function(x){return x.trim();}).filter(Boolean);
+    var node = root;
+    parts.forEach(function(seg){
+      if (!node.children[seg]) node.children[seg] = { name: seg, path: (node.path ? node.path + ' > ' : '') + seg, children: {}, pages: [] };
+      node = node.children[seg];
+    });
+    node.pages.push(p);
   });
-  order.sort(function(a,b){ var un = function(s){return s?0:1;}; return un(a)-un(b) || a.localeCompare(b); });
 
-  order.forEach(function(sec) {
-    if (sec) {
-      var collapsed = sessionStorage.getItem('kb:sec:'+sec) === '0';
+  function cmpName(a, b) { return a.localeCompare(b); }
+  function renderNode(node, depth) {
+    Object.keys(node.children).sort(cmpName).forEach(function(k){
+      var ch = node.children[k];
+      var storageKey = 'kb:secpath:' + ch.path;
+      var collapsed = sessionStorage.getItem(storageKey) === '0';
+      var pad = 10 + depth * 14;
       var hdr = document.createElement('div');
-      hdr.style.cssText = 'padding:8px 10px 4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;';
+      hdr.style.cssText = 'padding:8px ' + (pad+4) + 'px 4px ' + pad + 'px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;';
       var arrow = document.createElement('span');
       arrow.textContent = collapsed ? '\u25B8' : '\u25BE'; arrow.style.fontSize = '10px';
       hdr.appendChild(arrow);
-      hdr.appendChild(document.createTextNode(sec));
-      hdr.onclick = (function(s){ return function(){
-        openSection(s);
-      };})(sec);
-      arrow.onclick = (function(s){ return function(ev){
+      hdr.appendChild(document.createTextNode(ch.name));
+      // manage affordances
+      var ren = document.createElement('span');
+      ren.textContent = '\u270E'; ren.style.cssText = 'font-size:11px;color:var(--fg-muted);margin-left:6px;cursor:pointer;'; ren.title = 'Rename ' + ch.name;
+      ren.onclick = (function(cp){ return function(ev){ ev.stopPropagation(); sectionManager('rename', cp); }; })(ch.path);
+      var del = document.createElement('span');
+      del.textContent = '\u2715'; del.style.cssText = 'font-size:10px;color:#a88792;margin-left:5px;cursor:pointer;'; del.title = 'Delete ' + ch.name;
+      del.onclick = (function(cp){ return function(ev){ ev.stopPropagation(); sectionManager('delete', cp); }; })(ch.path);
+      hdr.appendChild(ren); hdr.appendChild(del);
+      hdr.onclick = (function(cp){ return function(){ openSection(cp); }; })(ch.path);
+      arrow.onclick = (function(stk){ return function(ev){
         ev.stopPropagation();
-        var isOpen = sessionStorage.getItem('kb:sec:'+s) !== '0';
-        sessionStorage.setItem('kb:sec:'+s, isOpen ? '0' : '1');
+        var isOpen = sessionStorage.getItem(stk) !== '0';
+        sessionStorage.setItem(stk, isOpen ? '0' : '1');
         renderTree(filter);
-      };})(sec);
+      }; })(storageKey);
       body.appendChild(hdr);
-      groups[sec].sort(function(a,b){ return (a.idx||0)-(b.idx||0); });
-    }
-    groups[sec].forEach(function(p){ appendTreeItem(body, p); });
-  });
+      if (!collapsed) renderNode(ch, depth + 1);
+    });
+    node.pages.sort(function(a,b){ return (a.idx||0)-(b.idx||0); });
+    node.pages.forEach(function(p){ appendTreeItem(body, p, depth); });
+  }
+  renderNode(root, 0);
 }
 
-function appendTreeItem(body, p) {
+function appendTreeItem(body, p, depth) {
     var item = document.createElement('div');
+    item.style.marginLeft = (12 + (depth || 0) * 14) + 'px';
     item.className = 'wiki-page-item' + (p.id===currentPageId?' active':'');
     var icon = document.createElement('span');
     icon.textContent = '\uD83D\uDCC4';
@@ -339,7 +371,7 @@ function goHome() {
 }
 
 function openSection(sec) {
-  var list = pages.filter(function(p){ return (p.section||'').trim() === sec; })
+  var list = pages.filter(function(p){ var s = (p.section||'').trim(); return s === sec || s.indexOf(sec + ' > ') === 0; })
                   .sort(function(a,b){ return (a.idx||0)-(b.idx||0); });
   if (list.length) openPage(list[0].id);
 }
@@ -368,10 +400,67 @@ function setSection() {
   if (!currentPageId) return;
   var page = pages.find(function(p){return p.id===currentPageId;});
   if (!page) return;
-  var s = prompt('Section for this page (leave blank to un-file):', page.section || '');
-  if (s === null) return;
-  page.section = s.trim(); savePages(); renderTree();
+  sectionManager('page', '', page);
 }
+
+// ── Section modal: rename / delete / file-a-page — paths use ' > ' for depth ──
+var secModalMode = null, secModalPath = '', secModalPage = null;
+function sectionManager(mode, path, page) {
+  secModalMode = mode; secModalPath = path || ''; secModalPage = page || null;
+  var m = document.getElementById('section-modal');
+  var f = document.getElementById('sm-fields');
+  var opts = sectionPathList().map(function(sp){ return '<option value="' + sp.replace(/"/g, '&quot;') + '">'; }).join('');
+  var datalist = '<datalist id="sm-dl">' + opts + '</datalist>';
+  if (mode === 'rename') {
+    f.innerHTML = '<div class="muted" style="font-size:12px;">Rename the section. Everything filed under it (including deeper levels) moves with it. Use &ldquo;&nbsp;&&nbsp;&rdquo; between levels to nest, e.g. <i>Quant &gt; Assignment &gt; Part 1</i>.</div>' +
+      '<label class="muted" style="font-size:12px;display:block;margin:12px 0 4px;">New path</label>' +
+      datalist +
+      '<input type="text" id="sm-input" list="sm-dl" value="' + secModalPath.replace(/"/g, '&quot;') + '" style="width:100%;box-sizing:border-box;">';
+  } else if (mode === 'delete') {
+    f.innerHTML = '<div class="muted" style="font-size:12px;">Delete the section <b>' + esc(secModalPath) + '</b>?</div>' +
+      '<label style="display:flex;gap:8px;align-items:center;margin:12px 0;font-size:13px;"><input type="checkbox" id="sm-del-pages" checked> Also delete the ' + pages.filter(function(p){ return (p.section || '') === secModalPath || (p.section || '').indexOf(secModalPath + ' > ') === 0; }).length + ' page(s) inside (untick to un-file them instead)</label>';
+  } else {
+    f.innerHTML = '<div class="muted" style="font-size:12px;">File this page under a section. Use &ldquo;&&nbsp;&rdquo; between levels, e.g. <i>Quant &gt; Assignment &gt; Part 1</i>. Leave blank to un-file.</div>' +
+      datalist +
+      '<label class="muted" style="font-size:12px;display:block;margin:12px 0 4px;">Section path</label>' +
+      '<input type="text" id="sm-input" list="sm-dl" value="' + ((page && page.section) || '').replace(/"/g, '&quot;') + '" style="width:100%;box-sizing:border-box;">';
+  }
+  m.style.display = 'flex';
+  var inp = document.getElementById('sm-input');
+  if (inp) { inp.focus(); inp.select(); }
+}
+window.sectionManager = sectionManager;
+document.getElementById('sm-cancel').addEventListener('click', function(){ document.getElementById('section-modal').style.display = 'none'; });
+document.getElementById('section-modal').addEventListener('click', function(e){ if (e.target.id === 'section-modal') e.currentTarget.style.display = 'none'; });
+document.getElementById('sm-apply').addEventListener('click', async function(){
+  var m = document.getElementById('section-modal');
+  if (secModalMode === 'rename') {
+    var nv = (document.getElementById('sm-input').value || '').trim();
+    if (!nv) { ARG.toast('Give the section a name.'); return; }
+    pages.forEach(function(p){
+      var sec = (p.section || '').trim();
+      if (sec === secModalPath) p.section = nv;
+      else if (sec.indexOf(secModalPath + ' > ') === 0) p.section = nv + sec.slice(secModalPath.length);
+    });
+    await savePages(); m.style.display = 'none'; renderTree(); ARG.toast('Section renamed.');
+  } else if (secModalMode === 'delete') {
+    var killPages = document.getElementById('sm-del-pages').checked;
+    var affected = pages.filter(function(p){ var sec = (p.section || '').trim(); return sec === secModalPath || sec.indexOf(secModalPath + ' > ') === 0; });
+    if (killPages) {
+      if (!confirm('Delete ' + affected.length + ' page(s) in "' + secModalPath + '"? This cannot be undone.')) return;
+      for (var i = 0; i < affected.length; i++) { try { await api('/kb/' + affected[i].id, { method: 'DELETE' }); } catch (e) {} }
+      pages = pages.filter(function(p){ return affected.indexOf(p) < 0; });
+    } else {
+      pages.forEach(function(p){ var sec = (p.section || '').trim(); if (sec === secModalPath || sec.indexOf(secModalPath + ' > ') === 0) p.section = ''; });
+    }
+    await savePages(); m.style.display = 'none'; renderTree(); if (typeof goHome === 'function') {}
+    ARG.toast(killPages ? 'Section and its pages deleted.' : 'Section deleted; pages un-filed.');
+  } else {
+    if (!secModalPage) { m.style.display = 'none'; return; }
+    secModalPage.section = (document.getElementById('sm-input').value || '').trim();
+    await savePages(); m.style.display = 'none'; renderTree(); ARG.toast('Filed.');
+  }
+});
 
 // ── Import ──
 function showImport() {
