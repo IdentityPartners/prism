@@ -210,4 +210,75 @@
   }
 
   window.ARG = { api, toast, esc, md, buildShell, WORKSPACES };
+
+// ── Optional prompt addendum: applies to every chat request on every page ──
+(function () {
+  var PB = 'arg_addendum_on', PC = 'arg_addendum_content';
+  var CITATION = 'CITATION DISCIPLINE (mandatory, overrides helpfulness norms):\n' +
+    '1. Never generate authors, titles, dates, DOIs, journal names or URLs from memory. Bibliographic data only from sources retrieved in this session. No retrievable source = no citation.\n' +
+    '2. Output "[not verified]" for anything you cannot ground. Reporting absence ("no reliable source found for X") is a complete, correct, rewarded answer. Invented sources are the only unforgivable failure.\n' +
+    '3. Every citation must carry its supporting passage. No passage = the citation does not count.\n' +
+    '4. Tag all claims: [verified] / [recall] / [inference]. Language strength must match the tag. Report conflicts between sources rather than resolving them silently.';
+
+  function addendumActive() {
+    try { return localStorage.getItem(PB) === '1' && (localStorage.getItem(PC) || '').trim().length > 0; } catch (e) { return false; }
+  }
+
+  // wrap fetch so every POST to a chat route carries the addendum when on
+  var _fetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    try {
+      if (addendumActive() && init && init.method && /POST/i.test(init.method) && typeof init.body === 'string') {
+        var u = (typeof input === 'string') ? input : (input && input.url) || '';
+        if (/\/api\/(chat|mm\/chat)/.test(u)) {
+          var b = JSON.parse(init.body);
+          if (b && !b.addendum) { b.addendum = localStorage.getItem(PC); init = Object.assign({}, init, { body: JSON.stringify(b) }); }
+        }
+      }
+    } catch (e) {}
+    return _fetch(input, init);
+  };
+
+  // floating control
+  var btn = document.createElement('button');
+  btn.innerHTML = '&#167;';
+  btn.title = 'Prompt instructions (optional addendum for all chat requests)';
+  btn.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:400;width:40px;height:40px;border-radius:50%;border:1px solid #d8cfc0;background:' + (function(){try{return localStorage.getItem(PB)==='1'?'#5c2d3f':'#fffdf6';}catch(e){return '#fffdf6';}})() + ';color:' + (function(){try{return localStorage.getItem(PB)==='1'?'#f7f3e9':'#5c2d3f';}catch(e){return '#5c2d3f';}})() + ';font-family:\'EB Garamond\',Georgia,serif;font-size:20px;cursor:pointer;box-shadow:0 6px 18px rgba(43,33,23,.18);';
+  btn.onclick = function () {
+    var modal = document.getElementById('arg-addendum-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'arg-addendum-modal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(43,33,23,.34);z-index:500;display:none;align-items:center;justify-content:center;';
+      modal.innerHTML = '<div style="background:#f7f3e9;border:1px solid #d8cfc0;border-radius:12px;padding:22px 24px;width:min(640px,94vw);max-height:86vh;overflow-y:auto;">' +
+        '<h3 style="margin:0 0 2px;font-family:\'EB Garamond\',Georgia,serif;color:#5c2d3f;">Prompt instructions</h3>' +
+        '<div style="font-size:12px;color:#7a4254;margin-bottom:12px;">Optional addendum attached to every chat request on every page (drafting, notebooks, debate, research, agents). Toggle on and paste your instructions, or start from the Citation Discipline preset.</div>' +
+        '<label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:12px;"><input type="checkbox" id="adm-on"> Attach these instructions to chat requests</label>' +
+        '<textarea id="adm-text" rows="12" style="width:100%;box-sizing:border-box;font-size:12.5px;font-family:Inter,sans-serif;"></textarea>' +
+        '<div style="display:flex;justify-content:space-between;margin-top:14px;gap:8px;">' +
+        '<button id="adm-preset" style="border:1px solid #d8cfc0;background:#fffdf6;border-radius:999px;padding:6px 12px;cursor:pointer;font-size:11.5px;">Insert Citation Discipline</button>' +
+        '<div style="display:flex;gap:8px;"><button id="adm-save" style="border:0;background:#5c2d3f;color:#f7f3e9;border-radius:999px;padding:8px 16px;cursor:pointer;">Save</button></div></div></div>';
+      document.body.appendChild(modal);
+      modal.addEventListener('click', function (e) { if (e.target === modal) modal.style.display = 'none'; });
+      modal.querySelector('#adm-preset').onclick = function () { modal.querySelector('#adm-text').value = CITATION; };
+      modal.querySelector('#adm-save').onclick = function () {
+        try {
+          localStorage.setItem(PB, modal.querySelector('#adm-on').checked ? '1' : '0');
+          localStorage.setItem(PC, modal.querySelector('#adm-text').value);
+        } catch (e) {}
+        modal.style.display = 'none';
+        var active = addendumActive();
+        btn.style.background = active ? '#5c2d3f' : '#fffdf6';
+        btn.style.color = active ? '#f7f3e9' : '#5c2d3f';
+        if (window.ARG && window.ARG.toast) window.ARG.toast(active ? 'Instructions attached to all chat requests.' : 'Instructions detached.');
+      };
+    }
+    modal.querySelector('#adm-on').checked = (function(){try{return localStorage.getItem(PB)==='1';}catch(e){return false;}})();
+    modal.querySelector('#adm-text').value = (function(){try{return localStorage.getItem(PC) || '';}catch(e){return '';}})();
+    modal.style.display = 'flex';
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { document.body.appendChild(btn); });
+  else document.body.appendChild(btn);
+})();
+
 })();
