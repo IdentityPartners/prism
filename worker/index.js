@@ -985,6 +985,30 @@ async function uploadToR2(svg, key, env) {
   } catch(e) { return null; }
 }
 
+// ── Telegram post-report: tells the group chat what went out and what failed ──
+async function telegramPostReport(env, item, results, errors) {
+  try {
+    const TOK = k(env, ['telegram_bot_token','TELEGRAM_BOT_TOKEN','telegram_token']) || '';
+    if (!TOK) return;
+    // discover the chat id once (any chat that has messaged the bot), then cache it
+    let chatId = await env.PRISM_KV.get('telegram:chat') || null;
+    if (!chatId) {
+      const g = await fetch('https://api.telegram.org/bot' + TOK + '/getUpdates').then(r => r.json()).catch(() => null);
+      const first = (g && g.result || []).find(u => u.message && u.message.chat && u.message.chat.id);
+      if (first) { chatId = String(first.message.chat.id); await env.PRISM_KV.put('telegram:chat', chatId); }
+    }
+    if (!chatId) return;   // nobody has /started the bot yet
+    const plats = (item.platforms || []);
+    const okList = plats.filter(p => results[p] && results[p].success);
+    const failList = plats.filter(p => !(results[p] && results[p].success));
+    const lines = ['Argentica post report', '\u2714 ' + (okList.length ? okList.join(', ') : 'none'), '\u274C ' + (failList.length ? failList.map(p => p + (errors[p] ? ' (' + errors[p] + ')' : (results[p] && results[p].error ? ' (' + (results[p].error || '') + ')' : ''))).join('; ') : 'none'), '', String(item.text || '').split('\n')[0].slice(0, 180)];
+    await fetch('https://api.telegram.org/bot' + TOK + '/sendMessage', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: lines.join('\n'), disable_web_page_preview: true })
+    });
+  } catch (e) {}
+}
+
 // ── Queue asset for Social Queue approval ─────────────────────────────────────
 async function logAsset(env, kind, url, meta) {
   try {
@@ -5514,6 +5538,18 @@ data: ${JSON.stringify(data)}
     }
 
     // ── Image generation ──────────────────────────────────────────────────────
+    if (path === '/api/bluesky/verify' && request.method === 'GET') {
+      try {
+        const h = k(env, ['bluesky_handle','BLUESKY_HANDLE']) || '';
+        const pw = k(env, ['bluesky_app_password','bluesky_password','BLUESKY_PASSWORD']) || '';
+        if (!h || !pw) return json({ connected: false, error: 'Bluesky handle or app password secret missing' }, 200, origin);
+        const r = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
+          method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ identifier: h, password: pw })
+        });
+        return json({ connected: r.ok, handle: h, status: r.status, error: r.ok ? null : (await r.text().catch(() => '')).slice(0,200) }, 200, origin);
+      } catch(e) { return json({ connected: false, error: e.message }, 200, origin); }
+    }
+
     if (path === '/api/assets/log' && request.method === 'POST') {
       try {
         const body = await request.json();
@@ -9003,7 +9039,7 @@ data: ${JSON.stringify(data)}
               }
               if (bufferKey && channelId) {
                 // Buffer's current API: GraphQL createPost with Bearer auth
-                const dueAt = item.scheduledFor || new Date().toISOString();
+                const dueAt = (item.scheduledFor && new Date(item.scheduledFor).getTime() > Date.now() + 60000) ? item.scheduledFor : new Date().toISOString();
                 const media = await itemMediaUrls(item, env);   // rasterised canvas / carousel slides
                 let gqlRes = null;
                 // Verified against Buffer's live GraphQL schema (introspected):
@@ -9072,6 +9108,7 @@ data: ${JSON.stringify(data)}
           const log = env.PRISM_KV ? (await env.PRISM_KV.get('mm:log', 'json') || []) : [];
           log.unshift({ ts: new Date().toISOString(), itemId, platforms: item.platforms, results, errors, text: item.text.substring(0,100) });
           await env.PRISM_KV.put('mm:log', JSON.stringify(log.slice(0, 100)));
+          try { await telegramPostReport(env, item, results, errors); } catch (eTR) {}
         }
         return json({ success: anySuccess, results, errors }, 200, origin);
       } catch(e) { return json({ success: false, error: e.message }, 500, origin); }
