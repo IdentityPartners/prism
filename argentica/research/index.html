@@ -192,10 +192,29 @@ function renderResults() {
   const filtered = applyFilters(currentResults);
   const sorted = sortResults(filtered, currentSort);
   document.getElementById('search-note').textContent = sorted.length + ' shown · ' + filtered.length + ' matched' + (filtered.length !== currentResults.length ? ' of ' + currentResults.length : '');
+  window.__lastRun = { results: sorted.slice(0, 80), at: new Date() };
   out.innerHTML = sorted.length
-    ? '<div class="card"><h3>Results</h3><div class="item-list">' + sorted.slice(0, 80).map(resultCard).join('') + '</div></div>'
+    ? '<div class="card"><div class="row" style="justify-content:space-between;align-items:center;"><h3 style="margin:0;">Results</h3>' +
+      '<button class="ghost small" onclick="fileWholeRun()">\u21B3 File the whole run to the Hub</button></div>' +
+      '<div class="item-list">' + sorted.slice(0, 80).map(resultCard).join('') + '</div></div>'
     : '<div class="card"><div class="muted">Nothing survived the filters. Loosen the dates or clear the open-access filter.</div></div>';
 }
+
+window.fileWholeRun = () => {
+  const run = window.__lastRun;
+  if (!run || !run.results || !run.results.length) { ARG.toast('No results to file.'); return; }
+  const m = document.getElementById('kb-file-modal');
+  m.dataset.wholeRun = '1';
+  m.dataset.title = 'Search run \u2014 ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' (' + run.results.length + ' results)';
+  m.dataset.url = '';
+  m.dataset.snippet = '';
+  const q = document.getElementById('query') ? document.getElementById('query').value.trim() : '';
+  m.dataset.runQuery = q;
+  document.getElementById('kf-title').value = m.dataset.title;
+  m.style.display = 'flex';
+  kfSetDest('hub');
+  kfLoadHub();
+};
 
 function renderSources() {
   const el = document.getElementById('source-groups');
@@ -298,6 +317,21 @@ window.kfSave = async () => {
     const sec = st.sections.find(x => x.id === document.getElementById('kf-hub-sec').value) || st.sections[0];
     const mod = sec.modules.find(mm => mm.id === document.getElementById('kf-hub-mod').value) || sec.modules[0];
     const unit = document.getElementById('kf-hub-unit').value || 'General';
+    if (m.dataset.wholeRun === '1') {
+      const run = window.__lastRun || { results: [] };
+      const items = run.results.map(r => '<li><a href="' + esc(r.url || '#') + '" target="_blank" rel="noopener">' + esc(r.title || 'Untitled') + '</a>' +
+        ((r.authors || r.year || r.source) ? ' <span class="muted">(' + esc([r.authors, r.year, r.source].filter(Boolean).join(', ')) + ')</span>' : '') +
+        (r.content ? '<br><span class="muted">' + esc(String(r.content).slice(0, 200)) + '</span>' : '') + '</li>').join('');
+      const content = (m.dataset.runQuery ? '<p class="muted">Query: ' + esc(m.dataset.runQuery) + ' \u00b7 filed ' + new Date().toLocaleString('en-GB') + '</p>' : '') +
+        '<ol>' + items + '</ol>';
+      try {
+        await api('/documents', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, type: 'search-run', content, tags: ['module:' + mod.id, 'section:' + unit, 'research-run'], moduleSource: sec.id }) });
+        m.style.display = 'none'; m.dataset.wholeRun = '';
+        ARG.toast('Whole run filed to Study Hub: ' + sec.name + ' / ' + mod.name + ' / ' + unit);
+      } catch (e) { ARG.toast('Could not save: ' + e.message); }
+      return;
+    }
     const url = m.dataset.url || '';
     const snippet = m.dataset.snippet || '';
     const content = (url ? '<p><a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + '</a></p>' : '') +

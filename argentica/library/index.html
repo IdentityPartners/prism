@@ -139,6 +139,112 @@ function addUnit(isWeek) {
   renderTabs();
 }
 
+// ── Inline edit affordances: pen/delete on every section, subsection and unit ──
+function openMiniModal(title, bodyHtml, actions) {
+  document.getElementById('mini-title').textContent = title;
+  document.getElementById('mini-body').innerHTML = bodyHtml;
+  const act = document.getElementById('mini-actions');
+  act.innerHTML = '';
+  actions.forEach(([label, cls, fn]) => {
+    const b = document.createElement('button');
+    b.className = cls; b.textContent = label;
+    b.onclick = () => fn();
+    act.appendChild(b);
+  });
+  document.getElementById('mini-modal').style.display = 'flex';
+}
+function closeMiniModal() { document.getElementById('mini-modal').style.display = 'none'; }
+const askRename = (label, current, onName) => {
+  openMiniModal('Rename ' + label,
+    '<label class="muted" style="font-size:12px;display:block;margin:0 0 4px;">New name — use "&&nbsp;" for depth (e.g. Assignment &gt; Part 1)</label>' +
+    '<input type="text" id="mini-input" value="' + esc(current) + '" style="width:100%;box-sizing:border-box;">',
+    [['Cancel', 'ghost', closeMiniModal], ['Save', '', async () => {
+      const v = document.getElementById('mini-input').value.trim();
+      if (!v) { ARG.toast('Give it a name.'); return; }
+      closeMiniModal(); await onName(v);
+    }]]);
+  setTimeout(() => { const i = document.getElementById('mini-input'); i.focus(); i.select(); }, 40);
+};
+const askDelete = (label, what, onDelete) => {
+  openMiniModal('Delete ' + label, '<p>' + what + '</p><p class="muted" style="font-size:12px;">Documents are never deleted — anything filed here surfaces under General.</p>',
+    [['Cancel', 'ghost', closeMiniModal], ['Delete', '', async () => { closeMiniModal(); await onDelete(); }]]);
+};
+
+window.secEdit = id => { const sec = structure.sections.find(x => x.id === id); if (!sec) return;
+  askRename('section "' + sec.name + '"', sec.name, async v => { sec.name = v; await saveStructure(); renderTabs(); }); };
+window.secDelete = id => { if (structure.sections.length < 2) { ARG.toast('Keep at least one section.'); return; }
+  const sec = structure.sections.find(x => x.id === id); if (!sec) return;
+  askDelete('section "' + sec.name + '"', 'Delete the <b>' + esc(sec.name) + '</b> section and all its subsections?', async () => {
+    structure.sections = structure.sections.filter(x => x.id !== id);
+    if (curSection === id) { curSection = structure.sections[0].id; curModule = section().modules[0].id; curWeek = unitList()[0]; }
+    await saveStructure(); renderTabs(); }); };
+window.modEdit = id => { const sec = section(); const mod = sec.modules.find(x => x.id === id); if (!mod) return;
+  askRename('subsection "' + mod.name + '"', mod.name, async v => { mod.name = v; await saveStructure(); renderTabs(); }); };
+window.modDelete = id => { const sec = section(); if (sec.modules.length < 2) { ARG.toast('Keep at least one subsection.'); return; }
+  const mod = sec.modules.find(x => x.id === id); if (!mod) return;
+  askDelete('subsection "' + mod.name + '"', 'Delete the <b>' + esc(mod.name) + '</b> subsection?', async () => {
+    sec.modules = sec.modules.filter(x => x.id !== id);
+    if (curModule === id) { curModule = sec.modules[0].id; curWeek = unitList()[0]; }
+    await saveStructure(); renderTabs(); }); };
+window.unitEdit = name => { const mod = module_(); if (mod.kind !== 'sections') { ARG.toast('Week entries rename via the week number — edit the week count instead.'); return; }
+  const i = mod.sections.indexOf(name); if (i < 0) return;
+  askRename('unit "' + name + '"', name, async v => {
+    mod.sections[i] = v; if (curWeek === name) curWeek = v; await saveStructure(); renderTabs(); }); };
+window.unitDelete = name => { const mod = module_(); if (mod.kind !== 'sections' || mod.sections.length < 2) return;
+  askDelete('unit "' + name + '"', 'Delete the <b>' + esc(name) + '</b> unit?', async () => {
+    mod.sections = mod.sections.filter(u => u !== name); if (curWeek === name) curWeek = mod.sections[0];
+    await saveStructure(); renderTabs(); }); };
+
+// ── Document actions: edit, delete, send to knowledge base ──
+window.docEdit = async id => {
+  try {
+    const rec = await api('/documents/' + id);
+    const d = rec.document || rec;
+    openMiniModal('Edit document',
+      '<label class="muted" style="font-size:12px;display:block;margin:0 0 4px;">Title</label>' +
+      '<input type="text" id="mini-title-in" value="' + esc(d.title) + '" style="width:100%;box-sizing:border-box;">' +
+      '<label class="muted" style="font-size:12px;display:block;margin:12px 0 4px;">Content</label>' +
+      '<textarea id="mini-content" rows="8" style="width:100%;box-sizing:border-box;">' + esc(typeof d.content === 'string' ? d.content.slice(0, 20000) : '') + '</textarea>',
+      [['Cancel', 'ghost', closeMiniModal], ['Save', '', async () => {
+        const title = document.getElementById('mini-title-in').value.trim();
+        const content = document.getElementById('mini-content').value;
+        await api('/documents', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: d.id, title: title || d.title, type: d.type, content, tags: d.tags || [], annotations: d.annotations || [], moduleSource: d.moduleSource }) });
+        closeMiniModal(); await loadDocs(); renderTabs();
+        ARG.toast('Document saved.');
+      }]]);
+  } catch (e) { ARG.toast('Could not load the document: ' + e.message); }
+};
+window.docDelete = id => {
+  askDelete('document', 'Delete this document for good?', async () => {
+    try { await api('/documents/' + id, { method: 'DELETE' }); allDocs = allDocs.filter(d => d.id !== id); renderTabs(); ARG.toast('Deleted.'); } catch (e) { ARG.toast('Could not delete: ' + e.message); }
+  });
+};
+window.docToKb = async id => {
+  try {
+    const rec = await api('/documents/' + id);
+    const d = rec.document || rec;
+    const kb = await api('/kb');
+    const paths = [...new Set((kb.pages || []).map(p => (p.section || '').trim()).filter(Boolean))].sort();
+    openMiniModal('Copy to the Knowledge Base',
+      '<label class="muted" style="font-size:12px;display:block;margin:0 0 4px;">Title</label>' +
+      '<input type="text" id="mini-title-in" value="' + esc(d.title) + '" style="width:100%;box-sizing:border-box;">' +
+      '<label class="muted" style="font-size:12px;display:block;margin:12px 0 4px;">Section path (new or existing)</label>' +
+      '<datalist id="mini-dl">' + paths.map(p => '<option value="' + esc(p) + '">').join('') + '</datalist>' +
+      '<input type="text" id="mini-path" list="mini-dl" value="' + esc(section().name + ' > ' + module_().name) + '" style="width:100%;box-sizing:border-box;">',
+      [['Cancel', 'ghost', closeMiniModal], ['Copy to KB', '', async () => {
+        const title = document.getElementById('mini-title-in').value.trim() || d.title;
+        const path = document.getElementById('mini-path').value.trim();
+        const content = typeof d.content === 'string' ? d.content : '';
+        const kbId = 'kb-from-hub-' + Date.now();
+        await api('/kb', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: kbId, title, section: path, source: 'study-hub', format: 'html', content: content.startsWith('<') ? content : '<p>' + esc(content) + '</p>' }) });
+        closeMiniModal();
+        ARG.toast('Copied to the Knowledge Base' + (path ? ' under ' + path : '') + '.');
+      }]]);
+  } catch (e) { ARG.toast('Could not load the document: ' + e.message); }
+};
+
 function manageStructure() {
   const sec = section(), mod = module_();
   const canDelUnit = mod.kind === 'sections' && mod.sections.length > 1;
@@ -206,7 +312,9 @@ function unitList() {
 
 function renderTabs() {
   const st = document.getElementById('section-tabs');
-  st.innerHTML = structure.sections.map(s => '<button data-id="' + esc(s.id) + '"' + (s.id === curSection ? ' class="active"' : '') + '>' + esc(s.name) + '</button>').join('') +
+  st.innerHTML = structure.sections.map(s => '<button data-id="' + esc(s.id) + '"' + (s.id === curSection ? ' class="active"' : '') + '>' + esc(s.name) +
+    '<span title="Rename this section" onclick="event.stopPropagation();secEdit(\'' + esc(s.id) + '\')"' + pen_style + '>\u270E</span>' +
+    '<span title="Delete this section" onclick="event.stopPropagation();secDelete(\'' + esc(s.id) + '\')"' + pen_style + '>\u2715</span></button>').join('') +
     '<button class="ghost small" onclick="addSection()" title="Add a top-level section">+ Section</button>' +
     '<button class="ghost small" onclick="manageStructure()" title="Rename or delete">✎</button>';
   st.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
@@ -218,7 +326,9 @@ function renderTabs() {
 
   const mt = document.getElementById('module-tabs');
   mt.style.display = 'flex';
-  mt.innerHTML = section().modules.map(m => '<button data-id="' + esc(m.id) + '"' + (m.id === curModule ? ' class="active"' : '') + '>' + esc(m.name) + '</button>').join('') +
+  mt.innerHTML = section().modules.map(m => '<button data-id="' + esc(m.id) + '"' + (m.id === curModule ? ' class="active"' : '') + '>' + esc(m.name) +
+    '<span title="Rename this subsection" onclick="event.stopPropagation();modEdit(\'' + esc(m.id) + '\')"' + pen_style + '>\u270E</span>' +
+    '<span title="Delete this subsection" onclick="event.stopPropagation();modDelete(\'' + esc(m.id) + '\')"' + pen_style + '>\u2715</span></button>').join('') +
     '<button class="ghost small" style="max-width:none;" onclick="addSubsection()" title="Add a subsection to ' + esc(section().name) + '">+ Subsection</button>';
   mt.querySelectorAll('button[data-id]').forEach(b => b.addEventListener('click', () => {
     curModule = b.dataset.id;
@@ -240,7 +350,9 @@ function renderTabs() {
     const depth = (u.match(/>/g) || []).length;
     const leaf = (u.split('>').pop() || '').trim();
     const label = u.startsWith('Week ') ? u.replace('Week ', 'W') : leaf;
-    return '<button class="ghost small"' + (u === curWeek ? ' style="background:var(--rose); color:#fff; border-color:var(--rose);"' : (depth > 0 ? ' style="margin-left:' + (depth * 10) + 'px;color:var(--ink-soft);"' : '')) + ' data-u="' + esc(u) + '" title="' + esc(u) + '">' + esc(label) + '</button>';
+    const manage = m.kind === 'sections' && u !== 'General'
+      ? '&nbsp;<span title="Rename this unit" onclick="event.stopPropagation();unitEdit(\'' + esc(u).replace(/'/g, "\\'") + '\')" style="font-size:9px;opacity:.55;">\u270E</span><span title="Delete this unit" onclick="event.stopPropagation();unitDelete(\'' + esc(u).replace(/'/g, "\\'") + '\')" style="font-size:9px;opacity:.55;">\u2715</span>' : '';
+    return '<button class="ghost small"' + (u === curWeek ? ' style="background:var(--rose); color:#fff; border-color:var(--rose);"' : (depth > 0 ? ' style="margin-left:' + (depth * 10) + 'px;color:var(--ink-soft);"' : '')) + ' data-u="' + esc(u) + '" title="' + esc(u) + '">' + esc(label) + manage + '</button>';
   }).join('');
   if (m.kind === 'weeks') wHtml += '<button class="ghost small" style="max-width:none;" onclick="addUnit(true)" title="Add another week">+ Week</button>';
   else if (m.kind === 'sections') wHtml += '<button class="ghost small" style="max-width:none;" onclick="addUnit()" title="Add a category / theme / unit inside ' + esc(m.name) + '">+ Unit</button>';
@@ -279,6 +391,9 @@ function docItem(d) {
     (d.archivedTo ? ' · <span class="badge green">archived</span>' : '') + '</div></div>' +
     '<div class="row">' +
     '<button class="ghost small" onclick="openDoc(\'' + esc(d.id) + '\')">Open</button>' +
+    '<button class="ghost small" onclick="docEdit(\'' + esc(d.id) + '\')" title="Edit title and content">\u270E Edit</button>' +
+    '<button class="ghost small" onclick="docToKb(\'' + esc(d.id) + '\')" title="Copy this document into the Knowledge Base">\u2192 KB</button>' +
+    '<button class="ghost small" onclick="docDelete(\'' + esc(d.id) + '\')" title="Delete this document" style="color:#a05050;">\u2715</button>' +
     '<button class="ghost small" onclick="askAbout(\'' + esc(d.id) + '\')">Ask</button>' +
     (d.content && String(d.content).includes('r2.dev') ? '<button class="ghost small" onclick="archiveDoc(\'' + esc(d.id) + '\')">Archive</button>' : '') +
     '</div></div>';
@@ -493,6 +608,13 @@ async function loadDocs() {
 loadStructure();
 loadDocs();
 </script>
+<div id="mini-modal" style="position:fixed;inset:0;background:rgba(43,33,23,.34);z-index:430;display:none;align-items:center;justify-content:center;">
+  <div style="background:#f7f3e9;border:1px solid #d8cfc0;border-radius:12px;padding:22px 24px;width:min(560px,94vw);max-height:86vh;overflow-y:auto;">
+    <h3 id="mini-title" style="margin:0 0 2px;font-family:'EB Garamond',Georgia,serif;color:#5c2d3f;">Edit</h3>
+    <div id="mini-body" style="margin-top:10px;"></div>
+    <div id="mini-actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;"></div>
+  </div>
+</div>
 <div id="smgr-modal" style="position:fixed;inset:0;background:rgba(43,33,23,.34);z-index:420;display:none;align-items:center;justify-content:center;">
   <div style="background:#f7f3e9;border:1px solid #d8cfc0;border-radius:12px;padding:22px 24px;width:min(560px,94vw);max-height:86vh;overflow-y:auto;">
     <h3 style="margin:0 0 2px;font-family:'EB Garamond',Georgia,serif;color:#5c2d3f;">Structure</h3>
