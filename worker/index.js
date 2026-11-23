@@ -4266,6 +4266,27 @@ export default {
         // Sort by citation count / score desc
         deduped.sort((a, b) => (b.score || b.citations || 0) - (a.score || a.citations || 0));
 
+        // ── Persist the run so previous searches can be revisited and filed, like chat threads ──
+        try {
+          if (env.PRISM_KV) {
+            const hist = await env.PRISM_KV.get('research:runs', 'json') || [];
+            hist.unshift({
+              id: 'run-' + Date.now().toString(36),
+              ts: new Date().toISOString(),
+              query,
+              kind: String(body.kind || 'one-off'),
+              count: deduped.length,
+              results: deduped.slice(0, 80).map(r => ({
+                title: r.title || '', url: r.url || '',
+                authors: (r.authors || '').slice(0, 120), year: r.year || null,
+                source: r.source || '', citations: r.citations != null ? r.citations : null,
+                published_date: r.published_date || null,
+                content: String(r.content || '').slice(0, 200)
+              }))
+            });
+            await env.PRISM_KV.put('research:runs', JSON.stringify(hist.slice(0, 100)));
+          }
+        } catch (pe) {}
         return json({
           query,
           results: deduped,
@@ -5739,6 +5760,31 @@ data: ${JSON.stringify(data)}
     }
 
     // ── Research: saved queries (planned runs) ───────────────────────────────────────────────
+    if (path === '/api/research/history' && request.method === 'GET') {
+      try {
+        const hist = env.PRISM_KV ? await env.PRISM_KV.get('research:runs', 'json') : null;
+        const list = (hist || []).map(r => ({ id: r.id, ts: r.ts, query: r.query, kind: r.kind, count: r.count }));
+        return json({ runs: list }, 200, origin);
+      } catch (e) { return json({ error: e.message, runs: [] }, 200, origin); }
+    }
+    if (path === '/api/research/history' && request.method === 'DELETE') {
+      try {
+        const id = url.searchParams.get('id') || '';
+        if (!id) return json({ error: 'id required' }, 400, origin);
+        const hist = env.PRISM_KV ? await env.PRISM_KV.get('research:runs', 'json') || [] : [];
+        const kept = hist.filter(r => r.id !== id);
+        await env.PRISM_KV.put('research:runs', JSON.stringify(kept));
+        return json({ success: true, removed: hist.length - kept.length }, 200, origin);
+      } catch (e) { return json({ error: e.message }, 500, origin); }
+    }
+    if (path === '/api/research/history/one' && request.method === 'GET') {
+      try {
+        const id = url.searchParams.get('id') || '';
+        const hist = env.PRISM_KV ? await env.PRISM_KV.get('research:runs', 'json') || [] : [];
+        const run = hist.find(r => r.id === id) || null;
+        return json({ run }, 200, origin);
+      } catch (e) { return json({ error: e.message }, 500, origin); }
+    }
     if (path === '/api/research/keywords' && request.method === 'GET') {
       try {
         const list = await env.PRISM_KV.list({ prefix: 'research:query:' });
