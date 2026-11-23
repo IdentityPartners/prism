@@ -11401,6 +11401,39 @@ When asked to approve items, respond with the item IDs to approve. When asked to
           }
         } catch (tke) {}
 
+        // ── Meta (FB/IG) user token upkeep: from day 45, re-exchange daily to push the 60-day window out ──
+        try {
+          const info = await env.PRISM_KV.get('meta:token:info', 'json') || {};
+          const lastTry = await env.PRISM_KV.get('meta:token:lastTry', 'text') || '';
+          const today = new Date().toISOString().slice(0, 10);
+          if (lastTry !== today) {
+            await env.PRISM_KV.put('meta:token:lastTry', today);
+            const tok = k(env, ['meta_user_token','META_USER_TOKEN']) || '';
+            const appId = k(env, ['meta_app_id','facebook_app_id']) || '';
+            const appSecret = k(env, ['meta_app_secret','facebook_app_secret']) || '';
+            if (tok && appId && appSecret) {
+              // check current expiry
+              let expDays = null;
+              try {
+                const dbg = await fetch('https://graph.facebook.com/debug_token?input_token=' + encodeURIComponent(tok) + '&access_token=' + encodeURIComponent(tok)).then(r => r.json());
+                if (dbg && dbg.data && dbg.data.expires_at) expDays = Math.round((dbg.data.expires_at * 1000 - Date.now()) / 86400000);
+              } catch (e) {}
+              await env.PRISM_KV.put('meta:token:info', JSON.stringify({ expDays: expDays === null ? 'never' : expDays, checkedAt: new Date().toISOString() }));
+              if (expDays !== null && expDays < 15) {
+                const ex = await fetch('https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=' + appId + '&client_secret=' + appSecret + '&fb_exchange_token=' + encodeURIComponent(tok)).then(r => r.json()).catch(() => ({}));
+                if (ex.access_token) {
+                  const cfToken = k(env, ['cf_token','CF_TOKEN']) || '';
+                  await fetch('https://api.cloudflare.com/client/v4/accounts/d741de91f8cfff2306cc0f850a76ee07/workers/scripts/prism-api/secrets', {
+                    method: 'PUT', headers: { Authorization: 'Bearer ' + cfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: 'meta_user_token', text: ex.access_token, type: 'secret_text' })
+                  });
+                  await env.PRISM_KV.put('meta:token:info', JSON.stringify({ renewed: true, at: new Date().toISOString() }));
+                }
+              }
+            }
+          }
+        } catch (mke) {}
+
         // ── Daily KV→Drive backup (runs on the first cron after each new UTC day) ──
         try {
           const bkCfg = await env.PRISM_KV.get('kb:backup:config', 'json');
