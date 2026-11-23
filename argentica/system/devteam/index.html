@@ -8,12 +8,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Argentica — Dev Team</title>
 <link rel="stylesheet" href="/shared/argentica.css">
+<style>
+  #dt-scroll .who { font-size:11px; color:#7a4254; margin-bottom:2px; }
+  #dt-scroll .bubble { border:1px solid var(--line); border-radius:9px; padding:9px 12px; background:#fff; margin-bottom:12px; line-height:1.55; overflow-wrap: anywhere; }
+  #dt-scroll .msg.user .bubble { background:var(--ivory); }
+  #dt-scroll .bubble pre { background:#f4f0e6; border:1px solid var(--line); border-radius:6px; padding:8px; overflow-x:auto; font-size:12px; }
+  #dt-scroll img.att { max-width:200px; border-radius:8px; border:1px solid var(--line); margin:6px 8px 0 0; }
+  #dt-attach-bar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
+  #dt-attach-bar .chip { border:1px solid var(--line); background:#fff; border-radius:10px; padding:4px 10px; font-size:12px; }
+</style>
 </head>
 <body>
 <div class="arg-page" data-key="devteam">
   <div class="arg-pagehead">
     <h1>Dev Team</h1>
-    <div class="sub">The maintenance crew. It diagnoses, fixes, pushes to GitHub and deploys the worker — you never touch anything technical.</div>
+    <div class="sub">The maintenance crew. It diagnoses, fixes, pushes to GitHub and deploys the worker — the full thread persists here, and you can attach screenshots or files to any report.</div>
   </div>
 
   <div class="card">
@@ -22,15 +31,24 @@
       <button class="ghost small" onclick="runAction('health')">System health</button>
       <button class="ghost small" onclick="runAction('test_provider')">Test LLM providers</button>
       <button class="ghost small" onclick="runAction('deploy_worker')">Redeploy worker (with bindings)</button>
+      <button class="ghost small" onclick="reloadHistory()">Reload thread</button>
     </div>
     <pre id="action-out" style="display:none; background:var(--ivory); border-radius:8px; padding:12px; margin-top:12px; font-size:12px; white-space:pre-wrap; max-height:300px; overflow-y:auto;"></pre>
   </div>
 
   <div class="card mt">
-    <h3>Talk to the Dev Team</h3>
-    <div id="dt-scroll" style="max-height:320px; overflow-y:auto; margin-bottom:12px;"></div>
-    <div class="row">
-      <input type="text" id="dt-input" placeholder="e.g. the chat is slow today, diagnose it">
+    <h3>Talk to the Dev Team <span class="muted" style="font-size:12px;">(persistent — every message is kept on the server and restored here)</span></h3>
+    <div id="dt-scroll" style="max-height:420px; overflow-y:auto; margin-bottom:12px;"></div>
+
+    <div id="dt-attach-bar"></div>
+    <div class="row" style="gap:8px; flex-wrap:wrap;">
+      <input type="file" id="dt-file" multiple accept="image/*,.txt,.md,.json,.js,.csv,.pdf" style="max-width:260px;">
+      <button class="ghost small" id="dt-upload">Attach</button>
+      <span class="muted" id="dt-upload-note" style="font-size:12px;"></span>
+    </div>
+
+    <div class="row mt">
+      <input type="text" id="dt-input" placeholder="e.g. the chat is slow today, diagnose it (attachments above go with this message)">
       <button id="dt-send">Send</button>
     </div>
   </div>
@@ -42,14 +60,38 @@ ARG.buildShell('devteam');
 const { api, esc, md } = ARG;
 
 let history = [];
+let pendingAttachments = [];
 
-function render(role, text) {
+function render(role, text, attachments) {
+  const sc = document.getElementById('dt-scroll');
   const div = document.createElement('div');
   div.className = 'msg ' + (role === 'user' ? 'user' : 'gerald');
-  div.innerHTML = '<div class="who">' + (role === 'user' ? 'Simon' : 'Dev Team') + '</div><div class="bubble">' + md(text) + '</div>';
-  const sc = document.getElementById('dt-scroll');
+  let attHTML = '';
+  if (attachments && attachments.length) {
+    attHTML = '<div>' + attachments.map(a => {
+      const isImg = /\.(png|jpe?g|gif|webp)$/i.test(a.url) || /^data:image/.test(a.url);
+      return (isImg ? '<img class="att" src="' + esc(a.url) + '">' : '<a href="' + esc(a.url) + '" target="_blank">' + esc(a.name) + '</a>');
+    }).join('') + '</div>';
+  }
+  div.innerHTML = '<div class="who">' + (role === 'user' ? 'Simon' : 'Dev Team') + '</div><div class="bubble">' + md(text || '') + attHTML + '</div>';
   sc.appendChild(div);
   sc.scrollTop = sc.scrollHeight;
+}
+
+async function reloadHistory() {
+  const sc = document.getElementById('dt-scroll');
+  sc.innerHTML = '<div class="muted">Loading the thread…</div>';
+  try {
+    const d = await api('/devteam/history');
+    const h = d.history || [];
+    history = [];
+    sc.innerHTML = '';
+    if (!h.length) { sc.innerHTML = '<div class="muted">No history yet — say hello.</div>'; return; }
+    h.forEach(m => {
+      history.push({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content });
+      render(m.role === 'user' ? 'user' : 'gerald', m.content, m.attachments);
+    });
+  } catch (e) { sc.innerHTML = '<div class="muted">Could not load history: ' + esc(e.message) + '</div>'; }
 }
 
 window.runAction = async action => {
@@ -57,33 +99,74 @@ window.runAction = async action => {
   out.style.display = 'block';
   out.textContent = 'Running ' + action + '…';
   try {
+    const bodyMap = { health: {}, test_provider: { provider: 'mistral' }, deploy_worker: {} };
     const r = await api('/devteam/execute', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action })
+      body: JSON.stringify({ action, ...(bodyMap[action] || {}) })
     });
     out.textContent = JSON.stringify(r, null, 2);
   } catch (e) { out.textContent = 'Failed: ' + e.message; }
 };
 
+// ── Attachments ──
+document.getElementById('dt-upload').addEventListener('click', async () => {
+  const files = [...document.getElementById('dt-file').files];
+  const note = document.getElementById('dt-upload-note');
+  if (!files.length) { ARG.toast('Choose a file first.'); return; }
+  note.textContent = 'Uploading…';
+  for (const f of files) {
+    if (f.size > 8 * 1024 * 1024) { note.textContent = f.name + ' is over 8 MB — too big.'; continue; }
+    try {
+      const dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+      const up = await api('/r2/upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'devteam/' + Date.now() + '-' + f.name.replace(/[^a-zA-Z0-9.\-]/g, '_'), content: dataUrl.split(',')[1], mimeType: f.type || 'application/octet-stream', fileName: f.name })
+      });
+      pendingAttachments.push({ name: f.name, url: up.url });
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.textContent = '📎 ' + f.name + ' ✕';
+      chip.style.cursor = 'pointer';
+      chip.onclick = () => { pendingAttachments = pendingAttachments.filter(a => a.name !== f.name); chip.remove(); };
+      document.getElementById('dt-attach-bar').appendChild(chip);
+    } catch (e) { note.textContent = 'Upload failed: ' + e.message; }
+  }
+  note.textContent = pendingAttachments.length ? 'Attached — they go with your next message.' : '';
+  document.getElementById('dt-file').value = '';
+});
+
+// ── Send ──
 document.getElementById('dt-send').addEventListener('click', async () => {
   const input = document.getElementById('dt-input');
-  const text = input.value.trim();
-  if (!text) return;
+  const msg = input.value.trim();
+  if (!msg && !pendingAttachments.length) { ARG.toast('Type something, or attach a file.'); return; }
+  render('user', msg || '(attachments)', pendingAttachments.slice());
+  history.push({ role: 'user', content: msg });
+  const atts = pendingAttachments.slice(); pendingAttachments = [];
+  document.getElementById('dt-attach-bar').innerHTML = '';
   input.value = '';
-  render('user', text);
   try {
-    const r = await api('/devteam', {
+    const d = await api('/devteam', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, history })
+      body: JSON.stringify({ message: msg, history: history.slice(-10), attachments: atts })
     });
-    const reply = r.content || r.reply || 'No response.';
-    history.push({ role: 'user', content: text }, { role: 'assistant', content: reply });
-    render('assistant', reply);
-  } catch (e) { render('assistant', 'Something went wrong: ' + e.message); }
+    const text = d.content || ('Error: ' + (d.error || 'no reply'));
+    let toolNote = '';
+    if (d.toolCalls && d.toolCalls.length) {
+      toolNote = '\n\n**Tools:** ' + d.toolCalls.map(t => {
+        const ok = !!(t.result && t.result.success);
+        return (ok ? '✅ ' : '❌ ') + t.action + (t.result && t.result.error ? ' — ' + t.result.error : (ok && t.result && t.result.url ? ' — ' + t.result.url : ''));
+      }).join(' · ');
+    }
+    render('gerald', text + toolNote);
+    history.push({ role: 'assistant', content: text });
+    if (d.toolCalls && d.toolCalls.some(t => !t.result || t.result.success === false)) {
+      ARG.toast('One or more tools failed — see the ❌ marks.');
+    }
+  } catch (e) { render('gerald', 'Request failed: ' + e.message); }
 });
-document.getElementById('dt-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('dt-send').click();
-});
+
+reloadHistory();
 </script>
 </body>
 </html>
