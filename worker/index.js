@@ -5525,9 +5525,16 @@ data: ${JSON.stringify(data)}
         const GKEY = k(env, ['gemini_free_key','GEMINI_FREE_KEY','gemini_api_key','GEMINI_API_KEY']) || '';
         const FALKEY = k(env, ['fal_api_key','FAL_API_KEY']) || '';
         const XAIKEY = k(env, ['xai_api_key','XAI_API_KEY']) || '';
+        const IDEOKEY = k(env, ['ideogram_api_key','IDEOGRAM_API_KEY','ideogram_key','ideogram']) || '';
+        const STABKEY = k(env, ['stability_api_key','STABILITY_API_KEY','stability_key','stability']) || '';
+        const IMRKEY = k(env, ['imagerouter_api_key','IMAGEROUTER_API_KEY','imagerouter_key','imagerouter']) || '';
+        const chosen = body.model || 'auto';
+        const aspect = body.aspect || '1:1';
+        // Explicit provider request → try only that one
+        const ONLY = ['gemini','stability','ideogram','fal','imagerouter','pollinations'].includes(chosen) && chosen !== 'auto' ? chosen : null;
 
         // Try Gemini image gen first (free)
-        if ((model === 'auto' || model.includes('gemini')) && GKEY) {
+        if ((model === 'auto' || model.includes('gemini') || model === 'gemini') && GKEY && (!ONLY || ONLY === 'gemini')) {
           try {
             const resp = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${GKEY}`,
@@ -5546,8 +5553,71 @@ data: ${JSON.stringify(data)}
           } catch(e) {}
         }
 
-        // Pollinations fallback (always free)
+        // Stability AI (sd3.5 core) — highly brandable, strong composition
+        if (STABKEY && (!ONLY || ONLY === 'stability')) {
+          try {
+            const fd = new FormData();
+            fd.append('prompt', prompt);
+            fd.append('output_format', 'png');
+            if (aspect) fd.append('aspect_ratio', aspect);
+            const resp = await fetch('https://api.stability.ai/v2beta/stable-image/generate/core', {
+              method: 'POST', headers: { 'Authorization': 'Bearer ' + STABKEY, 'Accept': 'image/*' }, body: fd
+            });
+            if (resp.ok) {
+              const b64 = Buffer.from(await resp.arrayBuffer()).toString('base64');
+              return json({success:true, url:'data:image/png;base64,' + b64, provider:'stability', model:'sd3.5-core'}, 200, origin);
+            }
+          } catch(e) {}
+        }
+
+        // Ideogram (v3-turbo) — best-in-class for text-in-image, poster-style work
+        if (IDEOKEY && (!ONLY || ONLY === 'ideogram')) {
+          try {
+            const resp = await fetch('https://api.ideogram.ai/v1/generate', {
+              method: 'POST', headers: { 'Authorization': 'Bearer ' + IDEOKEY, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ image_request: { prompt, aspect_ratio: aspect, model: 'v3-turbo', output_resolution: 1024 } })
+            });
+            if (resp.ok) {
+              const d = await resp.json();
+              const du = (d.data && d.data[0] && (d.data[0].data_url || d.data[0].url)) || null;
+              if (du) return json({success:true, url:du, provider:'ideogram', model:'v3-turbo'}, 200, origin);
+            }
+          } catch(e) {}
+        }
+
+        // FAL (fast-sdxl) — community models, generous
+        if (FALKEY && (!ONLY || ONLY === 'fal')) {
+          try {
+            const resp = await fetch('https://fal.run/fal-ai/fast-sdxl', {
+              method: 'POST', headers: { 'Authorization': 'Key ' + FALKEY, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: prompt, image_size: 'square_hd' })
+            });
+            if (resp.ok) {
+              const d = await resp.json();
+              const iu = (d.images && d.images[0] && (d.images[0].url || d.images[0].b64_data ? (d.images[0].url || 'data:image/png;base64,' + d.images[0].b64_data) : null)) || null;
+              if (iu) return json({success:true, url:iu, provider:'fal', model:'fast-sdxl'}, 200, origin);
+            }
+          } catch(e) {}
+        }
+
+        // Image Router (multi-provider router) — OpenAI-compatible shape
+        if (IMRKEY && (!ONLY || ONLY === 'imagerouter')) {
+          try {
+            const resp = await fetch('https://api.imagerouter.ai/v1/images/generations', {
+              method: 'POST', headers: { 'Authorization': 'Bearer ' + IMRKEY, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt, n: 1, size: '1024x1024' })
+            });
+            if (resp.ok) {
+              const d = await resp.json();
+              const iu = (d.data && d.data[0] && (d.data[0].url || (d.data[0].b64_json ? 'data:image/png;base64,' + d.data[0].b64_json : null))) || null;
+              if (iu) return json({success:true, url:iu, provider:'imagerouter', model:'router'}, 200, origin);
+            }
+          } catch(e) {}
+        }
+
+        // Pollinations fallback (always free, zero-key) — last resort only
         const polUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&model=flux`;
+        if (ONLY && ONLY !== 'pollinations') return json({error:'Provider ' + ONLY + ' unavailable — no key or rejected. Try model:auto.'}, 502, origin);
         return json({success:true, url:polUrl, provider:'pollinations', model:'flux'}, 200, origin);
       } catch(e) { return json({error:e.message}, 500, origin); }
     }
