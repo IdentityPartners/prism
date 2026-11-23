@@ -85,7 +85,7 @@ a:hover { text-decoration: underline; }
 }
 
 .arg-nav a:hover { background: var(--ivory); text-decoration: none; }
-.arg-nav a.active { background: var(--teal); color: #fff; }
+.arg-nav a.active { background: var(--teal); color: #fff; font-weight: 600; }
 
 .arg-main { flex: 1; min-width: 0; }
 
@@ -344,7 +344,7 @@ button.tpl.active { background: var(--teal); color: #fff; border-color: var(--te
 }
 
 /* P1 deep-berry lettering sits on T1 pale-teal textures for selected/active states */
-[data-argtheme="brand"] .arg-nav a.active { background: var(--t1); color: #5c2d3f; }
+[data-argtheme="brand"] .arg-nav a.active { background: #5c2d3f; color: #f7f3e9; font-weight: 600; }
 [data-argtheme="brand"] .thread-item.active { background: var(--t1); color: #5c2d3f; }
 [data-argtheme="brand"] .zonebar a.active { background: var(--t1); color: #5c2d3f; }
 [data-argtheme="brand"] .arg-tabs a.active { background: var(--t1); color: #5c2d3f; }

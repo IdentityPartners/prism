@@ -267,7 +267,7 @@
   else document.body.appendChild(b);
 })();
 
-  window.ARG = { api, toast, esc, md, buildShell, WORKSPACES };
+  window.ARG = { api, toast, esc, md, buildShell, WORKSPACES, openAddendum: function () { var b = document.body.querySelector('button[title^="Prompt instructions"]'); if (b) b.click(); }, addendumOn: function () { try { return localStorage.getItem('arg_addendum_on') === '1'; } catch (e) { return false; } } };
 
 // ── Optional prompt addendum: applies to every chat request on every page ──
 (function () {

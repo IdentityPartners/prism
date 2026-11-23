@@ -70,6 +70,7 @@
           <div class="row" style="gap:6px;">
             <button class="ghost small" id="attach-btn" title="Attach an image (OCR) or text file">📎 Attach</button>
             <button class="ghost small" id="live-search-btn" title="Search the live web and feed results to the models with this message">🌐 Search</button>
+            <button class="ghost small" id="cite-btn" title="Toggle citation discipline — never invent bibliographic data, tag claims [verified]/[recall]/[inference] (long-press or the § button to edit the text)"></button>
             <button class="ghost small" id="dictate-btn" title="Dictate with your microphone">🎙 Dictate</button>
             <button class="ghost small" id="osk-toggle">⌨ Compact keyboard</button>
             <button class="ghost small" id="hw-open">✎ Handwrite</button>
@@ -657,6 +658,28 @@ function removeImage(i) { pendingImages.splice(i, 1); renderImageChips(); }
 
 // ── Attachments: images via vision (Tay can see them), text files read directly ────────────────
 document.getElementById('attach-btn').addEventListener('click', () => document.getElementById('attach-file').click());
+const CITE_PRESET = 'CITATION DISCIPLINE (mandatory, overrides helpfulness norms):\n1. Never generate authors, titles, dates, DOIs, journal names or URLs from memory. Bibliographic data only from sources retrieved in this session. No retrievable source = no citation.\n2. Output "[not verified]" for anything you cannot ground. Reporting absence is a complete, correct, rewarded answer. Invented sources are the only unforgivable failure.\n3. Every citation must carry its supporting passage. No passage = the citation does not count.\n4. Tag all claims: [verified] / [recall] / [inference]. Language strength must match the tag. Report conflicts between sources rather than resolving them silently.';
+function paintCiteBtn() {
+  const b = document.getElementById('cite-btn');
+  const on = ARG.addendumOn();
+  b.textContent = on ? '☑ Citation discipline: ON' : 'Citation discipline: off';
+  b.style.background = on ? 'rgba(92,45,63,.16)' : '';
+}
+document.getElementById('cite-btn').addEventListener('click', (ev) => {
+  const on = ARG.addendumOn();
+  let content = localStorage.getItem('arg_addendum_content') || '';
+  if (!on) {
+    if (!content.trim()) { content = CITE_PRESET; localStorage.setItem('arg_addendum_content', content); }
+    localStorage.setItem('arg_addendum_on', '1');
+    ARG.toast('Citation discipline on — attached to every chat request.');
+  } else {
+    localStorage.setItem('arg_addendum_on', '0');
+    ARG.toast('Citation discipline off.');
+  }
+  paintCiteBtn();
+});
+document.getElementById('cite-btn').addEventListener('contextmenu', (ev) => { ev.preventDefault(); ARG.openAddendum(); });
+paintCiteBtn();
 document.getElementById('live-search-btn').addEventListener('click', () => {
   liveSearch = !liveSearch;
   document.getElementById('live-search-btn').style.background = liveSearch ? 'rgba(15,59,58,.16)' : '';
