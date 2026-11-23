@@ -2428,7 +2428,8 @@ async function handleIntegrationRoutes(path, request, env, origin) {
       const agentId = body.agent || 'visual';
       const message = body.message || '';
       const model   = body.model || '';
-      const result  = await agentChat(agentId, message, model, env);
+      const addendum = String(body.addendum || '').trim();
+      const result  = await agentChat(agentId, addendum ? message + '\n\n[Binding instructions for this turn]\n' + addendum : message, model, env);
       return json(result, 200, origin);
     } catch(e) { return json({ error: e.message }, 500, origin); }
   }
@@ -3012,10 +3013,23 @@ export default {
     }
 
     // ── Chat ──────────────────────────────────────────────────────────────────
-    if (path === '/api/chat' && request.method === 'POST') {
+  
+// ── Optional prompt addendum (per-request): CITATION DISCIPLINE and friends ──
+function applyAddendum(body, messages) {
+  const add = String((body && body.addendum) || '').trim();
+  if (!add || !messages || !messages.length) return messages;
+  if (messages[0].role === 'system') {
+    messages[0] = { role: 'system', content: String(messages[0].content) + '\n\n' + add };
+  } else {
+    messages.unshift({ role: 'system', content: add });
+  }
+  return messages;
+}
+  if (path === '/api/chat' && request.method === 'POST') {
       try {
         const body = await request.json();
         let messages = (body.messages || []).filter(m => m?.role && m?.content);
+        messages = applyAddendum(body, messages);
         const profile = body.profile || 'balanced';
         const threadId = body.threadId || ('t' + Date.now());
 
@@ -4886,6 +4900,7 @@ export default {
       try {
         const body = await request.json();
         const messages = (body.messages || []).filter(m => m?.role && m?.content);
+        applyAddendum(body, messages);
         // Senses: vision descriptions + live page visits + auto/forced web search.
         // buildSensorContext internally decides (images, URLs, time-sensitive intent, explicit toggle)
         {
@@ -6066,6 +6081,7 @@ data: ${JSON.stringify(data)}
       try {
         const body = await request.json();
         const messages = body.messages || [];
+        applyAddendum(body, messages);
         const profile = body.profile || 'balanced';
         const providerOverride = body.providerOverride || '';
         const modelOverride = body.modelOverride || '';
@@ -9004,7 +9020,9 @@ Rules:
 - Only approved sources: ONS, Mind, NHS, Guardian, FT, Economist, New Statesman, etc.
 - Never Telegraph, Times, or iNews
 
-When asked to approve items, respond with the item IDs to approve. When asked to draft content, write in Simon's voice: intelligent, direct, humane, British professional prose.`;
+When asked to approve items, respond with the item IDs to approve. When asked to draft content, write in Simon's voice: intelligent, direct, humane, British professional prose.`
+Optional discipline addendum (binding when present):
+" + (String(body.addendum || '').trim() ? String(body.addendum).trim() : '(none)') + "`;
 
         const llmResult = await orchestrate([
           { role: 'system', content: systemPrompt },
