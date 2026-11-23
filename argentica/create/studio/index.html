@@ -29,6 +29,12 @@
     </div>
   </div>
 
+  <div class="card" style="margin-bottom:16px;">
+    <h3>Scenes</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:10px;">Pick a ready-made scene, then tweak anything: captions, order, poses, background, photo. Or ignore these and write your own below.</div>
+    <div id="ss-packs" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:10px;"></div>
+  </div>
+
   <div class="studio-grid">
     <div class="card">
       <h3>The story</h3>
@@ -113,6 +119,56 @@ window.ssRender = async queue => {
   } catch (e) { st.textContent = 'Could not render: ' + e.message; }
 };
 
+window.SCENE_PACKS = [
+  { id: 'first-step', title: 'The first step', desc: 'Someone alone, struggling; another arrives; the hand offered.',
+    bg: 'parchment', scenes: [
+      { pose: 'alone', caption: 'It starts with one person, carrying more than they should.' },
+      { pose: 'walk-toward', caption: 'Then someone chooses to close the distance.' },
+      { pose: 'reach', caption: 'Help is not fixing. It is presence.' },
+      { pose: 'together', caption: 'Recovery is a walk made together.' } ] },
+  { id: 'heard', title: 'Being heard', desc: 'Two people sitting; one listens without reaching for easy answers.',
+    bg: 'duskberry', scenes: [
+      { pose: 'sit', caption: 'No agendas. No forms. Just two chairs and the truth.' },
+      { pose: 'listen', caption: 'Being heard is not the same as being advised.' },
+      { pose: 'embrace', caption: 'And sometimes, the answer is simply being seen.' } ] },
+  { id: 'storm', title: 'Same storm, different boats', desc: 'Two paths through the same weather, diverging and respecting.',
+    bg: 'paleteal', scenes: [
+      { pose: 'together', caption: 'Same storm. Different boats.' },
+      { pose: 'walk-apart', caption: 'Recovery does not have to look like anyone else\u2019s.' },
+      { pose: 'wave', caption: 'Different roads, equal dignity. That is the whole philosophy.' } ] },
+  { id: 'return', title: 'The return', desc: 'Leaving and coming back — no shame in the circle.',
+    bg: 'berry', scenes: [
+      { pose: 'walk-apart', caption: 'Some days you walk away. That is allowed.' },
+      { pose: 'walk-toward', caption: 'And the door does not lock behind you.' },
+      { pose: 'embrace', caption: 'Returning is not starting over. It is continuing.' } ] },
+  { id: 'question', title: 'The question', desc: 'One figure alone with the question that changes everything.',
+    bg: 'parchment', scenes: [
+      { pose: 'alone', caption: 'Who do you turn to when it all feels too much?' },
+      { pose: 'wave', caption: 'Turn to someone who stays.' },
+      { pose: 'reach', caption: 'hello@identitypartners.uk \u00b7 Understand the past.' } ] },
+  { id: 'blank', title: 'Blank canvas', desc: 'Start from nothing, all nine poses available.', bg: 'parchment', scenes: [] }
+];
+function renderPacks() {
+  document.getElementById('ss-packs').innerHTML = window.SCENE_PACKS.map(pk =>
+    '<div class="asset-tile" style="text-align:left;cursor:pointer;" onclick="loadPack(\'' + pk.id + '\')">' +
+    '<div class="name" style="font-family:\'EB Garamond\',Georgia,serif;font-size:15px;color:#5c2d3f;">' + esc(pk.title) + '</div>' +
+    '<div class="muted" style="font-size:11.5px;line-height:1.35;margin:6px 0;">' + esc(pk.desc) + '</div>' +
+    '<div class="muted" style="font-size:10.5px;">' + (pk.scenes.length || 'blank') + '</div></div>').join('');
+}
+window.loadPack = id => {
+  const pk = window.SCENE_PACKS.find(x => x.id === id);
+  if (!pk) return;
+  document.getElementById('ss-title').value = pk.title;
+  bg = pk.bg; renderPals();
+  scenes = (pk.scenes || []).map(x => ({ pose: x.pose, caption: x.caption }));
+  if (!scenes.length) scenes = [{ pose: 'alone', caption: '' }];
+  renderScenes();
+  ARG.toast('Loaded \'\u201C\'' + pk.title + '\'\u201D\u201D \u2014 tweak away.');
+  document.getElementById('ss-photo').value = '';
+  document.getElementById('ss-caption').value = '';
+};
+
+renderPacks();
 renderPals();
 renderScenes();
 </script>
