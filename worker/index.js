@@ -9240,6 +9240,14 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         return json({ success: true, token: ex.access_token, expires_in: ex.expires_in || null, tokenType: ex.token_type || '' }, 200, origin);
       } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
     }
+    if (path === '/api/meta/token-info' && request.method === 'GET') {
+      try {
+        const token = k(env, ['meta_user_token','META_USER_TOKEN']) || '';
+        if (!token) return json({ error: 'no token' }, 400, origin);
+        const d = await fetch('https://graph.facebook.com/debug_token?input_token=' + encodeURIComponent(token) + '&access_token=' + encodeURIComponent(token)).then(r => r.json());
+        return json(d && d.data ? { app_id: d.data.app_id, app_name: d.data.app_name || '', scopes: d.data.scopes || [], expires_at: d.data.expires_at || null, is_valid: d.data.is_valid } : d, 200, origin);
+      } catch (e) { return json({ error: e.message }, 500, origin); }
+    }
     if (path === '/api/diagnostics/instagram' && request.method === 'GET') {
       try {
         const out = { generatedAt: new Date().toISOString() };
