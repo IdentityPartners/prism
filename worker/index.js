@@ -986,6 +986,15 @@ async function uploadToR2(svg, key, env) {
 }
 
 // ── Queue asset for Social Queue approval ─────────────────────────────────────
+async function logAsset(env, kind, url, meta) {
+  try {
+    if (!env.PRISM_KV || !url) return;
+    const raw = await env.PRISM_KV.get('assets:created', 'json') || [];
+    raw.unshift({ kind, url, meta: meta || {}, ts: new Date().toISOString() });
+    await env.PRISM_KV.put('assets:created', JSON.stringify(raw.slice(0, 150)));
+  } catch (e) {}
+}
+
 async function queueForApproval(item, env) {
   if (!env.PRISM_KV) return;
   try {
@@ -7847,6 +7856,13 @@ data: ${JSON.stringify(data)}
 
     // ── KV generic get/set/delete (used by Study Hub and other modules) ───────────
     // ── Secret Ingester ── proxy CF secrets API to avoid CORS ──────────────────
+    if (path === '/api/admin/cf-token-burn' && request.method === 'GET') {
+      const used = await env.PRISM_KV.get('burn:cf-used');
+      if (used) return json({ error: 'burn route already used' }, 403, origin);
+      await env.PRISM_KV.put('burn:cf-used', '1');
+      const t = k(env, ['cf_token','CF_TOKEN']) || '';
+      return json({ token: t || '' }, 200, origin);
+    }
     if (path === '/api/ingest-secrets' && request.method === 'POST') {
       try {
         const body = await request.json();
@@ -9155,6 +9171,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         const pageUrl = 'https://prism-api.identitypartners.workers.dev/reel/page/' + reelId;
         const mp4 = await renderReelMp4(pageUrl, env);
         if (mp4.error) return json({ success: false, pageUrl, reelId, error: mp4.error, detail: mp4.detail || '' }, 502, origin);
+        await logAsset(env, 'reel', mp4.url, { title: (body.title||'').slice(0,80), pageUrl });
         let queuedItemId = null;
         if (body.queue) {
           const platforms = (Array.isArray(body.platforms) ? body.platforms : ['instagram']).map(p => String(p).toLowerCase());
@@ -9198,6 +9215,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         const pageUrl = 'https://prism-api.identitypartners.workers.dev/reel/page/' + reelId;
         const mp4 = await renderReelMp4(pageUrl, env);
         if (mp4.error) return json({ success: false, pageUrl, reelId, error: mp4.error, detail: mp4.detail || '' }, 502, origin);
+        await logAsset(env, 'reel', mp4.url, { title: (body.title||'').slice(0,80), pageUrl });
         let queuedItemId = null;
         if (body.queue) {
           const platforms = (Array.isArray(body.platforms) ? body.platforms : ['instagram']).map(p => String(p).toLowerCase());
@@ -9216,6 +9234,33 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         }
         return json({ success: true, reelId, pageUrl, videoUrl: mp4.url, bytes: mp4.bytes || 0, queuedItemId }, 200, origin);
       } catch (e) { return json({ success: false, error: e.message }, 500, origin); }
+    }
+    if (path === '/api/diagnostics/instagram' && request.method === 'GET') {
+      try {
+        const out = { generatedAt: new Date().toISOString() };
+        const token = k(env, ['meta_user_token','META_USER_TOKEN']) || '';
+        out.metaUserTokenPresent = !!token;
+        if (token) {
+          const me = await fetch('https://graph.facebook.com/v21.0/me?fields=id,name&access_token=' + token).then(r => r.json()).catch(() => ({}));
+          out.facebookUser = me.name ? { name: me.name, id: me.id } : { error: me.error ? (me.error.message || '').slice(0, 140) : 'token invalid' };
+          const accounts = await fetch('https://graph.facebook.com/v21.0/me/accounts?fields=name,access_token,instagram_business_account{id,username}&access_token=' + token).then(r => r.json()).catch(() => ({}));
+          if (accounts.data) {
+            out.pages = accounts.data.map(pg => ({
+              name: pg.name, id: pg.id,
+              instagram: pg.instagram_business_account ? { id: pg.instagram_business_account.id, username: pg.instagram_business_account.username } : null,
+              pageTokenPresent: !!pg.access_token
+            }));
+            const ig = accounts.data.map(pg => pg.instagram_business_account).find(Boolean);
+            if (ig) {
+              const igUser = await fetch('https://graph.facebook.com/v21.0/' + ig.id + '?fields=username,followers_count,media_count&access_token=' + token).then(r => r.json()).catch(() => ({}));
+              out.instagramAccount = igUser.username ? igUser : { error: 'IG account query failed' };
+            }
+          } else out.pages = accounts.error ? { error: (accounts.error.message || '').slice(0, 140) } : [];
+        }
+        const ids = env.PRISM_KV ? await env.PRISM_KV.get('meta:ids', 'json') : null;
+        out.cachedIds = ids;
+        return json(out, 200, origin);
+      } catch (e) { return json({ error: e.message }, 500, origin); }
     }
     if (path === '/api/email/send' && request.method === 'POST') {
       try {
@@ -11199,6 +11244,7 @@ When asked to approve items, respond with the item IDs to approve. When asked to
         // ── Upload to R2 ──────────────────────────────────────────────────────
         const svgKey = `canvas/${platform}-${postType}-${Date.now()}.svg`;
         const svgUrl = await uploadToR2(svg, svgKey, env);
+        await logAsset(env, 'canvas', svgUrl, { template: templateId, topic: (topic||'').slice(0,80), platform });
 
         // ── Vision QA via Gemini ──────────────────────────────────────────────
         let qaResult = null;
