@@ -809,7 +809,7 @@ async function callModel(provider, model, key, messages, env) {
 // generateCarousel(slides, env)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const LOGO_URL = 'https://arch.identitypartners.uk/shared/assets/logo-transparent.png'; // brand logo, background removed (was white plate)
+const LOGO_URL = 'https://arch.identitypartners.uk/shared/assets/logo-mark.png'; // brand logo mark — artwork only, transparent, versioned filename to defeat caching
 const R2_PUBLIC = 'https://pub-b14d0b51a7f148a3bedafc559b4292da.r2.dev/';
 
 // ── Brand colours ─────────────────────────────────────────────────────────────
