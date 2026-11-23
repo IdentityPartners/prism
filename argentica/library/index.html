@@ -43,6 +43,8 @@
 <script>
 ARG.buildShell('library');
 const { api, esc } = ARG;
+const pen_style = ' style="font-size:12px;opacity:.6;margin-left:4px;cursor:pointer;color:#5c2d3f;"';
+let overviewMode = true;   // the Hub opens on the section card view
 
 const DEFAULT_STRUCTURE = {
   sections: [
@@ -92,7 +94,7 @@ async function loadStructure() {
     }
     saveStructure();
   }
-  renderTabs();
+  renderAll();
 }
 
 async function saveStructure() {
@@ -329,9 +331,52 @@ function unitList() {
   return ['General'];
 }
 
+function goOverview() { overviewMode = true; renderAll(); }
+function renderAll() {
+  if (overviewMode) { renderOverview(); return; }
+  renderTabs(); renderDashboard();
+}
+
+// -- Section overview: full-page card view --
+function renderOverview() {
+  ['module-tabs','week-bar'].forEach(id => { const el = document.getElementById(id); el.style.display = 'none'; });
+  document.getElementById('section-tabs').innerHTML = '<span class="muted" style="font-size:13px;">All sections \u2014 open one to see its weeks, units and documents.</span>';
+  const dash = document.getElementById('dashboard');
+  const nbs = allNotebooks();
+  dash.innerHTML = structure.sections.map(sec => {
+    const mods = sec.modules || [];
+    const modRows = mods.map(m => {
+      const mDocs = allDocs.filter(d => (d.tags || []).includes('module:' + m.id)).length;
+      const nbNames = (m.notebooks || []).map(id2 => { const nb = nbs.find(n => n.id === id2); return nb ? nb.name : ''; }).filter(Boolean);
+      return '<div style="padding:4px 0; border-top:1px solid rgba(15,59,58,.12); font-size:12.5px;">' +
+        '<b style="color:#5c2d3f;">' + esc(m.name) + '</b> <span class="muted">\u00b7 ' + mDocs + ' doc' + (mDocs === 1 ? '' : 's') +
+        (m.kind === 'weeks' ? ' \u00b7 ' + (m.weeks || 12) + ' weeks' : '') + '</span>' +
+        (nbNames.length ? '<div class="muted" style="font-size:11.5px;">\uD83D\uDCD3 ' + esc(nbNames.join(', ')) + '</div>' : '') + '</div>';
+    }).join('');
+    const secDocs = allDocs.filter(d => mods.some(m => (d.tags || []).includes('module:' + m.id)));
+    const total = secDocs.length;
+    const edited = secDocs.map(d => d.updatedAt || d.ts || '').filter(Boolean).sort().pop();
+    return '<div class="card" style="cursor:pointer;" onclick="openSectionCard(\'' + esc(sec.id) + '\')">' +
+      '<h3 style="font-family:\'EB Garamond\',Georgia,serif;margin:0 0 6px;color:#5c2d3f;">' + esc(sec.name) + ' <span class="muted" style="font-size:11px;font-family:var(--sans,Inter,sans-serif);">' + total + ' doc' + (total === 1 ? '' : 's') + '</span></h3>' +
+      (modRows || '<div class="muted" style="font-size:12px;">No subsections yet.</div>') +
+      (edited ? '<div class="muted" style="font-size:11px;margin-top:8px;">Last edited ' + esc(String(edited).slice(0, 10)) + '</div>' : '') +
+      '<div class="muted" style="font-size:11px;margin-top:2px;">Click to open</div></div>';
+  }).join('');
+}
+window.openSectionCard = id => {
+  overviewMode = false; curSection = id;
+  const sec = structure.sections.find(x => x.id === id);
+  curModule = sec && sec.modules[0] ? sec.modules[0].id : '';
+  curWeek = sec ? unitList()[0] : 'General';
+  renderTabs(); renderDashboard();
+};
+
+
 function renderTabs() {
+  if (overviewMode) { renderOverview(); return; }
   const st = document.getElementById('section-tabs');
-  st.innerHTML = structure.sections.map(s => '<button data-id="' + esc(s.id) + '"' + (s.id === curSection ? ' class="active"' : '') + '>' + esc(s.name) +
+  st.innerHTML = '<button class="ghost small" onclick="goOverview()" title="Back to the section overview">\u2302 Sections</button>' +
+    structure.sections.map(s => '<button data-id="' + esc(s.id) + '"' + (s.id === curSection ? ' class="active"' : '') + '>' + esc(s.name) +
     '<span title="Rename this section" onclick="event.stopPropagation();secEdit(\'' + esc(s.id) + '\')"' + pen_style + '>\u270E</span>' +
     '<span title="Delete this section" onclick="event.stopPropagation();secDelete(\'' + esc(s.id) + '\')"' + pen_style + '>\u2715</span></button>').join('') +
     '<button class="ghost small" onclick="addSection()" title="Add a top-level section">+ Section</button>' +
@@ -623,7 +668,7 @@ async function loadDocs() {
   try {
     const data = await api('/documents');
     allDocs = data.documents || [];
-    renderDashboard();
+    renderAll();
   } catch (e) {}
 }
 
