@@ -3,8 +3,7 @@
 <head>
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<!-- cache-bust-1792933321 -->
+<link rel="apple-touch-icon" href="/apple-touch-192.png">
 
 <meta charset="UTF-8">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f3b3a'/%3E%3Crect x='4' y='4' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3Crect x='17' y='4' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='4' y='17' width='11' height='11' rx='2' fill='%23d4899a'/%3E%3Crect x='17' y='17' width='11' height='11' rx='2' fill='%237ecfcd'/%3E%3C/svg%3E">
@@ -89,7 +88,7 @@
 
 /* Ink view */
 .wh-ink-view { flex:1; overflow:hidden; position:relative; }
-.wh-ink-view canvas { display:block; touch-action:none; cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='4' cy='20' r='2' fill='%23333'/%3E%3Cline x1='4' y1='20' x2='18' y2='4' stroke='%23333' stroke-width='2'/%3E%3C/svg%3E") 4 20, crosshair; }
+.wh-ink-view canvas { display:block; touch-action:none; }
 
 /* Dual view */
 .wh-dual { display:flex; flex-direction:row; flex:1; overflow:hidden; }
@@ -151,7 +150,6 @@
     <button class="wh-view-btn active" id="vbtn-ink" onclick="setView('ink')">Ink</button>
     <button class="wh-view-btn" id="vbtn-dual" onclick="setView('dual')">Dual</button>
     <button class="wh-view-btn" id="vbtn-read" onclick="setView('read')">Read</button>
-    <button class="wh-view-btn" id="vbtn-excalidraw" onclick="setView('excalidraw')">✏ Whiteboard</button>
 
     <div class="wh-tb-sep"></div>
 
@@ -209,12 +207,9 @@
   <!-- Surface -->
   <div class="wh-surface-wrap">
     <div class="wh-surface" id="wh-surface">
-    <!-- Required spec IDs — functional elements -->
-    <canvas id="ink-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;touch-action:none;display:none;"></canvas>
-    <div id="text-layer" style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:auto;display:none;"></div>
-  </div>
-  <!-- OSK area — on-screen keyboard panel -->
-  <div id="osk-area" class="wh-osk-area" style="display:none;border-top:1px solid var(--border);background:var(--bg-sunken);padding:6px;"></div>
+      <canvas id="ink-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;touch-action:none;"></canvas>
+      <div id="text-layer" contenteditable="true" style="position:absolute;top:0;left:0;width:100%;height:100%;overflow-y:auto;display:none;font-size:15px;line-height:1.8;padding:16px;outline:none;background:var(--bg);" data-placeholder="Type here…"></div>
+    </div>
   </div>
 
   <!-- Status bar -->
@@ -257,8 +252,28 @@ var TOOL_PROPS = {
   erase:  { width: 20, alpha: 1.0, cap: 'round', join: 'round' },
 };
 
+// Canonical element IDs — fix for ID drift between HTML and JS
+function inkCanvas()   { return document.getElementById('ink-canvas'); }
+function textEditor()  { return document.getElementById('text-layer'); }
+
 // ── Init ──────────────────────────────────────────────────────────────────────
-// ── Module/week tagging + Tay contribution ────────────────────────────────────────────────────────────────────────────
+ARG.buildShell('notebooks');
+buildModuleWeekSelectors();
+document.addEventListener('DOMContentLoaded', function() {
+
+  // Load saved preferences
+  try {
+    fontSize = parseFloat(localStorage.getItem('wh-font-size') || '15');
+    lineHeight = parseFloat(localStorage.getItem('wh-line-height') || '1.8');
+    document.getElementById('font-size-lbl').textContent = fontSize;
+    document.getElementById('line-height-lbl').textContent = lineHeight.toFixed(1);
+  } catch(e) {}
+
+  loadNotebooks();
+  initCanvas();
+});
+
+// ── Module/week tagging + Tay contribution ────────────────────────────────────
 function buildModuleWeekSelectors() {
   var tb = document.querySelector('.wh-toolbar');
   if (!tb || document.getElementById('wh-module')) return;
@@ -294,7 +309,7 @@ function buildModuleWeekSelectors() {
 }
 
 function geraldContribute() {
-  var textEl = document.getElementById('wh-text');
+  var textEl = textEditor();
   if (!textEl) return;
   var existing = (textEl.innerText || '').trim();
   if (!existing) { alert('Write or OCR something first — Tay responds to your notes.'); return; }
@@ -315,21 +330,6 @@ function geraldContribute() {
     btn.textContent = '✦ Tay';
   }).catch(function(){ btn.textContent = '✦ Tay'; });
 }
-
-ARG.buildShell('notebooks');
-buildModuleWeekSelectors();
-document.addEventListener('DOMContentLoaded', function() {
-
-  // Load saved preferences
-  try {
-    fontSize = parseFloat(localStorage.getItem('wh-font-size') || '15');
-    lineHeight = parseFloat(localStorage.getItem('wh-line-height') || '1.8');
-    document.getElementById('font-size-lbl').textContent = fontSize;
-    document.getElementById('line-height-lbl').textContent = lineHeight.toFixed(1);
-  } catch(e) {}
-
-  loadNotebooks();
-});
 
 // ── Notebooks ─────────────────────────────────────────────────────────────────
 function loadNotebooks() {
@@ -360,7 +360,7 @@ function loadNotebooks() {
   renderTree();
 
   // Open first page
-  if (notebooks[0]?.sections[0]?.pages[0]) {
+  if (notebooks[0] && notebooks[0].sections[0] && notebooks[0].sections[0].pages[0]) {
     openPage(notebooks[0].sections[0].pages[0]);
   } else {
     setView('ink');
@@ -409,7 +409,6 @@ function renderTree() {
         pagesDiv.appendChild(pageEl);
       });
 
-      // Add page button
       var addPageBtn = document.createElement('div');
       addPageBtn.style.cssText = 'padding:2px 8px;font-size:11px;color:var(--fg-muted);cursor:pointer;';
       addPageBtn.textContent = '+ Add page';
@@ -428,19 +427,17 @@ function openPage(page) {
   if (currentPage) saveCurrentPage();
   currentPage = page;
 
-  // Update tree
   document.querySelectorAll('.wh-page-item').forEach(function(el) { el.classList.remove('active'); });
   var el = document.getElementById('page-' + page.id);
   if (el) el.classList.add('active');
 
-  // Update title
   document.getElementById('wh-page-title').value = page.name || '';
+  textEditor().innerHTML = page.content || '';
 
-  // Load ink
   inkStrokes = page.inkData || [];
 
-  // Set view and render
   setView(currentView);
+  initCanvas();
   updateCounts();
   document.getElementById('page-info').textContent = page.name || 'Untitled';
 }
@@ -466,14 +463,19 @@ function addPage(nb, sec) {
 
 // ── View ──────────────────────────────────────────────────────────────────────
 function setView(v) {
-  view = v;
-  var inkCanvas = document.getElementById('ink-canvas');
-  var textLayer = document.getElementById('text-layer');
-  var oskArea = document.getElementById('osk-area');
-  // Show/hide functional layers based on view
-  if (inkCanvas) inkCanvas.style.display = (v === 'ink' || v === 'dual') ? 'block' : 'none';
-  if (textLayer) textLayer.style.display = (v === 'read' || v === 'dual') ? 'block' : 'none';
-  // Update view buttons
+  currentView = v;
+  var inkCanvasEl = inkCanvas();
+  var textLayerEl = textEditor();
+  if (inkCanvasEl) inkCanvasEl.style.display = (v === 'ink' || v === 'dual') ? 'block' : 'none';
+  if (textLayerEl) textLayerEl.style.display = (v === 'read' || v === 'dual') ? 'block' : 'none';
+  if (v === 'dual') {
+    inkCanvasEl.style.width = '50%';
+    textLayerEl.style.left = '50%';
+    textLayerEl.style.width = '50%';
+  } else {
+    if (inkCanvasEl) { inkCanvasEl.style.width = '100%'; }
+    if (textLayerEl) { textLayerEl.style.left = '0'; textLayerEl.style.width = '100%'; }
+  }
   ['ink','dual','read','excalidraw'].forEach(function(m) {
     var btn = document.getElementById('vbtn-' + m);
     if (btn) btn.classList.toggle('active', m === v);
@@ -481,24 +483,34 @@ function setView(v) {
   renderSurface();
 }
 
-// ── Canvas ────────────────────────────────────────────────────────────────────
-function initCanvas() {
-  requestAnimationFrame(function() { requestAnimationFrame(function() {
-    var canvas = document.getElementById('wh-ink');
-    if (!canvas) return;
-    var dpr = window.devicePixelRatio || 1;
-    var parent = canvas.parentElement;
-    var cssW = parent ? parent.clientWidth : 400;
-    var cssH = Math.max(parent ? parent.clientHeight : 600, 1400);
+// Previously referenced but never defined — now implemented.
+function renderSurface() {
+  // Resize the ink canvas to the visible surface and repaint saved strokes.
+  var canvas = inkCanvas();
+  if (!canvas) return;
+  var parent = canvas.parentElement;
+  if (!parent) return;
+  var dpr = window.devicePixelRatio || 1;
+  var cssW = parent.clientWidth;
+  var cssH = parent.clientHeight;
+  if (cssW > 0 && cssH > 0) {
     canvas.style.width = cssW + 'px';
     canvas.style.height = cssH + 'px';
     canvas.width = Math.floor(cssW * dpr);
     canvas.height = Math.floor(cssH * dpr);
     var ctx = canvas.getContext('2d');
-    if (ctx && dpr !== 1) ctx.scale(dpr, dpr);
+    if (ctx && dpr !== 1) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.scale(dpr, dpr); }
     canvas._dpr = dpr;
+  }
+  redrawInk();
+}
+
+// ── Canvas ────────────────────────────────────────────────────────────────────
+function initCanvas() {
+  requestAnimationFrame(function() { requestAnimationFrame(function() {
+    var canvas = inkCanvas();
+    if (!canvas) return;
     canvas.style.touchAction = 'none';
-    // Remove old listeners, add new
     canvas.removeEventListener('pointerdown', startStroke);
     canvas.removeEventListener('pointermove', continueStroke);
     canvas.removeEventListener('pointerup', endStroke);
@@ -507,12 +519,12 @@ function initCanvas() {
     canvas.addEventListener('pointermove', continueStroke);
     canvas.addEventListener('pointerup', endStroke);
     canvas.addEventListener('pointercancel', endStroke);
-    redrawInk();
+    renderSurface();
   }); });
 }
 
 function getPos(e) {
-  var canvas = document.getElementById('wh-ink');
+  var canvas = inkCanvas();
   if (!canvas) return {x:0,y:0,pressure:0.5};
   var rect = canvas.getBoundingClientRect();
   return { x: e.clientX - rect.left, y: e.clientY - rect.top, pressure: e.pressure || 0.5 };
@@ -547,7 +559,7 @@ function endStroke(e) {
 }
 
 function renderStroke(stroke, incremental) {
-  var canvas = document.getElementById('wh-ink');
+  var canvas = inkCanvas();
   if (!canvas) return;
   var ctx = canvas.getContext('2d');
   if (!incremental) ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -579,7 +591,6 @@ function drawRuledLines(canvas, ctx) {
   var dpr = canvas._dpr || 1;
   var w = canvas.width / dpr;
   var h = canvas.height / dpr;
-  // Use the module-level lineHeight and fontSize variables directly
   var currentLineHeight = lineHeight || 1.8;
   var currentFontSize = fontSize || 15;
   var lineSpacing = Math.round(currentLineHeight * currentFontSize * 1.4);
@@ -587,14 +598,12 @@ function drawRuledLines(canvas, ctx) {
   ctx.save();
   ctx.strokeStyle = 'rgba(180,200,220,0.4)';
   ctx.lineWidth = 0.8;
-  // Horizontal ruled lines
   for (var y = lineSpacing; y < h; y += lineSpacing) {
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(w, y);
     ctx.stroke();
   }
-  // Left margin line
   ctx.strokeStyle = 'rgba(220,160,160,0.3)';
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -605,7 +614,7 @@ function drawRuledLines(canvas, ctx) {
 }
 
 function redrawInk() {
-  var canvas = document.getElementById('wh-ink');
+  var canvas = inkCanvas();
   if (!canvas) return;
   var ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -625,7 +634,7 @@ function clearAll() {
   if (!confirm('Clear ALL ink and text on this page? This cannot be undone.')) return;
   inkStrokes = [];
   redrawInk();
-  var textEl = document.getElementById('wh-text');
+  var textEl = textEditor();
   if (textEl) {
     textEl.innerHTML = '';
     textEl.dispatchEvent(new Event('input', {bubbles: true}));
@@ -653,9 +662,7 @@ function adjustFont(delta) {
   fontSize = Math.max(10, Math.min(32, fontSize + delta));
   document.getElementById('font-size-lbl').textContent = fontSize;
   try { localStorage.setItem('wh-font-size', fontSize); } catch(e) {}
-  document.querySelectorAll('#wh-text, .wh-text-editor').forEach(function(el) {
-    el.style.fontSize = fontSize + 'px';
-  });
+  if (textEditor()) textEditor().style.fontSize = fontSize + 'px';
 }
 
 function adjustLine(delta) {
@@ -663,12 +670,7 @@ function adjustLine(delta) {
   var lbl = document.getElementById('line-height-lbl');
   if (lbl) lbl.textContent = lineHeight.toFixed(1);
   try { localStorage.setItem('wh-line-height', lineHeight); } catch(e) {}
-  // Apply to text editor
-  document.querySelectorAll('#wh-text, .wh-text-editor').forEach(function(el) {
-    el.style.lineHeight = lineHeight;
-    el.style.fontSize = fontSize + 'px';
-  });
-  // Redraw canvas with new line spacing (ruled lines use lineHeight)
+  if (textEditor()) textEditor().style.lineHeight = lineHeight;
   redrawInk();
 }
 
@@ -679,8 +681,8 @@ function onTextInput() {
 }
 
 function updateCounts() {
-  var textEl = document.getElementById('wh-text');
-  var text = textEl ? (textEl.innerText || textEl.textContent || '') : (currentPage ? currentPage.content || '' : '');
+  var textEl = textEditor();
+  var text = textEl ? (textEl.innerText || '') : (currentPage ? currentPage.content || '' : '');
   var words = text.trim() ? text.trim().split(/\s+/).length : 0;
   document.getElementById('word-count').textContent = words + ' words';
   document.getElementById('char-count').textContent = text.length + ' chars';
@@ -695,7 +697,7 @@ function scheduleSave() {
 
 function saveCurrentPage() {
   if (!currentPage) return;
-  var textEl = document.getElementById('wh-text');
+  var textEl = textEditor();
   if (textEl) currentPage.content = textEl.innerHTML;
   currentPage.inkData = inkStrokes;
   currentPage.name = document.getElementById('wh-page-title').value || currentPage.name;
@@ -737,10 +739,9 @@ function scheduleOCR() {
 }
 
 function runOCR(auto) {
-  var canvas = document.getElementById('wh-ink');
+  var canvas = inkCanvas();
   if (!canvas) return;
   var ctx = canvas.getContext('2d');
-  // Check for ink
   var dpr = canvas._dpr || 1;
   var sampleW = Math.min(canvas.width, 400);
   var sampleH = Math.min(canvas.height, 400);
@@ -751,11 +752,12 @@ function runOCR(auto) {
   }
   if (!hasInk) return;
 
-  // Scale down for OCR
   var ocrCanvas = document.createElement('canvas');
   ocrCanvas.width = Math.floor(canvas.width / dpr);
   ocrCanvas.height = Math.floor(canvas.height / dpr);
   var ocrCtx = ocrCanvas.getContext('2d');
+  ocrCtx.fillStyle = '#fff';
+  ocrCtx.fillRect(0, 0, ocrCanvas.width, ocrCanvas.height);
   ocrCtx.drawImage(canvas, 0, 0, ocrCanvas.width, ocrCanvas.height);
   var b64 = ocrCanvas.toDataURL('image/png').split(',')[1];
 
@@ -764,7 +766,6 @@ function runOCR(auto) {
 
   var ocrProvider = (document.getElementById('ocr-provider') || {value:'mistral'}).value;
 
-  // Tesseract.js: client-side OCR, no API key needed
   if (ocrProvider === 'tesseract') {
     if (typeof Tesseract === 'undefined') {
       if (btn) btn.textContent = 'OCR';
@@ -779,11 +780,7 @@ function runOCR(auto) {
       var text = result.data.text.trim();
       if (!text || text === lastOcrText) return;
       lastOcrText = text;
-      var textEl = document.getElementById('wh-text');
-      if (textEl && currentView === 'dual') {
-        textEl.innerHTML = text.replace(/\n/g,'<br>');
-        textEl.dispatchEvent(new Event('input',{bubbles:true}));
-      } else { showOCRResult(text); }
+      deliverOCRText(text);
     }).catch(function(e) {
       if (btn) btn.textContent = 'OCR';
       showOCRResult('Tesseract error: ' + e.message);
@@ -793,7 +790,7 @@ function runOCR(auto) {
 
   fetch(WORKER + '/api/ocr', {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
+    headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({image: b64, mime_type: 'image/png', provider: ocrProvider})
   })
   .then(function(r){return r.json();})
@@ -802,18 +799,20 @@ function runOCR(auto) {
     var text = d.text || d.content || '';
     if (!text || text === lastOcrText) return;
     lastOcrText = text;
-
-    // In dual view: put in text editor
-    var textEl = document.getElementById('wh-text');
-    if (textEl && currentView === 'dual') {
-      // Replace with latest OCR result — don't accumulate wrong transcriptions
-      textEl.innerHTML = text.replace(/\n/g,'<br>');
-      textEl.dispatchEvent(new Event('input',{bubbles:true}));
-    } else {
-      showOCRResult(text);
-    }
+    deliverOCRText(text);
   })
   .catch(function(){if(btn)btn.textContent='OCR';});
+}
+
+// Central delivery: dual view → live text pane; otherwise → popup result card
+function deliverOCRText(text) {
+  var textEl = textEditor();
+  if (textEl && currentView === 'dual') {
+    textEl.innerHTML = text.replace(/\n/g,'<br>');
+    textEl.dispatchEvent(new Event('input',{bubbles:true}));
+  } else {
+    showOCRResult(text);
+  }
 }
 
 function showOCRResult(text) {
@@ -829,7 +828,7 @@ function showOCRResult(text) {
   copyBtn.onclick = function(){navigator.clipboard.writeText(text);copyBtn.textContent='Copied!';setTimeout(function(){copyBtn.textContent='Copy';},2000);};
   var addBtn = document.createElement('button'); addBtn.className = 'ocr-btn primary'; addBtn.textContent = 'Add to notes';
   addBtn.onclick = function(){
-    var textEl = document.getElementById('wh-text');
+    var textEl = textEditor();
     if (textEl){textEl.innerHTML+=(textEl.innerHTML?'<br>':'')+text.replace(/\n/g,'<br>');textEl.dispatchEvent(new Event('input',{bubbles:true}));}
     div.remove();
   };
@@ -844,9 +843,9 @@ function showOCRResult(text) {
 // ── Export ────────────────────────────────────────────────────────────────────
 function exportPage() {
   if (!currentPage) return;
-  var textEl = document.getElementById('wh-text');
+  var textEl = textEditor();
   var text = textEl ? (textEl.innerText || '') : (currentPage.content || '');
-  var blob = new Blob([text], {type:'text/plain'});
+  var blob = new Blob([text], {type: 'text/plain'});
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = (currentPage.name || 'note') + '.txt';
@@ -859,17 +858,20 @@ function dictate() {
   if (!SR) { alert('Speech recognition not supported.'); return; }
   var rec = new SR();
   rec.lang = 'en-GB';
+  rec.continuous = true;
+  rec.interimResults = false;
   rec.onresult = function(e) {
-    var text = e.results[0][0].transcript;
-    var textEl = document.getElementById('wh-text');
+    var text = e.results[e.resultIndex][0].transcript;
+    var textEl = textEditor();
     if (textEl) {
       textEl.innerHTML += (textEl.innerHTML ? ' ' : '') + text;
       textEl.dispatchEvent(new Event('input',{bubbles:true}));
     }
   };
   rec.start();
-  document.getElementById('dictate-btn').textContent = '🔴';
-  rec.onend = function() { document.getElementById('dictate-btn').textContent = '🎤'; };
+  var dbtn = document.getElementById('dictate-btn');
+  if (dbtn) dbtn.textContent = '🔴';
+  rec.onend = function() { if (dbtn) dbtn.textContent = '🎤'; };
 }
 </script>
 </body>
