@@ -145,19 +145,21 @@
     side.className = 'arg-side' + (navCollapsed ? ' collapsed' : '');
     side.innerHTML =
       '<button class="nav-toggle" title="Collapse / expand the toolbar" aria-label="Toggle toolbar">' + (navCollapsed ? '\u203A' : '\u2039') + '</button>' +
-      '<a href="/argentica/" class="brand" title="Argentica home" style="text-decoration:none;"><img src="/shared/assets/logo-transparent.png" alt="Identity Partners" style="border-radius:8px;"></a>' +
+      // Textless mark: clip the baked-in "Identity Partners" word band off the bottom of logo-square.png
+      '<a href="/argentica/" class="brand" title="Argentica home" style="text-decoration:none;"><img src="/shared/assets/logo-square.png" alt="Identity Partners" style="clip-path:inset(0 0 22% 0);"></a>' +
       '<nav class="arg-nav">' +
       '<a href="/argentica/chat/"' + (activeKey === 'chat' ? ' class="active"' : '') + ' style="font-weight:600;">Chat</a>' +
       Object.entries(WORKSPACES).map(([id, ws]) => {
         const active = found && found.id === id;
         const home = ws.tabs[0];
-        const linkLabel = (home.label && home.label.toLowerCase().indexOf(ws.nav.toLowerCase()) === 0) ? home.label : ws.nav;
+        // First link under each section header is its first tab's own label —
+        // never a repeat of the section name (no more "Comms under Comms").
         return '<div class="section">' + ws.nav + '</div>' +
-          '<a href="' + home.href + '"' + (active ? ' class="active"' : '') + '>' + linkLabel + '</a>' +
-          (active ? ws.tabs.map(t =>
+          '<a href="' + home.href + '"' + (active ? ' class="active"' : '') + '>' + home.label + '</a>' +
+          (active ? ws.tabs.slice(1).map(t =>
             '<a href="' + t.href + '" style="padding-left:26px; font-size:12.5px;"' + (t.key === activeKey ? ' class="active"' : '') + '>' + t.label + '</a>'
           ).join('') : '');
-      }).join('').replace(/(<a href="[^"]+"[^>]*>)(Home|Chat|Library|Research|Studio|Commercial|Comms|System|Knowledge base|Study hub|One-off search|Canvas|Publishing|Email|Status|[^<>]{2,20})(<\/a>)/g, function (m, a, txt, z) { return a + '<span class="navlbl">' + txt + '</span>' + z; }) +
+      }).join('').replace(/(<a href="[^"]+"[^>]*>)(Home|Chat|Study hub|One-off search|Canvas|Publishing|Email|Status|[^<>]{2,20})(<\/a>)/g, function (m, a, txt, z) { return a + '<span class="navlbl">' + txt + '</span>' + z; }) +
       '</nav>' +
       '<div class="arg-theme-row">' +
         '<button data-theme-btn="brand" title="Identity Partners dawn/dusk brand pack">Dawn</button>' +
