@@ -67,9 +67,8 @@
       tabs: [
         { label: 'Study hub', href: '/argentica/library/', key: 'library' },
         { label: 'Notebooks', href: '/argentica/library/notebooks/', key: 'notebooks' },
+        { label: 'Knowledge base', href: '/argentica/library/knowledge/', key: 'knowledge' },
         { label: 'Debate society', href: '/argentica/library/debate/', key: 'debate' },
-        { label: 'Drafting desk', href: '/argentica/library/drafting/', key: 'drafting' },
-        { label: 'Memory', href: '/argentica/library/memory/', key: 'memory' },
         { label: 'Search', href: '/argentica/library/search/', key: 'library-search' }
       ]
     },
@@ -81,21 +80,15 @@
         { label: 'Watching briefs', href: '/argentica/research/watching/', key: 'watching' }
       ]
     },
-    knowledge: {
-      nav: 'Knowledge',
-      tabs: [
-        { label: 'Knowledge base', href: '/argentica/library/knowledge/', key: 'knowledge' }
-      ]
-    },
-    create: {
-      nav: 'Create',
+    studio: {
+      nav: 'Studio',
       tabs: [
         { label: 'Canvas', href: '/argentica/create/', key: 'canvas' },
         { label: 'Carousels', href: '/argentica/create/carousels/', key: 'carousels' },
         { label: 'Podcast & audio', href: '/argentica/create/podcast/', key: 'podcast' },
         { label: 'Media', href: '/argentica/create/media/', key: 'media' },
         { label: 'Music', href: '/argentica/create/music/', key: 'music' },
-        { label: 'Stick studio', href: '/argentica/create/studio/', key: 'studio' },
+        { label: 'Stick studio', href: '/argentica/create/studio/', key: 'studio-tab' },
         { label: 'Asset library', href: '/argentica/create/assets/', key: 'assets' }
       ]
     },
@@ -152,19 +145,21 @@
     side.className = 'arg-side' + (navCollapsed ? ' collapsed' : '');
     side.innerHTML =
       '<button class="nav-toggle" title="Collapse / expand the toolbar" aria-label="Toggle toolbar">' + (navCollapsed ? '\u203A' : '\u2039') + '</button>' +
-      '<a href="/argentica/" class="brand" title="Argentica home" style="text-decoration:none;"><img src="/shared/assets/logo-square.png" alt="Identity Partners"><div class="name">Argentica</div></a>' +
+      // Textless mark: clip the baked-in "Identity Partners" word band off the bottom of logo-square.png
+      '<a href="/argentica/" class="brand" title="Argentica home" style="text-decoration:none;"><img src="/shared/assets/logo-square.png" alt="Identity Partners" style="clip-path:inset(0 0 22% 0);"></a>' +
       '<nav class="arg-nav">' +
       '<a href="/argentica/chat/"' + (activeKey === 'chat' ? ' class="active"' : '') + ' style="font-weight:600;">Chat</a>' +
       Object.entries(WORKSPACES).map(([id, ws]) => {
         const active = found && found.id === id;
         const home = ws.tabs[0];
-        const linkLabel = (home.label && home.label.toLowerCase().indexOf(ws.nav.toLowerCase()) === 0) ? home.label : ws.nav;
+        // First link under each section header is its first tab's own label —
+        // never a repeat of the section name (no more "Comms under Comms").
         return '<div class="section">' + ws.nav + '</div>' +
-          '<a href="' + home.href + '"' + (active ? ' class="active"' : '') + '>' + linkLabel + '</a>' +
-          (active ? ws.tabs.map(t =>
+          '<a href="' + home.href + '"' + (active ? ' class="active"' : '') + '>' + home.label + '</a>' +
+          (active ? ws.tabs.slice(1).map(t =>
             '<a href="' + t.href + '" style="padding-left:26px; font-size:12.5px;"' + (t.key === activeKey ? ' class="active"' : '') + '>' + t.label + '</a>'
           ).join('') : '');
-      }).join('').replace(/(<a href="[^"]+"[^>]*>)(Home|Chat|Library|Research|Create|Commercial|Comms|System|[^<>]{2,20})(<\/a>)/g, function (m, a, txt, z) { return a + '<span class="navlbl">' + txt + '</span>' + z; }) +
+      }).join('').replace(/(<a href="[^"]+"[^>]*>)(Home|Chat|Study hub|One-off search|Canvas|Publishing|Email|Status|[^<>]{2,20})(<\/a>)/g, function (m, a, txt, z) { return a + '<span class="navlbl">' + txt + '</span>' + z; }) +
       '</nav>' +
       '<div class="arg-theme-row">' +
         '<button data-theme-btn="brand" title="Identity Partners dawn/dusk brand pack">Dawn</button>' +
@@ -297,7 +292,7 @@
 
   // floating control
   var btn = document.createElement('button');
-  btn.innerHTML = '&#167;';
+  btn.innerHTML = '&sect;';
   btn.title = 'Prompt instructions (optional addendum for all chat requests)';
   btn.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:400;width:40px;height:40px;border-radius:50%;border:1px solid #d8cfc0;background:' + (function(){try{return localStorage.getItem(PB)==='1'?'#5c2d3f':'#fffdf6';}catch(e){return '#fffdf6';}})() + ';color:' + (function(){try{return localStorage.getItem(PB)==='1'?'#f7f3e9':'#5c2d3f';}catch(e){return '#5c2d3f';}})() + ';font-family:\'EB Garamond\',Georgia,serif;font-size:20px;cursor:pointer;box-shadow:0 6px 18px rgba(43,33,23,.18);';
   btn.onclick = function () {
